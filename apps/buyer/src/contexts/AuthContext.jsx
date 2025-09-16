@@ -1,0 +1,129 @@
+import { createContext, useContext, useEffect, useState } from 'react';
+import { 
+  onAuthStateChanged, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  signOut,
+  updateProfile
+} from 'firebase/auth';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { auth, db } from '../firebase/config';
+
+const AuthContext = createContext();
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
+
+export const AuthProvider = ({ children }) => {
+  const [currentUser, setCurrentUser] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  // Sign up function
+  const signup = async (email, password, userData) => {
+    try {
+      const { user } = await createUserWithEmailAndPassword(auth, email, password);
+      
+      // Update the user's display name
+      await updateProfile(user, {
+        displayName: userData.displayName
+      });
+
+      // Create user profile in Firestore
+      const userProfileData = {
+        uid: user.uid,
+        email: user.email,
+        displayName: userData.displayName,
+        phone: userData.phone || '',
+        address: userData.address || '',
+        createdAt: new Date(),
+        role: 'customer'
+      };
+
+      await setDoc(doc(db, 'users', user.uid), userProfileData);
+      setUserProfile(userProfileData);
+      
+      return user;
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  // Sign in function
+  const signin = async (email, password) => {
+    try {
+      const { user } = await signInWithEmailAndPassword(auth, email, password);
+      return user;
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  // Sign out function
+  const logout = async () => {
+    try {
+      await signOut(auth);
+      setUserProfile(null);
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  // Update user profile
+  const updateUserProfile = async (updates) => {
+    try {
+      if (!currentUser) throw new Error('No user logged in');
+      
+      await setDoc(doc(db, 'users', currentUser.uid), updates, { merge: true });
+      setUserProfile(prev => ({ ...prev, ...updates }));
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  // Listen for auth state changes
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setCurrentUser(user);
+      
+      if (user) {
+        // Fetch user profile from Firestore
+        try {
+          const userDoc = await getDoc(doc(db, 'users', user.uid));
+          if (userDoc.exists()) {
+            setUserProfile(userDoc.data());
+          }
+        } catch (error) {
+          console.error('Error fetching user profile:', error);
+        }
+      } else {
+        setUserProfile(null);
+      }
+      
+      setLoading(false);
+    });
+
+    return unsubscribe;
+  }, []);
+
+  const value = {
+    currentUser,
+    userProfile,
+    signup,
+    signin,
+    logout,
+    updateUserProfile,
+    loading
+  };
+
+  return (
+    <AuthContext.Provider value={value}>
+      {!loading && children}
+    </AuthContext.Provider>
+  );
+};

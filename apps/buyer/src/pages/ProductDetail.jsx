@@ -1,0 +1,143 @@
+import { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../firebase/config';
+import { useCart } from '../contexts/CartContext';
+
+const ProductDetail = () => {
+  const { id } = useParams();
+  const [product, setProduct] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [quantity, setQuantity] = useState(1);
+  const { addToCart } = useCart();
+
+  useEffect(() => {
+    const fetchProduct = async () => {
+      try {
+        const productRef = doc(db, 'products', id);
+        const productSnap = await getDoc(productRef);
+        
+        if (productSnap.exists()) {
+          setProduct({ id: productSnap.id, ...productSnap.data() });
+        } else {
+          // Mock data for demo
+          setProduct({
+            id: id,
+            name: 'Sample Product',
+            price: 29.99,
+            image: 'https://via.placeholder.com/500x400',
+            category: 'electronics',
+            description: 'This is a detailed product description. It includes all the features and specifications of the product.',
+            stock: 10
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching product:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProduct();
+  }, [id]);
+
+  const handleAddToCart = () => {
+    if (product) {
+      addToCart(product, quantity);
+      alert(`Added ${quantity} ${product.name}(s) to cart!`);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading product...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!product) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Product not found</h1>
+          <p className="text-gray-600">The product you're looking for doesn't exist.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Product Image */}
+        <div>
+          <img
+            src={product.image}
+            alt={product.name}
+            className="w-full h-96 object-cover rounded-lg shadow-lg"
+          />
+        </div>
+
+        {/* Product Details */}
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-4">{product.name}</h1>
+          <p className="text-3xl font-bold text-blue-600 mb-4">${product.price}</p>
+          
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Description</h3>
+            <p className="text-gray-600">{product.description}</p>
+          </div>
+
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Category</h3>
+            <span className="inline-block bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
+              {product.category}
+            </span>
+          </div>
+
+          {product.stock && (
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Stock</h3>
+              <p className="text-gray-600">{product.stock} items available</p>
+            </div>
+          )}
+
+          {/* Quantity and Add to Cart */}
+          <div className="mb-6">
+            <label htmlFor="quantity" className="block text-sm font-medium text-gray-700 mb-2">
+              Quantity
+            </label>
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                className="w-10 h-10 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-50"
+              >
+                -
+              </button>
+              <span className="text-lg font-semibold">{quantity}</span>
+              <button
+                onClick={() => setQuantity(quantity + 1)}
+                className="w-10 h-10 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-50"
+              >
+                +
+              </button>
+            </div>
+          </div>
+
+          <button
+            onClick={handleAddToCart}
+            className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg text-lg font-semibold hover:bg-blue-700 transition-colors"
+          >
+            Add to Cart
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default ProductDetail;
