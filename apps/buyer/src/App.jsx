@@ -1,7 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { CartProvider } from './contexts/CartContext';
-import EscrowEducation from './components/EscrowEducation';
+import WalletEducation from './components/EscrowEducation';
 import Navbar from './components/Navbar';
 import Home from './pages/Home';
 import Products from './pages/Products';
@@ -66,9 +66,9 @@ const AppContent = () => {
           </Routes>
           </main>
           
-          {/* Escrow Education Modal */}
+          {/* Wallet Education Modal */}
           {showEscrowEducation && (
-            <EscrowEducation 
+            <WalletEducation 
               userType={newUserType}
               onComplete={() => setShowEscrowEducation(false)}
             />

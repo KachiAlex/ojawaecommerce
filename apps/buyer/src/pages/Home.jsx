@@ -111,13 +111,13 @@ const Home = () => {
       {/* Hero */}
       <section className="max-w-7xl mx-auto px-4 pt-16 pb-12 space-y-6">
         <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs text-slate-600 bg-white">
-          Secure escrow • Pan-African marketplace
+          Secure wallets • Pan-African marketplace
         </div>
         <h1 className="text-4xl md:text-5xl font-bold leading-tight">
-          Trade confidently across Africa with escrow-protected payments
-            </h1>
+          Trade confidently across Africa with wallet-protected payments
+        </h1>
         <p className="text-lg text-slate-600 max-w-3xl">
-          Ojawa connects buyers and vendors with a trusted escrow layer—your funds are held safely until delivery is confirmed.
+          Ojawa connects buyers and vendors with trusted wallet protection—your funds are held safely until delivery is confirmed.
         </p>
         <div className="flex flex-wrap gap-3">
           <Link to="/products" className="inline-flex items-center justify-center rounded-md bg-emerald-600 px-6 py-3 text-white hover:bg-emerald-700 font-medium">
@@ -163,7 +163,7 @@ const Home = () => {
                     <span aria-hidden>⭐</span> {p.rating.toFixed(1)} ({p.reviews})
                   </div>
                   <Link to="/checkout" className="inline-flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 transition-colors">
-                    Buy with Escrow
+                    Buy with Wallet Protection
                   </Link>
             </div>
               </div>
@@ -176,7 +176,7 @@ const Home = () => {
       <section className="max-w-7xl mx-auto px-4 py-10" id="how-it-works">
         <div className="rounded-lg border bg-gradient-to-br from-emerald-50/60 to-white">
           <div className="p-4 border-b">
-            <h3 className="text-lg font-semibold">How Ojawa Escrow Works</h3>
+            <h3 className="text-lg font-semibold">How Ojawa Wallet Works</h3>
           </div>
           <div className="p-4">
             <EscrowTimeline />

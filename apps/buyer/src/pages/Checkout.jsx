@@ -8,6 +8,7 @@ import { createPaymentIntent, processPayment } from '../utils/stripe';
 import { collection, addDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import LogisticsSelector from '../components/LogisticsSelector';
+import firebaseService from '../services/firebaseService';
 
 const stripePromise = loadStripe('pk_test_51234567890abcdefghijklmnopqrstuvwxyz'); // Replace with your actual key
 
@@ -60,22 +61,59 @@ const CheckoutForm = ({ total, cartItems, onSuccess, orderDetails }) => {
 
   const createOrder = async (paymentIntentId) => {
     try {
+      // Create comprehensive order data
       const orderData = {
-        userId: currentUser.uid,
-        userEmail: currentUser.email,
-        items: cartItems,
-        total,
+        buyerId: currentUser.uid,
+        buyerEmail: currentUser.email,
+        buyerName: currentUser.displayName || '',
+        items: cartItems.map(item => ({
+          productId: item.id,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+          vendorId: item.vendorId || 'unknown', // This should come from product data
+        })),
+        subtotal: orderDetails.subtotal,
+        deliveryFee: orderDetails.deliveryFee,
+        ojawaCommission: orderDetails.ojawaCommission,
+        totalAmount: total,
         paymentIntentId,
-        status: 'completed',
-        createdAt: new Date(),
-        shippingAddress: {
-          name: currentUser.displayName || '',
-          email: currentUser.email || '',
-          // Add more address fields as needed
-        }
+        deliveryOption: orderDetails.deliveryOption,
+        deliveryAddress: orderDetails.buyerAddress || '',
+        logisticsCompany: orderDetails.selectedLogistics?.company || null,
+        logisticsCompanyId: orderDetails.selectedLogistics?.id || null,
+        estimatedDelivery: orderDetails.selectedLogistics?.estimatedDays || null,
+        walletId: `WAL-${Date.now()}`, // Generate wallet ID
+        trackingId: orderDetails.deliveryOption === 'delivery' ? `TRK-${Date.now()}` : null
       };
 
-      await addDoc(collection(db, 'orders'), orderData);
+      // Create order using service
+      const orderId = await firebaseService.orders.create(orderData);
+      
+      // Fund wallet for this order
+      await firebaseService.wallet.fundWallet(
+        orderId, 
+        currentUser.uid, 
+        total, 
+        paymentIntentId
+      );
+
+      // If delivery is selected, create delivery record
+      if (orderDetails.deliveryOption === 'delivery' && orderDetails.selectedLogistics) {
+        await firebaseService.logistics.createDelivery({
+          orderId,
+          trackingId: orderData.trackingId,
+          buyerId: currentUser.uid,
+          vendorId: orderData.items[0].vendorId, // Assuming single vendor for now
+          logisticsCompanyId: orderData.logisticsCompanyId,
+          pickupLocation: 'Vendor Location', // This should come from vendor profile
+          deliveryLocation: orderData.deliveryAddress,
+          estimatedDelivery: orderData.estimatedDelivery,
+          amount: orderDetails.deliveryFee
+        });
+      }
+
+      return orderId;
     } catch (error) {
       console.error('Error creating order:', error);
       throw error;
@@ -233,7 +271,7 @@ const Checkout = () => {
                 <span>${grandTotal.toFixed(2)}</span>
               </div>
               <div className="text-xs text-gray-500 mt-2">
-                * Includes escrow protection and dispute resolution
+                * Includes wallet protection and dispute resolution
               </div>
             </div>
           </div>

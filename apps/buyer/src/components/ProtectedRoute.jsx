@@ -7,7 +7,7 @@ const ProtectedRoute = ({ children }) => {
   
   if (!currentUser) {
     // Store the intended destination for redirect after login
-    return <Navigate to="/login" state={{ from: location, message: 'Please sign in to complete your purchase with escrow protection.' }} />;
+    return <Navigate to="/login" state={{ from: location, message: 'Please sign in to complete your purchase with wallet protection.' }} />;
   }
   
   return children;

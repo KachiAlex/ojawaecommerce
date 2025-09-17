@@ -60,7 +60,11 @@ const Login = () => {
                   </div>
                   <div className="text-left">
                     <h3 className="font-semibold text-gray-900">I'm a Buyer</h3>
-                    <p className="text-sm text-gray-600">Shop safely with escrow protection</p>
+                    <p className="text-sm text-gray-600">Shop from trusted vendors across Africa</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Escrow Protected</span>
+                      <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Free to Join</span>
+                    </div>
                   </div>
                 </div>
               </button>
@@ -76,6 +80,10 @@ const Login = () => {
                   <div className="text-left">
                     <h3 className="font-semibold text-gray-900">I'm a Vendor</h3>
                     <p className="text-sm text-gray-600">Sell products with guaranteed payments</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Instant Payouts</span>
+                      <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">No Setup Fee</span>
+                    </div>
                   </div>
                 </div>
               </button>
@@ -90,7 +98,11 @@ const Login = () => {
                   </div>
                   <div className="text-left">
                     <h3 className="font-semibold text-gray-900">I'm a Logistics Partner</h3>
-                    <p className="text-sm text-gray-600">Provide delivery services</p>
+                    <p className="text-sm text-gray-600">Earn from delivery services</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">Flexible Routes</span>
+                      <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">Weekly Payouts</span>
+                    </div>
                   </div>
                 </div>
               </button>

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import TrackingStatus from '../components/TrackingStatus';
+import firebaseService from '../services/firebaseService';
 
 const Tracking = () => {
   const [trackingId, setTrackingId] = useState('');
@@ -51,7 +52,7 @@ const Tracking = () => {
     }
   };
 
-  const handleTrack = () => {
+  const handleTrack = async () => {
     if (!trackingId.trim()) {
       setError('Please enter a tracking ID');
       return;
@@ -60,18 +61,31 @@ const Tracking = () => {
     setLoading(true);
     setError('');
 
-    // Simulate API call
-    setTimeout(() => {
-      const data = mockTrackingData[trackingId.toUpperCase()];
+    try {
+      // Try to fetch real tracking data
+      const data = await firebaseService.tracking.getTrackingInfo(trackingId.toUpperCase());
+      
       if (data) {
         setTrackingData(data);
         setError('');
       } else {
-        setError('Tracking ID not found. Please check and try again.');
-        setTrackingData(null);
+        // Fallback to mock data for demo
+        const mockData = mockTrackingData[trackingId.toUpperCase()];
+        if (mockData) {
+          setTrackingData(mockData);
+          setError('');
+        } else {
+          setError('Tracking ID not found. Please check and try again.');
+          setTrackingData(null);
+        }
       }
+    } catch (error) {
+      console.error('Error tracking package:', error);
+      setError('Unable to track package. Please try again later.');
+      setTrackingData(null);
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   };
 
   return (

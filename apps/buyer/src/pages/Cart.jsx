@@ -111,10 +111,10 @@ const Cart = () => {
               <div className="mb-4 p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-emerald-600">🛡️</span>
-                  <span className="font-medium text-emerald-800">Secure Checkout with Escrow Protection</span>
+                  <span className="font-medium text-emerald-800">Secure Checkout with Wallet Protection</span>
                 </div>
                 <p className="text-sm text-emerald-700">
-                  Sign in or create an account to complete your purchase with full escrow protection.
+                  Sign in or create an account to complete your purchase with full wallet protection.
                 </p>
               </div>
             )}

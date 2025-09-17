@@ -1,34 +1,73 @@
 import { Link } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import firebaseService from '../services/firebaseService';
 
 const Vendor = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [showAddProductForm, setShowAddProductForm] = useState(false);
+  const [orders, setOrders] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [stats, setStats] = useState({});
+  const [loading, setLoading] = useState(true);
+  const { currentUser } = useAuth();
 
-  const orders = [
-    { id: 'ORD-1001', item: 'Custom Ankara Dress', buyer: 'Amina K.', vendor: 'You', status: 'In Escrow', amount: '₦85,000', date: '2025-09-01', statusColor: 'bg-yellow-100 text-yellow-800', escrowId: 'ESC-1001', buyerPhone: '+234-xxx-xxxx' },
-    { id: 'ORD-1002', item: 'Handmade Leather Sandals', buyer: 'Peter M.', vendor: 'You', status: 'Shipped', amount: 'KSh 6,800', date: '2025-09-04', statusColor: 'bg-blue-100 text-blue-800', escrowId: 'ESC-1002', buyerPhone: '+254-xxx-xxxx' },
-    { id: 'ORD-1003', item: 'Shea Butter (1kg)', buyer: 'Faith O.', vendor: 'You', status: 'Awaiting Escrow', amount: '₵220', date: '2025-09-06', statusColor: 'bg-gray-100 text-gray-800', escrowId: null, buyerPhone: '+233-xxx-xxxx' },
-    { id: 'ORD-1004', item: 'Kente Scarf', buyer: 'John D.', vendor: 'You', status: 'Released', amount: '₵150', date: '2025-09-10', statusColor: 'bg-green-100 text-green-800', escrowId: 'ESC-1004', buyerPhone: '+233-xxx-xxxx' },
-  ];
+  useEffect(() => {
+    const fetchVendorData = async () => {
+      if (!currentUser) return;
+      
+      try {
+        setLoading(true);
+        
+        // Fetch vendor orders
+        const ordersData = await firebaseService.orders.getByUser(currentUser.uid, 'vendor');
+        setOrders(ordersData);
+        
+        // Fetch vendor products
+        const productsData = await firebaseService.products.getAll({ vendorId: currentUser.uid });
+        setProducts(productsData);
+        
+        // Fetch vendor analytics
+        const statsData = await firebaseService.analytics.getVendorStats(currentUser.uid);
+        setStats(statsData);
+        
+      } catch (error) {
+        console.error('Error fetching vendor data:', error);
+        // Fallback to mock data
+        setOrders([]);
+        setProducts([]);
+        setStats({ totalSales: 0, activeOrders: 0 });
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const products = [
-    { id: 'PRD-001', name: 'Custom Ankara Dress', price: '₦85,000', stock: 12, sold: 45, status: 'Active', category: 'Fashion', image: '👗' },
-    { id: 'PRD-002', name: 'Handmade Leather Sandals', price: 'KSh 6,800', stock: 8, sold: 23, status: 'Active', category: 'Fashion', image: '👡' },
-    { id: 'PRD-003', name: 'Shea Butter (1kg)', price: '₵220', stock: 0, sold: 156, status: 'Out of Stock', category: 'Beauty', image: '🧴' },
-    { id: 'PRD-004', name: 'Kente Scarf', price: '₵150', stock: 25, sold: 89, status: 'Active', category: 'Fashion', image: '🧣' },
-  ];
+    fetchVendorData();
+  }, [currentUser]);
 
-  const payouts = [
-    { id: 'PAY-001', amount: '₦340,000', orders: 4, date: '2025-09-15', status: 'Pending', method: 'Bank Transfer' },
-    { id: 'PAY-002', amount: 'KSh 27,200', orders: 4, date: '2025-09-01', status: 'Completed', method: 'Mobile Money' },
-    { id: 'PAY-003', amount: '₵1,200', orders: 8, date: '2025-08-15', status: 'Completed', method: 'Bank Transfer' },
-  ];
+  const handleAddProduct = async (productData) => {
+    try {
+      await firebaseService.products.create(productData, currentUser.uid);
+      setShowAddProductForm(false);
+      // Refresh products
+      const productsData = await firebaseService.products.getAll({ vendorId: currentUser.uid });
+      setProducts(productsData);
+    } catch (error) {
+      console.error('Error adding product:', error);
+      alert('Failed to add product. Please try again.');
+    }
+  };
 
-  const disputes = [
-    { id: 'DIS-001', order: 'ORD-0998', buyer: 'Sarah L.', issue: 'Item not as described', status: 'Open', date: '2025-09-12', priority: 'High' },
-    { id: 'DIS-002', order: 'ORD-0985', buyer: 'Mike T.', issue: 'Delayed delivery', status: 'Resolved', date: '2025-09-05', priority: 'Medium' },
-  ];
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading your vendor dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">

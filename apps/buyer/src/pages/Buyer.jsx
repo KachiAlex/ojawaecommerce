@@ -1,29 +1,91 @@
 import { Link } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import firebaseService from '../services/firebaseService';
 
 const Buyer = () => {
   const [activeTab, setActiveTab] = useState('overview');
+  const [orders, setOrders] = useState([]);
+  const [transactions, setTransactions] = useState([]);
+  const [vendors, setVendors] = useState([]);
+  const [stats, setStats] = useState({});
+  const [loading, setLoading] = useState(true);
+  const { currentUser } = useAuth();
 
-  const orders = [
-    { id: 'ORD-2001', item: 'Bespoke Suit', vendor: 'Lagos Tailors', status: 'In Escrow', amount: '₦120,000', date: '2025-09-03', statusColor: 'bg-yellow-100 text-yellow-800', escrowId: 'ESC-2001' },
-    { id: 'ORD-2002', item: 'Ethiopian Coffee Beans', vendor: 'Addis Coffee', status: 'Shipped', amount: 'Br 2,900', date: '2025-09-05', statusColor: 'bg-blue-100 text-blue-800', escrowId: 'ESC-2002' },
-    { id: 'ORD-2003', item: 'Shea Butter (500g)', vendor: 'Tamale Naturals', status: 'Delivered', amount: '₵110', date: '2025-09-07', statusColor: 'bg-green-100 text-green-800', escrowId: 'ESC-2003' },
-    { id: 'ORD-2004', item: 'Phone Case', vendor: 'Accra Gadgets', status: 'Awaiting Escrow', amount: '₵90', date: '2025-09-10', statusColor: 'bg-gray-100 text-gray-800', escrowId: null },
-  ];
+  useEffect(() => {
+    const fetchBuyerData = async () => {
+      if (!currentUser) return;
+      
+      try {
+        setLoading(true);
+        
+        // Fetch real orders
+        const ordersData = await firebaseService.orders.getByUser(currentUser.uid, 'buyer');
+        setOrders(ordersData);
+        
+        // Fetch wallet transactions
+        const transactionsData = await firebaseService.wallet.getUserTransactions(currentUser.uid);
+        setTransactions(transactionsData);
+        
+        // Fetch purchased vendors
+        const vendorsData = await firebaseService.users.getPurchasedVendors(currentUser.uid);
+        setVendors(vendorsData);
+        
+        // Fetch buyer analytics
+        const statsData = await firebaseService.analytics.getBuyerStats(currentUser.uid);
+        setStats(statsData);
+        
+      } catch (error) {
+        console.error('Error fetching buyer data:', error);
+        // Fallback to mock data for demo
+        setOrders([
+          { id: 'ORD-2001', items: [{ name: 'Bespoke Suit' }], vendorName: 'Lagos Tailors', status: 'wallet_funded', totalAmount: 120000, createdAt: { toDate: () => new Date('2025-09-03') }, walletId: 'WAL-2001' },
+        ]);
+        setTransactions([
+          { id: 'TXN-001', type: 'wallet_funding', orderId: 'ORD-2001', amount: 120000, createdAt: { toDate: () => new Date('2025-09-03') }, status: 'completed' },
+        ]);
+        setVendors([]);
+        setStats({ totalSpent: 120000, activeOrders: 1, totalOrders: 1 });
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const transactions = [
-    { id: 'TXN-001', type: 'Escrow Funding', order: 'ORD-2001', amount: '₦120,000', date: '2025-09-03 14:30', status: 'Completed' },
-    { id: 'TXN-002', type: 'Escrow Release', order: 'ORD-2003', amount: '₵110', date: '2025-09-07 09:15', status: 'Completed' },
-    { id: 'TXN-003', type: 'Escrow Funding', order: 'ORD-2002', amount: 'Br 2,900', date: '2025-09-05 16:45', status: 'Completed' },
-    { id: 'TXN-004', type: 'Refund', order: 'ORD-1998', amount: '₵45', date: '2025-09-01 11:20', status: 'Completed' },
-  ];
+    fetchBuyerData();
+  }, [currentUser]);
 
-  const vendors = [
-    { name: 'Lagos Tailors', orders: 3, totalSpent: '₦340,000', rating: 4.8, lastOrder: '2025-09-03', verified: true },
-    { name: 'Addis Coffee', orders: 5, totalSpent: 'Br 14,500', rating: 4.9, lastOrder: '2025-09-05', verified: true },
-    { name: 'Tamale Naturals', orders: 2, totalSpent: '₵330', rating: 4.6, lastOrder: '2025-09-07', verified: true },
-    { name: 'Accra Gadgets', orders: 1, totalSpent: '₵90', rating: 4.2, lastOrder: '2025-09-10', verified: false },
-  ];
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'wallet_funded': return 'bg-yellow-100 text-yellow-800';
+      case 'shipped': return 'bg-blue-100 text-blue-800';
+      case 'delivered': return 'bg-green-100 text-green-800';
+      case 'completed': return 'bg-green-100 text-green-800';
+      case 'pending_wallet_funding': return 'bg-gray-100 text-gray-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const formatStatus = (status) => {
+    switch (status) {
+      case 'wallet_funded': return 'Wallet Funded';
+      case 'shipped': return 'Shipped';
+      case 'delivered': return 'Delivered';
+      case 'completed': return 'Completed';
+      case 'pending_wallet_funding': return 'Awaiting Wallet Funding';
+      default: return status;
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading your dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -87,10 +149,10 @@ const Buyer = () => {
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                 <div className="bg-white p-6 rounded-xl border">
                   <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Active Orders</p>
-                      <p className="text-2xl font-bold text-gray-900">4</p>
-                    </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Active Orders</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats.activeOrders || 0}</p>
+                </div>
                     <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
                       <span className="text-blue-600 text-xl">📦</span>
                     </div>
@@ -99,10 +161,10 @@ const Buyer = () => {
                 
                 <div className="bg-white p-6 rounded-xl border">
                   <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Total Spent</p>
-                      <p className="text-2xl font-bold text-gray-900">₦684,500</p>
-                    </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Total Spent</p>
+                  <p className="text-2xl font-bold text-gray-900">₦{(stats.totalSpent || 0).toLocaleString()}</p>
+                </div>
                     <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
                       <span className="text-green-600 text-xl">💰</span>
                     </div>
@@ -164,7 +226,7 @@ const Buyer = () => {
                         <span className="text-yellow-600">🔒</span>
                       </div>
                       <div>
-                        <p className="font-medium">Escrow funded - Bespoke Suit</p>
+                        <p className="font-medium">Wallet funded - Bespoke Suit</p>
                         <p className="text-sm text-gray-600">To Lagos Tailors • Sep 3, 2025</p>
                       </div>
                     </div>
@@ -182,7 +244,7 @@ const Buyer = () => {
                   <div className="flex gap-3">
                     <button className="text-sm text-gray-600 hover:text-gray-900">Filter</button>
                     <button className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700">
-                      Fund Escrow
+                      Fund Wallet
                     </button>
                   </div>
                 </div>
@@ -198,7 +260,7 @@ const Buyer = () => {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Escrow ID</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Wallet ID</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
@@ -206,16 +268,22 @@ const Buyer = () => {
                     {orders.map((order) => (
                       <tr key={order.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{order.id}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{order.item}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{order.vendor}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {order.items && order.items.length > 0 ? order.items[0].name : 'Unknown Item'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{order.vendorName || 'Unknown Vendor'}</td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${order.statusColor}`}>
-                            {order.status}
+                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(order.status)}`}>
+                            {formatStatus(order.status)}
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{order.amount}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{order.date}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{order.escrowId || 'N/A'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          ₦{(order.totalAmount || 0).toLocaleString()}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {order.createdAt?.toDate ? order.createdAt.toDate().toLocaleDateString() : 'Unknown'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{order.walletId || 'N/A'}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
                           <button className="text-emerald-600 hover:text-emerald-700 font-medium">View Details</button>
                         </td>
