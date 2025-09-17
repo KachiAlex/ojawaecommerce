@@ -18,6 +18,7 @@ import Buyer from './pages/Buyer';
 import Vendor from './pages/Vendor';
 import Logistics from './pages/Logistics';
 import Tracking from './pages/Tracking';
+import BecomeVendor from './pages/BecomeVendor';
 
 const AppContent = () => {
   const { showEscrowEducation, setShowEscrowEducation, newUserType } = useAuth();
@@ -59,10 +60,18 @@ const AppContent = () => {
                 </ProtectedRoute>
               } 
             />
-            <Route path="/buyer" element={<Buyer />} />
-            <Route path="/vendor" element={<Vendor />} />
-            <Route path="/logistics" element={<Logistics />} />
-            <Route path="/tracking" element={<Tracking />} />
+                <Route path="/buyer" element={<Buyer />} />
+                <Route path="/vendor" element={<Vendor />} />
+                <Route path="/logistics" element={<Logistics />} />
+                <Route path="/tracking" element={<Tracking />} />
+                <Route 
+                  path="/become-vendor" 
+                  element={
+                    <ProtectedRoute>
+                      <BecomeVendor />
+                    </ProtectedRoute>
+                  } 
+                />
           </Routes>
           </main>
           

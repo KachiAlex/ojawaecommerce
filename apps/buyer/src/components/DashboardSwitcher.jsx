@@ -1,37 +1,49 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
 const DashboardSwitcher = ({ currentDashboard = 'buyer' }) => {
   const [isOpen, setIsOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const { userProfile } = useAuth();
 
-  const dashboards = [
-    {
-      key: 'buyer',
-      name: 'Buyer Dashboard',
-      icon: '🛒',
-      description: 'Orders, wallet, vendors',
-      color: 'emerald',
-      path: '/buyer'
-    },
-    {
-      key: 'vendor',
-      name: 'Vendor Dashboard', 
-      icon: '🏪',
-      description: 'Products, sales, analytics',
-      color: 'blue',
-      path: '/vendor'
-    },
-    {
-      key: 'logistics',
-      name: 'Logistics Dashboard',
-      icon: '🚚', 
-      description: 'Deliveries, routes, earnings',
-      color: 'purple',
-      path: '/logistics'
-    }
-  ];
+  // Get available dashboards based on user profile
+  const getAvailableDashboards = () => {
+    const allDashboards = [
+      {
+        key: 'buyer',
+        name: 'Buyer Dashboard',
+        icon: '🛒',
+        description: 'Orders, wallet, vendors',
+        color: 'emerald',
+        path: '/buyer',
+        available: true // All users are buyers
+      },
+      {
+        key: 'vendor',
+        name: 'Vendor Dashboard', 
+        icon: '🏪',
+        description: 'Products, sales, analytics',
+        color: 'blue',
+        path: '/vendor',
+        available: userProfile?.isVendor || false
+      },
+      {
+        key: 'logistics',
+        name: 'Logistics Dashboard',
+        icon: '🚚', 
+        description: 'Deliveries, routes, earnings',
+        color: 'purple',
+        path: '/logistics',
+        available: userProfile?.isLogisticsPartner || false
+      }
+    ];
+
+    return allDashboards.filter(dashboard => dashboard.available);
+  };
+
+  const dashboards = getAvailableDashboards();
 
   const currentDashboardInfo = dashboards.find(d => d.key === currentDashboard) || dashboards[0];
   const otherDashboards = dashboards.filter(d => d.key !== currentDashboard);
@@ -105,6 +117,42 @@ const DashboardSwitcher = ({ currentDashboard = 'buyer' }) => {
                 </div>
               </button>
             ))}
+            
+            {/* Show "Become a Vendor" option if user isn't a vendor yet */}
+            {!userProfile?.isVendor && (
+              <button
+                onClick={() => {
+                  setIsOpen(false);
+                  navigate('/become-vendor');
+                }}
+                className="w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-colors hover:bg-blue-50 hover:text-blue-600 border-t border-gray-100 mt-2 pt-3"
+              >
+                <span className="text-lg">🏪</span>
+                <div className="text-left">
+                  <p className="font-medium text-sm">Become a Vendor</p>
+                  <p className="text-xs opacity-75">Start selling on Ojawa</p>
+                </div>
+                <span className="text-blue-500 text-xs ml-auto">→</span>
+              </button>
+            )}
+            
+            {/* Show "Become a Logistics Partner" option if user isn't one yet */}
+            {!userProfile?.isLogisticsPartner && (
+              <button
+                onClick={() => {
+                  setIsOpen(false);
+                  navigate('/become-logistics');
+                }}
+                className="w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-colors hover:bg-purple-50 hover:text-purple-600"
+              >
+                <span className="text-lg">🚚</span>
+                <div className="text-left">
+                  <p className="font-medium text-sm">Become a Logistics Partner</p>
+                  <p className="text-xs opacity-75">Provide delivery services</p>
+                </div>
+                <span className="text-purple-500 text-xs ml-auto">→</span>
+              </button>
+            )}
           </div>
 
           {/* Info Section */}

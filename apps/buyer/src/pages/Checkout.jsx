@@ -230,27 +230,27 @@ const Checkout = () => {
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="space-y-6">
-          {/* Order Summary */}
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Order Summary</h2>
-            
-            <div className="space-y-4 mb-6">
-              {cartItems.map((item) => (
-                <div key={item.id} className="flex items-center space-x-4">
-                  <img
-                    src={item.image}
-                    alt={item.name}
-                    className="w-16 h-16 object-cover rounded"
-                  />
-                  <div className="flex-1">
-                    <h3 className="text-sm font-medium text-gray-900">{item.name}</h3>
-                    <p className="text-sm text-gray-500">Qty: {item.quantity}</p>
-                    <p className="text-sm font-medium text-gray-900">${(item.price * item.quantity).toFixed(2)}</p>
-                  </div>
+        {/* Order Summary */}
+        <div className="bg-white p-6 rounded-lg shadow">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Order Summary</h2>
+          
+          <div className="space-y-4 mb-6">
+            {cartItems.map((item) => (
+              <div key={item.id} className="flex items-center space-x-4">
+                <img
+                  src={item.image}
+                  alt={item.name}
+                  className="w-16 h-16 object-cover rounded"
+                />
+                <div className="flex-1">
+                  <h3 className="text-sm font-medium text-gray-900">{item.name}</h3>
+                  <p className="text-sm text-gray-500">Qty: {item.quantity}</p>
+                  <p className="text-sm font-medium text-gray-900">${(item.price * item.quantity).toFixed(2)}</p>
                 </div>
-              ))}
-            </div>
-            
+              </div>
+            ))}
+          </div>
+          
             <div className="border-t pt-4 space-y-2">
               <div className="flex justify-between">
                 <span>Subtotal:</span>
@@ -267,12 +267,12 @@ const Checkout = () => {
                 <span>${ojawaCommission.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-lg font-semibold border-t pt-2">
-                <span>Total:</span>
+              <span>Total:</span>
                 <span>${grandTotal.toFixed(2)}</span>
               </div>
               <div className="text-xs text-gray-500 mt-2">
                 * Includes wallet protection and dispute resolution
-              </div>
+            </div>
             </div>
           </div>
 

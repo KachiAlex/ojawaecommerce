@@ -132,7 +132,7 @@ const Home = () => {
         </div>
         <h1 className="text-4xl md:text-5xl font-bold leading-tight">
           Trade confidently across Africa with wallet-protected payments
-        </h1>
+            </h1>
         <p className="text-lg text-slate-600 max-w-3xl">
           Ojawa connects buyers and vendors with trusted wallet protection—your funds are held safely until delivery is confirmed.
         </p>
@@ -147,7 +147,7 @@ const Home = () => {
           ) : (
             <Link to="/register" className="inline-flex items-center justify-center rounded-md border px-6 py-3 text-slate-800 hover:bg-slate-100 font-medium">
               Join Ojawa
-            </Link>
+              </Link>
           )}
         </div>
         <div className="flex items-center gap-4 pt-2">
@@ -187,12 +187,12 @@ const Home = () => {
                   </div>
                   <Link to="/checkout" className="inline-flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 transition-colors">
                     Buy with Wallet Protection
-                  </Link>
+              </Link>
             </div>
-              </div>
-            </div>
-          ))}
+          </div>
         </div>
+          ))}
+      </div>
       </section>
 
       {/* Escrow Explainer */}
@@ -204,7 +204,7 @@ const Home = () => {
           <div className="p-4">
             <EscrowTimeline />
           </div>
-        </div>
+          </div>
       </section>
 
       {/* Categories */}
@@ -212,14 +212,14 @@ const Home = () => {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold">Popular Categories</h2>
           <Link to="/products" className="text-sm text-emerald-700 hover:underline">Explore all</Link>
-        </div>
+              </div>
         <div className="flex flex-wrap gap-2">
           {categories.map((c) => (
             <span key={c} className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-800 hover:bg-slate-200">
               {c}
             </span>
           ))}
-        </div>
+            </div>
       </section>
 
       {/* Value Props */}
@@ -231,11 +231,11 @@ const Home = () => {
         <div className="rounded-lg border bg-white">
           <div className="p-4 border-b"><p className="font-semibold">Buyer Protection</p></div>
           <div className="p-4 text-sm text-slate-600">Your payment stays in your wallet until you confirm delivery—simple and safe.</div>
-        </div>
+              </div>
         <div className="rounded-lg border bg-white">
           <div className="p-4 border-b"><p className="font-semibold">Low Fees & Fast Payouts</p></div>
           <div className="p-4 text-sm text-slate-600">Transparent fees and smooth vendor payouts to mobile money or bank.</div>
-        </div>
+            </div>
       </section>
 
       {/* Trust */}
@@ -245,17 +245,17 @@ const Home = () => {
             <div>
               <p className="font-medium">Wallet Secured</p>
               <p className="text-sm text-slate-600">Funds held by Ojawa until buyer confirms delivery.</p>
-            </div>
+              </div>
             <div>
               <p className="font-medium">Dispute Resolution</p>
               <p className="text-sm text-slate-600">Fair mediation if something goes wrong.</p>
-              </div>
+            </div>
             <div>
               <p className="font-medium">Identity Verification</p>
               <p className="text-sm text-slate-600">Trustworthy participants improve marketplace safety.</p>
-            </div>
           </div>
         </div>
+      </div>
       </section>
 
       {/* Keep Admin tools visible for now */}

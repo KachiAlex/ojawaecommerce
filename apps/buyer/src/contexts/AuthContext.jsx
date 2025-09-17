@@ -37,7 +37,7 @@ export const AuthProvider = ({ children }) => {
         displayName: userData.displayName
       });
 
-      // Create user profile in Firestore
+      // Create user profile in Firestore - All users start as buyers
       const userProfileData = {
         uid: user.uid,
         email: user.email,
@@ -45,7 +45,11 @@ export const AuthProvider = ({ children }) => {
         phone: userData.phone || '',
         address: userData.address || '',
         createdAt: new Date(),
-        role: 'customer'
+        role: 'buyer', // All users start as buyers
+        isVendor: false, // Can become vendor through onboarding
+        isLogisticsPartner: false, // Can become logistics through onboarding
+        vendorProfile: null, // Will be populated after vendor onboarding
+        logisticsProfile: null // Will be populated after logistics onboarding
       };
 
       await setDoc(doc(db, 'users', user.uid), userProfileData);
@@ -101,6 +105,47 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Vendor onboarding
+  const completeVendorOnboarding = async (vendorData) => {
+    if (!currentUser) throw new Error('No user logged in');
+    
+    try {
+      const vendorProfile = {
+        nin: vendorData.nin,
+        businessName: vendorData.businessName,
+        businessAddress: vendorData.businessAddress,
+        businessPhone: vendorData.businessPhone,
+        businessType: vendorData.businessType,
+        storeName: vendorData.storeName,
+        storeDescription: vendorData.storeDescription,
+        storeSlug: vendorData.storeName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-'),
+        verificationStatus: 'pending',
+        onboardedAt: new Date()
+      };
+
+      // Update user profile to include vendor status
+      const updates = {
+        isVendor: true,
+        vendorProfile: vendorProfile,
+        updatedAt: new Date()
+      };
+
+      await updateUserProfile(updates);
+
+      // Create vendor wallet
+      try {
+        await firebaseService.wallet.createWallet(currentUser.uid, 'vendor');
+      } catch (walletError) {
+        console.error('Error creating vendor wallet:', walletError);
+      }
+
+      return vendorProfile;
+    } catch (error) {
+      console.error('Vendor onboarding error:', error);
+      throw error;
+    }
+  };
+
   // Listen for auth state changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -133,6 +178,7 @@ export const AuthProvider = ({ children }) => {
     signin,
     logout,
     updateUserProfile,
+    completeVendorOnboarding,
     loading,
     showEscrowEducation,
     setShowEscrowEducation,

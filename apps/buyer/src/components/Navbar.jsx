@@ -94,13 +94,13 @@ const Navbar = () => {
                 {/* Cart Icon */}
                 <Link to="/cart" className="relative">
                   <span className="text-gray-600 hover:text-gray-900 text-xl">🛒</span>
-                  {getCartItemsCount() > 0 && (
+              {getCartItemsCount() > 0 && (
                     <span className="absolute -top-2 -right-2 bg-emerald-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                      {getCartItemsCount()}
-                    </span>
-                  )}
-                </Link>
-
+                  {getCartItemsCount()}
+                </span>
+              )}
+            </Link>
+            
                 {/* User Dropdown */}
                 <div className="relative" ref={dropdownRef}>
                   <button
@@ -180,13 +180,13 @@ const Navbar = () => {
                           Account Settings
                         </button>
                         
-                        <button
-                          onClick={handleLogout}
+                <button
+                  onClick={handleLogout}
                           className="w-full flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
-                        >
+                >
                           <span className="mr-3">🚪</span>
-                          Logout
-                        </button>
+                  Logout
+                </button>
                       </div>
                     </div>
                   )}
