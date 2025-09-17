@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 const Register = () => {
@@ -9,13 +9,17 @@ const Register = () => {
     password: '',
     confirmPassword: '',
     phone: '',
-    address: ''
+    address: '',
+    userType: 'buyer'
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   
   const { signup } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  
+  const from = location.state?.from?.pathname || '/dashboard';
 
   const handleChange = (e) => {
     setFormData({
@@ -48,9 +52,10 @@ const Register = () => {
       await signup(formData.email, formData.password, {
         displayName: formData.displayName,
         phone: formData.phone,
-        address: formData.address
+        address: formData.address,
+        userType: formData.userType
       });
-      navigate('/dashboard');
+      navigate(from);
     } catch (error) {
       setError('Failed to create account. Email might already be in use.');
       console.error('Registration error:', error);
@@ -86,6 +91,24 @@ const Register = () => {
           
           <div className="space-y-4">
             <div>
+              <label htmlFor="userType" className="block text-sm font-medium text-gray-700">
+                I want to join as *
+              </label>
+              <select
+                id="userType"
+                name="userType"
+                required
+                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 text-gray-900 rounded-md focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm"
+                value={formData.userType}
+                onChange={handleChange}
+              >
+                <option value="buyer">🛒 Buyer - I want to shop safely</option>
+                <option value="vendor">🏪 Vendor - I want to sell products</option>
+                <option value="logistics">🚚 Logistics Partner - I provide delivery services</option>
+              </select>
+            </div>
+
+            <div>
               <label htmlFor="displayName" className="block text-sm font-medium text-gray-700">
                 Full Name *
               </label>
@@ -94,7 +117,7 @@ const Register = () => {
                 name="displayName"
                 type="text"
                 required
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm"
                 placeholder="Enter your full name"
                 value={formData.displayName}
                 onChange={handleChange}

@@ -1,5 +1,15 @@
 {
   "projects": {
     "default": "ojawa-ecommerce"
-  }
+  },
+  "targets": {
+    "ojawa-ecommerce": {
+      "hosting": {
+        "ojawa-ecommerce": [
+          "ojawa-ecommerce"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }

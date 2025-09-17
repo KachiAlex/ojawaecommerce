@@ -23,6 +23,8 @@ export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showEscrowEducation, setShowEscrowEducation] = useState(false);
+  const [newUserType, setNewUserType] = useState('buyer');
 
   // Sign up function
   const signup = async (email, password, userData) => {
@@ -47,6 +49,10 @@ export const AuthProvider = ({ children }) => {
 
       await setDoc(doc(db, 'users', user.uid), userProfileData);
       setUserProfile(userProfileData);
+      
+      // Show escrow education for new users
+      setNewUserType(userData.userType || 'buyer');
+      setShowEscrowEducation(true);
       
       return user;
     } catch (error) {
@@ -118,7 +124,10 @@ export const AuthProvider = ({ children }) => {
     signin,
     logout,
     updateUserProfile,
-    loading
+    loading,
+    showEscrowEducation,
+    setShowEscrowEducation,
+    newUserType
   };
 
   return (

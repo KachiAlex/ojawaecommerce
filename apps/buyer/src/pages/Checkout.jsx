@@ -7,10 +7,11 @@ import { Elements, CardElement, useStripe, useElements } from '@stripe/react-str
 import { createPaymentIntent, processPayment } from '../utils/stripe';
 import { collection, addDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
+import LogisticsSelector from '../components/LogisticsSelector';
 
 const stripePromise = loadStripe('pk_test_51234567890abcdefghijklmnopqrstuvwxyz'); // Replace with your actual key
 
-const CheckoutForm = ({ total, cartItems, onSuccess }) => {
+const CheckoutForm = ({ total, cartItems, onSuccess, orderDetails }) => {
   const stripe = useStripe();
   const elements = useElements();
   const [loading, setLoading] = useState(false);
@@ -133,7 +134,14 @@ const Checkout = () => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
   const [showSuccess, setShowSuccess] = useState(false);
-  const total = getCartTotal();
+  const [selectedLogistics, setSelectedLogistics] = useState(null);
+  const [deliveryOption, setDeliveryOption] = useState('pickup'); // 'pickup' or 'delivery'
+  const [buyerAddress, setBuyerAddress] = useState('');
+  const subtotal = getCartTotal();
+  const deliveryFee = selectedLogistics ? parseFloat(selectedLogistics.price.replace(/[^\d.]/g, '')) : 0;
+  const baseTotal = subtotal + deliveryFee;
+  const ojawaCommission = baseTotal * 0.05; // 5% commission
+  const grandTotal = baseTotal + ojawaCommission;
 
   useEffect(() => {
     if (!currentUser) {
@@ -183,32 +191,117 @@ const Checkout = () => {
       <h1 className="text-3xl font-bold text-gray-900 mb-8">Checkout</h1>
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Order Summary */}
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Order Summary</h2>
-          
-          <div className="space-y-4 mb-6">
-            {cartItems.map((item) => (
-              <div key={item.id} className="flex items-center space-x-4">
-                <img
-                  src={item.image}
-                  alt={item.name}
-                  className="w-16 h-16 object-cover rounded"
-                />
-                <div className="flex-1">
-                  <h3 className="text-sm font-medium text-gray-900">{item.name}</h3>
-                  <p className="text-sm text-gray-500">Qty: {item.quantity}</p>
-                  <p className="text-sm font-medium text-gray-900">${(item.price * item.quantity).toFixed(2)}</p>
+        <div className="space-y-6">
+          {/* Order Summary */}
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Order Summary</h2>
+            
+            <div className="space-y-4 mb-6">
+              {cartItems.map((item) => (
+                <div key={item.id} className="flex items-center space-x-4">
+                  <img
+                    src={item.image}
+                    alt={item.name}
+                    className="w-16 h-16 object-cover rounded"
+                  />
+                  <div className="flex-1">
+                    <h3 className="text-sm font-medium text-gray-900">{item.name}</h3>
+                    <p className="text-sm text-gray-500">Qty: {item.quantity}</p>
+                    <p className="text-sm font-medium text-gray-900">${(item.price * item.quantity).toFixed(2)}</p>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-          
-          <div className="border-t pt-4">
-            <div className="flex justify-between text-lg font-semibold">
-              <span>Total:</span>
-              <span>${total.toFixed(2)}</span>
+              ))}
             </div>
+            
+            <div className="border-t pt-4 space-y-2">
+              <div className="flex justify-between">
+                <span>Subtotal:</span>
+                <span>${subtotal.toFixed(2)}</span>
+              </div>
+              {deliveryOption === 'delivery' && selectedLogistics && (
+                <div className="flex justify-between">
+                  <span>Delivery ({selectedLogistics.company}):</span>
+                  <span>{selectedLogistics.price}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-sm text-gray-600">
+                <span>Ojawa Service Fee (5%):</span>
+                <span>${ojawaCommission.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-lg font-semibold border-t pt-2">
+                <span>Total:</span>
+                <span>${grandTotal.toFixed(2)}</span>
+              </div>
+              <div className="text-xs text-gray-500 mt-2">
+                * Includes escrow protection and dispute resolution
+              </div>
+            </div>
+          </div>
+
+          {/* Delivery Options */}
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Delivery Options</h2>
+            
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <input 
+                  type="radio" 
+                  id="pickup" 
+                  name="delivery" 
+                  value="pickup"
+                  checked={deliveryOption === 'pickup'}
+                  onChange={(e) => setDeliveryOption(e.target.value)}
+                  className="text-emerald-600"
+                />
+                <label htmlFor="pickup" className="flex items-center gap-2">
+                  <span>🏪</span>
+                  <div>
+                    <p className="font-medium">Pickup from Vendor</p>
+                    <p className="text-sm text-gray-600">Collect directly from vendor location (Free)</p>
+                  </div>
+                </label>
+              </div>
+              
+              <div className="flex items-center gap-3">
+                <input 
+                  type="radio" 
+                  id="delivery" 
+                  name="delivery" 
+                  value="delivery"
+                  checked={deliveryOption === 'delivery'}
+                  onChange={(e) => setDeliveryOption(e.target.value)}
+                  className="text-emerald-600"
+                />
+                <label htmlFor="delivery" className="flex items-center gap-2">
+                  <span>🚚</span>
+                  <div>
+                    <p className="font-medium">Home Delivery</p>
+                    <p className="text-sm text-gray-600">Get it delivered to your doorstep</p>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            {deliveryOption === 'delivery' && (
+              <div className="mt-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Delivery Address</label>
+                  <textarea 
+                    rows="3"
+                    value={buyerAddress}
+                    onChange={(e) => setBuyerAddress(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    placeholder="Enter your full delivery address..."
+                  />
+                </div>
+                
+                <LogisticsSelector 
+                  vendorLocation="Lagos, Nigeria"
+                  buyerLocation={buyerAddress || "Your delivery address"}
+                  onSelect={setSelectedLogistics}
+                />
+              </div>
+            )}
           </div>
         </div>
 
@@ -216,9 +309,17 @@ const Checkout = () => {
         <div>
           <Elements stripe={stripePromise}>
             <CheckoutForm 
-              total={total} 
+              total={grandTotal} 
               cartItems={cartItems}
               onSuccess={handlePaymentSuccess}
+              orderDetails={{
+                subtotal,
+                deliveryFee,
+                ojawaCommission,
+                selectedLogistics,
+                deliveryOption,
+                buyerAddress
+              }}
             />
           </Elements>
         </div>

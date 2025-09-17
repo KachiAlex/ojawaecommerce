@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 const Login = () => {
@@ -10,6 +10,10 @@ const Login = () => {
   
   const { signin } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  
+  const message = location.state?.message;
+  const from = location.state?.from?.pathname || '/dashboard';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -23,7 +27,7 @@ const Login = () => {
       setError('');
       setLoading(true);
       await signin(email, password);
-      navigate('/dashboard');
+      navigate(from);
     } catch (error) {
       setError('Failed to sign in. Please check your credentials.');
       console.error('Login error:', error);
@@ -39,11 +43,17 @@ const Login = () => {
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
             Sign in to your account
           </h2>
+          {message && (
+            <div className="mt-4 p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
+              <p className="text-center text-sm text-emerald-800">{message}</p>
+            </div>
+          )}
           <p className="mt-2 text-center text-sm text-gray-600">
             Or{' '}
             <Link
               to="/register"
-              className="font-medium text-blue-600 hover:text-blue-500"
+              state={{ from: location.state?.from }}
+              className="font-medium text-emerald-600 hover:text-emerald-500"
             >
               create a new account
             </Link>

@@ -1,8 +1,10 @@
 import { Link } from 'react-router-dom';
 import { useCart } from '../contexts/CartContext';
+import { useAuth } from '../contexts/AuthContext';
 
 const Cart = () => {
   const { cartItems, updateQuantity, removeFromCart, getCartTotal, clearCart } = useCart();
+  const { currentUser } = useAuth();
 
   if (cartItems.length === 0) {
     return (
@@ -105,12 +107,28 @@ const Cart = () => {
                 <span className="font-bold text-blue-600">${getCartTotal().toFixed(2)}</span>
               </div>
             </div>
+            {!currentUser && (
+              <div className="mb-4 p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-emerald-600">🛡️</span>
+                  <span className="font-medium text-emerald-800">Secure Checkout with Escrow Protection</span>
+                </div>
+                <p className="text-sm text-emerald-700">
+                  Sign in or create an account to complete your purchase with full escrow protection.
+                </p>
+              </div>
+            )}
             <Link
               to="/checkout"
-              className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg text-center font-semibold hover:bg-blue-700 transition-colors block"
+              className="w-full bg-emerald-600 text-white py-3 px-4 rounded-lg text-center font-semibold hover:bg-emerald-700 transition-colors block"
             >
-              Proceed to Checkout
+              {currentUser ? 'Proceed to Secure Checkout' : 'Sign In to Checkout Securely'}
             </Link>
+            {!currentUser && (
+              <p className="text-xs text-gray-500 text-center mt-2">
+                Your cart will be saved while you sign in
+              </p>
+            )}
           </div>
         </div>
       </div>

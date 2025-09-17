@@ -19,12 +19,15 @@ const Navbar = () => {
   };
 
   return (
-    <nav className="bg-white shadow-lg">
+    <nav className="bg-white border-b">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16">
+        <div className="flex justify-between items-center h-16">
           <div className="flex items-center">
-            <Link to="/" className="flex-shrink-0 flex items-center">
-              <span className="text-2xl font-bold text-blue-600">Ojawa</span>
+            <Link to="/" className="flex items-center">
+              <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center mr-3">
+                <span className="text-white font-bold text-lg">O</span>
+              </div>
+              <span className="text-xl font-semibold text-gray-900">Ojawa</span>
             </Link>
           </div>
 
@@ -32,67 +35,60 @@ const Navbar = () => {
           <div className="hidden md:flex items-center space-x-8">
             <Link 
               to="/" 
-              className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+              className="text-gray-600 hover:text-gray-900 font-medium transition-colors"
             >
               Home
             </Link>
             <Link 
               to="/products" 
-              className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+              className="text-gray-600 hover:text-gray-900 font-medium transition-colors"
             >
-              Products
+              Categories
             </Link>
             <Link 
-              to="/cart" 
-              className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors relative"
+              to="/products" 
+              className="text-gray-600 hover:text-gray-900 font-medium transition-colors"
             >
-              Cart
-              {getCartItemsCount() > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                  {getCartItemsCount()}
-                </span>
-              )}
+              How Escrow Works
+            </Link>
+            <Link 
+              to="/tracking" 
+              className="text-gray-600 hover:text-gray-900 font-medium transition-colors"
+            >
+              Track Package
             </Link>
             
             {currentUser ? (
-              <div className="flex items-center space-x-4">
-                <Link 
-                  to="/dashboard" 
-                  className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-                >
-                  Dashboard
-                </Link>
-                {userProfile?.role === 'admin' && (
-                  <Link 
-                    to="/admin" 
-                    className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-                  >
-                    Admin
-                  </Link>
-                )}
+              <div className="flex items-center space-x-3">
                 <span className="text-gray-700 text-sm">
-                  Welcome, {currentUser.displayName || currentUser.email}
+                  {currentUser.displayName || currentUser.email}
                 </span>
                 <button
                   onClick={handleLogout}
-                  className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+                  className="text-gray-600 hover:text-gray-900 font-medium"
                 >
                   Logout
                 </button>
               </div>
             ) : (
-              <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-3">
                 <Link 
-                  to="/login" 
-                  className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+                  to="/buyer" 
+                  className="text-gray-700 hover:text-gray-900 font-medium transition-colors"
                 >
-                  Login
+                  Buyer
                 </Link>
                 <Link 
-                  to="/register" 
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+                  to="/vendor" 
+                  className="text-gray-700 hover:text-gray-900 font-medium transition-colors"
                 >
-                  Sign Up
+                  Vendor
+                </Link>
+                <Link 
+                  to="/logistics" 
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                >
+                  Logistics
                 </Link>
               </div>
             )}
