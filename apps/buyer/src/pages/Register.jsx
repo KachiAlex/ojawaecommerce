@@ -120,7 +120,7 @@ const Register = () => {
              'Create your account'}
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            {preselectedUserType === 'buyer' ? 'Join thousands of buyers shopping with escrow protection' :
+            {preselectedUserType === 'buyer' ? 'Join thousands of buyers shopping with wallet protection' :
              preselectedUserType === 'vendor' ? 'Reach customers across Africa with guaranteed payments' :
              preselectedUserType === 'logistics' ? 'Provide delivery services and earn competitive rates' :
              'Join the Ojawa marketplace'}
@@ -295,7 +295,7 @@ const Register = () => {
             <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 mb-4">
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-emerald-600">🛡️</span>
-                <span className="font-medium text-emerald-800">Escrow Protection Included</span>
+                <span className="font-medium text-emerald-800">Wallet Protection Included</span>
               </div>
               <p className="text-sm text-emerald-700">
                 Your payments will be held securely until you confirm delivery. Shop with confidence!

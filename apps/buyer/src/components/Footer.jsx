@@ -5,7 +5,7 @@ const Footer = () => {
       <div className="max-w-7xl mx-auto px-4 py-8 grid gap-4 md:grid-cols-3 text-sm text-slate-600">
         <div>
           <p className="font-semibold text-slate-900">Ojawa</p>
-          <p className="mt-1">Pan-African marketplace with escrow-protected payments.</p>
+          <p className="mt-1">Pan-African marketplace with wallet-protected payments.</p>
         </div>
         <div className="flex gap-6">
           <div>

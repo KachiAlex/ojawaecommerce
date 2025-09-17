@@ -62,7 +62,7 @@ const Login = () => {
                     <h3 className="font-semibold text-gray-900">I'm a Buyer</h3>
                     <p className="text-sm text-gray-600">Shop from trusted vendors across Africa</p>
                     <div className="flex items-center gap-2 mt-1">
-                      <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Escrow Protected</span>
+                      <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Wallet Protected</span>
                       <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Free to Join</span>
                     </div>
                   </div>
@@ -154,7 +154,7 @@ const Login = () => {
                        'Logistics Partner Account'}
                     </p>
                     <p className="text-sm text-gray-600">
-                      {userType === 'buyer' ? 'Shop with escrow protection' : 
+                      {userType === 'buyer' ? 'Shop with wallet protection' : 
                        userType === 'vendor' ? 'Sell with guaranteed payments' : 
                        'Provide delivery services'}
           </p>

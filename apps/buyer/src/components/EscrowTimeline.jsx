@@ -8,8 +8,8 @@ const steps = [
   },
   {
     step: 2,
-    title: 'Fund Escrow',
-    description: 'Buyer funds escrow. Funds are securely held, not sent to the vendor yet.',
+    title: 'Fund Wallet',
+    description: 'Buyer funds wallet. Funds are securely held, not sent to the vendor yet.',
     icon: '🔒',
     color: 'bg-blue-100 text-blue-700'
   },

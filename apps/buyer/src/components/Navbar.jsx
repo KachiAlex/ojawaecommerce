@@ -49,7 +49,7 @@ const Navbar = () => {
               to="/products" 
               className="text-gray-600 hover:text-gray-900 font-medium transition-colors"
             >
-              How Escrow Works
+              How Wallet Works
             </Link>
             <Link 
               to="/tracking" 

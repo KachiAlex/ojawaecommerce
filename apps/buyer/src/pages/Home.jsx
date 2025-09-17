@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import AdminPanel from '../components/AdminPanel';
 import EscrowTimeline from '../components/EscrowTimeline';
 import Footer from '../components/Footer';
+import { useAuth } from '../contexts/AuthContext';
 
 const categories = [
   'Fashion',
@@ -106,6 +107,22 @@ const products = [
 ];
 
 const Home = () => {
+  const { currentUser, userProfile } = useAuth();
+
+  // Determine dashboard route based on user role
+  const getDashboardRoute = () => {
+    if (!userProfile?.role) return '/dashboard';
+    
+    switch (userProfile.role) {
+      case 'vendor': return '/vendor';
+      case 'logistics': return '/logistics';
+      case 'buyer':
+      case 'customer':
+      default:
+        return '/buyer';
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-slate-50">
       {/* Hero */}
@@ -122,11 +139,17 @@ const Home = () => {
         <div className="flex flex-wrap gap-3">
           <Link to="/products" className="inline-flex items-center justify-center rounded-md bg-emerald-600 px-6 py-3 text-white hover:bg-emerald-700 font-medium">
             Browse Products
-              </Link>
-          <Link to="/register" className="inline-flex items-center justify-center rounded-md border px-6 py-3 text-slate-800 hover:bg-slate-100 font-medium">
-            Join Ojawa
-              </Link>
-            </div>
+          </Link>
+          {currentUser ? (
+            <Link to={getDashboardRoute()} className="inline-flex items-center justify-center rounded-md bg-blue-600 px-6 py-3 text-white hover:bg-blue-700 font-medium">
+              📊 My Dashboard
+            </Link>
+          ) : (
+            <Link to="/register" className="inline-flex items-center justify-center rounded-md border px-6 py-3 text-slate-800 hover:bg-slate-100 font-medium">
+              Join Ojawa
+            </Link>
+          )}
+        </div>
         <div className="flex items-center gap-4 pt-2">
           <div className="text-xs text-slate-600">Backed by dispute resolution and identity verification</div>
         </div>
@@ -207,7 +230,7 @@ const Home = () => {
         </div>
         <div className="rounded-lg border bg-white">
           <div className="p-4 border-b"><p className="font-semibold">Buyer Protection</p></div>
-          <div className="p-4 text-sm text-slate-600">Your payment stays in escrow until you confirm delivery—simple and safe.</div>
+          <div className="p-4 text-sm text-slate-600">Your payment stays in your wallet until you confirm delivery—simple and safe.</div>
         </div>
         <div className="rounded-lg border bg-white">
           <div className="p-4 border-b"><p className="font-semibold">Low Fees & Fast Payouts</p></div>
@@ -220,7 +243,7 @@ const Home = () => {
         <div className="rounded-lg border bg-slate-50">
           <div className="p-6 grid gap-6 md:grid-cols-3">
             <div>
-              <p className="font-medium">Escrow Secured</p>
+              <p className="font-medium">Wallet Secured</p>
               <p className="text-sm text-slate-600">Funds held by Ojawa until buyer confirms delivery.</p>
             </div>
             <div>

@@ -265,7 +265,7 @@ const Vendor = () => {
                 <div className="bg-white p-6 rounded-xl border">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-gray-600">Funds in Escrow</p>
+                      <p className="text-sm font-medium text-gray-600">Funds in Wallet</p>
                       <p className="text-2xl font-bold text-gray-900">₦540,000</p>
                     </div>
                     <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
@@ -319,7 +319,7 @@ const Vendor = () => {
                             <span className="text-yellow-600">🔒</span>
                           </div>
                           <div>
-                            <p className="font-medium">Escrow funded - Ankara Dress</p>
+                            <p className="font-medium">Wallet funded - Ankara Dress</p>
                             <p className="text-sm text-gray-600">From Amina K. • ₦85,000 • Sep 1, 2025</p>
                           </div>
                         </div>
@@ -389,10 +389,10 @@ const Vendor = () => {
                   <div className="flex gap-3">
                     <select className="text-sm border rounded-lg px-3 py-1">
                       <option>All Orders</option>
-                      <option>In Escrow</option>
+                      <option>In Wallet</option>
                       <option>Shipped</option>
                       <option>Delivered</option>
-                      <option>Awaiting Escrow</option>
+                      <option>Awaiting Wallet</option>
                     </select>
                     <button className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700">
                       Export Orders
@@ -411,7 +411,7 @@ const Vendor = () => {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Escrow ID</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Wallet ID</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
@@ -433,7 +433,7 @@ const Vendor = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{order.amount}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{order.date}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{order.escrowId || 'N/A'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{order.walletId || 'N/A'}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
                           <div className="flex gap-2">
                             <button className="text-emerald-600 hover:text-emerald-700 font-medium">View</button>

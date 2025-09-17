@@ -143,7 +143,7 @@ const LogisticsSelector = ({ vendorLocation, buyerLocation, onSelect }) => {
           <span className="text-blue-600 text-xl">ℹ️</span>
           <div className="text-sm text-blue-800">
             <p className="font-medium mb-1">Delivery Protection</p>
-            <p>All deliveries are protected by Ojawa's escrow system. Your payment is held securely until you confirm delivery.</p>
+            <p>All deliveries are protected by Ojawa's wallet system. Your payment is held securely until you confirm delivery.</p>
           </div>
         </div>
       </div>
