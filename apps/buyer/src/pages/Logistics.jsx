@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
+import WalletManager from '../components/WalletManager';
 
 const Logistics = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -80,6 +81,12 @@ const Logistics = () => {
                 className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'earnings' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
               >
                 💰 Earnings
+              </button>
+              <button 
+                onClick={() => setActiveTab('wallet')}
+                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'wallet' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+              >
+                💳 My Wallet
               </button>
               <button 
                 onClick={() => setActiveTab('settings')}
@@ -635,6 +642,10 @@ const Logistics = () => {
                 </div>
               </div>
             </div>
+          )}
+
+          {activeTab === 'wallet' && (
+            <WalletManager userType="logistics" />
           )}
         </div>
       </div>

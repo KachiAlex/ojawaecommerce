@@ -182,6 +182,225 @@ export const orderService = {
 // ===============================
 
 export const walletService = {
+  // Create wallet account for user
+  async createWallet(userId, userType) {
+    try {
+      const walletData = {
+        userId,
+        userType,
+        balance: 0,
+        currency: 'NGN', // Default currency, can be updated
+        status: 'active',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      };
+      
+      const docRef = await addDoc(collection(db, 'wallets'), walletData);
+      return docRef.id;
+    } catch (error) {
+      console.error('Error creating wallet:', error);
+      throw error;
+    }
+  },
+
+  // Get user's wallet
+  async getUserWallet(userId) {
+    try {
+      const q = query(
+        collection(db, 'wallets'),
+        where('userId', '==', userId)
+      );
+      
+      const snapshot = await getDocs(q);
+      if (!snapshot.empty) {
+        const walletDoc = snapshot.docs[0];
+        return { id: walletDoc.id, ...walletDoc.data() };
+      }
+      return null;
+    } catch (error) {
+      console.error('Error fetching wallet:', error);
+      throw error;
+    }
+  },
+
+  // Add funds to wallet
+  async addFunds(walletId, amount, paymentIntentId, description = 'Wallet top-up') {
+    try {
+      const batch = writeBatch(db);
+      
+      // Get current wallet
+      const walletRef = doc(db, 'wallets', walletId);
+      const walletSnap = await getDoc(walletRef);
+      
+      if (!walletSnap.exists()) {
+        throw new Error('Wallet not found');
+      }
+      
+      const currentBalance = walletSnap.data().balance || 0;
+      const newBalance = currentBalance + amount;
+      
+      // Update wallet balance
+      batch.update(walletRef, {
+        balance: newBalance,
+        updatedAt: serverTimestamp()
+      });
+      
+      // Create transaction record
+      const transactionRef = doc(collection(db, 'wallet_transactions'));
+      batch.set(transactionRef, {
+        walletId,
+        userId: walletSnap.data().userId,
+        type: 'credit',
+        amount,
+        description,
+        paymentIntentId,
+        balanceBefore: currentBalance,
+        balanceAfter: newBalance,
+        status: 'completed',
+        createdAt: serverTimestamp()
+      });
+      
+      await batch.commit();
+      return { newBalance, transactionId: transactionRef.id };
+    } catch (error) {
+      console.error('Error adding funds to wallet:', error);
+      throw error;
+    }
+  },
+
+  // Deduct funds from wallet
+  async deductFunds(walletId, amount, orderId, description = 'Order payment') {
+    try {
+      const batch = writeBatch(db);
+      
+      // Get current wallet
+      const walletRef = doc(db, 'wallets', walletId);
+      const walletSnap = await getDoc(walletRef);
+      
+      if (!walletSnap.exists()) {
+        throw new Error('Wallet not found');
+      }
+      
+      const currentBalance = walletSnap.data().balance || 0;
+      
+      if (currentBalance < amount) {
+        throw new Error('Insufficient wallet balance');
+      }
+      
+      const newBalance = currentBalance - amount;
+      
+      // Update wallet balance
+      batch.update(walletRef, {
+        balance: newBalance,
+        updatedAt: serverTimestamp()
+      });
+      
+      // Create transaction record
+      const transactionRef = doc(collection(db, 'wallet_transactions'));
+      batch.set(transactionRef, {
+        walletId,
+        userId: walletSnap.data().userId,
+        type: 'debit',
+        amount,
+        description,
+        orderId,
+        balanceBefore: currentBalance,
+        balanceAfter: newBalance,
+        status: 'completed',
+        createdAt: serverTimestamp()
+      });
+      
+      await batch.commit();
+      return { newBalance, transactionId: transactionRef.id };
+    } catch (error) {
+      console.error('Error deducting funds from wallet:', error);
+      throw error;
+    }
+  },
+
+  // Transfer funds between wallets (for order completion)
+  async transferFunds(fromWalletId, toWalletId, amount, orderId, description) {
+    try {
+      const batch = writeBatch(db);
+      
+      // Get both wallets
+      const fromWalletRef = doc(db, 'wallets', fromWalletId);
+      const toWalletRef = doc(db, 'wallets', toWalletId);
+      
+      const [fromWalletSnap, toWalletSnap] = await Promise.all([
+        getDoc(fromWalletRef),
+        getDoc(toWalletRef)
+      ]);
+      
+      if (!fromWalletSnap.exists() || !toWalletSnap.exists()) {
+        throw new Error('One or both wallets not found');
+      }
+      
+      const fromBalance = fromWalletSnap.data().balance || 0;
+      const toBalance = toWalletSnap.data().balance || 0;
+      
+      if (fromBalance < amount) {
+        throw new Error('Insufficient balance in source wallet');
+      }
+      
+      const newFromBalance = fromBalance - amount;
+      const newToBalance = toBalance + amount;
+      
+      // Update both wallets
+      batch.update(fromWalletRef, {
+        balance: newFromBalance,
+        updatedAt: serverTimestamp()
+      });
+      
+      batch.update(toWalletRef, {
+        balance: newToBalance,
+        updatedAt: serverTimestamp()
+      });
+      
+      // Create transaction records for both wallets
+      const fromTransactionRef = doc(collection(db, 'wallet_transactions'));
+      const toTransactionRef = doc(collection(db, 'wallet_transactions'));
+      
+      batch.set(fromTransactionRef, {
+        walletId: fromWalletId,
+        userId: fromWalletSnap.data().userId,
+        type: 'debit',
+        amount,
+        description: `Payment: ${description}`,
+        orderId,
+        relatedTransactionId: toTransactionRef.id,
+        balanceBefore: fromBalance,
+        balanceAfter: newFromBalance,
+        status: 'completed',
+        createdAt: serverTimestamp()
+      });
+      
+      batch.set(toTransactionRef, {
+        walletId: toWalletId,
+        userId: toWalletSnap.data().userId,
+        type: 'credit',
+        amount,
+        description: `Payment received: ${description}`,
+        orderId,
+        relatedTransactionId: fromTransactionRef.id,
+        balanceBefore: toBalance,
+        balanceAfter: newToBalance,
+        status: 'completed',
+        createdAt: serverTimestamp()
+      });
+      
+      await batch.commit();
+      return {
+        fromBalance: newFromBalance,
+        toBalance: newToBalance,
+        fromTransactionId: fromTransactionRef.id,
+        toTransactionId: toTransactionRef.id
+      };
+    } catch (error) {
+      console.error('Error transferring funds:', error);
+      throw error;
+    }
+  },
   // Create wallet transaction
   async createTransaction(transactionData) {
     try {

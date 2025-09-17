@@ -8,6 +8,7 @@ import {
 } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
+import firebaseService from '../services/firebaseService';
 
 const AuthContext = createContext();
 
@@ -50,7 +51,15 @@ export const AuthProvider = ({ children }) => {
       await setDoc(doc(db, 'users', user.uid), userProfileData);
       setUserProfile(userProfileData);
       
-      // Show escrow education for new users
+      // Create wallet for new user
+      try {
+        await firebaseService.wallet.createWallet(user.uid, userData.userType || 'buyer');
+      } catch (walletError) {
+        console.error('Error creating wallet:', walletError);
+        // Don't fail registration if wallet creation fails
+      }
+      
+      // Show wallet education for new users
       setNewUserType(userData.userType || 'buyer');
       setShowEscrowEducation(true);
       

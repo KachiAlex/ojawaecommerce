@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import firebaseService from '../services/firebaseService';
+import WalletManager from '../components/WalletManager';
 
 const Buyer = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -125,6 +126,12 @@ const Buyer = () => {
                 className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'vendors' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
               >
                 🏪 Vendors & Ratings
+              </button>
+              <button 
+                onClick={() => setActiveTab('wallet')}
+                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'wallet' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+              >
+                💳 My Wallet
               </button>
               <button 
                 onClick={() => setActiveTab('support')}
@@ -475,6 +482,10 @@ const Buyer = () => {
                 </div>
               </div>
             </div>
+          )}
+
+          {activeTab === 'wallet' && (
+            <WalletManager userType="buyer" />
           )}
         </div>
       </div>
