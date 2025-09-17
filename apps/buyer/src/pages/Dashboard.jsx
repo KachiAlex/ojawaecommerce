@@ -1,12 +1,22 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
 const Dashboard = () => {
   const { userProfile, currentUser } = useAuth();
+  const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Redirect to appropriate dashboard based on user role
+  useEffect(() => {
+    if (userProfile && !loading) {
+      // All users start as buyers, so redirect to buyer dashboard
+      navigate('/buyer', { replace: true });
+    }
+  }, [userProfile, loading, navigate]);
 
   useEffect(() => {
     if (currentUser) {

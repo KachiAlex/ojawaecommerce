@@ -172,7 +172,7 @@ const Navbar = () => {
                         <button
                           onClick={() => {
                             setIsUserDropdownOpen(false);
-                            navigate('/dashboard');
+                            navigate('/buyer');
                           }}
                           className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                         >
