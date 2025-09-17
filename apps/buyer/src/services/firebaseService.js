@@ -318,6 +318,69 @@ export const walletService = {
     }
   },
 
+  // Transfer funds to external account (bank/mobile money)
+  async transferToExternalAccount(walletId, amount, accountDetails, description = 'Wallet withdrawal') {
+    try {
+      const batch = writeBatch(db);
+      
+      // Get current wallet
+      const walletRef = doc(db, 'wallets', walletId);
+      const walletSnap = await getDoc(walletRef);
+      
+      if (!walletSnap.exists()) {
+        throw new Error('Wallet not found');
+      }
+      
+      const currentBalance = walletSnap.data().balance || 0;
+      
+      if (currentBalance < amount) {
+        throw new Error('Insufficient wallet balance');
+      }
+      
+      const newBalance = currentBalance - amount;
+      
+      // Update wallet balance
+      batch.update(walletRef, {
+        balance: newBalance,
+        updatedAt: serverTimestamp()
+      });
+      
+      // Create withdrawal transaction record
+      const transactionRef = doc(collection(db, 'wallet_transactions'));
+      batch.set(transactionRef, {
+        walletId,
+        userId: walletSnap.data().userId,
+        type: 'withdrawal',
+        amount,
+        description,
+        accountDetails: {
+          type: accountDetails.type, // 'bank' or 'mobile_money'
+          accountNumber: accountDetails.accountNumber,
+          accountName: accountDetails.accountName,
+          bankName: accountDetails.bankName || null,
+          provider: accountDetails.provider || null // For mobile money
+        },
+        balanceBefore: currentBalance,
+        balanceAfter: newBalance,
+        status: 'pending', // Will be updated by payment processor
+        processingFee: Math.max(100, amount * 0.015), // 1.5% or minimum ₦100
+        netAmount: amount - Math.max(100, amount * 0.015),
+        createdAt: serverTimestamp()
+      });
+      
+      await batch.commit();
+      return { 
+        newBalance, 
+        transactionId: transactionRef.id,
+        processingFee: Math.max(100, amount * 0.015),
+        netAmount: amount - Math.max(100, amount * 0.015)
+      };
+    } catch (error) {
+      console.error('Error transferring to external account:', error);
+      throw error;
+    }
+  },
+
   // Transfer funds between wallets (for order completion)
   async transferFunds(fromWalletId, toWalletId, amount, orderId, description) {
     try {
