@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
 import WalletManager from '../components/WalletManager';
+import DashboardSwitcher from '../components/DashboardSwitcher';
 
 const Logistics = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -49,6 +50,11 @@ const Logistics = () => {
               </div>
               <span className="text-xl font-semibold text-gray-900">Ojawa Logistics</span>
             </Link>
+            
+            {/* Dashboard Switcher */}
+            <div className="mb-8">
+              <DashboardSwitcher currentDashboard="logistics" />
+            </div>
             
             <div className="space-y-1">
               <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">LOGISTICS MENU</p>

@@ -1,22 +1,53 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 const Navbar = () => {
   const { currentUser, logout, userProfile } = useAuth();
   const { getCartItemsCount } = useCart();
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
 
   const handleLogout = async () => {
     try {
       await logout();
       navigate('/');
+      setIsUserDropdownOpen(false);
     } catch (error) {
       console.error('Failed to log out:', error);
     }
   };
+
+  // Get user's first name for display
+  const getFirstName = () => {
+    if (currentUser?.displayName) {
+      return currentUser.displayName.split(' ')[0];
+    }
+    return currentUser?.email?.split('@')[0] || 'User';
+  };
+
+  // Handle dashboard navigation
+  const handleDashboardNavigation = (dashboardType) => {
+    setIsUserDropdownOpen(false);
+    navigate(`/${dashboardType}`);
+  };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsUserDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   return (
     <nav className="bg-white border-b">
@@ -59,16 +90,107 @@ const Navbar = () => {
             </Link>
             
             {currentUser ? (
-              <div className="flex items-center space-x-3">
-                <span className="text-gray-700 text-sm">
-                  {currentUser.displayName || currentUser.email}
-                </span>
-                <button
-                  onClick={handleLogout}
-                  className="text-gray-600 hover:text-gray-900 font-medium"
-                >
-                  Logout
-                </button>
+              <div className="flex items-center space-x-4">
+                {/* Cart Icon */}
+                <Link to="/cart" className="relative">
+                  <span className="text-gray-600 hover:text-gray-900 text-xl">🛒</span>
+                  {getCartItemsCount() > 0 && (
+                    <span className="absolute -top-2 -right-2 bg-emerald-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                      {getCartItemsCount()}
+                    </span>
+                  )}
+                </Link>
+
+                {/* User Dropdown */}
+                <div className="relative" ref={dropdownRef}>
+                  <button
+                    onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
+                    className="flex items-center space-x-2 text-gray-700 hover:text-gray-900 font-medium transition-colors"
+                  >
+                    <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center">
+                      <span className="text-emerald-600 font-semibold text-sm">
+                        {getFirstName().charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                    <span className="text-sm">{getFirstName()}</span>
+                    <svg className={`w-4 h-4 transition-transform ${isUserDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                  </button>
+
+                  {/* Dropdown Menu */}
+                  {isUserDropdownOpen && (
+                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border py-2 z-50">
+                      {/* User Info */}
+                      <div className="px-4 py-3 border-b">
+                        <p className="text-sm font-medium text-gray-900">{currentUser.displayName || 'User'}</p>
+                        <p className="text-sm text-gray-500">{currentUser.email}</p>
+                      </div>
+
+                      {/* Dashboard Options */}
+                      <div className="py-2">
+                        <div className="px-4 py-2">
+                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Dashboards</p>
+                        </div>
+                        
+                        <button
+                          onClick={() => handleDashboardNavigation('buyer')}
+                          className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-600 transition-colors"
+                        >
+                          <span className="mr-3">🛒</span>
+                          <div className="text-left">
+                            <p className="font-medium">Buyer Dashboard</p>
+                            <p className="text-xs text-gray-500">Orders, wallet, vendors</p>
+                          </div>
+                        </button>
+
+                        <button
+                          onClick={() => handleDashboardNavigation('vendor')}
+                          className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                        >
+                          <span className="mr-3">🏪</span>
+                          <div className="text-left">
+                            <p className="font-medium">Vendor Dashboard</p>
+                            <p className="text-xs text-gray-500">Products, sales, analytics</p>
+                          </div>
+                        </button>
+
+                        <button
+                          onClick={() => handleDashboardNavigation('logistics')}
+                          className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-purple-50 hover:text-purple-600 transition-colors"
+                        >
+                          <span className="mr-3">🚚</span>
+                          <div className="text-left">
+                            <p className="font-medium">Logistics Dashboard</p>
+                            <p className="text-xs text-gray-500">Deliveries, routes, earnings</p>
+                          </div>
+                        </button>
+                      </div>
+
+                      {/* Quick Links */}
+                      <div className="border-t py-2">
+                        <button
+                          onClick={() => {
+                            setIsUserDropdownOpen(false);
+                            navigate('/dashboard');
+                          }}
+                          className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                        >
+                          <span className="mr-3">⚙️</span>
+                          Account Settings
+                        </button>
+                        
+                        <button
+                          onClick={handleLogout}
+                          className="w-full flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                        >
+                          <span className="mr-3">🚪</span>
+                          Logout
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="flex items-center space-x-3">
