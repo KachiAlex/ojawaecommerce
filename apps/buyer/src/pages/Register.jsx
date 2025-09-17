@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -12,6 +12,13 @@ const Register = () => {
     address: '',
     userType: 'buyer'
   });
+
+  // Set preselected user type from login page
+  useEffect(() => {
+    if (preselectedUserType) {
+      setFormData(prev => ({ ...prev, userType: preselectedUserType }));
+    }
+  }, [preselectedUserType]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   
@@ -20,6 +27,7 @@ const Register = () => {
   const location = useLocation();
   
   const from = location.state?.from?.pathname || '/dashboard';
+  const preselectedUserType = location.state?.userType;
 
   const handleChange = (e) => {
     setFormData({

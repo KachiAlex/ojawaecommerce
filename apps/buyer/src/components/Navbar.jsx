@@ -73,22 +73,16 @@ const Navbar = () => {
             ) : (
               <div className="flex items-center space-x-3">
                 <Link 
-                  to="/buyer" 
+                  to="/login" 
                   className="text-gray-700 hover:text-gray-900 font-medium transition-colors"
                 >
-                  Buyer
+                  Sign In
                 </Link>
                 <Link 
-                  to="/vendor" 
-                  className="text-gray-700 hover:text-gray-900 font-medium transition-colors"
-                >
-                  Vendor
-                </Link>
-                <Link 
-                  to="/logistics" 
+                  to="/register" 
                   className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
                 >
-                  Logistics
+                  Get Started
                 </Link>
               </div>
             )}

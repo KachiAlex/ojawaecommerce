@@ -115,18 +115,18 @@ const Home = () => {
         </div>
         <h1 className="text-4xl md:text-5xl font-bold leading-tight">
           Trade confidently across Africa with escrow-protected payments
-        </h1>
+            </h1>
         <p className="text-lg text-slate-600 max-w-3xl">
           Ojawa connects buyers and vendors with a trusted escrow layer—your funds are held safely until delivery is confirmed.
         </p>
         <div className="flex flex-wrap gap-3">
-          <Link to="/register" className="inline-flex items-center justify-center rounded-md bg-emerald-600 px-4 py-2 text-white hover:bg-emerald-700">
-            Start Selling
-          </Link>
-          <Link to="/products" className="inline-flex items-center justify-center rounded-md border px-4 py-2 text-slate-800 hover:bg-slate-100">
-            Start Buying
-          </Link>
-        </div>
+          <Link to="/products" className="inline-flex items-center justify-center rounded-md bg-emerald-600 px-6 py-3 text-white hover:bg-emerald-700 font-medium">
+            Browse Products
+              </Link>
+          <Link to="/register" className="inline-flex items-center justify-center rounded-md border px-6 py-3 text-slate-800 hover:bg-slate-100 font-medium">
+            Join Ojawa
+              </Link>
+            </div>
         <div className="flex items-center gap-4 pt-2">
           <div className="text-xs text-slate-600">Backed by dispute resolution and identity verification</div>
         </div>
@@ -137,7 +137,7 @@ const Home = () => {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold">Featured Products</h2>
           <Link to="/products" className="text-sm text-emerald-700 hover:underline">View marketplace</Link>
-        </div>
+      </div>
 
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {products.map((p) => (
@@ -145,7 +145,7 @@ const Home = () => {
               <div className={`relative aspect-square w-full overflow-hidden ${p.bgColor}`}>
                 <div className="flex items-center justify-center h-full">
                   <span className="text-6xl">{p.icon}</span>
-                </div>
+          </div>
                 {p.verified && (
                   <span className="absolute top-3 left-3 inline-flex items-center rounded-full bg-emerald-600 px-2 py-1 text-xs font-medium text-white">Verified</span>
                 )}
@@ -165,7 +165,7 @@ const Home = () => {
                   <Link to="/checkout" className="inline-flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 transition-colors">
                     Buy with Escrow
                   </Link>
-                </div>
+            </div>
               </div>
             </div>
           ))}
@@ -226,7 +226,7 @@ const Home = () => {
             <div>
               <p className="font-medium">Dispute Resolution</p>
               <p className="text-sm text-slate-600">Fair mediation if something goes wrong.</p>
-            </div>
+              </div>
             <div>
               <p className="font-medium">Identity Verification</p>
               <p className="text-sm text-slate-600">Trustworthy participants improve marketplace safety.</p>

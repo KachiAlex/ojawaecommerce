@@ -7,6 +7,7 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [userType, setUserType] = useState('');
   
   const { signin } = useAuth();
   const navigate = useNavigate();
@@ -39,27 +40,120 @@ const Login = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Sign in to your account
-          </h2>
-          {message && (
-            <div className="mt-4 p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
-              <p className="text-center text-sm text-emerald-800">{message}</p>
+        {!userType ? (
+          /* User Type Selection */
+          <div className="text-center">
+            <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <span className="text-emerald-600 text-2xl">👋</span>
             </div>
-          )}
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">Welcome to Ojawa</h2>
+            <p className="text-gray-600 mb-8">Choose how you'd like to join our marketplace</p>
+            
+            <div className="space-y-4">
+              <button
+                onClick={() => setUserType('buyer')}
+                className="w-full p-4 border-2 border-gray-200 rounded-xl hover:border-emerald-500 hover:bg-emerald-50 transition-colors group"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center group-hover:bg-emerald-100">
+                    <span className="text-2xl">🛒</span>
+                  </div>
+                  <div className="text-left">
+                    <h3 className="font-semibold text-gray-900">I'm a Buyer</h3>
+                    <p className="text-sm text-gray-600">Shop safely with escrow protection</p>
+                  </div>
+                </div>
+              </button>
+              
+              <button
+                onClick={() => setUserType('vendor')}
+                className="w-full p-4 border-2 border-gray-200 rounded-xl hover:border-emerald-500 hover:bg-emerald-50 transition-colors group"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center group-hover:bg-emerald-100">
+                    <span className="text-2xl">🏪</span>
+                  </div>
+                  <div className="text-left">
+                    <h3 className="font-semibold text-gray-900">I'm a Vendor</h3>
+                    <p className="text-sm text-gray-600">Sell products with guaranteed payments</p>
+                  </div>
+                </div>
+              </button>
+              
+              <button
+                onClick={() => setUserType('logistics')}
+                className="w-full p-4 border-2 border-gray-200 rounded-xl hover:border-emerald-500 hover:bg-emerald-50 transition-colors group"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center group-hover:bg-emerald-100">
+                    <span className="text-2xl">🚚</span>
+                  </div>
+                  <div className="text-left">
+                    <h3 className="font-semibold text-gray-900">I'm a Logistics Partner</h3>
+                    <p className="text-sm text-gray-600">Provide delivery services</p>
+                  </div>
+                </div>
+              </button>
+            </div>
+            
+            <p className="mt-6 text-sm text-gray-500">
+              Already have an account? 
+              <button 
+                onClick={() => setUserType('existing')}
+                className="text-emerald-600 hover:text-emerald-700 font-medium ml-1"
+              >
+                Sign in here
+              </button>
+            </p>
+          </div>
+        ) : (
+          /* Login Form */
+        <div>
+            <div className="text-center mb-6">
+              <button 
+                onClick={() => setUserType('')}
+                className="text-gray-500 hover:text-gray-700 text-sm mb-4"
+              >
+                ← Back to user type selection
+              </button>
+              <h2 className="text-3xl font-extrabold text-gray-900">
+                {userType === 'existing' ? 'Sign in to your account' : `Join as ${userType === 'buyer' ? 'Buyer' : userType === 'vendor' ? 'Vendor' : 'Logistics Partner'}`}
+          </h2>
+              {message && (
+                <div className="mt-4 p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
+                  <p className="text-center text-sm text-emerald-800">{message}</p>
+                </div>
+              )}
           <p className="mt-2 text-center text-sm text-gray-600">
-            Or{' '}
-            <Link
-              to="/register"
-              state={{ from: location.state?.from }}
-              className="font-medium text-emerald-600 hover:text-emerald-500"
-            >
-              create a new account
-            </Link>
+                {userType === 'existing' ? 'Welcome back!' : 'Create your account to get started'}
+              </p>
+            </div>
+            
+            {userType !== 'existing' && (
+              <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">
+                    {userType === 'buyer' ? '🛒' : userType === 'vendor' ? '🏪' : '🚚'}
+                  </span>
+                  <div>
+                    <p className="font-medium text-gray-900">
+                      {userType === 'buyer' ? 'Buyer Account' : 
+                       userType === 'vendor' ? 'Vendor Account' : 
+                       'Logistics Partner Account'}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      {userType === 'buyer' ? 'Shop with escrow protection' : 
+                       userType === 'vendor' ? 'Sell with guaranteed payments' : 
+                       'Provide delivery services'}
           </p>
         </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
         
+        {userType && (
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           {error && (
             <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
@@ -102,16 +196,42 @@ const Login = () => {
             </div>
           </div>
 
-          <div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? 'Signing in...' : 'Sign in'}
-            </button>
+          <div className="flex gap-3">
+            {userType === 'existing' ? (
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Signing in...' : 'Sign In'}
+              </button>
+            ) : (
+              <Link
+                to="/register"
+                state={{ from: location.state?.from, userType }}
+                className="w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
+              >
+                Create {userType === 'buyer' ? 'Buyer' : userType === 'vendor' ? 'Vendor' : 'Logistics'} Account
+              </Link>
+            )}
           </div>
+          
+          {userType !== 'existing' && (
+            <div className="text-center">
+              <p className="text-sm text-gray-600">
+                Already have an account?{' '}
+                <button 
+                  type="button"
+                  onClick={() => setUserType('existing')}
+                  className="text-emerald-600 hover:text-emerald-700 font-medium"
+                >
+                  Sign in instead
+                </button>
+              </p>
+            </div>
+          )}
         </form>
+        )}
       </div>
     </div>
   );
