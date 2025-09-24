@@ -1,9 +1,13 @@
 import { Link } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import firebaseService from '../services/firebaseService';
 import WalletManager from '../components/WalletManager';
 import DashboardSwitcher from '../components/DashboardSwitcher';
+import OrdersFilterBar from '../components/OrdersFilterBar';
+import OrderDetailsModal from '../components/OrderDetailsModal';
+import WalletTopUpModal from '../components/WalletTopUpModal';
+import VendorReviewModal from '../components/VendorReviewModal';
 
 const Buyer = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -13,6 +17,12 @@ const Buyer = () => {
   const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(true);
   const { currentUser } = useAuth();
+  const [filters, setFilters] = useState({ status: '', vendor: '', from: '', to: '' });
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [isOrderDetailsOpen, setIsOrderDetailsOpen] = useState(false);
+  const [isWalletTopUpOpen, setIsWalletTopUpOpen] = useState(false);
+  const [reviewVendor, setReviewVendor] = useState(null);
+  const [isReviewOpen, setIsReviewOpen] = useState(false);
 
   useEffect(() => {
     const fetchBuyerData = async () => {
@@ -75,6 +85,71 @@ const Buyer = () => {
       case 'completed': return 'Completed';
       case 'pending_wallet_funding': return 'Awaiting Wallet Funding';
       default: return status;
+    }
+  };
+
+  const filteredOrders = useMemo(() => {
+    return orders.filter((order) => {
+      if (filters.status && order.status !== filters.status) return false;
+      if (filters.vendor && !(order.vendorName || '').toLowerCase().includes(filters.vendor.toLowerCase())) return false;
+      if (filters.from) {
+        const fromDate = new Date(filters.from);
+        const orderDate = order.createdAt?.toDate ? order.createdAt.toDate() : null;
+        if (orderDate && orderDate < fromDate) return false;
+      }
+      if (filters.to) {
+        const toDate = new Date(filters.to);
+        const orderDate = order.createdAt?.toDate ? order.createdAt.toDate() : null;
+        if (orderDate && orderDate > toDate) return false;
+      }
+      return true;
+    });
+  }, [orders, filters]);
+
+  const openOrderDetails = (order) => {
+    setSelectedOrder(order);
+    setIsOrderDetailsOpen(true);
+  };
+
+  const handleFundFromOrder = (order) => {
+    setSelectedOrder(order);
+    setIsOrderDetailsOpen(false);
+    setIsWalletTopUpOpen(true);
+  };
+
+  const handleConfirmTopUp = async ({ amount, note, order }) => {
+    try {
+      // Integrate with WalletManager/firebaseService if available
+      await firebaseService.wallet.topUpEscrowWallet(order.walletId, amount, { note, orderId: order.id });
+      // refresh transactions/orders lightweight
+      const txns = await firebaseService.wallet.getUserTransactions(currentUser.uid);
+      setTransactions(txns);
+      setIsWalletTopUpOpen(false);
+      alert('Wallet top-up request submitted.');
+    } catch (e) {
+      console.error('Top-up failed', e);
+      alert('Failed to top up wallet.');
+    }
+  };
+
+  const openReviewVendor = (vendor) => {
+    setReviewVendor(vendor);
+    setIsReviewOpen(true);
+  };
+
+  const handleSubmitReview = async ({ rating, comment, vendor }) => {
+    try {
+      await firebaseService.reviews.submitVendorReview({
+        vendorId: vendor.id,
+        rating,
+        comment,
+        userId: currentUser.uid,
+      });
+      setIsReviewOpen(false);
+      alert('Thank you for your review!');
+    } catch (e) {
+      console.error('Submit review failed', e);
+      alert('Failed to submit review.');
     }
   };
 
@@ -254,12 +329,7 @@ const Buyer = () => {
               <div className="p-6 border-b border-gray-200">
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-semibold text-gray-900">All Orders</h2>
-                  <div className="flex gap-3">
-                    <button className="text-sm text-gray-600 hover:text-gray-900">Filter</button>
-                    <button className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700">
-                      Fund Wallet
-                    </button>
-                  </div>
+                  <OrdersFilterBar onChange={setFilters} />
                 </div>
               </div>
               
@@ -278,7 +348,7 @@ const Buyer = () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {orders.map((order) => (
+                    {filteredOrders.map((order) => (
                       <tr key={order.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{order.id}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -297,8 +367,9 @@ const Buyer = () => {
                           {order.createdAt?.toDate ? order.createdAt.toDate().toLocaleDateString() : 'Unknown'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{order.walletId || 'N/A'}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <button className="text-emerald-600 hover:text-emerald-700 font-medium">View Details</button>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm flex gap-3">
+                          <button onClick={() => openOrderDetails(order)} className="text-emerald-600 hover:text-emerald-700 font-medium">View Details</button>
+                          <button onClick={() => setIsWalletTopUpOpen(true) || setSelectedOrder(order)} className="text-gray-600 hover:text-gray-900">Fund Wallet</button>
                         </td>
                       </tr>
                     ))}
@@ -395,9 +466,7 @@ const Buyer = () => {
                             </div>
                             <span className="text-sm font-medium">{vendor.rating}</span>
                           </div>
-                          <button className="text-emerald-600 hover:text-emerald-700 text-sm font-medium">
-                            Rate Vendor
-                          </button>
+                          <button onClick={() => openReviewVendor(vendor)} className="text-emerald-600 hover:text-emerald-700 text-sm font-medium">Rate Vendor</button>
                         </div>
                         
                         <p className="text-xs text-gray-500 mt-2">Last order: {vendor.lastOrder}</p>
@@ -493,6 +562,27 @@ const Buyer = () => {
           {activeTab === 'wallet' && (
             <WalletManager userType="buyer" />
           )}
+
+          <OrderDetailsModal
+            open={isOrderDetailsOpen}
+            order={selectedOrder}
+            onClose={() => setIsOrderDetailsOpen(false)}
+            onFundWallet={handleFundFromOrder}
+          />
+
+          <WalletTopUpModal
+            open={isWalletTopUpOpen}
+            order={selectedOrder}
+            onClose={() => setIsWalletTopUpOpen(false)}
+            onConfirm={handleConfirmTopUp}
+          />
+
+          <VendorReviewModal
+            open={isReviewOpen}
+            vendor={reviewVendor}
+            onClose={() => setIsReviewOpen(false)}
+            onSubmit={handleSubmitReview}
+          />
         </div>
       </div>
     </div>

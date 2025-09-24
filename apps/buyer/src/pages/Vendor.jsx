@@ -1,9 +1,14 @@
 import { Link } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import firebaseService from '../services/firebaseService';
 import WalletManager from '../components/WalletManager';
 import DashboardSwitcher from '../components/DashboardSwitcher';
+import VendorOrdersFilterBar from '../components/VendorOrdersFilterBar';
+import VendorOrderDetailsModal from '../components/VendorOrderDetailsModal';
+import ShipOrderModal from '../components/ShipOrderModal';
+import PayoutRequestModal from '../components/PayoutRequestModal';
+import ProductEditorModal from '../components/ProductEditorModal';
 
 const Vendor = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -13,6 +18,15 @@ const Vendor = () => {
   const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(true);
   const { currentUser } = useAuth();
+  const [filters, setFilters] = useState({ status: '', buyer: '', from: '', to: '' });
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [isOrderDetailsOpen, setIsOrderDetailsOpen] = useState(false);
+  const [isShipOpen, setIsShipOpen] = useState(false);
+  const [isPayoutOpen, setIsPayoutOpen] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [payouts, setPayouts] = useState([]);
+  const [disputes, setDisputes] = useState([]);
 
   useEffect(() => {
     const fetchVendorData = async () => {
@@ -33,12 +47,20 @@ const Vendor = () => {
         const statsData = await firebaseService.analytics.getVendorStats(currentUser.uid);
         setStats(statsData);
         
+        // Optional: payouts and disputes
+        const payoutsData = await firebaseService.payouts?.getByVendor?.(currentUser.uid);
+        if (payoutsData) setPayouts(payoutsData);
+        const disputesData = await firebaseService.disputes?.getByVendor?.(currentUser.uid);
+        if (disputesData) setDisputes(disputesData);
+        
       } catch (error) {
         console.error('Error fetching vendor data:', error);
         // Fallback to mock data
         setOrders([]);
         setProducts([]);
         setStats({ totalSales: 0, activeOrders: 0 });
+        setPayouts([]);
+        setDisputes([]);
       } finally {
         setLoading(false);
       }
@@ -57,6 +79,83 @@ const Vendor = () => {
     } catch (error) {
       console.error('Error adding product:', error);
       alert('Failed to add product. Please try again.');
+    }
+  };
+
+  const filteredOrders = useMemo(() => {
+    return orders.filter((order) => {
+      if (filters.status && (order.statusKey || order.status) !== filters.status) return false;
+      if (filters.buyer) {
+        const buyerName = (order.buyer || order.buyerName || '').toLowerCase();
+        if (!buyerName.includes(filters.buyer.toLowerCase())) return false;
+      }
+      const orderDate = order.createdAt?.toDate ? order.createdAt.toDate() : (order.date ? new Date(order.date) : null);
+      if (filters.from && orderDate && orderDate < new Date(filters.from)) return false;
+      if (filters.to && orderDate && orderDate > new Date(filters.to)) return false;
+      return true;
+    });
+  }, [orders, filters]);
+
+  const openOrderDetails = (order) => {
+    setSelectedOrder(order);
+    setIsOrderDetailsOpen(true);
+  };
+
+  const openShipModal = (order) => {
+    setSelectedOrder(order);
+    setIsShipOpen(true);
+  };
+
+  const confirmShipment = async ({ carrier, trackingNumber, eta, order }) => {
+    try {
+      await firebaseService.orders.markShipped(order.id, { carrier, trackingNumber, eta });
+      const refreshed = await firebaseService.orders.getByUser(currentUser.uid, 'vendor');
+      setOrders(refreshed);
+      setIsShipOpen(false);
+      alert('Order marked as shipped.');
+    } catch (e) {
+      console.error('Mark shipped failed', e);
+      alert('Failed to mark as shipped.');
+    }
+  };
+
+  const submitPayout = async ({ method, amount, account }) => {
+    try {
+      await firebaseService.payouts.request({ vendorId: currentUser.uid, method, amount, account });
+      const payoutsData = await firebaseService.payouts?.getByVendor?.(currentUser.uid);
+      if (payoutsData) setPayouts(payoutsData);
+      setIsPayoutOpen(false);
+      alert('Payout request submitted.');
+    } catch (e) {
+      console.error('Payout request failed', e);
+      alert('Failed to submit payout request.');
+    }
+  };
+
+  const openCreateProduct = () => {
+    setEditingProduct(null);
+    setEditorOpen(true);
+  };
+
+  const openEditProduct = (product) => {
+    setEditingProduct(product);
+    setEditorOpen(true);
+  };
+
+  const saveProduct = async (payload) => {
+    try {
+      if (editingProduct) {
+        await firebaseService.products.update(editingProduct.id, payload);
+      } else {
+        await firebaseService.products.create(payload, currentUser.uid);
+      }
+      const productsData = await firebaseService.products.getAll({ vendorId: currentUser.uid });
+      setProducts(productsData);
+      setEditorOpen(false);
+      setEditingProduct(null);
+    } catch (e) {
+      console.error('Save product failed', e);
+      alert('Failed to save product.');
     }
   };
 
@@ -392,18 +491,7 @@ const Vendor = () => {
               <div className="p-6 border-b border-gray-200">
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-semibold text-gray-900">Order Management</h2>
-                  <div className="flex gap-3">
-                    <select className="text-sm border rounded-lg px-3 py-1">
-                      <option>All Orders</option>
-                      <option>In Wallet</option>
-                      <option>Shipped</option>
-                      <option>Delivered</option>
-                      <option>Awaiting Wallet</option>
-                    </select>
-                    <button className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700">
-                      Export Orders
-                    </button>
-                  </div>
+                  <VendorOrdersFilterBar onChange={setFilters} />
                 </div>
               </div>
               
@@ -422,7 +510,7 @@ const Vendor = () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {orders.map((order) => (
+                    {filteredOrders.map((order) => (
                       <tr key={order.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{order.id}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{order.item}</td>
@@ -442,8 +530,8 @@ const Vendor = () => {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{order.walletId || 'N/A'}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
                           <div className="flex gap-2">
-                            <button className="text-emerald-600 hover:text-emerald-700 font-medium">View</button>
-                            <button className="text-blue-600 hover:text-blue-700 font-medium">Ship</button>
+                            <button onClick={() => openOrderDetails(order)} className="text-emerald-600 hover:text-emerald-700 font-medium">View</button>
+                            <button onClick={() => openShipModal(order)} className="text-blue-600 hover:text-blue-700 font-medium">Ship</button>
                             <button className="text-gray-600 hover:text-gray-700 font-medium">Contact</button>
                           </div>
                         </td>
@@ -460,7 +548,7 @@ const Vendor = () => {
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-gray-900">Product Management</h2>
                 <button 
-                  onClick={() => setShowAddProductForm(true)}
+                  onClick={openCreateProduct}
                   className="bg-emerald-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-emerald-700"
                 >
                   Add New Product
@@ -524,7 +612,7 @@ const Vendor = () => {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm">
                             <div className="flex gap-2">
-                              <button className="text-emerald-600 hover:text-emerald-700 font-medium">Edit</button>
+                              <button onClick={() => openEditProduct(product)} className="text-emerald-600 hover:text-emerald-700 font-medium">Edit</button>
                               <button className="text-blue-600 hover:text-blue-700 font-medium">View</button>
                               <button className="text-red-600 hover:text-red-700 font-medium">Delete</button>
                             </div>
@@ -546,9 +634,7 @@ const Vendor = () => {
                     <h2 className="text-lg font-semibold text-gray-900">Payout History</h2>
                     <div className="flex gap-3">
                       <button className="text-sm text-gray-600 hover:text-gray-900">Export</button>
-                      <button className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700">
-                        Request Payout
-                      </button>
+                      <button onClick={() => setIsPayoutOpen(true)} className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700">Request Payout</button>
                     </div>
                   </div>
                 </div>
@@ -787,6 +873,33 @@ const Vendor = () => {
           {activeTab === 'wallet' && (
             <WalletManager userType="vendor" />
           )}
+
+        <VendorOrderDetailsModal
+          open={isOrderDetailsOpen}
+          order={selectedOrder}
+          onClose={() => setIsOrderDetailsOpen(false)}
+          onShip={openShipModal}
+        />
+
+        <ShipOrderModal
+          open={isShipOpen}
+          order={selectedOrder}
+          onClose={() => setIsShipOpen(false)}
+          onConfirm={confirmShipment}
+        />
+
+        <PayoutRequestModal
+          open={isPayoutOpen}
+          onClose={() => setIsPayoutOpen(false)}
+          onSubmit={submitPayout}
+        />
+
+        <ProductEditorModal
+          open={editorOpen}
+          product={editingProduct}
+          onClose={() => { setEditorOpen(false); setEditingProduct(null); }}
+          onSave={saveProduct}
+        />
         </div>
       </div>
     </div>
