@@ -10,15 +10,123 @@ import {
   where, 
   orderBy, 
   serverTimestamp,
-  writeBatch
+  writeBatch,
+  limit as fsLimit,
+  startAfter
 } from 'firebase/firestore';
-import { db } from '../firebase/config';
+import { ref, uploadBytes, getDownloadURL, uploadBytesResumable } from 'firebase/storage';
+import { db, storage } from '../firebase/config';
 
 // ===============================
 // PRODUCT OPERATIONS
 // ===============================
 
 export const productService = {
+  // Upload images to Firebase Storage and return URL list
+  async uploadImages(files = [], vendorId) {
+    const urls = [];
+    for (const file of files) {
+      if (!file) continue;
+      const safeName = (file.name || 'image').replace(/[^a-zA-Z0-9._-]/g, '_');
+      const path = `products/${vendorId}/${Date.now()}-${safeName}`;
+      const storageRef = ref(storage, path);
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+      urls.push(url);
+    }
+    return urls;
+  },
+
+  // Count products for a vendor
+  async countByVendor(vendorId) {
+    try {
+      const q = query(
+        collection(db, 'products'),
+        where('vendorId', '==', vendorId)
+      );
+      // Aggregate count
+      const { getCountFromServer } = await import('firebase/firestore');
+      const snap = await getCountFromServer(q);
+      return snap.data().count || 0;
+    } catch (error) {
+      console.error('Error counting vendor products:', error);
+      return 0;
+    }
+  },
+
+  // Create or update product handling image uploads
+  async saveWithUploads(productData, vendorId, productId = null) {
+    return await productService.saveWithUploadsWithProgress(productData, vendorId, productId);
+  },
+
+  // Internal: same as saveWithUploads but exposes a progress callback via options
+  async saveWithUploadsWithProgress(productData, vendorId, productId = null, options = {}) {
+    const { onProgress } = options;
+    const items = Array.isArray(productData.images) ? productData.images : [];
+    const resolvedImages = [];
+    const fileItems = items.filter((i) => typeof i !== 'string');
+    const totalBytes = fileItems.reduce((sum, f) => sum + (f?.size || 0), 0) || 0;
+    let uploadedBytes = 0;
+
+    const notify = () => {
+      if (typeof onProgress === 'function' && totalBytes > 0) {
+        const pct = Math.min(100, Math.round((uploadedBytes / totalBytes) * 100));
+        onProgress(pct);
+      }
+    };
+
+    // First push existing URLs preserving order
+    for (const img of items) {
+      if (typeof img === 'string') {
+        resolvedImages.push(img);
+      } else if (img) {
+        const safeName = (img.name || 'image').replace(/[^a-zA-Z0-9._-]/g, '_');
+        const path = `products/${vendorId}/${Date.now()}-${safeName}`;
+        const storageRef = ref(storage, path);
+        // Use resumable upload to get progress
+        const task = uploadBytesResumable(storageRef, img);
+        await new Promise((resolve, reject) => {
+          task.on('state_changed', (snapshot) => {
+            // Estimate overall uploaded bytes
+            const bytesTransferred = snapshot.bytesTransferred;
+            const total = snapshot.totalBytes || img.size || 0;
+            // For single file, bytesTransferred goes 0..total; we need delta from last callback
+            // Simplify: compute ratio and multiply by this file size, then clamp
+            const currentFileUploaded = Math.min(total, bytesTransferred);
+            // Recompute uploadedBytes from other files plus current
+            const indexOfCurrent = resolvedImages.length; // approx position
+            const priorFiles = fileItems.slice(0, indexOfCurrent);
+            const priorBytes = priorFiles.reduce((s, f) => s + (f?.size || 0), 0);
+            uploadedBytes = priorBytes + currentFileUploaded;
+            notify();
+          }, reject, async () => {
+            try {
+              const url = await getDownloadURL(task.snapshot.ref);
+              resolvedImages.push(url);
+              // After file completes update uploadedBytes to include full file
+              uploadedBytes = fileItems.slice(0, resolvedImages.length).reduce((s, f) => s + (f?.size || 0), 0);
+              notify();
+              resolve();
+            } catch (e) {
+              reject(e);
+            }
+          });
+        });
+      }
+    }
+    if (totalBytes === 0 && typeof onProgress === 'function') {
+      onProgress(100);
+    }
+    const payload = {
+      ...productData,
+      images: resolvedImages,
+    };
+    if (productId) {
+      await productService.update(productId, payload);
+      return productId;
+    }
+    return await productService.create(payload, vendorId);
+  },
   // Create a new product
   async create(productData, vendorId) {
     try {
@@ -58,6 +166,34 @@ export const productService = {
       }));
     } catch (error) {
       console.error('Error fetching products:', error);
+      throw error;
+    }
+  },
+
+  // Paged fetch for vendor's products
+  async getByVendorPaged({ vendorId, pageSize = 10, cursor = null }) {
+    try {
+      let q = query(
+        collection(db, 'products'),
+        where('vendorId', '==', vendorId),
+        orderBy('createdAt', 'desc'),
+        fsLimit(pageSize)
+      );
+      if (cursor) {
+        q = query(
+          collection(db, 'products'),
+          where('vendorId', '==', vendorId),
+          orderBy('createdAt', 'desc'),
+          startAfter(cursor),
+          fsLimit(pageSize)
+        );
+      }
+      const snapshot = await getDocs(q);
+      const items = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      const nextCursor = snapshot.docs.length === pageSize ? snapshot.docs[snapshot.docs.length - 1] : null;
+      return { items, nextCursor };
+    } catch (error) {
+      console.error('Error fetching vendor products (paged):', error);
       throw error;
     }
   },
@@ -124,6 +260,23 @@ export const orderService = {
     }
   },
 
+  // Count orders for user
+  async countByUser(userId, userType = 'buyer') {
+    try {
+      const field = userType === 'buyer' ? 'buyerId' : 'vendorId';
+      const q = query(
+        collection(db, 'orders'),
+        where(field, '==', userId)
+      );
+      const { getCountFromServer } = await import('firebase/firestore');
+      const snap = await getCountFromServer(q);
+      return snap.data().count || 0;
+    } catch (error) {
+      console.error('Error counting user orders:', error);
+      return 0;
+    }
+  },
+
   // Get orders for a user
   async getByUser(userId, userType = 'buyer') {
     try {
@@ -141,6 +294,35 @@ export const orderService = {
       }));
     } catch (error) {
       console.error('Error fetching orders:', error);
+      throw error;
+    }
+  },
+
+  // Paged orders for a user
+  async getByUserPaged({ userId, userType = 'buyer', pageSize = 10, cursor = null }) {
+    try {
+      const field = userType === 'buyer' ? 'buyerId' : 'vendorId';
+      let q = query(
+        collection(db, 'orders'),
+        where(field, '==', userId),
+        orderBy('createdAt', 'desc'),
+        fsLimit(pageSize)
+      );
+      if (cursor) {
+        q = query(
+          collection(db, 'orders'),
+          where(field, '==', userId),
+          orderBy('createdAt', 'desc'),
+          startAfter(cursor),
+          fsLimit(pageSize)
+        );
+      }
+      const snapshot = await getDocs(q);
+      const items = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      const nextCursor = snapshot.docs.length === pageSize ? snapshot.docs[snapshot.docs.length - 1] : null;
+      return { items, nextCursor };
+    } catch (error) {
+      console.error('Error fetching orders (paged):', error);
       throw error;
     }
   },
@@ -172,6 +354,21 @@ export const orderService = {
       return null;
     } catch (error) {
       console.error('Error fetching order:', error);
+      throw error;
+    }
+  },
+
+  // Mark order as shipped with tracking info
+  async markShipped(orderId, { carrier, trackingNumber, eta }) {
+    try {
+      const shipmentData = {
+        shippingCarrier: carrier || null,
+        trackingNumber: trackingNumber || null,
+        estimatedDeliveryDate: eta || null
+      };
+      await orderService.updateStatus(orderId, 'shipped', shipmentData);
+    } catch (error) {
+      console.error('Error marking order as shipped:', error);
       throw error;
     }
   }
@@ -738,6 +935,181 @@ export const disputeService = {
       console.error('Error updating dispute:', error);
       throw error;
     }
+  },
+
+  // Get disputes for vendor
+  async getByVendor(vendorId) {
+    try {
+      const q = query(
+        collection(db, 'disputes'),
+        where('vendorId', '==', vendorId),
+        orderBy('createdAt', 'desc')
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      console.error('Error fetching vendor disputes:', error);
+      throw error;
+    }
+  },
+
+  // Create dispute with automatic wallet hold
+  async createWithWalletHold(disputeData, orderId, amount) {
+    try {
+      const batch = writeBatch(db);
+      
+      // Create dispute
+      const disputeRef = doc(collection(db, 'disputes'));
+      const disputePayload = {
+        ...disputeData,
+        status: 'open',
+        priority: 'medium',
+        orderId,
+        disputedAmount: amount,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      };
+      batch.set(disputeRef, disputePayload);
+
+      // Create wallet hold transaction
+      const holdTransactionRef = doc(collection(db, 'wallet_transactions'));
+      batch.set(holdTransactionRef, {
+        orderId,
+        type: 'dispute_hold',
+        amount,
+        description: `Dispute hold for order ${orderId}`,
+        status: 'completed',
+        disputeId: disputeRef.id,
+        createdAt: serverTimestamp()
+      });
+
+      // Update order status to disputed
+      const orderRef = doc(db, 'orders', orderId);
+      batch.update(orderRef, {
+        status: 'disputed',
+        disputeId: disputeRef.id,
+        updatedAt: serverTimestamp()
+      });
+
+      await batch.commit();
+      return disputeRef.id;
+    } catch (error) {
+      console.error('Error creating dispute with wallet hold:', error);
+      throw error;
+    }
+  },
+
+  // Resolve dispute and release/refund funds
+  async resolveDispute(disputeId, resolution, refundAmount = 0, paymentIntentId = null) {
+    try {
+      const batch = writeBatch(db);
+      
+      // Get dispute details
+      const disputeRef = doc(db, 'disputes', disputeId);
+      const disputeSnap = await getDoc(disputeRef);
+      if (!disputeSnap.exists()) throw new Error('Dispute not found');
+      
+      const dispute = disputeSnap.data();
+      
+      // Process Stripe refund if paymentIntentId is provided and refundAmount > 0
+      let refundId = null;
+      if (paymentIntentId && refundAmount > 0) {
+        try {
+          const { processRefund } = await import('../utils/stripe');
+          const refundResult = await processRefund(
+            paymentIntentId, 
+            refundAmount / 100, // Convert from cents to dollars
+            'dispute_resolution'
+          );
+          refundId = refundResult.refundId;
+        } catch (refundError) {
+          console.error('Stripe refund failed:', refundError);
+          // Continue with dispute resolution even if refund fails
+        }
+      }
+      
+      // Update dispute status
+      batch.update(disputeRef, {
+        status: 'resolved',
+        resolution,
+        refundAmount,
+        refundId,
+        resolvedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+
+      // Create resolution transaction
+      const resolutionTransactionRef = doc(collection(db, 'wallet_transactions'));
+      batch.set(resolutionTransactionRef, {
+        orderId: dispute.orderId,
+        type: 'dispute_resolution',
+        amount: refundAmount,
+        description: `Dispute resolution: ${resolution}`,
+        status: 'completed',
+        disputeId,
+        refundId,
+        createdAt: serverTimestamp()
+      });
+
+      // Update order status
+      const orderRef = doc(db, 'orders', dispute.orderId);
+      batch.update(orderRef, {
+        status: refundAmount > 0 ? 'refunded' : 'completed',
+        disputeResolved: true,
+        refundId,
+        updatedAt: serverTimestamp()
+      });
+
+      await batch.commit();
+      return { success: true, refundId };
+    } catch (error) {
+      console.error('Error resolving dispute:', error);
+      throw error;
+    }
+  },
+
+  // Get disputes for vendor (paged)
+  async getByVendorPaged({ vendorId, pageSize = 10, cursor = null }) {
+    try {
+      let q = query(
+        collection(db, 'disputes'),
+        where('vendorId', '==', vendorId),
+        orderBy('createdAt', 'desc'),
+        fsLimit(pageSize)
+      );
+      if (cursor) {
+        q = query(
+          collection(db, 'disputes'),
+          where('vendorId', '==', vendorId),
+          orderBy('createdAt', 'desc'),
+          startAfter(cursor),
+          fsLimit(pageSize)
+        );
+      }
+      const snapshot = await getDocs(q);
+      const items = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      const nextCursor = snapshot.docs.length === pageSize ? snapshot.docs[snapshot.docs.length - 1] : null;
+      return { items, nextCursor };
+    } catch (e) {
+      console.error('Error fetching disputes (paged):', e);
+      throw e;
+    }
+  },
+
+  // Count disputes for vendor
+  async countByVendor(vendorId) {
+    try {
+      const q = query(
+        collection(db, 'disputes'),
+        where('vendorId', '==', vendorId)
+      );
+      const { getCountFromServer } = await import('firebase/firestore');
+      const snap = await getCountFromServer(q);
+      return snap.data().count || 0;
+    } catch (e) {
+      console.error('Error counting disputes:', e);
+      return 0;
+    }
   }
 };
 
@@ -799,6 +1171,91 @@ export const analyticsService = {
     } catch (error) {
       console.error('Error fetching buyer stats:', error);
       throw error;
+    }
+  }
+};
+
+// ===============================
+// PAYOUT OPERATIONS
+// ===============================
+
+export const payoutsService = {
+  // Create payout request
+  async request({ vendorId, method, amount, account }) {
+    try {
+      const docRef = await addDoc(collection(db, 'payouts'), {
+        vendorId,
+        method,
+        amount,
+        account,
+        status: 'pending',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      return docRef.id;
+    } catch (error) {
+      console.error('Error creating payout request:', error);
+      throw error;
+    }
+  },
+
+  // Get payouts for vendor
+  async getByVendor(vendorId) {
+    try {
+      const q = query(
+        collection(db, 'payouts'),
+        where('vendorId', '==', vendorId),
+        orderBy('createdAt', 'desc')
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      console.error('Error fetching vendor payouts:', error);
+      throw error;
+    }
+  },
+
+  // Get payouts for vendor (paged)
+  async getByVendorPaged({ vendorId, pageSize = 10, cursor = null }) {
+    try {
+      let q = query(
+        collection(db, 'payouts'),
+        where('vendorId', '==', vendorId),
+        orderBy('createdAt', 'desc'),
+        fsLimit(pageSize)
+      );
+      if (cursor) {
+        q = query(
+          collection(db, 'payouts'),
+          where('vendorId', '==', vendorId),
+          orderBy('createdAt', 'desc'),
+          startAfter(cursor),
+          fsLimit(pageSize)
+        );
+      }
+      const snapshot = await getDocs(q);
+      const items = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      const nextCursor = snapshot.docs.length === pageSize ? snapshot.docs[snapshot.docs.length - 1] : null;
+      return { items, nextCursor };
+    } catch (e) {
+      console.error('Error fetching payouts (paged):', e);
+      throw e;
+    }
+  },
+
+  // Count payouts for vendor
+  async countByVendor(vendorId) {
+    try {
+      const q = query(
+        collection(db, 'payouts'),
+        where('vendorId', '==', vendorId)
+      );
+      const { getCountFromServer } = await import('firebase/firestore');
+      const snap = await getCountFromServer(q);
+      return snap.data().count || 0;
+    } catch (e) {
+      console.error('Error counting payouts:', e);
+      return 0;
     }
   }
 };
@@ -945,6 +1402,258 @@ export const userService = {
 };
 
 // ===============================
+// ADMIN OPERATIONS
+// ===============================
+
+export const adminService = {
+  // Get all users with pagination
+  async getAllUsers({ pageSize = 50, cursor = null }) {
+    try {
+      let q = query(
+        collection(db, 'users'),
+        orderBy('createdAt', 'desc'),
+        fsLimit(pageSize)
+      );
+      if (cursor) {
+        q = query(
+          collection(db, 'users'),
+          orderBy('createdAt', 'desc'),
+          startAfter(cursor),
+          fsLimit(pageSize)
+        );
+      }
+      const snapshot = await getDocs(q);
+      const items = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      const nextCursor = snapshot.docs.length === pageSize ? snapshot.docs[snapshot.docs.length - 1] : null;
+      return { items, nextCursor };
+    } catch (error) {
+      console.error('Error fetching all users:', error);
+      throw error;
+    }
+  },
+
+  // Get all orders with pagination
+  async getAllOrders({ pageSize = 50, cursor = null }) {
+    try {
+      let q = query(
+        collection(db, 'orders'),
+        orderBy('createdAt', 'desc'),
+        fsLimit(pageSize)
+      );
+      if (cursor) {
+        q = query(
+          collection(db, 'orders'),
+          orderBy('createdAt', 'desc'),
+          startAfter(cursor),
+          fsLimit(pageSize)
+        );
+      }
+      const snapshot = await getDocs(q);
+      const items = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      const nextCursor = snapshot.docs.length === pageSize ? snapshot.docs[snapshot.docs.length - 1] : null;
+      return { items, nextCursor };
+    } catch (error) {
+      console.error('Error fetching all orders:', error);
+      throw error;
+    }
+  },
+
+  // Get all disputes with pagination
+  async getAllDisputes({ pageSize = 50, cursor = null }) {
+    try {
+      let q = query(
+        collection(db, 'disputes'),
+        orderBy('createdAt', 'desc'),
+        fsLimit(pageSize)
+      );
+      if (cursor) {
+        q = query(
+          collection(db, 'disputes'),
+          orderBy('createdAt', 'desc'),
+          startAfter(cursor),
+          fsLimit(pageSize)
+        );
+      }
+      const snapshot = await getDocs(q);
+      const items = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      const nextCursor = snapshot.docs.length === pageSize ? snapshot.docs[snapshot.docs.length - 1] : null;
+      return { items, nextCursor };
+    } catch (error) {
+      console.error('Error fetching all disputes:', error);
+      throw error;
+    }
+  },
+
+  // Get platform analytics
+  async getPlatformAnalytics() {
+    try {
+      const [usersSnapshot, ordersSnapshot, disputesSnapshot, vendorsSnapshot] = await Promise.all([
+        getDocs(collection(db, 'users')),
+        getDocs(collection(db, 'orders')),
+        getDocs(collection(db, 'disputes')),
+        getDocs(query(collection(db, 'users'), where('isVendor', '==', true)))
+      ]);
+
+      const users = usersSnapshot.docs.map(d => d.data());
+      const orders = ordersSnapshot.docs.map(d => d.data());
+      const disputes = disputesSnapshot.docs.map(d => d.data());
+      const vendors = vendorsSnapshot.docs.map(d => d.data());
+
+      const totalRevenue = orders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
+      const activeOrders = orders.filter(order => 
+        ['pending_wallet_funding', 'wallet_funded', 'shipped'].includes(order.status)
+      ).length;
+      const completedOrders = orders.filter(order => order.status === 'completed').length;
+      const pendingDisputes = disputes.filter(dispute => dispute.status === 'open').length;
+      const pendingVendors = vendors.filter(vendor => 
+        vendor.vendorProfile?.verificationStatus === 'pending'
+      ).length;
+
+      return {
+        totalUsers: users.length,
+        totalVendors: vendors.length,
+        totalOrders: orders.length,
+        totalRevenue,
+        activeOrders,
+        completedOrders,
+        pendingDisputes,
+        pendingVendors,
+        totalDisputes: disputes.length
+      };
+    } catch (error) {
+      console.error('Error fetching platform analytics:', error);
+      throw error;
+    }
+  },
+
+  // Suspend/unsuspend user
+  async toggleUserSuspension(userId, suspended) {
+    try {
+      const userRef = doc(db, 'users', userId);
+      await updateDoc(userRef, {
+        suspended,
+        updatedAt: serverTimestamp()
+      });
+      return true;
+    } catch (error) {
+      console.error('Error toggling user suspension:', error);
+      throw error;
+    }
+  },
+
+  // Verify vendor
+  async verifyVendor(userId, verified) {
+    try {
+      const userRef = doc(db, 'users', userId);
+      await updateDoc(userRef, {
+        'vendorProfile.verificationStatus': verified ? 'verified' : 'rejected',
+        updatedAt: serverTimestamp()
+      });
+      return true;
+    } catch (error) {
+      console.error('Error verifying vendor:', error);
+      throw error;
+    }
+  },
+
+  // Get pending vendor applications
+  async getPendingVendors() {
+    try {
+      const q = query(
+        collection(db, 'users'),
+        where('isVendor', '==', true),
+        where('vendorProfile.verificationStatus', '==', 'pending')
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      console.error('Error fetching pending vendors:', error);
+      throw error;
+    }
+  },
+
+  // Get user details with full profile
+  async getUserDetails(userId) {
+    try {
+      const userRef = doc(db, 'users', userId);
+      const userSnap = await getDoc(userRef);
+      
+      if (!userSnap.exists()) {
+        throw new Error('User not found');
+      }
+
+      const userData = { id: userSnap.id, ...userSnap.data() };
+
+      // Get user's orders
+      const ordersQuery = query(
+        collection(db, 'orders'),
+        where('buyerId', '==', userId)
+      );
+      const ordersSnapshot = await getDocs(ordersQuery);
+      const userOrders = ordersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+      // Get user's disputes
+      const disputesQuery = query(
+        collection(db, 'disputes'),
+        where('userId', '==', userId)
+      );
+      const disputesSnapshot = await getDocs(disputesQuery);
+      const userDisputes = disputesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+      return {
+        ...userData,
+        orders: userOrders,
+        disputes: userDisputes
+      };
+    } catch (error) {
+      console.error('Error fetching user details:', error);
+      throw error;
+    }
+  },
+
+  // Update user role
+  async updateUserRole(userId, role) {
+    try {
+      const userRef = doc(db, 'users', userId);
+      await updateDoc(userRef, {
+        role,
+        updatedAt: serverTimestamp()
+      });
+      return true;
+    } catch (error) {
+      console.error('Error updating user role:', error);
+      throw error;
+    }
+  },
+
+  // Get system logs (if implemented)
+  async getSystemLogs({ pageSize = 100, cursor = null }) {
+    try {
+      let q = query(
+        collection(db, 'system_logs'),
+        orderBy('timestamp', 'desc'),
+        fsLimit(pageSize)
+      );
+      if (cursor) {
+        q = query(
+          collection(db, 'system_logs'),
+          orderBy('timestamp', 'desc'),
+          startAfter(cursor),
+          fsLimit(pageSize)
+        );
+      }
+      const snapshot = await getDocs(q);
+      const items = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      const nextCursor = snapshot.docs.length === pageSize ? snapshot.docs[snapshot.docs.length - 1] : null;
+      return { items, nextCursor };
+    } catch (error) {
+      console.error('Error fetching system logs:', error);
+      throw error;
+    }
+  }
+};
+
+// ===============================
 // EXPORT ALL SERVICES
 // ===============================
 
@@ -956,5 +1665,7 @@ export default {
   disputes: disputeService,
   tracking: trackingService,
   users: userService,
-  analytics: analyticsService
+  analytics: analyticsService,
+  payouts: payoutsService,
+  admin: adminService
 };

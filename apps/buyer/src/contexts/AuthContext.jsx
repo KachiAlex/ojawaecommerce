@@ -45,11 +45,13 @@ export const AuthProvider = ({ children }) => {
         phone: userData.phone || '',
         address: userData.address || '',
         createdAt: new Date(),
-        role: 'buyer', // All users start as buyers
+        role: userData.role || 'buyer', // Allow admin to set role during registration
         isVendor: false, // Can become vendor through onboarding
         isLogisticsPartner: false, // Can become logistics through onboarding
+        isAdmin: userData.role === 'admin', // Admin flag
         vendorProfile: null, // Will be populated after vendor onboarding
-        logisticsProfile: null // Will be populated after logistics onboarding
+        logisticsProfile: null, // Will be populated after logistics onboarding
+        suspended: false // User suspension status
       };
 
       await setDoc(doc(db, 'users', user.uid), userProfileData);

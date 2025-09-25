@@ -48,7 +48,26 @@ const CheckoutForm = ({ total, cartItems, onSuccess, orderDetails }) => {
         setError(stripeError.message);
       } else if (paymentIntent.status === 'succeeded') {
         // Create order in Firestore
-        await createOrder(paymentIntent.id);
+        const orderId = await createOrder(paymentIntent.id);
+        
+        // Send payment confirmation email
+        try {
+          const { getFunctions, httpsCallable } = await import('firebase/functions');
+          const { functions } = await import('../firebase/config');
+          const sendPaymentConfirmation = httpsCallable(functions, 'sendPaymentConfirmation');
+          
+          await sendPaymentConfirmation({
+            buyerEmail: currentUser.email,
+            buyerName: currentUser.displayName || 'Customer',
+            orderId: orderId,
+            amount: total * 100, // Convert to cents
+            items: cartItems
+          });
+        } catch (emailError) {
+          console.warn('Failed to send payment confirmation email:', emailError);
+          // Don't fail the order if email fails
+        }
+        
         onSuccess(paymentIntent);
       }
     } catch (err) {

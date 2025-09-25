@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { CartProvider } from './contexts/CartContext';
 import WalletEducation from './components/EscrowEducation';
@@ -19,6 +19,25 @@ import Vendor from './pages/Vendor';
 import Logistics from './pages/Logistics';
 import Tracking from './pages/Tracking';
 import BecomeVendor from './pages/BecomeVendor';
+
+// Admin Route Protection Component
+const AdminRoute = ({ children }) => {
+  const { userProfile, loading } = useAuth();
+  
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+  
+  if (!userProfile || userProfile.role !== 'admin') {
+    return <Navigate to="/" replace />;
+  }
+  
+  return children;
+};
 
 const AppContent = () => {
   const { showEscrowEducation, setShowEscrowEducation, newUserType } = useAuth();
@@ -55,9 +74,9 @@ const AppContent = () => {
             <Route 
               path="/admin" 
               element={
-                <ProtectedRoute>
+                <AdminRoute>
                   <AdminDashboard />
-                </ProtectedRoute>
+                </AdminRoute>
               } 
             />
                 <Route path="/buyer" element={<Buyer />} />

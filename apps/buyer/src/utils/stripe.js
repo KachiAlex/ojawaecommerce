@@ -45,3 +45,35 @@ export const processPayment = async (stripe, elements, clientSecret) => {
     throw error;
   }
 };
+
+export const processRefund = async (paymentIntentId, amount, reason = 'requested_by_customer') => {
+  try {
+    const processRefundFunction = httpsCallable(functions, 'processRefund');
+    
+    const result = await processRefundFunction({
+      paymentIntentId,
+      amount,
+      reason
+    });
+
+    return result.data;
+  } catch (error) {
+    console.error('Error processing refund:', error);
+    throw new Error('Failed to process refund');
+  }
+};
+
+export const getRefundStatus = async (refundId) => {
+  try {
+    const getRefundStatusFunction = httpsCallable(functions, 'getRefundStatus');
+    
+    const result = await getRefundStatusFunction({
+      refundId
+    });
+
+    return result.data;
+  } catch (error) {
+    console.error('Error retrieving refund status:', error);
+    throw new Error('Failed to retrieve refund status');
+  }
+};
