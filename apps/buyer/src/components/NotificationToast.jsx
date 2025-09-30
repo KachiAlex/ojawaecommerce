@@ -209,10 +209,11 @@ export const NotificationToastContainer = () => {
 
   // Show toast for new notifications
   useEffect(() => {
-    const newNotifications = notifications.filter(n => 
-      !n.isRead && 
-      new Date(n.createdAt.toDate ? n.createdAt.toDate() : n.createdAt) > new Date(Date.now() - 10000) // Last 10 seconds
-    )
+    const newNotifications = notifications.filter(n => {
+      const ts = n?.createdAt
+      const date = ts?.toDate ? ts.toDate() : (ts ? new Date(ts) : null)
+      return !n.isRead && !!date && date > new Date(Date.now() - 10000)
+    })
 
     newNotifications.forEach(notification => {
       // Check if toast already exists
