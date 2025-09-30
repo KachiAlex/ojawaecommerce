@@ -7,6 +7,7 @@ import OrdersFilterBar from '../components/OrdersFilterBar';
 import OrderDetailsModal from '../components/OrderDetailsModal';
 import WalletTopUpModal from '../components/WalletTopUpModal';
 import VendorReviewModal from '../components/VendorReviewModal';
+import OrderConfirmationModal from '../components/OrderConfirmationModal';
 
 const Buyer = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -22,6 +23,8 @@ const Buyer = () => {
   const [isWalletTopUpOpen, setIsWalletTopUpOpen] = useState(false);
   const [reviewVendor, setReviewVendor] = useState(null);
   const [isReviewOpen, setIsReviewOpen] = useState(false);
+  const [isOrderConfirmationOpen, setIsOrderConfirmationOpen] = useState(false);
+  const [orderToConfirm, setOrderToConfirm] = useState(null);
 
   useEffect(() => {
     const fetchBuyerData = async () => {
@@ -67,7 +70,7 @@ const Buyer = () => {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'wallet_funded': return 'bg-yellow-100 text-yellow-800';
+      case 'escrow_funded': return 'bg-blue-100 text-blue-800';
       case 'shipped': return 'bg-blue-100 text-blue-800';
       case 'delivered': return 'bg-green-100 text-green-800';
       case 'completed': return 'bg-green-100 text-green-800';
@@ -78,7 +81,7 @@ const Buyer = () => {
 
   const formatStatus = (status) => {
     switch (status) {
-      case 'wallet_funded': return 'Wallet Funded';
+      case 'escrow_funded': return 'Escrow Funded';
       case 'shipped': return 'Shipped';
       case 'delivered': return 'Delivered';
       case 'completed': return 'Completed';
@@ -116,6 +119,11 @@ const Buyer = () => {
     setIsWalletTopUpOpen(true);
   };
 
+  const openOrderConfirmation = (order) => {
+    setOrderToConfirm(order);
+    setIsOrderConfirmationOpen(true);
+  };
+
   const handleConfirmTopUp = async ({ amount, note, order }) => {
     try {
       // Integrate with WalletManager/firebaseService if available
@@ -129,6 +137,15 @@ const Buyer = () => {
       console.error('Top-up failed', e);
       alert('Failed to top up wallet.');
     }
+  };
+
+  const handleOrderConfirmation = async () => {
+    // Refresh orders to show updated status
+    const ordersData = await firebaseService.orders.getByUser(currentUser.uid, 'buyer');
+    setOrders(ordersData);
+    
+    setIsOrderConfirmationOpen(false);
+    setOrderToConfirm(null);
   };
 
   const openReviewVendor = (vendor) => {
@@ -367,7 +384,11 @@ const Buyer = () => {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{order.walletId || 'N/A'}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm flex gap-3">
                           <button onClick={() => openOrderDetails(order)} className="text-emerald-600 hover:text-emerald-700 font-medium">View Details</button>
-                          <button onClick={() => setIsWalletTopUpOpen(true) || setSelectedOrder(order)} className="text-gray-600 hover:text-gray-900">Fund Wallet</button>
+                          {order.status === 'escrow_funded' ? (
+                            <button onClick={() => openOrderConfirmation(order)} className="text-emerald-600 hover:text-emerald-700 font-medium">Confirm Order</button>
+                          ) : order.status === 'pending_wallet_funding' ? (
+                            <button onClick={() => setIsWalletTopUpOpen(true) || setSelectedOrder(order)} className="text-gray-600 hover:text-gray-900">Fund Wallet</button>
+                          ) : null}
                         </td>
                       </tr>
                     ))}
@@ -580,6 +601,13 @@ const Buyer = () => {
             vendor={reviewVendor}
             onClose={() => setIsReviewOpen(false)}
             onSubmit={handleSubmitReview}
+          />
+
+          <OrderConfirmationModal
+            open={isOrderConfirmationOpen}
+            order={orderToConfirm}
+            onClose={() => setIsOrderConfirmationOpen(false)}
+            onConfirm={handleOrderConfirmation}
           />
         </div>
       </div>

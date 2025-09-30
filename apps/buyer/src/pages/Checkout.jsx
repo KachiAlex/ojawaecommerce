@@ -142,11 +142,12 @@ const CheckoutForm = ({ total, cartItems, onSuccess, orderDetails, walletBalance
         orderId: orderId
       });
 
-      // Update order status to indicate escrow is held
-      await firebaseService.orders.updateStatus(orderId, 'pending_wallet_funding', {
+      // Update order status to indicate escrow is funded
+      await firebaseService.orders.updateStatus(orderId, 'escrow_funded', {
         escrowHeld: true,
         escrowAmount: total,
-        vendorNotified: false
+        vendorNotified: false,
+        paymentStatus: 'escrow_funded'
       });
 
       // Notify vendor of new order
@@ -168,7 +169,7 @@ const CheckoutForm = ({ total, cartItems, onSuccess, orderDetails, walletBalance
       // Create buyer notification
       try {
         await firebaseService.notifications.createOrderNotification(
-          { id: orderId, buyerId: currentUser.uid, status: 'pending_wallet_funding' },
+          { id: orderId, buyerId: currentUser.uid, status: 'escrow_funded' },
           'order_placed'
         );
       } catch (notificationError) {
