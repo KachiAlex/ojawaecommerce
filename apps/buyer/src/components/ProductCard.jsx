@@ -103,6 +103,9 @@ const ProductCard = ({ product, onAddToCart }) => {
             alt={product.name}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
             onError={() => setImageError(true)}
+            loading="lazy"
+            fetchpriority="low"
+            decoding="async"
           />
           
           {/* Stock Status Badge */}

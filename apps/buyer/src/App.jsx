@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, Suspense, lazy } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { CartProvider } from './contexts/CartContext';
 import { OnboardingProvider, useOnboarding } from './contexts/OnboardingContext';
@@ -16,28 +16,28 @@ import { setupGlobalErrorHandling } from './utils/errorLogger';
 import { validateEnvironment } from './config/env';
 import './utils/clearFlutterwaveScripts';
 import Home from './pages/Home';
-import Products from './pages/Products';
-import ProductDetail from './pages/ProductDetail';
-import Cart from './pages/Cart';
-import Checkout from './pages/Checkout';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import Dashboard from './pages/Dashboard';
-import AdminDashboard from './pages/AdminDashboard';
+const Products = lazy(() => import('./pages/Products'));
+const ProductDetail = lazy(() => import('./pages/ProductDetail'));
+const Cart = lazy(() => import('./pages/Cart'));
+const Checkout = lazy(() => import('./pages/Checkout'));
+const Login = lazy(() => import('./pages/Login'));
+const Register = lazy(() => import('./pages/Register'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 import ProtectedRoute from './components/ProtectedRoute';
 import OsoahiaButton from './components/OsoahiaButton';
 import { NotificationToastContainer } from './components/NotificationToast';
 import './App.css';
-import Buyer from './pages/Buyer';
-import EnhancedBuyer from './pages/EnhancedBuyer';
-import Vendor from './pages/Vendor';
-import Logistics from './pages/Logistics';
-import Tracking from './pages/Tracking';
-import HowWalletWorks from './components/HowWalletWorks';
-import Categories from './pages/Categories';
-import Wallet from './pages/Wallet';
-import BecomeVendor from './pages/BecomeVendor';
-import BecomeLogistics from './pages/BecomeLogistics';
+const Buyer = lazy(() => import('./pages/Buyer'));
+const EnhancedBuyer = lazy(() => import('./pages/EnhancedBuyer'));
+const Vendor = lazy(() => import('./pages/Vendor'));
+const Logistics = lazy(() => import('./pages/Logistics'));
+const Tracking = lazy(() => import('./pages/Tracking'));
+const HowWalletWorks = lazy(() => import('./components/HowWalletWorks'));
+const Categories = lazy(() => import('./pages/Categories'));
+const Wallet = lazy(() => import('./pages/Wallet'));
+const BecomeVendor = lazy(() => import('./pages/BecomeVendor'));
+const BecomeLogistics = lazy(() => import('./pages/BecomeLogistics'));
 
 // Admin Route Protection Component
 const AdminRoute = ({ children }) => {
@@ -92,6 +92,7 @@ const OnboardingWrapper = () => {
         <Navbar />
         <PWAInstallPrompt />
         <main>
+        <Suspense fallback={<div className="min-h-[50vh] flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div></div>}>
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/products" element={<Products />} />
@@ -158,6 +159,7 @@ const OnboardingWrapper = () => {
               />
               <Route path="/onboarding" element={<OnboardingFlow />} />
         </Routes>
+        </Suspense>
         </main>
         <MobileBottomNavigation />
         <NotificationToastContainer />
