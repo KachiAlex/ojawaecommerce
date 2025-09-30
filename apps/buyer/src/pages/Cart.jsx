@@ -44,7 +44,7 @@ const Cart = () => {
               <div key={item.id} className="bg-white rounded-lg shadow p-6">
                 <div className="flex items-center space-x-4">
                   <img
-                    src={item.image}
+                    src={item.image || (Array.isArray(item.images) && item.images[0]) || '/placeholder.png'}
                     alt={item.name}
                     className="w-20 h-20 object-cover rounded-lg"
                   />

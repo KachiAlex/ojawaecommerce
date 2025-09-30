@@ -63,8 +63,13 @@ export const productService = {
   async saveWithUploadsWithProgress(productData, vendorId, productId = null, options = {}) {
     const { onProgress } = options;
     const items = Array.isArray(productData.images) ? productData.images : [];
+    const videoItems = Array.isArray(productData.videos) ? productData.videos : [];
     const resolvedImages = [];
-    const fileItems = items.filter((i) => typeof i !== 'string');
+    const resolvedVideos = [];
+    const fileItems = [
+      ...items.filter((i) => typeof i !== 'string'),
+      ...videoItems.filter((v) => typeof v !== 'string')
+    ];
     const totalBytes = fileItems.reduce((sum, f) => sum + (f?.size || 0), 0) || 0;
     let uploadedBytes = 0;
 
@@ -94,8 +99,10 @@ export const productService = {
             // Simplify: compute ratio and multiply by this file size, then clamp
             const currentFileUploaded = Math.min(total, bytesTransferred);
             // Recompute uploadedBytes from other files plus current
-            const indexOfCurrent = resolvedImages.length; // approx position
-            const priorFiles = fileItems.slice(0, indexOfCurrent);
+            const indexOfCurrent = resolvedImages.length; // approx position within images
+            const priorImageFiles = items.filter((i) => typeof i !== 'string').slice(0, indexOfCurrent);
+            const priorVideoFiles = []; // ignore videos for this estimate
+            const priorFiles = [...priorImageFiles, ...priorVideoFiles];
             const priorBytes = priorFiles.reduce((s, f) => s + (f?.size || 0), 0);
             uploadedBytes = priorBytes + currentFileUploaded;
             notify();
@@ -104,7 +111,8 @@ export const productService = {
               const url = await getDownloadURL(task.snapshot.ref);
               resolvedImages.push(url);
               // After file completes update uploadedBytes to include full file
-              uploadedBytes = fileItems.slice(0, resolvedImages.length).reduce((s, f) => s + (f?.size || 0), 0);
+              const completedImageFiles = items.filter((i) => typeof i !== 'string').slice(0, resolvedImages.length);
+              uploadedBytes = completedImageFiles.reduce((s, f) => s + (f?.size || 0), 0);
               notify();
               resolve();
             } catch (e) {
@@ -114,12 +122,42 @@ export const productService = {
         });
       }
     }
+
+    // Then resolve videos: keep URLs, upload File objects and get URLs
+    for (const vid of videoItems) {
+      if (typeof vid === 'string') {
+        resolvedVideos.push(vid);
+      } else if (vid) {
+        const safeName = (vid.name || 'video').replace(/[^a-zA-Z0-9._-]/g, '_');
+        const path = `products/${vendorId}/videos/${Date.now()}-${safeName}`;
+        const storageRef = ref(storage, path);
+        // Upload without progress integration (keeps implementation simple)
+        await uploadBytes(storageRef, vid);
+        const url = await getDownloadURL(storageRef);
+        resolvedVideos.push(url);
+      }
+    }
     if (totalBytes === 0 && typeof onProgress === 'function') {
       onProgress(100);
     }
+    // Final payload: whitelist known fields and ensure no File/Blob sneaks in
+    const coerceNumber = (v) => {
+      const n = typeof v === 'number' ? v : parseFloat(v);
+      return Number.isFinite(n) ? n : 0;
+    };
+    const ensureStringArray = (arr) => (Array.isArray(arr) ? arr.filter((x) => typeof x === 'string') : []);
+    const sanitizeScalar = (v) => (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean' ? v : null);
+
     const payload = {
-      ...productData,
-      images: resolvedImages,
+      name: sanitizeScalar(productData?.name) || '',
+      category: sanitizeScalar(productData?.category) || 'Uncategorized',
+      description: sanitizeScalar(productData?.description) || '',
+      price: coerceNumber(productData?.price),
+      currency: sanitizeScalar(productData?.currency) || '₦ NGN',
+      stock: coerceNumber(productData?.stock),
+      condition: sanitizeScalar(productData?.condition) || 'new',
+      images: ensureStringArray(resolvedImages),
+      videos: ensureStringArray(resolvedVideos),
     };
     if (productId) {
       await productService.update(productId, payload);
@@ -135,7 +173,7 @@ export const productService = {
         vendorId,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-        status: 'active'
+        status: 'pending' // Require admin approval
       });
       return docRef.id;
     } catch (error) {
@@ -155,6 +193,10 @@ export const productService = {
       
       if (filters.vendorId) {
         q = query(q, where('vendorId', '==', filters.vendorId));
+      }
+      
+      if (filters.status) {
+        q = query(q, where('status', '==', filters.status));
       }
       
       q = query(q, orderBy('createdAt', 'desc'));
@@ -281,17 +323,26 @@ export const orderService = {
   async getByUser(userId, userType = 'buyer') {
     try {
       const field = userType === 'buyer' ? 'buyerId' : 'vendorId';
+      
+      // Temporary workaround: Get all orders and filter client-side while index builds
       const q = query(
         collection(db, 'orders'),
-        where(field, '==', userId),
-        orderBy('createdAt', 'desc')
+        where(field, '==', userId)
+        // Removed orderBy temporarily to avoid index requirement
       );
       
       const snapshot = await getDocs(q);
-      return snapshot.docs.map(doc => ({
+      const orders = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
+      
+      // Sort client-side as temporary workaround
+      return orders.sort((a, b) => {
+        const aTime = a.createdAt?.toDate?.() || new Date(a.createdAt || 0);
+        const bTime = b.createdAt?.toDate?.() || new Date(b.createdAt || 0);
+        return bTime - aTime; // Descending order
+      });
     } catch (error) {
       console.error('Error fetching orders:', error);
       throw error;
@@ -679,17 +730,25 @@ export const walletService = {
   // Get user's wallet transactions
   async getUserTransactions(userId) {
     try {
+      // Temporary workaround: Remove orderBy while index builds
       const q = query(
         collection(db, 'wallet_transactions'),
-        where('userId', '==', userId),
-        orderBy('createdAt', 'desc')
+        where('userId', '==', userId)
+        // Removed orderBy temporarily to avoid index requirement
       );
       
       const snapshot = await getDocs(q);
-      return snapshot.docs.map(doc => ({
+      const transactions = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
+      
+      // Sort client-side as temporary workaround
+      return transactions.sort((a, b) => {
+        const aTime = a.createdAt?.toDate?.() || new Date(a.createdAt || 0);
+        const bTime = b.createdAt?.toDate?.() || new Date(b.createdAt || 0);
+        return bTime - aTime; // Descending order
+      });
     } catch (error) {
       console.error('Error fetching wallet transactions:', error);
       throw error;
@@ -729,19 +788,65 @@ export const walletService = {
     }
   },
 
-  // Release wallet funds to vendor
+  // Release wallet funds to vendor (escrow release)
   async releaseWallet(orderId, vendorId, amount) {
     try {
       const batch = writeBatch(db);
       
-      // Create release transaction
+      // Get buyer and vendor wallets
+      const buyerWalletRef = doc(db, 'wallets', `buyer_${orderId}`);
+      const vendorWalletRef = doc(db, 'wallets', `vendor_${vendorId}`);
+      
+      // Get current balances
+      const [buyerWalletSnap, vendorWalletSnap] = await Promise.all([
+        getDoc(buyerWalletRef),
+        getDoc(vendorWalletRef)
+      ]);
+      
+      if (!buyerWalletSnap.exists()) {
+        throw new Error('Buyer wallet not found');
+      }
+      
+      const buyerBalance = buyerWalletSnap.data().balance || 0;
+      if (buyerBalance < amount) {
+        throw new Error('Insufficient funds in buyer wallet');
+      }
+      
+      // Update buyer wallet (deduct amount)
+      batch.update(buyerWalletRef, {
+        balance: buyerBalance - amount,
+        updatedAt: serverTimestamp()
+      });
+      
+      // Update or create vendor wallet (add amount)
+      if (vendorWalletSnap.exists()) {
+        const vendorBalance = vendorWalletSnap.data().balance || 0;
+        batch.update(vendorWalletRef, {
+          balance: vendorBalance + amount,
+          updatedAt: serverTimestamp()
+        });
+      } else {
+        // Create vendor wallet if it doesn't exist
+        batch.set(vendorWalletRef, {
+          userId: vendorId,
+          type: 'vendor',
+          balance: amount,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+      }
+      
+      // Create release transaction record
       const transactionRef = doc(collection(db, 'wallet_transactions'));
       batch.set(transactionRef, {
         userId: vendorId,
         orderId,
-        type: 'wallet_release',
+        type: 'escrow_release',
         amount,
         status: 'completed',
+        buyerBalanceBefore: buyerBalance,
+        buyerBalanceAfter: buyerBalance - amount,
+        vendorBalanceAfter: vendorWalletSnap.exists() ? (vendorWalletSnap.data().balance || 0) + amount : amount,
         createdAt: serverTimestamp()
       });
       
@@ -749,6 +854,7 @@ export const walletService = {
       const orderRef = doc(db, 'orders', orderId);
       batch.update(orderRef, {
         status: 'completed',
+        escrowReleased: true,
         releaseTransactionId: transactionRef.id,
         completedAt: serverTimestamp(),
         updatedAt: serverTimestamp()
@@ -757,7 +863,7 @@ export const walletService = {
       await batch.commit();
       return transactionRef.id;
     } catch (error) {
-      console.error('Error releasing wallet funds:', error);
+      console.error('Error releasing escrow funds:', error);
       throw error;
     }
   }
@@ -876,6 +982,615 @@ export const logisticsService = {
       });
     } catch (error) {
       console.error('Error updating delivery status:', error);
+      throw error;
+    }
+  },
+
+  // Create logistics partner profile
+  async createProfile(profileData) {
+    try {
+      const docRef = await addDoc(collection(db, 'logistics_profiles'), {
+        ...profileData,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      return docRef.id;
+    } catch (error) {
+      console.error('Error creating logistics profile:', error);
+      throw error;
+    }
+  },
+
+  // Get logistics profile by user ID
+  async getProfileByUserId(userId) {
+    try {
+      const q = query(
+        collection(db, 'logistics_profiles'),
+        where('userId', '==', userId)
+      );
+      const snapshot = await getDocs(q);
+      if (snapshot.empty) return null;
+      
+      const doc = snapshot.docs[0];
+      return {
+        id: doc.id,
+        ...doc.data()
+      };
+    } catch (error) {
+      console.error('Error fetching logistics profile:', error);
+      throw error;
+    }
+  },
+
+  // Update logistics profile
+  async updateProfile(profileId, updateData) {
+    try {
+      const profileRef = doc(db, 'logistics_profiles', profileId);
+      await updateDoc(profileRef, {
+        ...updateData,
+        updatedAt: serverTimestamp()
+      });
+    } catch (error) {
+      console.error('Error updating logistics profile:', error);
+      throw error;
+    }
+  },
+
+  // Get all logistics partners
+  async getAllPartners() {
+    try {
+      const q = query(
+        collection(db, 'logistics_profiles'),
+        orderBy('createdAt', 'desc')
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+    } catch (error) {
+      console.error('Error fetching logistics partners:', error);
+      throw error;
+    }
+  },
+
+  // Get available logistics partners for delivery
+  async getAvailablePartners(deliveryData) {
+    try {
+      const { pickupLocation, deliveryLocation, weight, distance } = deliveryData;
+      
+      const q = query(
+        collection(db, 'logistics_profiles'),
+        where('status', '==', 'approved'),
+        where('serviceAreas', 'array-contains-any', [pickupLocation, deliveryLocation])
+      );
+      
+      const snapshot = await getDocs(q);
+      const partners = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+
+      // Filter by weight and distance capabilities
+      return partners.filter(partner => 
+        partner.maxWeight >= weight && 
+        partner.maxDistance >= distance
+      );
+    } catch (error) {
+      console.error('Error fetching available partners:', error);
+      throw error;
+    }
+  },
+
+  // Get deliveries for logistics partner
+  async getDeliveriesByPartner(partnerId) {
+    try {
+      const q = query(
+        collection(db, 'deliveries'),
+        where('logisticsPartnerId', '==', partnerId),
+        orderBy('createdAt', 'desc')
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+    } catch (error) {
+      console.error('Error fetching deliveries:', error);
+      throw error;
+    }
+  },
+
+  // Enhanced dynamic pricing calculation
+  calculateCost(partner, deliveryData) {
+    const {
+      distance,
+      weight,
+      deliveryType = 'standard',
+      pickupLocation,
+      deliveryLocation,
+      urgency = 'normal',
+      itemValue = 0,
+      isFragile = false,
+      requiresSignature = false,
+      timeOfDay = 'business'
+    } = deliveryData;
+
+    // Base pricing components
+    const baseRate = partner.baseRate || 0;
+    const perKmRate = partner.perKmRate || 0;
+    
+    // Distance-based pricing with intracity optimization
+    let distanceCost = 0;
+    if (distance <= 5) {
+      // Intracity short distance (0-5km) - flat rate with small per-km
+      distanceCost = Math.max(baseRate, 500) + (distance * 50);
+    } else if (distance <= 15) {
+      // Intracity medium distance (5-15km) - standard per-km rate
+      distanceCost = baseRate + (distance * perKmRate);
+    } else if (distance <= 30) {
+      // Intracity long distance (15-30km) - premium rate
+      distanceCost = baseRate + (distance * perKmRate * 1.2);
+    } else {
+      // Intercity (30km+) - standard rate
+      distanceCost = baseRate + (distance * perKmRate);
+    }
+
+    // Weight-based pricing tiers
+    let weightMultiplier = 1;
+    if (weight <= 1) {
+      weightMultiplier = 0.8; // Light items discount
+    } else if (weight <= 5) {
+      weightMultiplier = 1; // Standard weight
+    } else if (weight <= 10) {
+      weightMultiplier = 1.3; // Heavy items
+    } else if (weight <= 20) {
+      weightMultiplier = 1.6; // Very heavy items
+    } else {
+      weightMultiplier = 2.0; // Oversized items
+    }
+
+    // Delivery type multipliers
+    const deliveryTypeMultipliers = {
+      'same_day': 2.5,
+      'express': 2.0,
+      'standard': 1.0,
+      'economy': 0.8,
+      'overnight': 1.5
+    };
+
+    // Urgency multipliers
+    const urgencyMultipliers = {
+      'urgent': 1.8,
+      'normal': 1.0,
+      'flexible': 0.9
+    };
+
+    // Time of day multipliers
+    const timeMultipliers = {
+      'business': 1.0,
+      'after_hours': 1.3,
+      'weekend': 1.2,
+      'holiday': 1.5
+    };
+
+    // Special service charges
+    let specialCharges = 0;
+    if (isFragile) specialCharges += 200; // Fragile handling fee
+    if (requiresSignature) specialCharges += 100; // Signature confirmation fee
+    if (itemValue > 10000) specialCharges += 300; // High-value insurance fee
+
+    // Route complexity analysis
+    let routeComplexityMultiplier = 1;
+    const isIntracity = this.isIntracityRoute(pickupLocation, deliveryLocation);
+    const isSameCity = this.isSameCity(pickupLocation, deliveryLocation);
+    
+    if (isIntracity) {
+      // Intracity routes get volume discounts
+      routeComplexityMultiplier = 0.9;
+    } else if (isSameCity) {
+      // Same city but different areas
+      routeComplexityMultiplier = 1.1;
+    } else {
+      // Intercity routes
+      routeComplexityMultiplier = 1.3;
+    }
+
+    // Calculate final cost
+    const baseCost = distanceCost * weightMultiplier;
+    const deliveryMultiplier = deliveryTypeMultipliers[deliveryType] || 1;
+    const urgencyMultiplier = urgencyMultipliers[urgency] || 1;
+    const timeMultiplier = timeMultipliers[timeOfDay] || 1;
+    
+    const finalCost = (baseCost * deliveryMultiplier * urgencyMultiplier * timeMultiplier * routeComplexityMultiplier) + specialCharges;
+
+    // Minimum and maximum cost limits
+    const minCost = 300; // Minimum ₦300
+    const maxCost = 50000; // Maximum ₦50,000
+
+    return Math.max(minCost, Math.min(maxCost, Math.round(finalCost)));
+  },
+
+  // Helper function to determine if route is intracity
+  isIntracityRoute(pickupLocation, deliveryLocation) {
+    if (!pickupLocation || !deliveryLocation) return false;
+    
+    // Extract city names (simple implementation)
+    const pickupCity = pickupLocation.split(',')[0].trim().toLowerCase();
+    const deliveryCity = deliveryLocation.split(',')[0].trim().toLowerCase();
+    
+    return pickupCity === deliveryCity;
+  },
+
+  // Helper function to determine if route is same city
+  isSameCity(pickupLocation, deliveryLocation) {
+    if (!pickupLocation || !deliveryLocation) return false;
+    
+    const pickupCity = pickupLocation.split(',')[0].trim().toLowerCase();
+    const deliveryCity = deliveryLocation.split(',')[0].trim().toLowerCase();
+    
+    return pickupCity === deliveryCity;
+  },
+
+  // Get dynamic pricing options for a route
+  async getPricingOptions(partner, deliveryData) {
+    const baseCost = this.calculateCost(partner, deliveryData);
+    
+    return {
+      standard: {
+        name: 'Standard Delivery',
+        cost: baseCost,
+        estimatedDays: partner.estimatedDeliveryDays || 2,
+        features: ['Regular handling', 'Standard tracking']
+      },
+      express: {
+        name: 'Express Delivery',
+        cost: Math.round(baseCost * 1.8),
+        estimatedDays: 1,
+        features: ['Priority handling', 'Real-time tracking', 'SMS notifications']
+      },
+      same_day: {
+        name: 'Same Day Delivery',
+        cost: Math.round(baseCost * 2.5),
+        estimatedDays: 0.5,
+        features: ['Immediate dispatch', 'Live tracking', 'Guaranteed delivery']
+      },
+      economy: {
+        name: 'Economy Delivery',
+        cost: Math.round(baseCost * 0.8),
+        estimatedDays: 3,
+        features: ['Standard handling', 'Basic tracking']
+      }
+    };
+  },
+
+  // Search products with enhanced functionality for Osoahia
+  async searchProducts(searchTerm, options = {}) {
+    try {
+      const { pageSize = 20, category, minPrice, maxPrice, sortBy = 'relevance' } = options;
+      
+      let q = query(collection(db, 'products'));
+      
+      // Add search filters
+      if (category) {
+        q = query(q, where('category', '==', category));
+      }
+      
+      if (minPrice !== undefined) {
+        q = query(q, where('price', '>=', minPrice));
+      }
+      
+      if (maxPrice !== undefined) {
+        q = query(q, where('price', '<=', maxPrice));
+      }
+      
+      // Add sorting
+      if (sortBy === 'price_low') {
+        q = query(q, orderBy('price', 'asc'));
+      } else if (sortBy === 'price_high') {
+        q = query(q, orderBy('price', 'desc'));
+      } else if (sortBy === 'newest') {
+        q = query(q, orderBy('createdAt', 'desc'));
+      } else if (sortBy === 'rating') {
+        q = query(q, orderBy('rating', 'desc'));
+      }
+      
+      const snapshot = await getDocs(q);
+      let products = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      // Filter by search term if provided
+      if (searchTerm) {
+        const searchLower = searchTerm.toLowerCase();
+        products = products.filter(product => 
+          product.name.toLowerCase().includes(searchLower) ||
+          product.description.toLowerCase().includes(searchLower) ||
+          product.category.toLowerCase().includes(searchLower)
+        );
+      }
+      
+      return products.slice(0, pageSize);
+    } catch (error) {
+      console.error('Error searching products:', error);
+      return [];
+    }
+  },
+
+  // Get popular products for recommendations
+  async getPopular(options = {}) {
+    try {
+      const { pageSize = 10 } = options;
+      
+      // In a real app, this would be based on actual sales data
+      // For now, we'll return products with high ratings
+      let q = query(
+        collection(db, 'products'),
+        where('status', '==', 'active'),
+        where('rating', '>=', 4.0),
+        orderBy('rating', 'desc')
+      );
+      
+      const snapshot = await getDocs(q);
+      const products = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      return products.slice(0, pageSize);
+    } catch (error) {
+      console.error('Error getting popular products:', error);
+      return [];
+    }
+  },
+
+  // Get trending products
+  async getTrending(options = {}) {
+    try {
+      const { pageSize = 10 } = options;
+      
+      // In a real app, this would be based on recent views/sales
+      // For now, we'll return recently created products
+      const q = query(
+        collection(db, 'products'),
+        where('status', '==', 'active'),
+        orderBy('createdAt', 'desc')
+      );
+      
+      const snapshot = await getDocs(q);
+      const products = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      return products.slice(0, pageSize);
+    } catch (error) {
+      console.error('Error getting trending products:', error);
+      return [];
+    }
+  },
+
+  // Get featured products
+  async getFeatured(options = {}) {
+    try {
+      const { pageSize = 10 } = options;
+      
+      // Return a mix of popular and new products
+      const [popular, trending] = await Promise.all([
+        this.getPopular({ pageSize: Math.ceil(pageSize / 2) }),
+        this.getTrending({ pageSize: Math.floor(pageSize / 2) })
+      ]);
+      
+      // Combine and shuffle
+      const combined = [...popular, ...trending];
+      return combined.slice(0, pageSize);
+    } catch (error) {
+      console.error('Error getting featured products:', error);
+      return [];
+    }
+  },
+
+  // Get products by category
+  async getByCategory(category, options = {}) {
+    try {
+      const { pageSize = 20 } = options;
+      
+      const q = query(
+        collection(db, 'products'),
+        where('status', '==', 'active'),
+        where('category', '==', category),
+        orderBy('createdAt', 'desc')
+      );
+      
+      const snapshot = await getDocs(q);
+      const products = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      return products.slice(0, pageSize);
+    } catch (error) {
+      console.error('Error getting products by category:', error);
+      return [];
+    }
+  },
+
+  // Get similar products
+  async getSimilar(productId, options = {}) {
+    try {
+      const { pageSize = 6 } = options;
+      
+      // Get the original product
+      const product = await this.getById(productId);
+      if (!product) return [];
+      
+      // Find similar products by category
+      const q = query(
+        collection(db, 'products'),
+        where('category', '==', product.category),
+        where('__name__', '!=', productId)
+      );
+      
+      const snapshot = await getDocs(q);
+      const products = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      return products.slice(0, pageSize);
+    } catch (error) {
+      console.error('Error getting similar products:', error);
+      return [];
+    }
+  },
+
+  // Get delivery analytics
+  async getAnalytics(partnerId, startDate, endDate) {
+    try {
+      const q = query(
+        collection(db, 'deliveries'),
+        where('logisticsPartnerId', '==', partnerId),
+        where('createdAt', '>=', startDate),
+        where('createdAt', '<=', endDate)
+      );
+      
+      const snapshot = await getDocs(q);
+      const deliveries = snapshot.docs.map(doc => doc.data());
+      
+      const analytics = {
+        totalDeliveries: deliveries.length,
+        completedDeliveries: deliveries.filter(d => d.status === 'delivered').length,
+        pendingDeliveries: deliveries.filter(d => d.status === 'pending').length,
+        inTransitDeliveries: deliveries.filter(d => d.status === 'in_transit').length,
+        totalEarnings: deliveries
+          .filter(d => d.status === 'delivered')
+          .reduce((sum, d) => sum + (d.amount || 0), 0),
+        averageDeliveryTime: this.calculateAverageDeliveryTime(deliveries)
+      };
+      
+      return analytics;
+    } catch (error) {
+      console.error('Error fetching analytics:', error);
+      throw error;
+    }
+  },
+
+  calculateAverageDeliveryTime(deliveries) {
+    const completedDeliveries = deliveries.filter(d => 
+      d.status === 'delivered' && d.deliveredAt && d.createdAt
+    );
+    
+    if (completedDeliveries.length === 0) return 0;
+    
+    const totalHours = completedDeliveries.reduce((sum, delivery) => {
+      const created = delivery.createdAt.toDate();
+      const delivered = delivery.deliveredAt.toDate();
+      return sum + (delivered - created) / (1000 * 60 * 60); // Convert to hours
+    }, 0);
+    
+    return totalHours / completedDeliveries.length;
+  }
+};
+
+// ===============================
+// DELIVERIES OPERATIONS
+// ===============================
+
+export const deliveriesService = {
+  // Create delivery
+  async create(deliveryData) {
+    try {
+      const docRef = await addDoc(collection(db, 'deliveries'), {
+        ...deliveryData,
+        status: 'pending_pickup',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      return docRef.id;
+    } catch (error) {
+      console.error('Error creating delivery:', error);
+      throw error;
+    }
+  },
+
+  // Update delivery status
+  async updateStatus(deliveryId, status, additionalData = {}) {
+    try {
+      const updateData = {
+        status,
+        updatedAt: serverTimestamp(),
+        ...additionalData
+      };
+      
+      const docRef = doc(db, 'deliveries', deliveryId);
+      await updateDoc(docRef, updateData);
+      
+      return { success: true, deliveryId };
+    } catch (error) {
+      console.error('Error updating delivery status:', error);
+      throw error;
+    }
+  },
+
+  // Get deliveries by order
+  async getByOrder(orderId) {
+    try {
+      const q = query(
+        collection(db, 'deliveries'),
+        where('orderId', '==', orderId),
+        orderBy('createdAt', 'desc')
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+    } catch (error) {
+      console.error('Error fetching deliveries by order:', error);
+      throw error;
+    }
+  },
+
+  // Get deliveries by logistics partner
+  async getByPartner(partnerId) {
+    try {
+      const q = query(
+        collection(db, 'deliveries'),
+        where('logisticsPartnerId', '==', partnerId),
+        orderBy('createdAt', 'desc')
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+    } catch (error) {
+      console.error('Error fetching deliveries by partner:', error);
+      throw error;
+    }
+  },
+
+  // Add tracking event
+  async addTrackingEvent(deliveryId, eventData) {
+    try {
+      const docRef = doc(db, 'deliveries', deliveryId);
+      const trackingEvent = {
+        ...eventData,
+        timestamp: serverTimestamp()
+      };
+      
+      await updateDoc(docRef, {
+        trackingHistory: {
+          ...eventData,
+          timestamp: serverTimestamp()
+        },
+        updatedAt: serverTimestamp()
+      });
+      
+      return { success: true };
+    } catch (error) {
+      console.error('Error adding tracking event:', error);
       throw error;
     }
   }
@@ -1654,6 +2369,707 @@ export const adminService = {
 };
 
 // ===============================
+// NOTIFICATIONS OPERATIONS
+// ===============================
+
+export const notifications = {
+  // Create notification
+  async create(notificationData) {
+    try {
+      const docRef = await addDoc(collection(db, 'notifications'), {
+        ...notificationData,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      
+      return {
+        id: docRef.id,
+        ...notificationData
+      };
+    } catch (error) {
+      console.error('Error creating notification:', error);
+      throw error;
+    }
+  },
+
+  // Get notifications for a specific user
+  async getByUser(userId, options = {}) {
+    try {
+      const { limit = 50, orderBy: orderByField = 'createdAt', orderDirection = 'desc' } = options;
+      
+      const q = query(
+        collection(db, 'notifications'),
+        where('userId', '==', userId),
+        orderBy(orderByField, orderDirection)
+      );
+      
+      const snapshot = await getDocs(q);
+      const notifications = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      return limit ? notifications.slice(0, limit) : notifications;
+    } catch (error) {
+      console.error('Error fetching user notifications:', error);
+      throw error;
+    }
+  },
+
+  // Listen to real-time notifications for a user
+  listenToUserNotifications(userId, callback, options = {}) {
+    try {
+      const { limit = 50, orderBy: orderByField = 'createdAt', orderDirection = 'desc' } = options;
+      
+      const q = query(
+        collection(db, 'notifications'),
+        where('userId', '==', userId),
+        orderBy(orderByField, orderDirection)
+      );
+      
+      return onSnapshot(q, (snapshot) => {
+        const notifications = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        
+        const limitedNotifications = limit ? notifications.slice(0, limit) : notifications;
+        callback(limitedNotifications);
+      });
+    } catch (error) {
+      console.error('Error setting up notifications listener:', error);
+      throw error;
+    }
+  },
+
+  // Mark notification as read
+  async markAsRead(notificationId) {
+    try {
+      const notificationRef = doc(db, 'notifications', notificationId);
+      await updateDoc(notificationRef, {
+        read: true,
+        readAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+      throw error;
+    }
+  },
+
+  // Mark all notifications as read for a user
+  async markAllAsRead(userId) {
+    try {
+      const q = query(
+        collection(db, 'notifications'),
+        where('userId', '==', userId),
+        where('read', '==', false)
+      );
+      
+      const snapshot = await getDocs(q);
+      const batch = [];
+      
+      snapshot.docs.forEach(doc => {
+        batch.push(updateDoc(doc.ref, {
+          read: true,
+          readAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        }));
+      });
+      
+      await Promise.all(batch);
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+      throw error;
+    }
+  },
+
+  // Delete notification
+  async delete(notificationId) {
+    try {
+      const notificationRef = doc(db, 'notifications', notificationId);
+      await deleteDoc(notificationRef);
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+      throw error;
+    }
+  },
+
+  // Create order notification
+  async createOrderNotification(orderData, eventType) {
+    try {
+      const notificationTypes = {
+        'order_placed': {
+          title: 'Order Placed Successfully',
+          message: `Your order #${orderData.id} has been placed and payment is being processed.`,
+          type: 'success',
+          icon: '📦'
+        },
+        'payment_processed': {
+          title: 'Payment Processed',
+          message: `Payment for order #${orderData.id} has been processed. Funds are held in escrow.`,
+          type: 'info',
+          icon: '💰'
+        },
+        'order_shipped': {
+          title: 'Order Shipped',
+          message: `Your order #${orderData.id} has been shipped. Track your delivery.`,
+          type: 'info',
+          icon: '🚚'
+        },
+        'order_delivered': {
+          title: 'Order Delivered',
+          message: `Your order #${orderData.id} has been delivered. Please confirm receipt.`,
+          type: 'success',
+          icon: '✅'
+        },
+        'order_completed': {
+          title: 'Order Completed',
+          message: `Order #${orderData.id} has been completed. Thank you for your business!`,
+          type: 'success',
+          icon: '🎉'
+        },
+        'order_cancelled': {
+          title: 'Order Cancelled',
+          message: `Order #${orderData.id} has been cancelled. Refund will be processed.`,
+          type: 'warning',
+          icon: '❌'
+        },
+        'dispute_created': {
+          title: 'Dispute Created',
+          message: `A dispute has been created for order #${orderData.id}. We'll review and resolve it.`,
+          type: 'warning',
+          icon: '⚖️'
+        },
+        'dispute_resolved': {
+          title: 'Dispute Resolved',
+          message: `The dispute for order #${orderData.id} has been resolved.`,
+          type: 'info',
+          icon: '✅'
+        }
+      };
+
+      const notificationConfig = notificationTypes[eventType];
+      if (!notificationConfig) {
+        throw new Error(`Unknown notification type: ${eventType}`);
+      }
+
+      return await this.create({
+        userId: orderData.buyerId,
+        title: notificationConfig.title,
+        message: notificationConfig.message,
+        type: notificationConfig.type,
+        icon: notificationConfig.icon,
+        orderId: orderData.id,
+        orderStatus: orderData.status,
+        read: false,
+        priority: 'normal'
+      });
+    } catch (error) {
+      console.error('Error creating order notification:', error);
+      throw error;
+    }
+  },
+
+  // Create vendor notification
+  async createVendorNotification(vendorId, eventType, orderData) {
+    try {
+      const notificationTypes = {
+        'new_order': {
+          title: 'New Order Received',
+          message: `You have received a new order #${orderData.id} for ₦${orderData.totalAmount.toLocaleString()}.`,
+          type: 'info',
+          icon: '🛒'
+        },
+        'payment_released': {
+          title: 'Payment Released',
+          message: `Payment for order #${orderData.id} has been released to your wallet.`,
+          type: 'success',
+          icon: '💰'
+        },
+        'dispute_created': {
+          title: 'Dispute Created',
+          message: `A dispute has been created for order #${orderData.id}. Please respond.`,
+          type: 'warning',
+          icon: '⚖️'
+        },
+        'dispute_resolved': {
+          title: 'Dispute Resolved',
+          message: `The dispute for order #${orderData.id} has been resolved.`,
+          type: 'info',
+          icon: '✅'
+        }
+      };
+
+      const notificationConfig = notificationTypes[eventType];
+      if (!notificationConfig) {
+        throw new Error(`Unknown notification type: ${eventType}`);
+      }
+
+      return await this.create({
+        userId: vendorId,
+        title: notificationConfig.title,
+        message: notificationConfig.message,
+        type: notificationConfig.type,
+        icon: notificationConfig.icon,
+        orderId: orderData.id,
+        orderStatus: orderData.status,
+        read: false,
+        priority: 'normal'
+      });
+    } catch (error) {
+      console.error('Error creating vendor notification:', error);
+      throw error;
+    }
+  }
+};
+
+// ===============================
+// MESSAGING OPERATIONS
+// ===============================
+
+export const messagingService = {
+  // Create a new conversation
+  async createConversation(conversationData) {
+    try {
+      const docRef = await addDoc(collection(db, 'conversations'), {
+        ...conversationData,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        unreadCount: 0
+      });
+      
+      return {
+        id: docRef.id,
+        ...conversationData
+      };
+    } catch (error) {
+      console.error('Error creating conversation:', error);
+      throw error;
+    }
+  },
+
+  // Get user's conversations
+  async getUserConversations(userId) {
+    try {
+      const q = query(
+        collection(db, 'conversations'),
+        where('participants', 'array-contains', userId),
+        orderBy('updatedAt', 'desc')
+      );
+      
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+    } catch (error) {
+      console.error('Error fetching user conversations:', error);
+      throw error;
+    }
+  },
+
+  // Listen to user's conversations in real-time
+  listenToUserConversations(userId, callback) {
+    try {
+      const q = query(
+        collection(db, 'conversations'),
+        where('participants', 'array-contains', userId),
+        orderBy('updatedAt', 'desc')
+      );
+      
+      return onSnapshot(q, (snapshot) => {
+        const conversations = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        callback(conversations);
+      });
+    } catch (error) {
+      console.error('Error setting up conversations listener:', error);
+      throw error;
+    }
+  },
+
+  // Send a message
+  async sendMessage(messageData) {
+    try {
+      const docRef = await addDoc(collection(db, 'messages'), {
+        ...messageData,
+        timestamp: serverTimestamp(),
+        read: false
+      });
+      
+      // Update conversation's last message and timestamp
+      await updateDoc(doc(db, 'conversations', messageData.conversationId), {
+        lastMessage: {
+          content: messageData.content,
+          type: messageData.type,
+          senderId: messageData.senderId,
+          timestamp: serverTimestamp()
+        },
+        updatedAt: serverTimestamp()
+      });
+      
+      return {
+        id: docRef.id,
+        ...messageData
+      };
+    } catch (error) {
+      console.error('Error sending message:', error);
+      throw error;
+    }
+  },
+
+  // Get messages for a conversation
+  async getConversationMessages(conversationId, options = {}) {
+    try {
+      const { limit: messageLimit = 50, orderBy: orderByField = 'timestamp', orderDirection = 'desc' } = options;
+      
+      const q = query(
+        collection(db, 'messages'),
+        where('conversationId', '==', conversationId),
+        orderBy(orderByField, orderDirection),
+        limit(messageLimit)
+      );
+      
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+    } catch (error) {
+      console.error('Error fetching conversation messages:', error);
+      throw error;
+    }
+  },
+
+  // Listen to messages in real-time
+  listenToMessages(conversationId, callback, options = {}) {
+    try {
+      const { limit: messageLimit = 50, orderBy: orderByField = 'timestamp', orderDirection = 'desc' } = options;
+      
+      const q = query(
+        collection(db, 'messages'),
+        where('conversationId', '==', conversationId),
+        orderBy(orderByField, orderDirection),
+        limit(messageLimit)
+      );
+      
+      return onSnapshot(q, (snapshot) => {
+        const messages = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        callback(messages);
+      });
+    } catch (error) {
+      console.error('Error setting up messages listener:', error);
+      throw error;
+    }
+  },
+
+  // Mark conversation as read
+  async markAsRead(conversationId, userId) {
+    try {
+      // Update unread count for the user
+      const conversationRef = doc(db, 'conversations', conversationId);
+      await updateDoc(conversationRef, {
+        [`unreadCount.${userId}`]: 0,
+        updatedAt: serverTimestamp()
+      });
+    } catch (error) {
+      console.error('Error marking conversation as read:', error);
+      throw error;
+    }
+  },
+
+  // Get or create conversation between two users
+  async getOrCreateConversation(userId1, userId2, orderId = null) {
+    try {
+      // First, try to find existing conversation
+      const q = query(
+        collection(db, 'conversations'),
+        where('participants', 'array-contains', userId1)
+      );
+      
+      const snapshot = await getDocs(q);
+      const existingConversation = snapshot.docs.find(doc => {
+        const data = doc.data();
+        return data.participants.includes(userId2);
+      });
+      
+      if (existingConversation) {
+        return {
+          id: existingConversation.id,
+          ...existingConversation.data()
+        };
+      }
+      
+      // Create new conversation if none exists
+      return await this.createConversation({
+        participants: [userId1, userId2],
+        orderId,
+        createdAt: new Date()
+      });
+    } catch (error) {
+      console.error('Error getting or creating conversation:', error);
+      throw error;
+    }
+  },
+
+  // Send file attachment
+  async sendFileMessage(conversationId, file, senderId) {
+    try {
+      // Upload file to Firebase Storage
+      const fileName = `messages/${conversationId}/${Date.now()}-${file.name}`;
+      const downloadURL = await firebaseService.storage.uploadFile(file, fileName);
+      
+      // Create message with file attachment
+      return await this.sendMessage({
+        conversationId,
+        senderId,
+        content: downloadURL,
+        type: file.type.startsWith('image/') ? 'image' : 
+              file.type.startsWith('video/') ? 'video' : 'file',
+        fileName: file.name,
+        fileSize: file.size,
+        timestamp: new Date()
+      });
+    } catch (error) {
+      console.error('Error sending file message:', error);
+      throw error;
+    }
+  }
+};
+
+// ===============================
+// AUTHENTICATION & SECURITY OPERATIONS
+// ===============================
+
+export const authService = {
+  // Generate 2FA secret
+  async generate2FASecret(userId) {
+    try {
+      // In a real implementation, this would call a Cloud Function
+      // For now, we'll simulate the response
+      const secret = Math.random().toString(36).substring(2, 15);
+      const qrCode = `data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==`;
+      
+      return {
+        secret,
+        qrCode,
+        backupCodes: Array.from({ length: 10 }, () => 
+          Math.random().toString(36).substring(2, 8).toUpperCase()
+        )
+      };
+    } catch (error) {
+      console.error('Error generating 2FA secret:', error);
+      throw error;
+    }
+  },
+
+  // Verify 2FA code
+  async verify2FACode(userId, code, secret) {
+    try {
+      // In a real implementation, this would verify the TOTP code
+      // For demo purposes, we'll accept any 6-digit code
+      const isValid = /^\d{6}$/.test(code);
+      
+      if (isValid) {
+        // Update user's 2FA status
+        await updateDoc(doc(db, 'users', userId), {
+          twoFactorEnabled: true,
+          twoFactorSecret: secret,
+          twoFactorEnabledAt: serverTimestamp()
+        });
+      }
+      
+      return {
+        valid: isValid,
+        backupCodes: isValid ? Array.from({ length: 10 }, () => 
+          Math.random().toString(36).substring(2, 8).toUpperCase()
+        ) : []
+      };
+    } catch (error) {
+      console.error('Error verifying 2FA code:', error);
+      throw error;
+    }
+  },
+
+  // Disable 2FA
+  async disable2FA(userId, password) {
+    try {
+      await updateDoc(doc(db, 'users', userId), {
+        twoFactorEnabled: false,
+        twoFactorSecret: null,
+        twoFactorDisabledAt: serverTimestamp()
+      });
+      return { success: true };
+    } catch (error) {
+      console.error('Error disabling 2FA:', error);
+      throw error;
+    }
+  }
+};
+
+// ===============================
+// FRAUD DETECTION OPERATIONS
+// ===============================
+
+export const fraudService = {
+  // Analyze order for fraud
+  async analyzeOrder(orderData) {
+    try {
+      const { amount, buyerId, vendorId, paymentMethod } = orderData;
+      let riskScore = 0;
+      const alerts = [];
+
+      // Check for high-value transactions
+      if (amount > 100000) {
+        riskScore += 20;
+        alerts.push({
+          message: 'High-value transaction detected',
+          severity: 'medium',
+          recommendation: 'Verify buyer identity'
+        });
+      }
+
+      // Check for rapid transactions
+      const recentOrders = await this.getRecentOrders(buyerId, 1); // Last hour
+      if (recentOrders.length > 5) {
+        riskScore += 30;
+        alerts.push({
+          message: 'Multiple transactions in short time',
+          severity: 'high',
+          recommendation: 'Review transaction pattern'
+        });
+      }
+
+      // Check for new user
+      const userAge = await this.getUserAccountAge(buyerId);
+      if (userAge < 24) { // Less than 24 hours
+        riskScore += 25;
+        alerts.push({
+          message: 'New user account',
+          severity: 'medium',
+          recommendation: 'Verify account details'
+        });
+      }
+
+      // Check for unusual payment method
+      if (paymentMethod === 'crypto' || paymentMethod === 'bank_transfer') {
+        riskScore += 15;
+        alerts.push({
+          message: 'Unusual payment method',
+          severity: 'low',
+          recommendation: 'Monitor transaction'
+        });
+      }
+
+      // Check for geographic anomalies
+      const locationRisk = await this.checkLocationRisk(buyerId, vendorId);
+      if (locationRisk > 50) {
+        riskScore += locationRisk;
+        alerts.push({
+          message: 'Geographic risk detected',
+          severity: 'high',
+          recommendation: 'Verify location'
+        });
+      }
+
+      return {
+        riskScore: Math.min(riskScore, 100),
+        alerts,
+        recommendations: this.getRecommendations(riskScore)
+      };
+    } catch (error) {
+      console.error('Error analyzing order for fraud:', error);
+      throw error;
+    }
+  },
+
+  // Get recent orders for a user
+  async getRecentOrders(userId, hours = 1) {
+    try {
+      const cutoffTime = new Date(Date.now() - hours * 60 * 60 * 1000);
+      const q = query(
+        collection(db, 'orders'),
+        where('buyerId', '==', userId),
+        where('createdAt', '>=', cutoffTime)
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      console.error('Error getting recent orders:', error);
+      return [];
+    }
+  },
+
+  // Get user account age
+  async getUserAccountAge(userId) {
+    try {
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      if (userDoc.exists()) {
+        const createdAt = userDoc.data().createdAt;
+        const now = new Date();
+        const ageInHours = (now - createdAt.toDate()) / (1000 * 60 * 60);
+        return ageInHours;
+      }
+      return 0;
+    } catch (error) {
+      console.error('Error getting user account age:', error);
+      return 0;
+    }
+  },
+
+  // Check location risk
+  async checkLocationRisk(buyerId, vendorId) {
+    try {
+      // In a real implementation, this would check IP geolocation
+      // For demo purposes, we'll return a random risk score
+      return Math.random() * 30;
+    } catch (error) {
+      console.error('Error checking location risk:', error);
+      return 0;
+    }
+  },
+
+  // Get fraud prevention recommendations
+  getRecommendations(riskScore) {
+    const recommendations = [];
+    
+    if (riskScore > 70) {
+      recommendations.push('Manual review required');
+      recommendations.push('Verify buyer identity');
+      recommendations.push('Check payment method');
+    } else if (riskScore > 40) {
+      recommendations.push('Monitor transaction closely');
+      recommendations.push('Verify order details');
+    } else {
+      recommendations.push('Standard processing');
+    }
+    
+    return recommendations;
+  },
+
+  // Flag order for review
+  async flagOrder(orderId, flagType) {
+    try {
+      await updateDoc(doc(db, 'orders', orderId), {
+        fraudFlag: flagType,
+        fraudFlaggedAt: serverTimestamp(),
+        fraudFlaggedBy: 'system'
+      });
+      return { success: true };
+    } catch (error) {
+      console.error('Error flagging order:', error);
+      throw error;
+    }
+  }
+};
+
+// ===============================
 // EXPORT ALL SERVICES
 // ===============================
 
@@ -1667,5 +3083,10 @@ export default {
   users: userService,
   analytics: analyticsService,
   payouts: payoutsService,
-  admin: adminService
+  admin: adminService,
+  deliveries: deliveriesService,
+  notifications: notifications,
+  messaging: messagingService,
+  auth: authService,
+  fraud: fraudService
 };

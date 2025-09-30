@@ -1,15 +1,22 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
+import { useNotifications } from '../contexts/NotificationContext';
 import { useState, useEffect, useRef } from 'react';
+import AccountSettingsModal from './AccountSettingsModal';
+import NotificationCenter from './NotificationCenter';
 
 const Navbar = () => {
   const { currentUser, logout, userProfile } = useAuth();
   const { getCartItemsCount } = useCart();
+  const { unreadCount } = useNotifications();
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
   const dropdownRef = useRef(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -35,6 +42,15 @@ const Navbar = () => {
     navigate(`/${dashboardType}`);
   };
 
+  // Handle search
+  const handleSearch = (e) => {
+    e.preventDefault();
+    if (searchTerm.trim()) {
+      navigate(`/products?q=${encodeURIComponent(searchTerm.trim())}`);
+      setSearchTerm('');
+    }
+  };
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -50,6 +66,7 @@ const Navbar = () => {
   }, []);
 
   return (
+    <>
     <nav className="bg-white border-b">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
@@ -62,6 +79,26 @@ const Navbar = () => {
             </Link>
           </div>
 
+          {/* Search Bar - Hidden on mobile */}
+          <div className="hidden md:flex flex-1 max-w-lg mx-8">
+            <form onSubmit={handleSearch} className="w-full">
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Search products..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+                />
+              </div>
+            </form>
+          </div>
+
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-8">
             <Link 
@@ -71,13 +108,13 @@ const Navbar = () => {
               Home
             </Link>
             <Link 
-              to="/products" 
+              to="/categories" 
               className="text-gray-600 hover:text-gray-900 font-medium transition-colors"
             >
               Categories
             </Link>
             <Link 
-              to="/products" 
+              to="/how-wallet-works" 
               className="text-gray-600 hover:text-gray-900 font-medium transition-colors"
             >
               How Wallet Works
@@ -87,6 +124,12 @@ const Navbar = () => {
               className="text-gray-600 hover:text-gray-900 font-medium transition-colors"
             >
               Track Package
+            </Link>
+            <Link 
+              to="/wallet" 
+              className="text-gray-600 hover:text-gray-900 font-medium transition-colors"
+            >
+              Wallet
             </Link>
             
             {currentUser ? (
@@ -100,6 +143,21 @@ const Navbar = () => {
                 </span>
               )}
             </Link>
+            
+                {/* Notification Bell */}
+                <button
+                  onClick={() => setIsNotificationOpen(true)}
+                  className="relative text-gray-600 hover:text-gray-900 transition-colors"
+                >
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-5 5-5-5h5v-5a7.5 7.5 0 0 0-15 0v5h5l-5 5-5-5h5v-5a7.5 7.5 0 0 1 15 0v5z" />
+                  </svg>
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </button>
             
                 {/* User Dropdown */}
                 <div className="relative" ref={dropdownRef}>
@@ -172,7 +230,7 @@ const Navbar = () => {
                         <button
                           onClick={() => {
                             setIsUserDropdownOpen(false);
-                            navigate('/buyer');
+                            setIsSettingsOpen(true);
                           }}
                           className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                         >
@@ -308,6 +366,15 @@ const Navbar = () => {
         )}
       </div>
     </nav>
+    {currentUser && (
+      <AccountSettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+    )}
+    
+    <NotificationCenter 
+      isOpen={isNotificationOpen} 
+      onClose={() => setIsNotificationOpen(false)} 
+    />
+  </>
   );
 };
 

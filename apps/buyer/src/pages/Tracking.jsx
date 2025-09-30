@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import TrackingStatus from '../components/TrackingStatus';
+import OrderSatisfactionModal from '../components/OrderSatisfactionModal';
 import firebaseService from '../services/firebaseService';
 
 const Tracking = () => {
@@ -7,6 +8,8 @@ const Tracking = () => {
   const [trackingData, setTrackingData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isSatisfactionModalOpen, setIsSatisfactionModalOpen] = useState(false);
+  const [selectedOrderForSatisfaction, setSelectedOrderForSatisfaction] = useState(null);
 
   // Mock tracking data
   const mockTrackingData = {
@@ -85,6 +88,48 @@ const Tracking = () => {
       setTrackingData(null);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSatisfactionConfirmation = (orderData) => {
+    // Convert tracking data to order format for satisfaction modal
+    const orderForSatisfaction = {
+      id: orderData.orderId,
+      totalAmount: 50000, // Mock amount
+      vendorId: 'vendor-123',
+      vendorName: orderData.vendor,
+      buyerId: 'buyer-123',
+      status: orderData.status
+    };
+    
+    setSelectedOrderForSatisfaction(orderForSatisfaction);
+    setIsSatisfactionModalOpen(true);
+  };
+
+  const handleSatisfactionConfirmed = async (satisfaction, feedback) => {
+    try {
+      if (satisfaction === 'satisfied') {
+        console.log('Order satisfaction confirmed:', feedback);
+        // Update tracking data to show completed
+        setTrackingData(prev => ({
+          ...prev,
+          status: 'Completed',
+          satisfactionConfirmed: true
+        }));
+      } else {
+        console.log('Dispute created:', feedback);
+        // Update tracking data to show dispute
+        setTrackingData(prev => ({
+          ...prev,
+          status: 'Dispute Opened',
+          disputeCreated: true
+        }));
+      }
+    } catch (error) {
+      console.error('Error handling satisfaction confirmation:', error);
+    } finally {
+      setIsSatisfactionModalOpen(false);
+      setSelectedOrderForSatisfaction(null);
     }
   };
 
@@ -225,6 +270,63 @@ const Tracking = () => {
             </div>
           </div>
 
+          {/* Satisfaction Confirmation for Delivered Orders */}
+          {trackingData.status === 'Delivered' && !trackingData.satisfactionConfirmed && !trackingData.disputeCreated && (
+            <div className="bg-white rounded-xl border p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Order Satisfaction</h3>
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                <div className="flex items-start">
+                  <div className="flex-shrink-0">
+                    <span className="text-green-600 text-xl">✅</span>
+                  </div>
+                  <div className="ml-3">
+                    <h4 className="text-sm font-medium text-green-900">Order Delivered Successfully!</h4>
+                    <p className="text-sm text-green-700 mt-1">
+                      Your order has been delivered. Please confirm your satisfaction to release payment to the vendor.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => handleSatisfactionConfirmation(trackingData)}
+                className="w-full bg-emerald-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-emerald-700 transition-colors"
+              >
+                Confirm Order Satisfaction
+              </button>
+            </div>
+          )}
+
+          {/* Satisfaction Status */}
+          {trackingData.satisfactionConfirmed && (
+            <div className="bg-white rounded-xl border p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Order Completed</h3>
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <div className="flex items-center">
+                  <span className="text-green-600 text-xl mr-3">✅</span>
+                  <div>
+                    <h4 className="text-sm font-medium text-green-900">Payment Released</h4>
+                    <p className="text-sm text-green-700">Your satisfaction has been confirmed and payment has been released to the vendor.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {trackingData.disputeCreated && (
+            <div className="bg-white rounded-xl border p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Dispute Opened</h3>
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <div className="flex items-center">
+                  <span className="text-yellow-600 text-xl mr-3">⚠️</span>
+                  <div>
+                    <h4 className="text-sm font-medium text-yellow-900">Dispute Under Review</h4>
+                    <p className="text-sm text-yellow-700">Your dispute has been opened and is being reviewed by our team. You will be contacted soon.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Contact & Support */}
           <div className="bg-white rounded-xl border p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Need Help?</h3>
@@ -278,6 +380,17 @@ const Tracking = () => {
           </div>
         </div>
       )}
+
+      {/* Order Satisfaction Modal */}
+      <OrderSatisfactionModal
+        isOpen={isSatisfactionModalOpen}
+        order={selectedOrderForSatisfaction}
+        onClose={() => {
+          setIsSatisfactionModalOpen(false);
+          setSelectedOrderForSatisfaction(null);
+        }}
+        onSatisfactionConfirmed={handleSatisfactionConfirmed}
+      />
     </div>
   );
 };

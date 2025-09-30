@@ -3,7 +3,6 @@ import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import firebaseService from '../services/firebaseService';
 import WalletManager from '../components/WalletManager';
-import DashboardSwitcher from '../components/DashboardSwitcher';
 import OrdersFilterBar from '../components/OrdersFilterBar';
 import OrderDetailsModal from '../components/OrderDetailsModal';
 import WalletTopUpModal from '../components/WalletTopUpModal';
@@ -179,7 +178,6 @@ const Buyer = () => {
             
             {/* Dashboard Switcher */}
             <div className="mb-8">
-              <DashboardSwitcher currentDashboard="buyer" />
             </div>
             
             <div className="space-y-1">

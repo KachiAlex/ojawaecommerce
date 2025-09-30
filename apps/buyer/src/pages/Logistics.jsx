@@ -1,18 +1,57 @@
 import { Link } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import firebaseService from '../services/firebaseService';
 import WalletManager from '../components/WalletManager';
-import DashboardSwitcher from '../components/DashboardSwitcher';
 
 const Logistics = () => {
+  const { currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
   const [showAddRouteForm, setShowAddRouteForm] = useState(false);
+  const [deliveries, setDeliveries] = useState([]);
+  const [analytics, setAnalytics] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const deliveries = [
-    { id: 'DEL-001', orderId: 'ORD-2001', pickup: 'Lagos, Nigeria', delivery: 'Abuja, Nigeria', status: 'In Transit', estimatedDelivery: '2025-09-18', customer: 'Amina K.', vendor: 'Lagos Tailors', amount: '₦5,000', trackingId: 'TRK-001' },
-    { id: 'DEL-002', orderId: 'ORD-2002', pickup: 'Addis Ababa, Ethiopia', delivery: 'Dire Dawa, Ethiopia', status: 'Delivered', estimatedDelivery: '2025-09-16', customer: 'Peter M.', vendor: 'Addis Coffee', amount: 'Br 150', trackingId: 'TRK-002' },
-    { id: 'DEL-003', orderId: 'ORD-2003', pickup: 'Accra, Ghana', delivery: 'Kumasi, Ghana', status: 'Picked Up', estimatedDelivery: '2025-09-19', customer: 'Faith O.', vendor: 'Tamale Naturals', amount: '₵80', trackingId: 'TRK-003' },
-    { id: 'DEL-004', orderId: 'ORD-2004', pickup: 'Nairobi, Kenya', delivery: 'Mombasa, Kenya', status: 'Pending Pickup', estimatedDelivery: '2025-09-20', customer: 'John D.', vendor: 'Mombasa Crafts', amount: 'KSh 500', trackingId: 'TRK-004' },
-  ];
+  useEffect(() => {
+    if (currentUser) {
+      loadLogisticsData();
+    }
+  }, [currentUser]);
+
+  const loadLogisticsData = async () => {
+    try {
+      setLoading(true);
+      
+      // Get logistics profile
+      const logisticsProfile = await firebaseService.logistics.getProfileByUserId(currentUser.uid);
+      setProfile(logisticsProfile);
+
+      if (logisticsProfile) {
+        // Get deliveries
+        const deliveriesData = await firebaseService.logistics.getDeliveriesByPartner(logisticsProfile.id);
+        setDeliveries(deliveriesData);
+
+        // Get analytics for last 30 days
+        const endDate = new Date();
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - 30);
+        
+        const analyticsData = await firebaseService.logistics.getAnalytics(
+          logisticsProfile.id, 
+          startDate, 
+          endDate
+        );
+        setAnalytics(analyticsData);
+      }
+    } catch (error) {
+      console.error('Error loading logistics data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Remove hardcoded data - now using real data from backend
 
   const routes = [
     { id: 'RT-001', from: 'Lagos, Nigeria', to: 'Abuja, Nigeria', distance: '462 km', price: '₦5,000', estimatedTime: '1-2 days', status: 'Active' },
@@ -53,7 +92,6 @@ const Logistics = () => {
             
             {/* Dashboard Switcher */}
             <div className="mb-8">
-              <DashboardSwitcher currentDashboard="logistics" />
             </div>
             
             <div className="space-y-1">
@@ -200,7 +238,9 @@ const Logistics = () => {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-gray-600">Active Deliveries</p>
-                      <p className="text-2xl font-bold text-gray-900">23</p>
+                      <p className="text-2xl font-bold text-gray-900">
+                        {loading ? '...' : (analytics?.inTransitDeliveries || 0)}
+                      </p>
                     </div>
                     <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
                       <span className="text-blue-600 text-xl">🚚</span>
@@ -211,11 +251,13 @@ const Logistics = () => {
                 <div className="bg-white p-6 rounded-xl border">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-gray-600">Routes Covered</p>
-                      <p className="text-2xl font-bold text-gray-900">12</p>
+                      <p className="text-sm font-medium text-gray-600">Total Deliveries</p>
+                      <p className="text-2xl font-bold text-gray-900">
+                        {loading ? '...' : (analytics?.totalDeliveries || 0)}
+                      </p>
                     </div>
                     <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                      <span className="text-green-600 text-xl">🗺️</span>
+                      <span className="text-green-600 text-xl">📦</span>
                     </div>
                   </div>
                 </div>
@@ -223,8 +265,10 @@ const Logistics = () => {
                 <div className="bg-white p-6 rounded-xl border">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-gray-600">Monthly Revenue</p>
-                      <p className="text-2xl font-bold text-gray-900">₦225,000</p>
+                      <p className="text-sm font-medium text-gray-600">Total Earnings</p>
+                      <p className="text-2xl font-bold text-gray-900">
+                        {loading ? '...' : `₦${(analytics?.totalEarnings || 0).toLocaleString()}`}
+                      </p>
                     </div>
                     <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
                       <span className="text-yellow-600 text-xl">💰</span>
@@ -235,8 +279,13 @@ const Logistics = () => {
                 <div className="bg-white p-6 rounded-xl border">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-gray-600">Delivery Rate</p>
-                      <p className="text-2xl font-bold text-gray-900">98.5%</p>
+                      <p className="text-sm font-medium text-gray-600">Success Rate</p>
+                      <p className="text-2xl font-bold text-gray-900">
+                        {loading ? '...' : analytics?.totalDeliveries > 0 
+                          ? `${Math.round((analytics.completedDeliveries / analytics.totalDeliveries) * 100)}%`
+                          : '0%'
+                        }
+                      </p>
                     </div>
                     <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
                       <span className="text-purple-600 text-xl">📈</span>
@@ -253,31 +302,44 @@ const Logistics = () => {
                       <h2 className="text-lg font-semibold text-gray-900">Recent Deliveries</h2>
                     </div>
                     <div className="p-6">
-                      <div className="space-y-4">
-                        {deliveries.slice(0, 3).map((delivery) => (
-                          <div key={delivery.id} className="flex items-center gap-4">
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                              delivery.status === 'Delivered' ? 'bg-green-100' :
-                              delivery.status === 'In Transit' ? 'bg-blue-100' :
-                              delivery.status === 'Picked Up' ? 'bg-yellow-100' : 'bg-gray-100'
-                            }`}>
-                              <span className={
-                                delivery.status === 'Delivered' ? 'text-green-600' :
-                                delivery.status === 'In Transit' ? 'text-blue-600' :
-                                delivery.status === 'Picked Up' ? 'text-yellow-600' : 'text-gray-600'
-                              }>
-                                {delivery.status === 'Delivered' ? '✅' : 
-                                 delivery.status === 'In Transit' ? '🚚' :
-                                 delivery.status === 'Picked Up' ? '📦' : '⏳'}
-                              </span>
+                      {loading ? (
+                        <div className="text-center py-8">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600 mx-auto"></div>
+                          <p className="text-gray-600 mt-2">Loading deliveries...</p>
+                        </div>
+                      ) : deliveries.length === 0 ? (
+                        <div className="text-center py-8">
+                          <p className="text-gray-600">No deliveries yet</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {deliveries.slice(0, 3).map((delivery) => (
+                            <div key={delivery.id} className="flex items-center gap-4">
+                              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                                delivery.status === 'delivered' ? 'bg-green-100' :
+                                delivery.status === 'in_transit' ? 'bg-blue-100' :
+                                delivery.status === 'picked_up' ? 'bg-yellow-100' : 'bg-gray-100'
+                              }`}>
+                                <span className={
+                                  delivery.status === 'delivered' ? 'text-green-600' :
+                                  delivery.status === 'in_transit' ? 'text-blue-600' :
+                                  delivery.status === 'picked_up' ? 'text-yellow-600' : 'text-gray-600'
+                                }>
+                                  {delivery.status === 'delivered' ? '✅' : 
+                                   delivery.status === 'in_transit' ? '🚚' :
+                                   delivery.status === 'picked_up' ? '📦' : '⏳'}
+                                </span>
+                              </div>
+                              <div className="flex-1">
+                                <p className="font-medium">{delivery.pickupLocation} → {delivery.deliveryLocation}</p>
+                                <p className="text-sm text-gray-600">
+                                  {delivery.customerName} • ₦{delivery.amount?.toLocaleString()} • {delivery.status}
+                                </p>
+                              </div>
                             </div>
-                            <div className="flex-1">
-                              <p className="font-medium">{delivery.pickup} → {delivery.delivery}</p>
-                              <p className="text-sm text-gray-600">{delivery.customer} • {delivery.amount} • {delivery.status}</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

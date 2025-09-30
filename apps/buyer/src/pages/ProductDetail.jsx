@@ -11,6 +11,25 @@ const ProductDetail = () => {
   const [quantity, setQuantity] = useState(1);
   const { addToCart } = useCart();
 
+  const getCurrencyCode = (currencyValue) => {
+    if (!currencyValue) return 'USD'
+    const parts = String(currencyValue).trim().split(/\s+/)
+    const maybeCode = parts[parts.length - 1]
+    if (/^[A-Za-z]{3}$/.test(maybeCode)) return maybeCode.toUpperCase()
+    if (/^[A-Za-z]{3}$/.test(currencyValue)) return String(currencyValue).toUpperCase()
+    return 'USD'
+  }
+
+  const formatPrice = (price, currencyValue) => {
+    const numPrice = parseFloat(price) || 0
+    const currencyCode = getCurrencyCode(currencyValue)
+    try {
+      return new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode }).format(numPrice)
+    } catch {
+      return `${numPrice.toLocaleString()} ${currencyCode}`
+    }
+  }
+
   useEffect(() => {
     const fetchProduct = async () => {
       try {
@@ -76,7 +95,7 @@ const ProductDetail = () => {
         {/* Product Image */}
         <div>
           <img
-            src={product.image}
+            src={product.image || (Array.isArray(product.images) && product.images[0]) || '/placeholder.png'}
             alt={product.name}
             className="w-full h-96 object-cover rounded-lg shadow-lg"
           />
@@ -85,7 +104,7 @@ const ProductDetail = () => {
         {/* Product Details */}
         <div>
           <h1 className="text-3xl font-bold text-gray-900 mb-4">{product.name}</h1>
-          <p className="text-3xl font-bold text-blue-600 mb-4">${product.price}</p>
+          <p className="text-3xl font-bold text-blue-600 mb-4">{formatPrice(product.price, product.currency)}</p>
           
           <div className="mb-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Description</h3>

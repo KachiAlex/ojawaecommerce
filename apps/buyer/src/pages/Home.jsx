@@ -1,7 +1,11 @@
 import { Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import AdminPanel from '../components/AdminPanel';
 import EscrowTimeline from '../components/EscrowTimeline';
 import Footer from '../components/Footer';
+import OsoahiaWidget from '../components/OsoahiaWidget';
+import ComponentErrorBoundary from '../components/ComponentErrorBoundary';
+import { ProductListSkeleton, PageLoadingSkeleton } from '../components/LoadingStates';
 import { useAuth } from '../contexts/AuthContext';
 
 const categories = [
@@ -108,6 +112,20 @@ const products = [
 
 const Home = () => {
   const { currentUser, userProfile } = useAuth();
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // Simulate loading time for demo
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (isLoading) {
+    return <PageLoadingSkeleton />;
+  }
 
   // Determine dashboard route based on user role
   const getDashboardRoute = () => {
@@ -140,11 +158,7 @@ const Home = () => {
           <Link to="/products" className="inline-flex items-center justify-center rounded-md bg-emerald-600 px-6 py-3 text-white hover:bg-emerald-700 font-medium">
             Browse Products
           </Link>
-          {currentUser ? (
-            <Link to={getDashboardRoute()} className="inline-flex items-center justify-center rounded-md bg-blue-600 px-6 py-3 text-white hover:bg-blue-700 font-medium">
-              📊 My Dashboard
-            </Link>
-          ) : (
+          {!currentUser && (
             <Link to="/register" className="inline-flex items-center justify-center rounded-md border px-6 py-3 text-slate-800 hover:bg-slate-100 font-medium">
               Join Ojawa
               </Link>
@@ -258,9 +272,20 @@ const Home = () => {
       </div>
       </section>
 
+      {/* Osoahia AI Assistant Widget */}
+      {currentUser && (
+        <div className="max-w-7xl mx-auto px-4 pb-10">
+          <ComponentErrorBoundary>
+            <OsoahiaWidget />
+          </ComponentErrorBoundary>
+        </div>
+      )}
+
       {/* Keep Admin tools visible for now */}
       <div className="max-w-7xl mx-auto px-4 pb-10">
-        <AdminPanel />
+        <ComponentErrorBoundary>
+          <AdminPanel />
+        </ComponentErrorBoundary>
       </div>
 
       <Footer />

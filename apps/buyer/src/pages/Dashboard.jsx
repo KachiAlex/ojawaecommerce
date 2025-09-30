@@ -29,7 +29,7 @@ const Dashboard = () => {
       const ordersRef = collection(db, 'orders');
       const q = query(
         ordersRef,
-        where('userId', '==', currentUser.uid),
+        where('buyerId', '==', currentUser.uid),
         orderBy('createdAt', 'desc')
       );
       
@@ -88,7 +88,7 @@ const Dashboard = () => {
             <div className="bg-purple-50 p-4 rounded-lg">
               <h3 className="font-semibold text-purple-900 mb-2">Total Spent</h3>
               <p className="text-purple-700 text-2xl font-bold">
-                ${orders.reduce((sum, order) => sum + (order.total || 0), 0).toFixed(2)}
+                ₦{orders.reduce((sum, order) => sum + (order.total || 0), 0).toLocaleString()}
               </p>
             </div>
           </div>
@@ -136,7 +136,7 @@ const Dashboard = () => {
                     {order.items?.map((item, index) => (
                       <div key={index} className="flex items-center space-x-3">
                         <img
-                          src={item.image}
+                          src={item.image || (Array.isArray(item.images) && item.images[0]) || '/placeholder.png'}
                           alt={item.name}
                           className="w-12 h-12 object-cover rounded"
                         />

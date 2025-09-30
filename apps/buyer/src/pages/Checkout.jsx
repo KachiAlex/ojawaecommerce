@@ -2,19 +2,14 @@ import { useState, useEffect } from 'react';
 import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { loadStripe } from '@stripe/stripe-js';
-import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
-import { createPaymentIntent, processPayment } from '../utils/stripe';
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import LogisticsSelector from '../components/LogisticsSelector';
 import firebaseService from '../services/firebaseService';
+import WalletBalanceCheck from '../components/WalletBalanceCheck';
+import escrowPaymentService from '../services/escrowPaymentService';
 
-const stripePromise = loadStripe('pk_test_51234567890abcdefghijklmnopqrstuvwxyz'); // Replace with your actual key
-
-const CheckoutForm = ({ total, cartItems, onSuccess, orderDetails }) => {
-  const stripe = useStripe();
-  const elements = useElements();
+const CheckoutForm = ({ total, cartItems, onSuccess, orderDetails, walletBalance, canProceed }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const { currentUser } = useAuth();
@@ -22,7 +17,8 @@ const CheckoutForm = ({ total, cartItems, onSuccess, orderDetails }) => {
   const handleSubmit = async (event) => {
     event.preventDefault();
     
-    if (!stripe || !elements) {
+    if (!canProceed) {
+      setError('Insufficient wallet balance. Please fund your wallet first.');
       return;
     }
 
@@ -30,92 +26,127 @@ const CheckoutForm = ({ total, cartItems, onSuccess, orderDetails }) => {
     setError(null);
 
     try {
-      // Create payment intent
-      const clientSecret = await createPaymentIntent(total);
-      
-      // Confirm payment
-      const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
-        payment_method: {
-          card: elements.getElement(CardElement),
-          billing_details: {
-            name: currentUser?.displayName || 'Customer',
-            email: currentUser?.email || '',
-          },
-        },
-      });
+      // Create order with escrow payment
+      const orderId = await createOrderWithEscrow();
 
-      if (stripeError) {
-        setError(stripeError.message);
-      } else if (paymentIntent.status === 'succeeded') {
-        // Create order in Firestore
-        const orderId = await createOrder(paymentIntent.id);
-        
-        // Send payment confirmation email
-        try {
-          const { getFunctions, httpsCallable } = await import('firebase/functions');
-          const { functions } = await import('../firebase/config');
-          const sendPaymentConfirmation = httpsCallable(functions, 'sendPaymentConfirmation');
-          
-          await sendPaymentConfirmation({
-            buyerEmail: currentUser.email,
-            buyerName: currentUser.displayName || 'Customer',
-            orderId: orderId,
-            amount: total * 100, // Convert to cents
-            items: cartItems
-          });
-        } catch (emailError) {
-          console.warn('Failed to send payment confirmation email:', emailError);
-          // Don't fail the order if email fails
-        }
-        
-        onSuccess(paymentIntent);
+      // Send payment confirmation email
+      try {
+        const { httpsCallable } = await import('firebase/functions');
+        const { functions } = await import('../firebase/config');
+        const sendPaymentConfirmation = httpsCallable(functions, 'sendPaymentConfirmation');
+        await sendPaymentConfirmation({
+          buyerEmail: currentUser.email,
+          buyerName: currentUser.displayName || 'Customer',
+          orderId: orderId,
+          amount: Math.round(total * 100),
+          items: cartItems
+        });
+      } catch (emailError) {
+        console.warn('Failed to send payment confirmation email:', emailError);
       }
+
+      onSuccess({ id: orderId, status: 'succeeded', provider: 'wallet_escrow' });
     } catch (err) {
-      setError('Payment failed. Please try again.');
-      console.error('Payment error:', err);
+      setError('Order creation failed. Please try again.');
+      console.error('Order creation error:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const createOrder = async (paymentIntentId) => {
+  const createOrderWithEscrow = async () => {
     try {
-      // Create comprehensive order data
-      const orderData = {
-        buyerId: currentUser.uid,
-        buyerEmail: currentUser.email,
-        buyerName: currentUser.displayName || '',
-        items: cartItems.map(item => ({
+      // Resolve vendorId for each product to ensure vendor dashboards see the order
+      const itemsWithVendors = [];
+      for (const item of cartItems) {
+        let resolvedVendorId = item.vendorId;
+        if (!resolvedVendorId && item.id) {
+          try {
+            const prodSnap = await getDoc(doc(db, 'products', item.id));
+            if (prodSnap.exists()) {
+              resolvedVendorId = prodSnap.data().vendorId || resolvedVendorId;
+            }
+          } catch (_) {}
+        }
+        itemsWithVendors.push({
           productId: item.id,
           name: item.name,
           price: item.price,
           quantity: item.quantity,
-          vendorId: item.vendorId || 'unknown', // This should come from product data
-        })),
+          vendorId: resolvedVendorId || 'unknown'
+        });
+      }
+
+      // For now we assume single-vendor orders; use first item's vendorId
+      const orderVendorId = itemsWithVendors[0]?.vendorId || null;
+
+      // Create comprehensive order data with escrow status
+      const orderData = {
+        buyerId: currentUser.uid,
+        buyerEmail: currentUser.email,
+        buyerName: currentUser.displayName || '',
+        items: itemsWithVendors,
+        vendorId: orderVendorId,
         subtotal: orderDetails.subtotal,
         deliveryFee: orderDetails.deliveryFee,
         ojawaCommission: orderDetails.ojawaCommission,
         totalAmount: total,
-        paymentIntentId,
+        paymentProvider: 'wallet_escrow',
+        paymentStatus: 'escrow_held',
+        escrowStatus: 'funds_transferred_to_escrow',
         deliveryOption: orderDetails.deliveryOption,
         deliveryAddress: orderDetails.buyerAddress || '',
         logisticsCompany: orderDetails.selectedLogistics?.company || null,
         logisticsCompanyId: orderDetails.selectedLogistics?.id || null,
         estimatedDelivery: orderDetails.selectedLogistics?.estimatedDays || null,
-        walletId: `WAL-${Date.now()}`, // Generate wallet ID
-        trackingId: orderDetails.deliveryOption === 'delivery' ? `TRK-${Date.now()}` : null
+        trackingId: orderDetails.deliveryOption === 'delivery' ? `TRK-${Date.now()}` : null,
+        status: 'pending_wallet_funding', // Initial status
+        createdAt: new Date(),
+        updatedAt: new Date()
       };
 
       // Create order using service
       const orderId = await firebaseService.orders.create(orderData);
       
-      // Fund wallet for this order
-      await firebaseService.wallet.fundWallet(
-        orderId, 
-        currentUser.uid, 
-        total, 
-        paymentIntentId
-      );
+      // Process escrow payment
+      const escrowResult = await escrowPaymentService.processEscrowPayment({
+        buyerId: currentUser.uid,
+        totalAmount: total,
+        orderId: orderId
+      });
+
+      // Update order status to indicate escrow is held
+      await firebaseService.orders.updateStatus(orderId, 'pending_wallet_funding', {
+        escrowHeld: true,
+        escrowAmount: total,
+        vendorNotified: false
+      });
+
+      // Notify vendor of new order
+      try {
+        const { httpsCallable } = await import('firebase/functions');
+        const { functions } = await import('../firebase/config');
+        const notifyVendor = httpsCallable(functions, 'notifyVendorNewOrder');
+        await notifyVendor({
+          vendorId: orderVendorId,
+          orderId: orderId,
+          buyerName: currentUser.displayName || 'Customer',
+          totalAmount: total,
+          items: itemsWithVendors
+        });
+      } catch (notificationError) {
+        console.warn('Failed to notify vendor:', notificationError);
+      }
+
+      // Create buyer notification
+      try {
+        await firebaseService.notifications.createOrderNotification(
+          { id: orderId, buyerId: currentUser.uid, status: 'pending_wallet_funding' },
+          'order_placed'
+        );
+      } catch (notificationError) {
+        console.warn('Failed to create buyer notification:', notificationError);
+      }
 
       // If delivery is selected, create delivery record
       if (orderDetails.deliveryOption === 'delivery' && orderDetails.selectedLogistics) {
@@ -142,45 +173,54 @@ const CheckoutForm = ({ total, cartItems, onSuccess, orderDetails }) => {
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="bg-white p-6 rounded-lg shadow">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Payment Information</h3>
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Escrow Payment</h3>
         
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Card Details
-          </label>
-          <div className="p-3 border border-gray-300 rounded-md">
-            <CardElement
-              options={{
-                style: {
-                  base: {
-                    fontSize: '16px',
-                    color: '#424770',
-                    '::placeholder': {
-                      color: '#aab7c4',
-                    },
-                  },
-                  invalid: {
-                    color: '#9e2146',
-                  },
-                },
-              }}
-            />
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+          <div className="flex items-start">
+            <span className="text-blue-600 text-xl mr-3">🔒</span>
+            <div>
+              <h4 className="font-medium text-blue-900">Secure Escrow Payment</h4>
+              <p className="text-sm text-blue-800 mt-1">
+                Your payment will be held securely in escrow until you confirm delivery and satisfaction. 
+                Funds will only be released to the vendor after you confirm receipt.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-gray-50 rounded-lg p-4 mb-4">
+          <div className="flex justify-between items-center">
+            <span className="text-gray-700">Payment Amount:</span>
+            <span className="font-semibold text-lg">₦{total.toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between items-center mt-2">
+            <span className="text-gray-600 text-sm">Current Wallet Balance:</span>
+            <span className="text-sm">₦{walletBalance.toLocaleString()}</span>
           </div>
         </div>
 
         {error && (
-          <div className="text-red-600 text-sm mb-4">
-            {error}
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+            <div className="flex items-center">
+              <span className="text-red-600 mr-2">⚠️</span>
+              <span className="text-red-800">{error}</span>
+            </div>
           </div>
         )}
 
         <button
           type="submit"
-          disabled={!stripe || loading}
-          className="w-full bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+          disabled={loading || !canProceed}
+          className="w-full bg-emerald-600 text-white py-3 px-4 rounded-md hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
         >
-          {loading ? 'Processing Payment...' : `Pay $${total.toFixed(2)}`}
+          {loading ? 'Processing Escrow Payment...' : `Pay ₦${total.toFixed(2)} with Wallet Escrow`}
         </button>
+        
+        {!canProceed && (
+          <p className="text-sm text-red-600 mt-2 text-center">
+            Please fund your wallet to continue with this payment
+          </p>
+        )}
       </div>
     </form>
   );
@@ -194,6 +234,10 @@ const Checkout = () => {
   const [selectedLogistics, setSelectedLogistics] = useState(null);
   const [deliveryOption, setDeliveryOption] = useState('pickup'); // 'pickup' or 'delivery'
   const [buyerAddress, setBuyerAddress] = useState('');
+  const [availableLogistics, setAvailableLogistics] = useState([]);
+  const [loadingLogistics, setLoadingLogistics] = useState(false);
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [canProceed, setCanProceed] = useState(false);
   const subtotal = getCartTotal();
   const deliveryFee = selectedLogistics ? parseFloat(selectedLogistics.price.replace(/[^\d.]/g, '')) : 0;
   const baseTotal = subtotal + deliveryFee;
@@ -210,15 +254,98 @@ const Checkout = () => {
       navigate('/cart');
       return;
     }
+
+    // Check for self-purchase prevention
+    checkSelfPurchase();
   }, [currentUser, cartItems, navigate]);
+
+  const checkSelfPurchase = async () => {
+    try {
+      // Get user profile to check if they're also a vendor
+      const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        const isVendor = userData.isVendor || userData.vendorProfile?.verificationStatus === 'verified';
+        
+        if (isVendor) {
+          // Check if any cart items belong to this vendor
+          const selfProducts = [];
+          
+          for (const item of cartItems) {
+            let itemVendorId = item.vendorId;
+            
+            // If vendorId not in cart item, fetch from product
+            if (!itemVendorId && item.id) {
+              try {
+                const productDoc = await getDoc(doc(db, 'products', item.id));
+                if (productDoc.exists()) {
+                  itemVendorId = productDoc.data().vendorId;
+                }
+              } catch (error) {
+                console.error('Error fetching product vendor:', error);
+              }
+            }
+            
+            if (itemVendorId === currentUser.uid) {
+              selfProducts.push(item);
+            }
+          }
+
+          if (selfProducts.length > 0) {
+            alert('You cannot purchase from your own vendor account. Please remove your own products from the cart.');
+            navigate('/cart');
+            return;
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error checking self-purchase:', error);
+    }
+  };
+
+  const fetchAvailableLogistics = async () => {
+    if (deliveryOption !== 'delivery' || !buyerAddress) return;
+    
+    try {
+      setLoadingLogistics(true);
+      
+      // Calculate estimated weight and distance for the delivery
+      const estimatedWeight = cartItems.reduce((total, item) => total + (item.weight || 1), 0);
+      const estimatedDistance = 50; // Default 50km - in real app, calculate from addresses
+      
+      const deliveryData = {
+        pickupLocation: 'Vendor Location', // This should come from vendor profile
+        deliveryLocation: buyerAddress,
+        weight: estimatedWeight,
+        distance: estimatedDistance
+      };
+      
+      const partners = await firebaseService.logistics.getAvailablePartners(deliveryData);
+      setAvailableLogistics(partners);
+    } catch (error) {
+      console.error('Error fetching logistics partners:', error);
+    } finally {
+      setLoadingLogistics(false);
+    }
+  };
+
+  // Fetch logistics when delivery option changes
+  useEffect(() => {
+    if (deliveryOption === 'delivery' && buyerAddress) {
+      fetchAvailableLogistics();
+    } else {
+      setAvailableLogistics([]);
+      setSelectedLogistics(null);
+    }
+  }, [deliveryOption, buyerAddress]);
 
   const handlePaymentSuccess = (paymentIntent) => {
     setShowSuccess(true);
     clearCart();
     
-    // Redirect to success page after 3 seconds
+    // Redirect to buyer dashboard after 3 seconds
     setTimeout(() => {
-      navigate('/dashboard');
+      navigate('/enhanced-buyer');
     }, 3000);
   };
 
@@ -231,12 +358,13 @@ const Checkout = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">Payment Successful!</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-4">Escrow Payment Successful!</h1>
           <p className="text-gray-600 mb-6">
-            Thank you for your order. You will receive a confirmation email shortly.
+            Your payment has been securely held in escrow. The vendor has been notified and will prepare your order.
+            You can track your order in your dashboard.
           </p>
           <p className="text-sm text-gray-500">
-            Redirecting to dashboard in a few seconds...
+            Redirecting to your orders dashboard in a few seconds...
           </p>
         </div>
       </div>
@@ -264,7 +392,7 @@ const Checkout = () => {
                 <div className="flex-1">
                   <h3 className="text-sm font-medium text-gray-900">{item.name}</h3>
                   <p className="text-sm text-gray-500">Qty: {item.quantity}</p>
-                  <p className="text-sm font-medium text-gray-900">${(item.price * item.quantity).toFixed(2)}</p>
+                  <p className="text-sm font-medium text-gray-900">₦{(item.price * item.quantity).toLocaleString()}</p>
                 </div>
               </div>
             ))}
@@ -273,7 +401,7 @@ const Checkout = () => {
             <div className="border-t pt-4 space-y-2">
               <div className="flex justify-between">
                 <span>Subtotal:</span>
-                <span>${subtotal.toFixed(2)}</span>
+                <span>₦{subtotal.toLocaleString()}</span>
               </div>
               {deliveryOption === 'delivery' && selectedLogistics && (
                 <div className="flex justify-between">
@@ -283,11 +411,11 @@ const Checkout = () => {
               )}
               <div className="flex justify-between text-sm text-gray-600">
                 <span>Ojawa Service Fee (5%):</span>
-                <span>${ojawaCommission.toFixed(2)}</span>
+                <span>₦{ojawaCommission.toLocaleString()}</span>
               </div>
               <div className="flex justify-between text-lg font-semibold border-t pt-2">
               <span>Total:</span>
-                <span>${grandTotal.toFixed(2)}</span>
+                <span>₦{grandTotal.toLocaleString()}</span>
               </div>
               <div className="text-xs text-gray-500 mt-2">
                 * Includes wallet protection and dispute resolution
@@ -356,29 +484,42 @@ const Checkout = () => {
                   vendorLocation="Lagos, Nigeria"
                   buyerLocation={buyerAddress || "Your delivery address"}
                   onSelect={setSelectedLogistics}
+                  cartItems={cartItems}
                 />
               </div>
             )}
           </div>
         </div>
 
+        {/* Wallet Balance Check */}
+        <WalletBalanceCheck 
+          totalAmount={grandTotal}
+          onBalanceCheck={(sufficient) => {
+            setCanProceed(sufficient);
+          }}
+          onInsufficientFunds={(currentBalance) => {
+            setWalletBalance(currentBalance);
+            setCanProceed(false);
+          }}
+        />
+
         {/* Payment Form */}
         <div>
-          <Elements stripe={stripePromise}>
-            <CheckoutForm 
-              total={grandTotal} 
-              cartItems={cartItems}
-              onSuccess={handlePaymentSuccess}
-              orderDetails={{
-                subtotal,
-                deliveryFee,
-                ojawaCommission,
-                selectedLogistics,
-                deliveryOption,
-                buyerAddress
-              }}
-            />
-          </Elements>
+          <CheckoutForm 
+            total={grandTotal} 
+            cartItems={cartItems}
+            onSuccess={handlePaymentSuccess}
+            orderDetails={{
+              subtotal,
+              deliveryFee,
+              ojawaCommission,
+              selectedLogistics,
+              deliveryOption,
+              buyerAddress
+            }}
+            walletBalance={walletBalance}
+            canProceed={canProceed}
+          />
         </div>
       </div>
     </div>

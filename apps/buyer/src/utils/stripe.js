@@ -1,77 +1,48 @@
-import { loadStripe } from '@stripe/stripe-js';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { httpsCallable } from 'firebase/functions';
 import { functions } from '../firebase/config';
 
-// Replace with your actual Stripe publishable key
-const stripePromise = loadStripe('pk_test_51234567890abcdefghijklmnopqrstuvwxyz'); // Replace with your actual key
+// Flutterwave utilities
+// Note: The actual payment collection is done client-side using Flutterwave inline or hosted payment page.
+// These helpers call our Cloud Functions to verify transactions and issue refunds.
 
-export const getStripe = () => {
-  return stripePromise;
-};
-
-export const createPaymentIntent = async (amount, currency = 'usd') => {
+export const verifyFlutterwavePayment = async (transactionId, orderId, buyerId) => {
   try {
-    const createPaymentIntentFunction = httpsCallable(functions, 'createPaymentIntent');
-    
-    const result = await createPaymentIntentFunction({
-      amount,
-      currency
-    });
-
-    return result.data.clientSecret;
+    const fn = httpsCallable(functions, 'verifyFlutterwavePayment');
+    const res = await fn({ transactionId, orderId, buyerId });
+    return res.data;
   } catch (error) {
-    console.error('Error creating payment intent:', error);
-    throw new Error('Failed to create payment intent');
+    console.error('Error verifying Flutterwave payment:', error);
+    throw new Error('Failed to verify Flutterwave payment');
   }
 };
 
-export const processPayment = async (stripe, elements, clientSecret) => {
+export const getPaymentStatus = async (transactionId) => {
   try {
-    const { error, paymentIntent } = await stripe.confirmPayment({
-      elements,
-      clientSecret,
-      confirmParams: {
-        return_url: `${window.location.origin}/checkout/success`,
-      },
-    });
-
-    if (error) {
-      throw error;
-    }
-
-    return paymentIntent;
+    const fn = httpsCallable(functions, 'getPaymentStatus');
+    const res = await fn({ transactionId });
+    return res.data;
   } catch (error) {
-    console.error('Payment failed:', error);
-    throw error;
+    console.error('Error getting payment status:', error);
+    throw new Error('Failed to get payment status');
   }
 };
 
-export const processRefund = async (paymentIntentId, amount, reason = 'requested_by_customer') => {
+export const processRefund = async (transactionId, amount, currency = 'NGN') => {
   try {
-    const processRefundFunction = httpsCallable(functions, 'processRefund');
-    
-    const result = await processRefundFunction({
-      paymentIntentId,
-      amount,
-      reason
-    });
-
-    return result.data;
+    const fn = httpsCallable(functions, 'processRefund');
+    const res = await fn({ transactionId, amount, currency });
+    return res.data;
   } catch (error) {
     console.error('Error processing refund:', error);
     throw new Error('Failed to process refund');
   }
 };
 
-export const getRefundStatus = async (refundId) => {
+export const getRefundStatus = async (transactionId) => {
   try {
-    const getRefundStatusFunction = httpsCallable(functions, 'getRefundStatus');
-    
-    const result = await getRefundStatusFunction({
-      refundId
-    });
-
-    return result.data;
+    const fn = httpsCallable(functions, 'getRefundStatus');
+    const res = await fn({ transactionId });
+    return res.data;
   } catch (error) {
     console.error('Error retrieving refund status:', error);
     throw new Error('Failed to retrieve refund status');

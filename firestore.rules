@@ -24,10 +24,12 @@ service cloud.firestore {
       allow read: if isAdmin(); // Admins can read all user profiles
     }
     
-    // Products collection - anyone can read, only admins can write
+    // Products collection - anyone can read, vendors can create/update their own
     match /products/{productId} {
       allow read: if true; // Public read access for products
-      allow write: if isAdmin(); // Only admins can create/update/delete products
+      allow create: if isAuthenticated() && request.resource.data.vendorId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.vendorId == request.auth.uid || isAdmin();
+      allow list: if true; // Allow aggregation queries (count operations)
     }
     
     // Categories collection - anyone can read, only admins can write
@@ -38,8 +40,12 @@ service cloud.firestore {
     
     // Orders collection - users can read/write their own orders
     match /orders/{orderId} {
-      allow read, write: if isOwner(resource.data.userId);
+      // Allow create when authenticated user is the buyer specified in the new document
+      allow create: if isAuthenticated() && request.resource.data.buyerId == request.auth.uid;
+      // Read/update/delete based on existing document ownership (buyer or vendor)
+      allow read, update, delete: if isOwner(resource.data.buyerId) || isOwner(resource.data.vendorId);
       allow read: if isAdmin(); // Admins can read all orders
+      allow list: if isAuthenticated(); // Allow aggregation queries (count operations)
     }
     
     // Cart collection - users can read/write their own cart
@@ -53,5 +59,74 @@ service cloud.firestore {
       allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
       allow update, delete: if isOwner(resource.data.userId) || isAdmin();
     }
-  }
-}
+    
+    // Wallets collection - users can read/write their own wallets
+    match /wallets/{walletId} {
+      allow read, write: if isOwner(resource.data.userId);
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
+      allow read: if isAdmin(); // Admins can read all wallets
+    }
+    
+    // Wallet transactions collection - users can read their own transactions
+    match /wallet_transactions/{transactionId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
+      allow read: if isAdmin(); // Admins can read all transactions
+    }
+    
+    // Disputes collection - users can read/write their own disputes
+    match /disputes/{disputeId} {
+      allow read, write: if isOwner(resource.data.userId);
+      allow read: if isAdmin(); // Admins can read all disputes
+      allow list: if isAuthenticated(); // Allow aggregation queries (count operations)
+    }
+    
+    // Payout requests collection - users can read/write their own requests
+    match /payout_requests/{requestId} {
+      allow read, write: if isOwner(resource.data.userId);
+      allow read: if isAdmin(); // Admins can read all payout requests
+    }
+    
+           // Payouts collection - vendors can read/write their own payouts
+           match /payouts/{payoutId} {
+             allow read, write: if isOwner(resource.data.vendorId);
+             allow create: if isAuthenticated() && request.auth.uid == request.resource.data.vendorId;
+             allow read: if isAdmin(); // Admins can read all payouts
+             allow list: if isAuthenticated(); // Allow aggregation queries (count operations)
+           }
+
+           // Logistics profiles collection - logistics partners can read/write their own profiles
+           match /logistics_profiles/{profileId} {
+             allow read, write: if isOwner(resource.data.userId);
+             allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
+             allow read: if isAdmin(); // Admins can read all profiles
+             allow list: if isAuthenticated(); // Allow aggregation queries
+           }
+
+           // Deliveries collection - logistics partners can read/write their own deliveries
+           match /deliveries/{deliveryId} {
+             allow read, write: if isOwner(resource.data.logisticsPartnerId);
+             allow create: if isAuthenticated() && request.auth.uid == request.resource.data.logisticsPartnerId;
+             allow read: if isOwner(resource.data.buyerId) || isOwner(resource.data.vendorId); // Buyers and vendors can read their deliveries
+             allow read: if isAdmin(); // Admins can read all deliveries
+             allow list: if isAuthenticated(); // Allow aggregation queries
+           }
+
+           // Logistics companies collection - company owners can read/write their companies
+           match /logistics_companies/{companyId} {
+             allow read, write: if isOwner(resource.data.ownerId);
+             allow create: if isAuthenticated() && request.auth.uid == request.resource.data.ownerId;
+             allow read: if isAdmin(); // Admins can read all companies
+             allow list: if isAuthenticated(); // Allow aggregation queries
+           }
+
+           // Logistics routes collection - company owners can read/write their routes
+           match /logistics_routes/{routeId} {
+             allow read, write: if isOwner(resource.data.companyId);
+             allow create: if isAuthenticated() && request.auth.uid == request.resource.data.companyId;
+             allow read: if true; // Public read for route discovery
+             allow read: if isAdmin(); // Admins can read all routes
+             allow list: if true; // Allow public route queries
+           }
+         }
+       }

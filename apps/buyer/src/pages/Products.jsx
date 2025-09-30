@@ -1,144 +1,195 @@
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { collection, getDocs } from 'firebase/firestore';
-import { db } from '../firebase/config';
-import { useCart } from '../contexts/CartContext';
+import { useState } from 'react';
+import { useProductSearch } from '../hooks/useProductSearch';
+import AdvancedSearch from '../components/AdvancedSearch';
+import ProductCard from '../components/ProductCard';
+import { ProductListSkeleton, LoadingSpinner } from '../components/LoadingStates';
+import ComponentErrorBoundary from '../components/ComponentErrorBoundary';
+import { errorLogger } from '../utils/errorLogger';
 
 const Products = () => {
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const { addToCart } = useCart();
+  const {
+    products,
+    allProducts,
+    loading,
+    error,
+    filters,
+    categories,
+    totalCount,
+    hasFilters
+  } = useProductSearch()
 
-  useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        const productsRef = collection(db, 'products');
-        const snapshot = await getDocs(productsRef);
-        const productsData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-        setProducts(productsData);
-      } catch (error) {
-        console.error('Error fetching products:', error);
-        // For demo purposes, use mock data
-        setProducts([
-          {
-            id: '1',
-            name: 'Sample Product 1',
-            price: 29.99,
-            image: 'https://via.placeholder.com/300x200',
-            category: 'electronics',
-            description: 'This is a sample product description.'
-          },
-          {
-            id: '2',
-            name: 'Sample Product 2',
-            price: 49.99,
-            image: 'https://via.placeholder.com/300x200',
-            category: 'clothing',
-            description: 'This is another sample product description.'
-          }
-        ]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchProducts();
-  }, []);
-
-  const filteredProducts = products.filter(product => {
-    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
-
-  const categories = ['all', ...new Set(products.map(product => product.category))];
+  const [viewMode, setViewMode] = useState('grid') // 'grid' or 'list'
+  const [showFilters, setShowFilters] = useState(false)
 
   const handleAddToCart = (product) => {
-    addToCart(product, 1);
-    alert(`Added ${product.name} to cart!`);
-  };
+    // Show a toast notification instead of alert
+    errorLogger.info(`Added ${product.name} to cart`, { productId: product.id })
+  }
 
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading products...</p>
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="text-center">
+            <LoadingSpinner size="lg" className="mx-auto mb-4" />
+            <p className="text-gray-600">Loading products...</p>
+          </div>
         </div>
       </div>
-    );
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-500 text-6xl mb-4">⚠️</div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Error Loading Products</h2>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-4">Products</h1>
-        
-        {/* Search and Filter */}
-        <div className="flex flex-col sm:flex-row gap-4 mb-6">
-          <div className="flex-1">
-            <input
-              type="text"
-              placeholder="Search products..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {categories.map(category => (
-                <option key={category} value={category}>
-                  {category.charAt(0).toUpperCase() + category.slice(1)}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </div>
+    <ComponentErrorBoundary>
+      <div className="min-h-screen bg-gray-50">
+        {/* Advanced Search Component */}
+        <AdvancedSearch />
 
-      {/* Products Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {filteredProducts.map(product => (
-          <div key={product.id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
-            <Link to={`/products/${product.id}`}>
-              <img
-                src={product.image}
-                alt={product.name}
-                className="w-full h-48 object-cover"
-              />
-              <div className="p-4">
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">{product.name}</h3>
-                <p className="text-gray-600 text-sm mb-2 line-clamp-2">{product.description}</p>
-                <p className="text-xl font-bold text-blue-600 mb-3">${product.price}</p>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">
+                {hasFilters ? 'Search Results' : 'All Products'}
+              </h1>
+              <p className="text-gray-600 mt-1">
+                {totalCount} {totalCount === 1 ? 'product' : 'products'} found
+                {hasFilters && ' with current filters'}
+              </p>
+            </div>
+
+            {/* View Mode Toggle */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600">View:</span>
+              <div className="flex border border-gray-300 rounded-md">
                 <button
-                  onClick={() => handleAddToCart(product)}
-                  className="w-full bg-blue-600 text-white py-2 px-4 rounded-md text-sm font-medium hover:bg-blue-700 transition-colors"
+                  onClick={() => setViewMode('grid')}
+                  className={`p-2 ${viewMode === 'grid' ? 'bg-emerald-50 text-emerald-600' : 'text-gray-600 hover:bg-gray-50'}`}
                 >
-                  Add to Cart
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`p-2 ${viewMode === 'list' ? 'bg-emerald-50 text-emerald-600' : 'text-gray-600 hover:bg-gray-50'}`}
+                >
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
+                  </svg>
                 </button>
               </div>
-            </Link>
+            </div>
           </div>
-        ))}
-      </div>
 
-      {filteredProducts.length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-gray-500 text-lg">No products found matching your criteria.</p>
+          {/* Active Filters */}
+          {hasFilters && (
+            <div className="mb-6 p-4 bg-white rounded-lg border border-gray-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-gray-700">Active filters:</span>
+                  <div className="flex flex-wrap gap-2">
+                    {filters.searchTerm && (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
+                        Search: {filters.searchTerm}
+                        <button className="ml-1.5 inline-flex h-4 w-4 rounded-full inline-flex items-center justify-center text-emerald-400 hover:bg-emerald-200 hover:text-emerald-500 focus:outline-none focus:bg-emerald-500 focus:text-white">
+                          <svg className="h-2 w-2" stroke="currentColor" fill="none" viewBox="0 0 8 8">
+                            <path strokeLinecap="round" strokeWidth="1.5" d="m1 1 6 6m0-6L1 7" />
+                          </svg>
+                        </button>
+                      </span>
+                    )}
+                    {filters.category !== 'all' && (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        Category: {filters.category}
+                      </span>
+                    )}
+                    {(filters.priceRange.min || filters.priceRange.max) && (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                        Price: ${filters.priceRange.min || '0'} - ${filters.priceRange.max || '∞'}
+                      </span>
+                    )}
+                    {filters.rating && (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                        Rating: {filters.rating}+ stars
+                      </span>
+                    )}
+                    {filters.inStock && (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        In Stock Only
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Products Grid/List */}
+          {products.length > 0 ? (
+            <div className={
+              viewMode === 'grid'
+                ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6'
+                : 'space-y-4'
+            }>
+              {products.map(product => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  onAddToCart={handleAddToCart}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-16">
+              <div className="text-gray-400 text-6xl mb-4">🔍</div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No products found</h3>
+              <p className="text-gray-500 mb-6">
+                {hasFilters
+                  ? 'Try adjusting your search criteria or clearing some filters.'
+                  : 'No products are available at the moment.'}
+              </p>
+              {hasFilters && (
+                <button
+                  onClick={() => window.location.href = '/products'}
+                  className="bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700 transition-colors"
+                >
+                  Clear All Filters
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Load More Button (for pagination) */}
+          {products.length > 0 && products.length >= 20 && (
+            <div className="mt-8 text-center">
+              <button className="bg-white border border-gray-300 text-gray-700 px-6 py-2 rounded-md hover:bg-gray-50 transition-colors">
+                Load More Products
+              </button>
+            </div>
+          )}
         </div>
-      )}
-    </div>
-  );
+      </div>
+    </ComponentErrorBoundary>
+  )
 };
 
 export default Products;

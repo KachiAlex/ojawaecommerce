@@ -14,7 +14,14 @@ const AdminDashboard = () => {
   const [orders, setOrders] = useState([]);
   const [disputes, setDisputes] = useState([]);
   const [vendors, setVendors] = useState([]);
+  const [logistics, setLogistics] = useState([]);
   const [analytics, setAnalytics] = useState({});
+  const [pendingProducts, setPendingProducts] = useState([]);
+  const [activeProducts, setActiveProducts] = useState([]);
+  const [rejectedProducts, setRejectedProducts] = useState([]);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [showProductModal, setShowProductModal] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
   
   // UI states
   const [selectedDispute, setSelectedDispute] = useState(null);
@@ -28,19 +35,27 @@ const AdminDashboard = () => {
       setLoading(true);
       
       // Use admin services for better performance and pagination
-      const [usersData, ordersData, disputesData, analyticsData, pendingVendorsData] = await Promise.all([
+      const [usersData, ordersData, disputesData, analyticsData, pendingVendorsData, logisticsData, pending, active, rejected] = await Promise.all([
         firebaseService.admin.getAllUsers({ pageSize: 100 }),
         firebaseService.admin.getAllOrders({ pageSize: 100 }),
         firebaseService.admin.getAllDisputes({ pageSize: 100 }),
         firebaseService.admin.getPlatformAnalytics(),
-        firebaseService.admin.getPendingVendors()
+        firebaseService.admin.getPendingVendors(),
+        firebaseService.logistics.getAllPartners(),
+        firebaseService.products.getAll({ status: 'pending' }),
+        firebaseService.products.getAll({ status: 'active' }),
+        firebaseService.products.getAll({ status: 'rejected' })
       ]);
       
       setUsers(usersData.items);
       setOrders(ordersData.items);
       setDisputes(disputesData.items);
       setVendors(pendingVendorsData);
+      setLogistics(logisticsData);
       setAnalytics(analyticsData);
+      setPendingProducts(pending);
+      setActiveProducts(active);
+      setRejectedProducts(rejected);
       
     } catch (error) {
       console.error('Error fetching admin data:', error);
@@ -92,6 +107,51 @@ const AdminDashboard = () => {
     } catch (error) {
       console.error('Error resolving dispute:', error);
       alert('Failed to resolve dispute.');
+    }
+  };
+
+  const handleApprovePartner = async (partnerId) => {
+    try {
+      await firebaseService.logistics.updateProfile(partnerId, { status: 'approved' });
+      fetchAdminData(); // Refresh data
+    } catch (error) {
+      console.error('Error approving partner:', error);
+    }
+  };
+
+  const handleApproveProduct = async (productId) => {
+    try {
+      const approveProduct = httpsCallable(functions, 'approveProduct');
+      await approveProduct({ productId, approved: true, adminId: currentUser.uid });
+      await fetchAdminData();
+      setShowProductModal(false);
+      alert('Product approved.');
+    } catch (e) {
+      console.error('Approve product failed', e);
+      alert('Failed to approve product.');
+    }
+  };
+
+  const handleRejectProduct = async (productId) => {
+    try {
+      const approveProduct = httpsCallable(functions, 'approveProduct');
+      await approveProduct({ productId, approved: false, reason: rejectionReason, adminId: currentUser.uid });
+      setRejectionReason('');
+      await fetchAdminData();
+      setShowProductModal(false);
+      alert('Product rejected and vendor notified.');
+    } catch (e) {
+      console.error('Reject product failed', e);
+      alert('Failed to reject product.');
+    }
+  };
+
+  const handleRejectPartner = async (partnerId) => {
+    try {
+      await firebaseService.logistics.updateProfile(partnerId, { status: 'rejected' });
+      fetchAdminData(); // Refresh data
+    } catch (error) {
+      console.error('Error rejecting partner:', error);
     }
   };
 
@@ -166,7 +226,7 @@ const AdminDashboard = () => {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Total Revenue</p>
-              <p className="text-2xl font-bold text-gray-900">${analytics.totalRevenue?.toFixed(2) || '0.00'}</p>
+              <p className="text-2xl font-bold text-gray-900">₦{(analytics.totalRevenue || 0).toLocaleString()}</p>
             </div>
           </div>
         </div>
@@ -215,7 +275,7 @@ const AdminDashboard = () => {
                     <p className="text-sm text-gray-500">{order.buyerName || order.buyerEmail}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-medium text-gray-900">${order.totalAmount?.toFixed(2) || '0.00'}</p>
+                    <p className="text-sm font-medium text-gray-900">₦{(order.totalAmount || 0).toLocaleString()}</p>
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                       order.status === 'completed' ? 'bg-green-100 text-green-800' :
                       order.status === 'shipped' ? 'bg-blue-100 text-blue-800' :
@@ -258,6 +318,45 @@ const AdminDashboard = () => {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Pending Products Approval */}
+        <div className="bg-white rounded-lg shadow">
+          <div className="p-6 border-b border-gray-200">
+            <h3 className="text-lg font-medium text-gray-900">Pending Products</h3>
+          </div>
+          <div className="p-6">
+            <div className="space-y-4">
+              {pendingProducts.slice(0, 8).map((p) => (
+                <div key={p.id} className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-14 h-14 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center">
+                      {p.images?.[0] ? (
+                        <img src={p.images[0]} alt={p.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-xl">🖼️</span>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{p.name}</p>
+                      <p className="text-xs text-gray-500">Category: {p.category || '—'} • Price: {p.currency || '₦'} {(p.price || 0).toLocaleString()}</p>
+                    </div>
+                  </div>
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => { setSelectedProduct(p); setShowProductModal(true); }}
+                      className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                    >
+                      Review
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {pendingProducts.length === 0 && (
+                <p className="text-sm text-gray-500">No pending products.</p>
+              )}
             </div>
           </div>
         </div>
@@ -401,8 +500,10 @@ const AdminDashboard = () => {
             { id: 'overview', name: 'Overview', icon: '📊' },
             { id: 'users', name: 'Users', icon: '👥' },
             { id: 'orders', name: 'Orders', icon: '📦' },
+            { id: 'products', name: 'Products', icon: '🛒' },
             { id: 'disputes', name: 'Disputes', icon: '⚖️' },
             { id: 'vendors', name: 'Vendors', icon: '🏪' },
+            { id: 'logistics', name: 'Logistics', icon: '🚚' },
             { id: 'analytics', name: 'Analytics', icon: '📈' }
           ].map((tab) => (
             <button
@@ -455,6 +556,299 @@ const AdminDashboard = () => {
         </div>
       )}
 
+      {activeTab === 'products' && (
+        <div className="space-y-6">
+          <div className="bg-white rounded-xl border">
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900">Products Moderation</h3>
+              <div className="text-sm text-gray-600 flex gap-3">
+                <span>Pending: {pendingProducts.length}</span>
+                <span>Active: {activeProducts.length}</span>
+                <span>Rejected: {rejectedProducts.length}</span>
+              </div>
+            </div>
+            <div className="p-6 grid md:grid-cols-3 gap-6">
+              {/* Pending */}
+              <div>
+                <h4 className="font-medium text-gray-900 mb-3">Pending</h4>
+                <div className="space-y-4">
+                  {pendingProducts.map((p) => (
+                    <div key={p.id} className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center">
+                          {p.images?.[0] ? (
+                            <img src={p.images[0]} alt={p.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-lg">🖼️</span>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{p.name}</p>
+                          <p className="text-xs text-gray-500">{p.category} • {p.currency || '₦'} {(p.price || 0).toLocaleString()}</p>
+                        </div>
+                      </div>
+                      <button onClick={() => { setSelectedProduct(p); setShowProductModal(true); }} className="text-blue-600 hover:text-blue-700 text-sm font-medium">Review</button>
+                    </div>
+                  ))}
+                  {pendingProducts.length === 0 && (<p className="text-sm text-gray-500">No pending items.</p>)}
+                </div>
+              </div>
+
+              {/* Active */}
+              <div>
+                <h4 className="font-medium text-gray-900 mb-3">Active</h4>
+                <div className="space-y-4">
+                  {activeProducts.map((p) => (
+                    <div key={p.id} className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center">
+                          {p.images?.[0] ? (
+                            <img src={p.images[0]} alt={p.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-lg">🖼️</span>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{p.name}</p>
+                          <p className="text-xs text-gray-500">{p.category} • {p.currency || '₦'} {(p.price || 0).toLocaleString()}</p>
+                        </div>
+                      </div>
+                      <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700">Active</span>
+                    </div>
+                  ))}
+                  {activeProducts.length === 0 && (<p className="text-sm text-gray-500">No active items.</p>)}
+                </div>
+              </div>
+
+              {/* Rejected */}
+              <div>
+                <h4 className="font-medium text-gray-900 mb-3">Rejected</h4>
+                <div className="space-y-4">
+                  {rejectedProducts.map((p) => (
+                    <div key={p.id} className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center">
+                            {p.images?.[0] ? (
+                              <img src={p.images[0]} alt={p.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <span className="text-lg">🖼️</span>
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{p.name}</p>
+                            <p className="text-xs text-gray-500">{p.category} • {p.currency || '₦'} {(p.price || 0).toLocaleString()}</p>
+                          </div>
+                        </div>
+                        <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-700">Rejected</span>
+                      </div>
+                      {p.rejectionReason && (
+                        <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded p-2">Reason: {p.rejectionReason}</p>
+                      )}
+                    </div>
+                  ))}
+                  {rejectedProducts.length === 0 && (<p className="text-sm text-gray-500">No rejected items.</p>)}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'logistics' && (
+        <div className="space-y-6">
+          {/* Logistics Overview Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="bg-white p-6 rounded-xl border">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Total Partners</p>
+                  <p className="text-2xl font-bold text-gray-900">{logistics.length}</p>
+                </div>
+                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <span className="text-blue-600 text-xl">🚚</span>
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-white p-6 rounded-xl border">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Active Partners</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {logistics.filter(p => p.status === 'approved').length}
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                  <span className="text-green-600 text-xl">✅</span>
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-white p-6 rounded-xl border">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Pending Approval</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {logistics.filter(p => p.status === 'pending').length}
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                  <span className="text-yellow-600 text-xl">⏳</span>
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-white p-6 rounded-xl border">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Rejected</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {logistics.filter(p => p.status === 'rejected').length}
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+                  <span className="text-red-600 text-xl">❌</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Logistics Partners Table */}
+          <div className="bg-white rounded-xl border">
+            <div className="p-6 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">Logistics Partners Management</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Service Areas</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {logistics.map((partner) => (
+                    <tr key={partner.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center mr-3">
+                            <span className="text-lg">🚚</span>
+                          </div>
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">{partner.companyName}</div>
+                            <div className="text-sm text-gray-500">{partner.description}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">{partner.contactPerson}</div>
+                        <div className="text-sm text-gray-500">{partner.email}</div>
+                        <div className="text-sm text-gray-500">{partner.phone}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex flex-wrap gap-1">
+                          {partner.serviceAreas?.slice(0, 3).map((area, index) => (
+                            <span key={index} className="inline-flex px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded-full">
+                              {area}
+                            </span>
+                          ))}
+                          {partner.serviceAreas?.length > 3 && (
+                            <span className="inline-flex px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded-full">
+                              +{partner.serviceAreas.length - 3} more
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          partner.status === 'approved' ? 'bg-green-100 text-green-800' :
+                          partner.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {partner.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {partner.createdAt?.toDate?.()?.toLocaleDateString() || 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <div className="flex gap-2">
+                          {partner.status === 'pending' && (
+                            <>
+                              <button 
+                                onClick={() => handleApprovePartner(partner.id)}
+                                className="text-green-600 hover:text-green-700 font-medium"
+                              >
+                                Approve
+                              </button>
+                              <button 
+                                onClick={() => handleRejectPartner(partner.id)}
+                                className="text-red-600 hover:text-red-700 font-medium"
+                              >
+                                Reject
+                              </button>
+                            </>
+                          )}
+                          <button className="text-blue-600 hover:text-blue-700 font-medium">
+                            View Details
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Recent Logistics Activity */}
+          <div className="bg-white rounded-xl border">
+            <div className="p-6 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">Recent Logistics Activity</h3>
+            </div>
+            <div className="p-6">
+              <div className="space-y-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                    <span className="text-green-600">✅</span>
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium">Swift Logistics approved</p>
+                    <p className="text-sm text-gray-600">New logistics partner approved and activated</p>
+                  </div>
+                  <div className="text-sm text-gray-500">2 hours ago</div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                    <span className="text-blue-600">📦</span>
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium">Express Delivery completed 15 deliveries</p>
+                    <p className="text-sm text-gray-600">Partner completed deliveries this week</p>
+                  </div>
+                  <div className="text-sm text-gray-500">1 day ago</div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center">
+                    <span className="text-yellow-600">⏳</span>
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium">Reliable Transport application pending</p>
+                    <p className="text-sm text-gray-600">New logistics partner application awaiting review</p>
+                  </div>
+                  <div className="text-sm text-gray-500">3 days ago</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Dispute Resolution Modal */}
       {showDisputeModal && selectedDispute && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
@@ -486,6 +880,94 @@ const AdminDashboard = () => {
                     className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400"
                   >
                     Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Product Review Modal */}
+      {showProductModal && selectedProduct && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-10 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-2/3 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium text-gray-900">Review Product</h3>
+                <button onClick={() => setShowProductModal(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Images */}
+                <div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(selectedProduct.images || []).map((img, idx) => (
+                      <div key={idx} className="w-full aspect-square bg-gray-100 rounded overflow-hidden">
+                        <img src={img} alt={`image-${idx}`} className="w-full h-full object-cover" />
+                      </div>
+                    ))}
+                    {(!selectedProduct.images || selectedProduct.images.length === 0) && (
+                      <div className="text-sm text-gray-500">No images uploaded.</div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Details */}
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-xs text-gray-500">Name</p>
+                    <p className="text-sm font-medium text-gray-900">{selectedProduct.name || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Category</p>
+                    <p className="text-sm font-medium text-gray-900">{selectedProduct.category || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Price</p>
+                    <p className="text-sm font-medium text-gray-900">{selectedProduct.currency || '₦'} {(selectedProduct.price || 0).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Description</p>
+                    <p className="text-sm text-gray-900 whitespace-pre-wrap">{selectedProduct.description || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Vendor</p>
+                    <p className="text-sm text-gray-900">{selectedProduct.vendorId || '—'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Approve / Reject */}
+              <div className="border-t mt-6 pt-4 space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Rejection Reason (if rejecting)</label>
+                  <textarea
+                    rows={3}
+                    value={rejectionReason}
+                    onChange={(e) => setRejectionReason(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2"
+                    placeholder="Provide a clear reason so the vendor can fix and resubmit"
+                  />
+                </div>
+                <div className="flex items-center justify-end gap-2">
+                  <button
+                    onClick={() => handleApproveProduct(selectedProduct.id)}
+                    className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                  >
+                    Approve
+                  </button>
+                  <button
+                    onClick={() => handleRejectProduct(selectedProduct.id)}
+                    className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                  >
+                    Reject
+                  </button>
+                  <button
+                    onClick={() => setShowProductModal(false)}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                  >
+                    Close
                   </button>
                 </div>
               </div>

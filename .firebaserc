@@ -1,6 +1,7 @@
 {
   "projects": {
-    "default": "ojawa-ecommerce"
+    "default": "ojawa-ecommerce",
+    "firebase use real-estate-marketplace-37544": "abt-abia-tracker"
   },
   "targets": {
     "ojawa-ecommerce": {

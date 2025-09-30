@@ -3,12 +3,13 @@ import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import firebaseService from '../services/firebaseService';
 import WalletManager from '../components/WalletManager';
-import DashboardSwitcher from '../components/DashboardSwitcher';
 import VendorOrdersFilterBar from '../components/VendorOrdersFilterBar';
 import VendorOrderDetailsModal from '../components/VendorOrderDetailsModal';
 import ShipOrderModal from '../components/ShipOrderModal';
 import PayoutRequestModal from '../components/PayoutRequestModal';
 import ProductEditorModal from '../components/ProductEditorModal';
+import VendorProfileModal from '../components/VendorProfileModal';
+import LogisticsAssignmentModal from '../components/LogisticsAssignmentModal';
 
 const Vendor = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -49,7 +50,11 @@ const Vendor = () => {
   const [confirmDelete, setConfirmDelete] = useState({ open: false, product: null });
   const [uploadProgress, setUploadProgress] = useState(null);
   const [updatingProductId, setUpdatingProductId] = useState(null);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [deletingProductId, setDeletingProductId] = useState(null);
+  const [productStatusFilter, setProductStatusFilter] = useState('all');
+  const [isLogisticsModalOpen, setIsLogisticsModalOpen] = useState(false);
+  const [selectedOrderForLogistics, setSelectedOrderForLogistics] = useState(null);
 
   useEffect(() => {
     const fetchVendorData = async () => {
@@ -122,6 +127,26 @@ const Vendor = () => {
     fetchVendorData();
   }, [currentUser]);
 
+  // Derived product filters and counts
+  const productCountsByStatus = useMemo(() => {
+    const counts = { all: products.length, pending: 0, active: 0, rejected: 0, outofstock: 0, draft: 0 };
+    products.forEach(p => {
+      const status = (p.status || '').toLowerCase();
+      if (status === 'pending') counts.pending += 1;
+      else if (status === 'active') counts.active += 1;
+      else if (status === 'rejected') counts.rejected += 1;
+      else if (status === 'out of stock') counts.outofstock += 1;
+      else if (status === 'draft') counts.draft += 1;
+    });
+    return counts;
+  }, [products]);
+
+  const displayedProducts = useMemo(() => {
+    if (productStatusFilter === 'all') return products;
+    if (productStatusFilter === 'outofstock') return products.filter(p => (p.status || '').toLowerCase() === 'out of stock');
+    return products.filter(p => (p.status || '').toLowerCase() === productStatusFilter);
+  }, [products, productStatusFilter]);
+
   // Real-time order status updates
   useEffect(() => {
     if (!currentUser) return;
@@ -133,10 +158,11 @@ const Vendor = () => {
         const { onSnapshot, collection, query, where, orderBy } = await import('firebase/firestore');
         const { db } = await import('../firebase/config');
 
+        // Temporary workaround: Remove orderBy while index builds
         const ordersQuery = query(
           collection(db, 'orders'),
-          where('vendorId', '==', currentUser.uid),
-          orderBy('updatedAt', 'desc')
+          where('vendorId', '==', currentUser.uid)
+          // Removed orderBy temporarily to avoid index requirement
         );
 
         unsubscribeOrders = onSnapshot(ordersQuery, (snapshot) => {
@@ -145,10 +171,17 @@ const Vendor = () => {
             ...doc.data()
           }));
           
+          // Sort client-side as temporary workaround
+          const sortedOrders = updatedOrders.sort((a, b) => {
+            const aTime = a.updatedAt?.toDate?.() || new Date(a.updatedAt || 0);
+            const bTime = b.updatedAt?.toDate?.() || new Date(b.updatedAt || 0);
+            return bTime - aTime; // Descending order
+          });
+          
           // Update orders if they're different from current state
           setOrders(prevOrders => {
-            const hasChanges = JSON.stringify(prevOrders) !== JSON.stringify(updatedOrders);
-            return hasChanges ? updatedOrders : prevOrders;
+            const hasChanges = JSON.stringify(prevOrders) !== JSON.stringify(sortedOrders);
+            return hasChanges ? sortedOrders : prevOrders;
           });
         });
       } catch (error) {
@@ -168,14 +201,23 @@ const Vendor = () => {
 
   const handleAddProduct = async (productData) => {
     try {
-      await firebaseService.products.create(productData, currentUser.uid);
+      setUploadProgress(0);
+      // Use unified helper that uploads any File items and saves URLs
+      await firebaseService.products.saveWithUploadsWithProgress(
+        productData,
+        currentUser.uid,
+        null,
+        { onProgress: (p) => setUploadProgress(p) }
+      );
       setShowAddProductForm(false);
+      setUploadProgress(null);
       // Refresh products
       const productsPage = await firebaseService.products.getByVendorPaged({ vendorId: currentUser.uid, pageSize });
       setProducts(productsPage.items);
       setProductsCursor(productsPage.nextCursor);
     } catch (error) {
       console.error('Error adding product:', error);
+      setUploadProgress(null);
       alert('Failed to add product. Please try again.');
     }
   };
@@ -202,6 +244,16 @@ const Vendor = () => {
   const openShipModal = (order) => {
     setSelectedOrder(order);
     setIsShipOpen(true);
+  };
+
+  const openLogisticsModal = (order) => {
+    setSelectedOrderForLogistics(order);
+    setIsLogisticsModalOpen(true);
+  };
+
+  const handleLogisticsAssignmentComplete = () => {
+    // Refresh orders after logistics assignment
+    fetchVendorData();
   };
 
   const confirmShipment = async ({ carrier, trackingNumber, eta, order }) => {
@@ -408,7 +460,6 @@ const Vendor = () => {
             
             {/* Dashboard Switcher */}
             <div className="mb-8">
-              <DashboardSwitcher currentDashboard="vendor" />
             </div>
             
             <div className="space-y-1">
@@ -430,6 +481,12 @@ const Vendor = () => {
                 className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'products' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
               >
                 🛍️ Products
+              </button>
+              <button 
+                onClick={() => setActiveTab('logistics')}
+                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'logistics' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+              >
+                🚚 Logistics
               </button>
               <button 
                 onClick={() => setActiveTab('payouts')}
@@ -466,94 +523,13 @@ const Vendor = () => {
         {/* Main Content */}
         <div className="flex-1 p-8">
           {/* Add Product Modal */}
-          {showAddProductForm && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                <div className="p-6 border-b border-gray-200">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-lg font-semibold text-gray-900">Add New Product</h2>
-                    <button 
-                      onClick={() => setShowAddProductForm(false)}
-                      className="text-gray-400 hover:text-gray-600"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </div>
-                
-                <form className="p-6 space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Product Name</label>
-                      <input type="text" className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" placeholder="Enter product name" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
-                      <select className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
-                        <option>Fashion</option>
-                        <option>Beauty</option>
-                        <option>Electronics</option>
-                        <option>Home & Living</option>
-                        <option>Food</option>
-                        <option>Crafts</option>
-                        <option>Services</option>
-                        <option>Agriculture</option>
-                      </select>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
-                    <textarea rows="4" className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" placeholder="Describe your product..."></textarea>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Price</label>
-                      <input type="number" className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" placeholder="0.00" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Currency</label>
-                      <select className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
-                        <option>₦ NGN</option>
-                        <option>₵ GHS</option>
-                        <option>KSh KES</option>
-                        <option>Br ETB</option>
-                        <option>$ USD</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Stock Quantity</label>
-                      <input type="number" className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" placeholder="0" />
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Product Images</label>
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                      <div className="text-gray-400 mb-2">📷</div>
-                      <p className="text-sm text-gray-600">Drop images here or click to upload</p>
-                      <input type="file" multiple accept="image/*" className="hidden" />
-                      <button type="button" className="mt-2 text-emerald-600 hover:text-emerald-700 text-sm font-medium">Choose Files</button>
-                    </div>
-                  </div>
-                  
-                  <div className="flex gap-3 pt-4">
-                    <button type="submit" className="flex-1 bg-emerald-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-emerald-700">
-                      Add Product
-                    </button>
-                    <button 
-                      type="button" 
-                      onClick={() => setShowAddProductForm(false)}
-                      className="flex-1 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg font-medium hover:bg-gray-50"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
+          <ProductEditorModal
+            open={showAddProductForm}
+            product={null}
+            onClose={() => setShowAddProductForm(false)}
+            onSave={handleAddProduct}
+            progress={uploadProgress}
+          />
 
           {/* Tab Content */}
           {activeTab === 'overview' && (
@@ -610,6 +586,97 @@ const Vendor = () => {
                     </div>
                     <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
                       <span className="text-purple-600 text-xl">🛍️</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Vendor Profile Section */}
+              <div className="bg-white rounded-xl border mb-8">
+                <div className="p-6 border-b border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-lg font-semibold text-gray-900">Store Profile</h2>
+                    <button
+                      onClick={() => setIsProfileModalOpen(true)}
+                      className="text-emerald-600 hover:text-emerald-700 font-medium text-sm"
+                    >
+                      Update Profile
+                    </button>
+                  </div>
+                </div>
+                <div className="p-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <h3 className="text-sm font-medium text-gray-700 mb-2">Store Information</h3>
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">Store Name:</span>
+                          <span className="text-sm font-medium">{userProfile?.vendorProfile?.storeName || 'Not set'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">Business Address:</span>
+                          <span className="text-sm font-medium">{userProfile?.vendorProfile?.businessAddress || 'Not set'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">Business Phone:</span>
+                          <span className="text-sm font-medium">{userProfile?.vendorProfile?.businessPhone || 'Not set'}</span>
+                        </div>
+                        {userProfile?.vendorProfile?.website && (
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-600">Website:</span>
+                            <a 
+                              href={userProfile.vendorProfile.website} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-sm font-medium text-emerald-600 hover:text-emerald-700"
+                            >
+                              {userProfile.vendorProfile.website}
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-medium text-gray-700 mb-2">Verification Status</h3>
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">Vendor Status:</span>
+                          <span className={`text-sm font-medium ${
+                            userProfile?.vendorProfile?.verificationStatus === 'verified' 
+                              ? 'text-green-600' 
+                              : userProfile?.vendorProfile?.verificationStatus === 'pending'
+                              ? 'text-yellow-600'
+                              : 'text-red-600'
+                          }`}>
+                            {userProfile?.vendorProfile?.verificationStatus || 'Not verified'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">Address Verification:</span>
+                          <span className={`text-sm font-medium ${
+                            userProfile?.vendorProfile?.addressVerificationStatus === 'verified' 
+                              ? 'text-green-600' 
+                              : userProfile?.vendorProfile?.addressVerificationStatus === 'pending'
+                              ? 'text-yellow-600'
+                              : 'text-gray-600'
+                          }`}>
+                            {userProfile?.vendorProfile?.addressVerificationStatus || 'Not submitted'}
+                          </span>
+                        </div>
+                        {userProfile?.vendorProfile?.storeSlug && (
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-600">Store Link:</span>
+                            <a 
+                              href={`/store/${userProfile.vendorProfile.storeSlug}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm font-medium text-emerald-600 hover:text-emerald-700"
+                            >
+                              View Store
+                            </a>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -755,7 +822,10 @@ const Vendor = () => {
                           <div className="flex gap-2">
                             <button onClick={() => openOrderDetails(order)} className="text-emerald-600 hover:text-emerald-700 font-medium">View</button>
                             {order.status === 'pending_wallet_funding' && (
-                            <button onClick={() => openShipModal(order)} className="text-blue-600 hover:text-blue-700 font-medium">Ship</button>
+                            <>
+                              <button onClick={() => openShipModal(order)} className="text-blue-600 hover:text-blue-700 font-medium">Ship</button>
+                              <button onClick={() => openLogisticsModal(order)} className="text-purple-600 hover:text-purple-700 font-medium">Assign Logistics</button>
+                            </>
                             )}
                             {order.status === 'shipped' && (
                               <button 
@@ -840,12 +910,24 @@ const Vendor = () => {
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-semibold text-gray-900">Your Products</h3>
                     <div className="flex gap-3">
-                      <select className="text-sm border rounded-lg px-3 py-1">
-                        <option>All Products</option>
-                        <option>Active</option>
-                        <option>Out of Stock</option>
-                        <option>Draft</option>
-                      </select>
+                      <div className="flex flex-wrap gap-2 text-sm">
+                        {[
+                          {key:'all', label: `All (${productCountsByStatus.all})`},
+                          {key:'pending', label: `Pending (${productCountsByStatus.pending})`},
+                          {key:'active', label: `Active (${productCountsByStatus.active})`},
+                          {key:'rejected', label: `Rejected (${productCountsByStatus.rejected})`},
+                          {key:'outofstock', label: `Out of Stock (${productCountsByStatus.outofstock})`},
+                          {key:'draft', label: `Draft (${productCountsByStatus.draft})`},
+                        ].map(t => (
+                          <button
+                            key={t.key}
+                            onClick={() => setProductStatusFilter(t.key)}
+                            className={`px-3 py-1 rounded-lg border ${productStatusFilter===t.key ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'text-gray-700 hover:bg-gray-50'}`}
+                          >
+                            {t.label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -864,7 +946,7 @@ const Vendor = () => {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {products.map((product) => (
+                      {displayedProducts.map((product) => (
                         <tr key={product.id} className="hover:bg-gray-50">
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center gap-3">
@@ -892,7 +974,8 @@ const Vendor = () => {
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center gap-2">
                             <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                (product.status || '').toLowerCase() === 'active' ? 'bg-green-100 text-green-800' : 
+                                (product.status || '').toLowerCase() === 'active' ? 'bg-green-100 text-green-800' :
+                                (product.status || '').toLowerCase() === 'pending' ? 'bg-yellow-100 text-yellow-800' :
                                 (product.status || '').toLowerCase() === 'out of stock' ? 'bg-red-100 text-red-800' : 
                               'bg-gray-100 text-gray-800'
                             }`}>
@@ -914,6 +997,7 @@ const Vendor = () => {
                                   setUpdatingProductId(null);
                                 }}
                               >
+                                <option value="pending">Pending (Awaiting Approval)</option>
                                 <option value="active">Active</option>
                                 <option value="out of stock">Out of Stock</option>
                                 <option value="draft">Draft</option>
@@ -924,7 +1008,7 @@ const Vendor = () => {
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm">
-                            <div className="flex gap-2">
+                              <div className="flex gap-2">
                               <button onClick={() => openEditProduct(product)} className="text-emerald-600 hover:text-emerald-700 font-medium">Edit</button>
                               <button className="text-blue-600 hover:text-blue-700 font-medium">View</button>
                               <button onClick={() => setConfirmDelete({ open: true, product })} className="text-red-600 hover:text-red-700 font-medium" disabled={deletingProductId === product.id}>
@@ -937,6 +1021,15 @@ const Vendor = () => {
                     </tbody>
                   </table>
                 </div>
+                  {/* Rejection reason helper */}
+                  <div className="px-6 pb-4">
+                    {products.some(p => (p.status || '').toLowerCase() === 'rejected' && p.rejectionReason) && (
+                      <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+                        <p className="text-sm text-red-800 font-medium mb-1">Some products were rejected.</p>
+                        <p className="text-sm text-red-700">Open the product to see the rejection reason, fix the issues, and click Edit to resubmit.</p>
+                      </div>
+                    )}
+                  </div>
                 <div className="p-4 flex items-center justify-between">
                   <div className="text-sm text-gray-600">{payouts.length} of {payoutsCount} payouts</div>
                   <div className="flex gap-2">
@@ -1018,6 +1111,198 @@ const Vendor = () => {
                   >
                     Next
                   </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'logistics' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-gray-900">Logistics Management</h2>
+                <div className="flex gap-3">
+                  <button className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700">
+                    Add Logistics Partner
+                  </button>
+                </div>
+              </div>
+
+              {/* Logistics Overview Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div className="bg-white p-6 rounded-xl border">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Active Partners</p>
+                      <p className="text-2xl font-bold text-gray-900">3</p>
+                    </div>
+                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <span className="text-blue-600 text-xl">🚚</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="bg-white p-6 rounded-xl border">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Deliveries This Month</p>
+                      <p className="text-2xl font-bold text-gray-900">47</p>
+                    </div>
+                    <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                      <span className="text-green-600 text-xl">📦</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="bg-white p-6 rounded-xl border">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Avg. Delivery Time</p>
+                      <p className="text-2xl font-bold text-gray-900">2.3 days</p>
+                    </div>
+                    <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                      <span className="text-yellow-600 text-xl">⏱️</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="bg-white p-6 rounded-xl border">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Success Rate</p>
+                      <p className="text-2xl font-bold text-gray-900">98.5%</p>
+                    </div>
+                    <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                      <span className="text-purple-600 text-xl">📈</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Logistics Partners Table */}
+              <div className="bg-white rounded-xl border">
+                <div className="p-6 border-b border-gray-200">
+                  <h3 className="text-lg font-semibold text-gray-900">Logistics Partners</h3>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Partner</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Service Areas</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Delivery Time</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rating</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      <tr className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center mr-3">
+                              <span className="text-lg">🚚</span>
+                            </div>
+                            <div>
+                              <div className="text-sm font-medium text-gray-900">Swift Logistics</div>
+                              <div className="text-sm text-gray-500">swift@logistics.com</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Lagos, Abuja, Kano</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">1-2 days</td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <span className="text-yellow-400">⭐</span>
+                            <span className="text-sm font-medium ml-1">4.8</span>
+                            <span className="text-sm text-gray-500 ml-1">(123)</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                            Active
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <div className="flex gap-2">
+                            <button className="text-emerald-600 hover:text-emerald-700 font-medium">View</button>
+                            <button className="text-blue-600 hover:text-blue-700 font-medium">Edit</button>
+                            <button className="text-gray-600 hover:text-gray-700 font-medium">Disable</button>
+                          </div>
+                        </td>
+                      </tr>
+                      <tr className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center mr-3">
+                              <span className="text-lg">⚡</span>
+                            </div>
+                            <div>
+                              <div className="text-sm font-medium text-gray-900">Express Delivery</div>
+                              <div className="text-sm text-gray-500">express@delivery.com</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Lagos, Port Harcourt</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Same day</td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <span className="text-yellow-400">⭐</span>
+                            <span className="text-sm font-medium ml-1">4.6</span>
+                            <span className="text-sm text-gray-500 ml-1">(89)</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                            Active
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <div className="flex gap-2">
+                            <button className="text-emerald-600 hover:text-emerald-700 font-medium">View</button>
+                            <button className="text-blue-600 hover:text-blue-700 font-medium">Edit</button>
+                            <button className="text-gray-600 hover:text-gray-700 font-medium">Disable</button>
+                          </div>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Recent Deliveries */}
+              <div className="bg-white rounded-xl border">
+                <div className="p-6 border-b border-gray-200">
+                  <h3 className="text-lg font-semibold text-gray-900">Recent Deliveries</h3>
+                </div>
+                <div className="p-6">
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                        <span className="text-blue-600">🚚</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium">Order #ORD-001 → Lagos, Nigeria</p>
+                        <p className="text-sm text-gray-600">Swift Logistics • In Transit • Est. 1 day</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-medium">₦5,000</p>
+                        <p className="text-xs text-gray-500">Delivery fee</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                        <span className="text-green-600">✅</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium">Order #ORD-002 → Abuja, Nigeria</p>
+                        <p className="text-sm text-gray-600">Express Delivery • Delivered • 2 days ago</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-medium">₦6,500</p>
+                        <p className="text-xs text-gray-500">Delivery fee</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1347,6 +1632,26 @@ const Vendor = () => {
         )}
         </div>
       </div>
+
+      {/* Vendor Profile Modal */}
+      <VendorProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        onUpdate={(updatedProfile) => {
+          // Profile updated successfully
+          console.log('Profile updated:', updatedProfile);
+        }}
+      />
+
+      {/* Logistics Assignment Modal */}
+      <LogisticsAssignmentModal
+        order={selectedOrderForLogistics}
+        onClose={() => {
+          setIsLogisticsModalOpen(false);
+          setSelectedOrderForLogistics(null);
+        }}
+        onAssignmentComplete={handleLogisticsAssignmentComplete}
+      />
     </div>
   );
 };
