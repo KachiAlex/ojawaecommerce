@@ -43,9 +43,20 @@ const Wallet = () => {
   }, [currentUser?.uid])
 
   const handleTopup = async () => {
-    if (!wallet || !topupAmount) return
+    if (!topupAmount) {
+      setError('Enter a valid amount')
+      return
+    }
     try {
       setSubmitting(true)
+      // Ensure wallet is loaded before proceeding
+      if (!wallet) {
+        await load()
+      }
+      if (!wallet) {
+        throw new Error('Wallet not ready yet. Please wait a moment and try again.')
+      }
+
       const amountNgn = Number(topupAmount)
       if (!amountNgn || amountNgn <= 0) throw new Error('Enter a valid amount')
 

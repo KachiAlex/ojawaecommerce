@@ -9,7 +9,33 @@ import firebaseService from '../services/firebaseService';
 import WalletBalanceCheck from '../components/WalletBalanceCheck';
 import escrowPaymentService from '../services/escrowPaymentService';
 
-const CheckoutForm = ({ total, cartItems, onSuccess, orderDetails, walletBalance, canProceed }) => {
+// Currency helpers
+const currencySymbolMap = {
+  NGN: '₦', USD: '$', EUR: '€', GBP: '£', KES: 'KSh', GHS: '₵', ZAR: 'R'
+}
+const getCurrencyCode = (value) => {
+  if (!value) return 'NGN'
+  const s = String(value).trim()
+  if (/^[A-Za-z]{3}$/.test(s)) return s.toUpperCase()
+  // Try infer from symbol
+  if (s.includes('₦')) return 'NGN'
+  if (s.includes('$')) return 'USD'
+  if (s.includes('€')) return 'EUR'
+  if (s.includes('£')) return 'GBP'
+  if (s.includes('KSh')) return 'KES'
+  return 'NGN'
+}
+const formatAmount = (amount, code = 'NGN') => {
+  const numeric = Number(amount) || 0
+  try {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: code }).format(numeric)
+  } catch {
+    const sym = currencySymbolMap[code] || ''
+    return `${sym}${numeric.toLocaleString()}`
+  }
+}
+
+const CheckoutForm = ({ total, cartItems, onSuccess, orderDetails, walletBalance, canProceed, currencyCode }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const { currentUser } = useAuth();
@@ -91,6 +117,7 @@ const CheckoutForm = ({ total, cartItems, onSuccess, orderDetails, walletBalance
         deliveryFee: orderDetails.deliveryFee,
         ojawaCommission: orderDetails.ojawaCommission,
         totalAmount: total,
+        currency: currencyCode,
         paymentProvider: 'wallet_escrow',
         paymentStatus: 'escrow_held',
         escrowStatus: 'funds_transferred_to_escrow',
@@ -191,11 +218,11 @@ const CheckoutForm = ({ total, cartItems, onSuccess, orderDetails, walletBalance
         <div className="bg-gray-50 rounded-lg p-4 mb-4">
           <div className="flex justify-between items-center">
             <span className="text-gray-700">Payment Amount:</span>
-            <span className="font-semibold text-lg">₦{total.toLocaleString()}</span>
+            <span className="font-semibold text-lg">{formatAmount(total, currencyCode)}</span>
           </div>
           <div className="flex justify-between items-center mt-2">
             <span className="text-gray-600 text-sm">Current Wallet Balance:</span>
-            <span className="text-sm">₦{walletBalance.toLocaleString()}</span>
+            <span className="text-sm">{formatAmount(walletBalance, currencyCode)}</span>
           </div>
         </div>
 
@@ -213,7 +240,7 @@ const CheckoutForm = ({ total, cartItems, onSuccess, orderDetails, walletBalance
           disabled={loading || !canProceed}
           className="w-full bg-emerald-600 text-white py-3 px-4 rounded-md hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
         >
-          {loading ? 'Processing Escrow Payment...' : `Pay ₦${total.toFixed(2)} with Wallet Escrow`}
+          {loading ? 'Processing Escrow Payment...' : `Pay ${formatAmount(total, currencyCode)} with Wallet Escrow`}
         </button>
         
         {!canProceed && (
@@ -237,6 +264,7 @@ const Checkout = () => {
   const [availableLogistics, setAvailableLogistics] = useState([]);
   const [loadingLogistics, setLoadingLogistics] = useState(false);
   const [walletBalance, setWalletBalance] = useState(0);
+  const currencyCode = getCurrencyCode(cartItems[0]?.currency || cartItems[0]?.priceCurrency || 'NGN');
   const [canProceed, setCanProceed] = useState(false);
   const subtotal = getCartTotal();
   const deliveryFee = selectedLogistics ? parseFloat(selectedLogistics.price.replace(/[^\d.]/g, '')) : 0;
@@ -519,6 +547,7 @@ const Checkout = () => {
             }}
             walletBalance={walletBalance}
             canProceed={canProceed}
+            currencyCode={currencyCode}
           />
         </div>
       </div>
