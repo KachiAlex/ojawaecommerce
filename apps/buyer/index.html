@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline'; connect-src 'self' https://api.firebase.com https://*.firebase.com https://*.googleapis.com;" />
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' https://checkout.flutterwave.com; connect-src 'self' https://api.firebase.com https://*.firebase.com https://*.googleapis.com https://us-central1-ojawa-ecommerce.cloudfunctions.net https://api.flutterwave.com https://api.ravepay.co https://*.myflutterwave.com https://metrics.flutterwave.com https://api.fpjs.io;" />
     
     <!-- PWA Manifest -->
     <link rel="manifest" href="/manifest.json" />
@@ -40,6 +40,8 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Load Flutterwave inline script upfront to avoid CORS/CSP dynamic load issues -->
+    <script src="https://checkout.flutterwave.com/v3.js"></script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

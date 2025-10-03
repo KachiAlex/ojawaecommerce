@@ -1,5 +1,18 @@
 import React from 'react';
 
+// Currency formatting helper
+const formatCurrency = (amount, currencyValue) => {
+  const numAmount = parseFloat(amount) || 0;
+  if (!currencyValue) return `₦${numAmount.toLocaleString()}`;
+  
+  // Extract currency symbol and code from string like "₦ NGN"
+  const parts = String(currencyValue).trim().split(/\s+/);
+  const symbol = parts[0] || '₦';
+  const code = parts[1] || 'NGN';
+  
+  return `${symbol}${numAmount.toLocaleString()}`;
+};
+
 const VendorOrderDetailsModal = ({ open, order, onClose, onShip }) => {
   if (!open || !order) return null;
 
@@ -23,7 +36,7 @@ const VendorOrderDetailsModal = ({ open, order, onClose, onShip }) => {
             </div>
             <div>
               <p className="text-sm text-gray-500">Amount</p>
-              <p className="font-medium text-gray-900">{order.amount || `₦${(order.totalAmount || 0).toLocaleString()}`}</p>
+              <p className="font-medium text-gray-900">{formatCurrency(order.totalAmount || order.amount || 0, order.currency)}</p>
             </div>
             <div>
               <p className="text-sm text-gray-500">Date</p>

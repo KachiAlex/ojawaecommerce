@@ -25,8 +25,8 @@ class ErrorLogger {
       this.logToConsole(level, logEntry)
     }
 
-    // Log to external service in production
-    if (config.isProduction && this.shouldLog(level)) {
+    // Log to external service in production only if endpoint allowed by CSP
+    if (config.isProduction && this.shouldLog(level) && config.features.externalLogging) {
       this.logToExternalService(logEntry)
     }
   }
@@ -62,7 +62,7 @@ class ErrorLogger {
         await this.sendToFirebaseCrashlytics(logEntry)
       }
       
-      // Send to custom logging endpoint
+      // Send to custom logging endpoint (guarded by CSP allowlist)
       await this.sendToCustomEndpoint(logEntry)
     } catch (error) {
       console.error('Failed to log to external service:', error)
@@ -76,7 +76,10 @@ class ErrorLogger {
 
   async sendToCustomEndpoint(logEntry) {
     try {
-      const response = await fetch(`${config.app.apiBaseUrl}/api/logs`, {
+      const url = `${config.app.apiBaseUrl}/api/logs`
+      // Basic CSP guard: only allow https endpoints
+      if (!url.startsWith('https://')) return
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

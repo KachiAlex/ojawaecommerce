@@ -23,13 +23,49 @@ const OrderConfirmationModal = ({ open, order, onClose, onConfirm }) => {
     try {
       setLoading(true);
 
-      // Release escrow funds to vendor
-      await escrowPaymentService.releaseEscrowFunds(
-        order.id,
-        order.buyerId,
-        order.vendorId,
-        order.totalAmount
-      );
+      // Debug: Log the order object to see its structure
+      console.log('Order object being passed to releaseEscrowFunds:', order);
+      console.log('Order ID:', order.id);
+      console.log('Vendor ID:', order.vendorId);
+      console.log('Total Amount:', order.totalAmount);
+      console.log('Amount:', order.amount);
+      console.log('Using amount value:', order.totalAmount || order.amount);
+
+      // Validate required fields before calling the function
+      if (!order.id) {
+        throw new Error('Order ID is missing');
+      }
+      if (!order.vendorId) {
+        throw new Error('Vendor ID is missing from order');
+      }
+      if (!(order.totalAmount || order.amount)) {
+        throw new Error('Order amount is missing');
+      }
+
+      // Release escrow funds to vendor using HTTP endpoint
+      const functionParams = {
+        orderId: order.id,
+        vendorId: order.vendorId,
+        amount: order.totalAmount || order.amount
+      };
+      
+      console.log('Parameters being sent to releaseEscrowFundsHttp:', functionParams);
+      
+      const response = await fetch('https://us-central1-ojawa-ecommerce.cloudfunctions.net/releaseEscrowFundsHttp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(functionParams)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to release escrow funds');
+      }
+      
+      const result = await response.json();
+      console.log('Escrow release result:', result);
 
       // Update order status to completed
       await firebaseService.orders.updateStatus(order.id, 'completed', {

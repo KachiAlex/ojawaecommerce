@@ -12,10 +12,17 @@ import {
   serverTimestamp,
   writeBatch,
   limit as fsLimit,
-  startAfter
+  startAfter,
+  onSnapshot
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, uploadBytesResumable } from 'firebase/storage';
 import { db, storage } from '../firebase/config';
+import { 
+  walletTrackingService, 
+  productTrackingService, 
+  storeService,
+  trackingLookupService 
+} from './trackingService';
 
 // ===============================
 // PRODUCT OPERATIONS
@@ -55,6 +62,26 @@ export const productService = {
   },
 
   // Create or update product handling image uploads
+  // Create product with tracking number
+  async createProduct(productData, vendorId, storeId = null) {
+    try {
+      return await productTrackingService.createProduct(productData, vendorId, storeId);
+    } catch (error) {
+      console.error('Error creating product with tracking:', error);
+      throw error;
+    }
+  },
+
+  // Get product by tracking number
+  async getProductByTrackingNumber(trackingNumber) {
+    try {
+      return await productTrackingService.getProductByTrackingNumber(trackingNumber);
+    } catch (error) {
+      console.error('Error fetching product by tracking number:', error);
+      throw error;
+    }
+  },
+
   async saveWithUploads(productData, vendorId, productId = null) {
     return await productService.saveWithUploadsWithProgress(productData, vendorId, productId);
   },
@@ -291,7 +318,7 @@ export const orderService = {
     try {
       const docRef = await addDoc(collection(db, 'orders'), {
         ...orderData,
-        status: 'pending_wallet_funding',
+        status: orderData.status || 'pending_wallet_funding', // Use provided status or default
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
@@ -430,43 +457,32 @@ export const orderService = {
 // ===============================
 
 export const walletService = {
-  // Create wallet account for user
+  // Create wallet account for user with tracking ID
   async createWallet(userId, userType) {
     try {
-      const walletData = {
-        userId,
-        userType,
-        balance: 0,
-        currency: 'NGN', // Default currency, can be updated
-        status: 'active',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      };
-      
-      const docRef = await addDoc(collection(db, 'wallets'), walletData);
-      return docRef.id;
+      return await walletTrackingService.createWallet(userId, userType);
     } catch (error) {
       console.error('Error creating wallet:', error);
       throw error;
     }
   },
 
-  // Get user's wallet
+  // Get user's wallet by user ID
   async getUserWallet(userId) {
     try {
-      const q = query(
-        collection(db, 'wallets'),
-        where('userId', '==', userId)
-      );
-      
-      const snapshot = await getDocs(q);
-      if (!snapshot.empty) {
-        const walletDoc = snapshot.docs[0];
-        return { id: walletDoc.id, ...walletDoc.data() };
-      }
-      return null;
+      return await walletTrackingService.getWalletByUserId(userId);
     } catch (error) {
       console.error('Error fetching wallet:', error);
+      throw error;
+    }
+  },
+
+  // Get wallet by tracking ID
+  async getWalletByTrackingId(walletId) {
+    try {
+      return await walletTrackingService.getWalletByTrackingId(walletId);
+    } catch (error) {
+      console.error('Error fetching wallet by tracking ID:', error);
       throw error;
     }
   },
@@ -712,6 +728,52 @@ export const walletService = {
       throw error;
     }
   },
+  
+  // Top up escrow wallet for an order
+  async topUpEscrowWallet(walletId, amount, metadata = {}) {
+    try {
+      const batch = writeBatch(db);
+      
+      // Get current wallet
+      const walletRef = doc(db, 'wallets', walletId);
+      const walletSnap = await getDoc(walletRef);
+      
+      if (!walletSnap.exists()) {
+        throw new Error('Wallet not found');
+      }
+      
+      const currentBalance = walletSnap.data().balance || 0;
+      const newBalance = currentBalance + amount;
+      
+      // Update wallet balance
+      batch.update(walletRef, {
+        balance: newBalance,
+        updatedAt: serverTimestamp()
+      });
+      
+      // Create transaction record
+      const transactionRef = doc(collection(db, 'wallet_transactions'));
+      batch.set(transactionRef, {
+        walletId,
+        userId: walletSnap.data().userId,
+        type: 'credit',
+        amount,
+        description: metadata.note || 'Escrow wallet top-up',
+        orderId: metadata.orderId || null,
+        balanceBefore: currentBalance,
+        balanceAfter: newBalance,
+        status: 'completed',
+        createdAt: serverTimestamp()
+      });
+      
+      await batch.commit();
+      return { newBalance, transactionId: transactionRef.id };
+    } catch (error) {
+      console.error('Error topping up escrow wallet:', error);
+      throw error;
+    }
+  },
+  
   // Create wallet transaction
   async createTransaction(transactionData) {
     try {
@@ -755,6 +817,35 @@ export const walletService = {
     }
   },
 
+  // Get transactions for a specific order
+  async getOrderTransactions(orderId, userId = null) {
+    try {
+      const constraints = [where('orderId', '==', orderId)];
+      if (userId) constraints.push(where('userId', '==', userId));
+      
+      const q = query(
+        collection(db, 'wallet_transactions'),
+        ...constraints
+      );
+      
+      const snapshot = await getDocs(q);
+      const transactions = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      // Sort client-side as temporary workaround
+      return transactions.sort((a, b) => {
+        const aTime = a.createdAt?.toDate?.() || new Date(a.createdAt || 0);
+        const bTime = b.createdAt?.toDate?.() || new Date(b.createdAt || 0);
+        return bTime - aTime; // Descending order
+      });
+    } catch (error) {
+      console.error('Error fetching order transactions:', error);
+      throw error;
+    }
+  },
+
   // Fund wallet for order
   async fundWallet(orderId, userId, amount, paymentIntentId) {
     try {
@@ -791,42 +882,52 @@ export const walletService = {
   // Release wallet funds to vendor (escrow release)
   async releaseWallet(orderId, vendorId, amount) {
     try {
-      const batch = writeBatch(db);
+      // Get order details to find buyer ID
+      const order = await orderService.getById(orderId);
+      if (!order) {
+        throw new Error('Order not found');
+      }
       
-      // Get buyer and vendor wallets
-      const buyerWalletRef = doc(db, 'wallets', `buyer_${orderId}`);
-      const vendorWalletRef = doc(db, 'wallets', `vendor_${vendorId}`);
+      const buyerId = order.buyerId;
+      if (!buyerId) {
+        throw new Error('Buyer ID not found in order');
+      }
       
-      // Get current balances
-      const [buyerWalletSnap, vendorWalletSnap] = await Promise.all([
-        getDoc(buyerWalletRef),
-        getDoc(vendorWalletRef)
+      // Get buyer and vendor wallets by userId
+      const [buyerWallet, vendorWallet] = await Promise.all([
+        walletService.getUserWallet(buyerId),
+        walletService.getUserWallet(vendorId)
       ]);
       
-      if (!buyerWalletSnap.exists()) {
+      if (!buyerWallet) {
         throw new Error('Buyer wallet not found');
       }
       
-      const buyerBalance = buyerWalletSnap.data().balance || 0;
+      const batch = writeBatch(db);
+      
+      // Update buyer wallet (deduct amount from escrow)
+      const buyerWalletRef = doc(db, 'wallets', buyerWallet.id);
+      const buyerBalance = buyerWallet.balance || 0;
       if (buyerBalance < amount) {
         throw new Error('Insufficient funds in buyer wallet');
       }
       
-      // Update buyer wallet (deduct amount)
       batch.update(buyerWalletRef, {
         balance: buyerBalance - amount,
         updatedAt: serverTimestamp()
       });
       
       // Update or create vendor wallet (add amount)
-      if (vendorWalletSnap.exists()) {
-        const vendorBalance = vendorWalletSnap.data().balance || 0;
+      if (vendorWallet) {
+        const vendorWalletRef = doc(db, 'wallets', vendorWallet.id);
+        const vendorBalance = vendorWallet.balance || 0;
         batch.update(vendorWalletRef, {
           balance: vendorBalance + amount,
           updatedAt: serverTimestamp()
         });
       } else {
         // Create vendor wallet if it doesn't exist
+        const vendorWalletRef = doc(collection(db, 'wallets'));
         batch.set(vendorWalletRef, {
           userId: vendorId,
           type: 'vendor',
@@ -839,14 +940,15 @@ export const walletService = {
       // Create release transaction record
       const transactionRef = doc(collection(db, 'wallet_transactions'));
       batch.set(transactionRef, {
+        walletId: vendorWallet?.id || 'new_vendor_wallet',
         userId: vendorId,
         orderId,
-        type: 'escrow_release',
+        type: 'credit',
         amount,
+        description: `Escrow release for order ${orderId}`,
         status: 'completed',
-        buyerBalanceBefore: buyerBalance,
-        buyerBalanceAfter: buyerBalance - amount,
-        vendorBalanceAfter: vendorWalletSnap.exists() ? (vendorWalletSnap.data().balance || 0) + amount : amount,
+        balanceBefore: vendorWallet?.balance || 0,
+        balanceAfter: (vendorWallet?.balance || 0) + amount,
         createdAt: serverTimestamp()
       });
       
@@ -868,6 +970,27 @@ export const walletService = {
     }
   }
 };
+
+// ===============================
+// AUX VIEW HELPERS (Transactions per order)
+// ===============================
+
+export async function getOrderTransactions(orderId, userId) {
+  try {
+    const constraints = [where('orderId', '==', orderId)];
+    if (userId) constraints.push(where('userId', '==', userId));
+    const q = query(
+      collection(db, 'wallet_transactions'),
+      ...constraints,
+      orderBy('createdAt', 'desc')
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (error) {
+    console.error('Error fetching order transactions (helper):', error);
+    return [];
+  }
+}
 
 // ===============================
 // LOGISTICS OPERATIONS
@@ -2730,7 +2853,7 @@ export const messagingService = {
         collection(db, 'messages'),
         where('conversationId', '==', conversationId),
         orderBy(orderByField, orderDirection),
-        limit(messageLimit)
+        fsLimit(messageLimit)
       );
       
       const snapshot = await getDocs(q);
@@ -2753,7 +2876,7 @@ export const messagingService = {
         collection(db, 'messages'),
         where('conversationId', '==', conversationId),
         orderBy(orderByField, orderDirection),
-        limit(messageLimit)
+        fsLimit(messageLimit)
       );
       
       return onSnapshot(q, (snapshot) => {
@@ -3079,7 +3202,8 @@ export default {
   wallet: walletService,
   logistics: logisticsService,
   disputes: disputeService,
-  tracking: trackingService,
+  stores: storeService,
+  tracking: trackingLookupService,
   users: userService,
   analytics: analyticsService,
   payouts: payoutsService,

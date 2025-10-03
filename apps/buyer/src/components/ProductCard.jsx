@@ -1,40 +1,60 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useCart } from '../contexts/CartContext'
+import { useAuth } from '../contexts/AuthContext'
 
 const ProductCard = ({ product, onAddToCart }) => {
-  const { addToCart } = useCart()
+  const { addToCart, saveIntendedDestination } = useCart()
+  const { currentUser } = useAuth()
   const [imageError, setImageError] = useState(false)
   const [isAdding, setIsAdding] = useState(false)
 
   const handleAddToCart = async () => {
+    // Check if user is logged in
+    if (!currentUser) {
+      // Save intended destination for post-authentication redirect
+      saveIntendedDestination(`/products/${product.id}`, product.id)
+      // Redirect to login with a specific message
+      window.location.href = `/login?message=${encodeURIComponent('Please sign in to add this product to your cart and complete your purchase.')}`
+      return
+    }
+
     setIsAdding(true)
     try {
-      await addToCart(product, 1)
+      addToCart(product, 1)
       if (onAddToCart) {
         onAddToCart(product)
       }
+      // Show success message
+      console.log(`${product.name} added to cart successfully`)
     } catch (error) {
       console.error('Error adding to cart:', error)
+      alert(error.message) // Show user-friendly error message
     } finally {
       setIsAdding(false)
     }
   }
 
   const getCurrencyCode = (currencyValue) => {
-    if (!currencyValue) return 'USD'
+    if (!currencyValue) return 'NGN'
     // Expecting formats like "₦ NGN", "$ USD", "KSh KES", "EUR", "NGN"
     const parts = String(currencyValue).trim().split(/\s+/)
     const maybeCode = parts[parts.length - 1]
     // If last token is a 3-letter code, use it; otherwise if the whole string is a 3-letter code
     if (/^[A-Za-z]{3}$/.test(maybeCode)) return maybeCode.toUpperCase()
     if (/^[A-Za-z]{3}$/.test(currencyValue)) return String(currencyValue).toUpperCase()
-    return 'USD'
+    return 'NGN'
   }
 
   const formatPrice = (price, currencyValue = product.currency) => {
     const numPrice = parseFloat(price) || 0
     const currencyCode = getCurrencyCode(currencyValue)
+    
+    // For Nigerian Naira, use custom formatting
+    if (currencyCode === 'NGN') {
+      return `₦${numPrice.toLocaleString()}`
+    }
+    
     try {
       return new Intl.NumberFormat('en-US', {
         style: 'currency',
@@ -42,7 +62,12 @@ const ProductCard = ({ product, onAddToCart }) => {
       }).format(numPrice)
     } catch {
       // Fallback if currency code not supported
-      return `${numPrice.toLocaleString()} ${currencyCode}`
+      const symbol = currencyCode === 'USD' ? '$' : 
+                    currencyCode === 'EUR' ? '€' : 
+                    currencyCode === 'GBP' ? '£' : 
+                    currencyCode === 'KES' ? 'KSh' : 
+                    currencyCode === 'GHS' ? '₵' : currencyCode
+      return `${symbol}${numPrice.toLocaleString()}`
     }
   }
 
@@ -92,7 +117,7 @@ const ProductCard = ({ product, onAddToCart }) => {
     return '/placeholder-product.png'
   }
 
-  const isOutOfStock = product.inStock === false || (product.stockQuantity || 0) <= 0
+  const isOutOfStock = product.inStock === false || (product.stock || product.stockQuantity || 0) <= 0
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-all duration-200 group">

@@ -8,10 +8,10 @@ import { MessagingProvider } from './contexts/MessagingContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 import WalletEducation from './components/EscrowEducation';
 import OnboardingFlow from './components/OnboardingFlow';
-import Navbar from './components/Navbar';
+const Navbar = lazy(() => import('./components/Navbar'));
 import ErrorBoundary from './components/ErrorBoundary';
-import PWAInstallPrompt from './components/PWAInstallPrompt';
-import MobileBottomNavigation from './components/MobileBottomNavigation';
+const PWAInstallPrompt = lazy(() => import('./components/PWAInstallPrompt'));
+const MobileBottomNavigation = lazy(() => import('./components/MobileBottomNavigation'));
 import { setupGlobalErrorHandling } from './utils/errorLogger';
 import { validateEnvironment } from './config/env';
 import './utils/clearFlutterwaveScripts';
@@ -25,8 +25,8 @@ const Register = lazy(() => import('./pages/Register'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 import ProtectedRoute from './components/ProtectedRoute';
-import OsoahiaButton from './components/OsoahiaButton';
-import { NotificationToastContainer } from './components/NotificationToast';
+const OsoahiaButton = lazy(() => import('./components/OsoahiaButton'));
+const NotificationToastContainer = lazy(() => import('./components/NotificationToast').then(m => ({ default: m.NotificationToastContainer })));
 import './App.css';
 const Buyer = lazy(() => import('./pages/Buyer'));
 const EnhancedBuyer = lazy(() => import('./pages/EnhancedBuyer'));
@@ -38,10 +38,33 @@ const Categories = lazy(() => import('./pages/Categories'));
 const Wallet = lazy(() => import('./pages/Wallet'));
 const BecomeVendor = lazy(() => import('./pages/BecomeVendor'));
 const BecomeLogistics = lazy(() => import('./pages/BecomeLogistics'));
+const AdminSetup = lazy(() => import('./pages/AdminSetup'));
+const AdminLogin = lazy(() => import('./pages/AdminLogin'));
+const FlutterwaveTest = lazy(() => import('./pages/FlutterwaveTest'));
+const FunctionTest = lazy(() => import('./pages/FunctionTest'));
+const CloudTest = lazy(() => import('./pages/CloudTest'));
+const ModalTest = lazy(() => import('./pages/ModalTest'));
+const StockTest = lazy(() => import('./pages/StockTest'));
+const StockSyncTest = lazy(() => import('./pages/StockSyncTest'));
+const AuthFlowTest = lazy(() => import('./pages/AuthFlowTest'));
+const StoreManager = lazy(() => import('./components/StoreManager'));
+const ProductStoreAssignment = lazy(() => import('./components/ProductStoreAssignment'));
+const TrackingInterface = lazy(() => import('./components/TrackingInterface'));
+const StoreDisplay = lazy(() => import('./components/StoreDisplay'));
+const TrackingSystemTest = lazy(() => import('./pages/TrackingSystemTest'));
+const LogisticsTrackingManager = lazy(() => import('./components/LogisticsTrackingManager'));
+const EnhancedTrackingStatus = lazy(() => import('./components/EnhancedTrackingStatus'));
+const LogisticsTrackingTest = lazy(() => import('./pages/LogisticsTrackingTest'));
 
 // Admin Route Protection Component
 const AdminRoute = ({ children }) => {
-  const { userProfile, loading } = useAuth();
+  const { userProfile, loading, currentUser } = useAuth();
+  
+  // Debug logging
+  console.log('AdminRoute - loading:', loading);
+  console.log('AdminRoute - currentUser:', currentUser);
+  console.log('AdminRoute - userProfile:', userProfile);
+  console.log('AdminRoute - role:', userProfile?.role);
   
   if (loading) {
     return (
@@ -51,10 +74,55 @@ const AdminRoute = ({ children }) => {
     );
   }
   
-  if (!userProfile || userProfile.role !== 'admin') {
-    return <Navigate to="/" replace />;
+  if (!currentUser) {
+    console.log('AdminRoute - No current user, redirecting to admin login');
+    return <Navigate to="/admin/login" replace />;
   }
   
+  if (!userProfile) {
+    console.log('AdminRoute - No user profile, showing loading');
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+  
+  if (userProfile.role !== 'admin') {
+    console.log('AdminRoute - User is not admin, showing access denied');
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Access Denied</h1>
+          <p className="text-gray-600 mb-4">You don't have admin privileges.</p>
+          <p className="text-sm text-gray-500">Current role: {userProfile?.role || 'No role'}</p>
+          <p className="text-sm text-gray-500">User ID: {currentUser?.uid}</p>
+          <div className="space-y-2">
+            <button 
+              onClick={() => window.location.href = '/admin/login'}
+              className="block w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+            >
+              Admin Login
+            </button>
+            <button 
+              onClick={() => window.location.href = '/admin-setup'}
+              className="block w-full bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
+            >
+              Make Me Admin
+            </button>
+            <button 
+              onClick={() => window.location.href = '/'}
+              className="block w-full bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700"
+            >
+              Go to Home
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  console.log('AdminRoute - User is admin, showing dashboard');
   return children;
 };
 
@@ -76,21 +144,20 @@ const AppContent = () => {
   );
 };
 
-// Component to handle onboarding flow
+// Component to handle onboarding flow (disabled by default; always render app routes)
 const OnboardingWrapper = () => {
-  const { showEscrowEducation, setShowEscrowEducation, newUserType } = useAuth();
-  const { isCompleted, isLoading } = useOnboarding();
-
-  // Show onboarding if not completed and not loading
-  if (!isCompleted() && !isLoading) {
-    return <OnboardingFlow />;
-  }
+  const { currentUser, showEscrowEducation, setShowEscrowEducation, newUserType } = useAuth();
+  // const { isCompleted, isLoading } = useOnboarding();
 
   return (
     <Router>
       <div className="min-h-screen">
-        <Navbar />
-        <PWAInstallPrompt />
+        <Suspense fallback={null}>
+          <Navbar />
+        </Suspense>
+        <Suspense fallback={null}>
+          <PWAInstallPrompt />
+        </Suspense>
         <main>
         <Suspense fallback={<div className="min-h-[50vh] flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div></div>}>
         <Routes>
@@ -136,6 +203,13 @@ const OnboardingWrapper = () => {
               </AdminRoute>
             } 
           />
+          <Route 
+            path="/admin-dashboard" 
+            element={<Navigate to="/admin" replace />} 
+          />
+          <Route path="/admin-setup" element={<AdminSetup />} />
+          <Route path="/admin-test" element={<AdminDashboard />} />
+          <Route path="/admin/login" element={<AdminLogin />} />
               <Route path="/buyer" element={<Buyer />} />
               <Route path="/enhanced-buyer" element={<EnhancedBuyer />} />
               <Route path="/vendor" element={<Vendor />} />
@@ -158,11 +232,31 @@ const OnboardingWrapper = () => {
                 } 
               />
               <Route path="/onboarding" element={<OnboardingFlow />} />
+          <Route path="/flutterwave-test" element={<FlutterwaveTest />} />
+          <Route path="/function-test" element={<FunctionTest />} />
+          <Route path="/cloud-test" element={<CloudTest />} />
+          <Route path="/modal-test" element={<ModalTest />} />
+          <Route path="/stock-test" element={<StockTest />} />
+          <Route path="/stock-sync-test" element={<StockSyncTest />} />
+          <Route path="/auth-flow-test" element={<AuthFlowTest />} />
+          <Route path="/store-manager" element={<StoreManager />} />
+          <Route path="/product-assignment" element={<ProductStoreAssignment />} />
+          <Route path="/tracking" element={<TrackingInterface />} />
+          <Route path="/store/:storeId" element={<StoreDisplay />} />
+          <Route path="/tracking-system-test" element={<TrackingSystemTest />} />
+          <Route path="/logistics-tracking" element={<LogisticsTrackingManager />} />
+          <Route path="/tracking/:orderId" element={<EnhancedTrackingStatus />} />
+          <Route path="/tracking-by-number/:trackingNumber" element={<EnhancedTrackingStatus />} />
+          <Route path="/logistics-tracking-test" element={<LogisticsTrackingTest />} />
         </Routes>
         </Suspense>
         </main>
-        <MobileBottomNavigation />
-        <NotificationToastContainer />
+        <Suspense fallback={null}>
+          <MobileBottomNavigation />
+        </Suspense>
+        <Suspense fallback={null}>
+          <NotificationToastContainer />
+        </Suspense>
         
         {/* Wallet Education Modal */}
         {showEscrowEducation && (
@@ -173,7 +267,9 @@ const OnboardingWrapper = () => {
         )}
         
         {/* Osoahia AI Assistant */}
-        <OsoahiaButton />
+        <Suspense fallback={null}>
+          <OsoahiaButton />
+        </Suspense>
       </div>
     </Router>
   );

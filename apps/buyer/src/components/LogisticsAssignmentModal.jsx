@@ -19,7 +19,8 @@ const LogisticsAssignmentModal = ({ order, onClose, onAssignmentComplete }) => {
     try {
       setLoadingPartners(true)
       const partners = await firebaseService.logistics.getAllPartners()
-      setLogisticsPartners(partners)
+      const safe = Array.isArray(partners) ? partners.filter(p => p && (p.id || p.name)) : []
+      setLogisticsPartners(safe)
     } catch (error) {
       errorLogger.error('Failed to fetch logistics partners', error)
     } finally {
@@ -29,6 +30,10 @@ const LogisticsAssignmentModal = ({ order, onClose, onAssignmentComplete }) => {
 
   const handleAssignment = async (e) => {
     e.preventDefault()
+    if (!order || !order.id) {
+      alert('Order not available. Please close and retry.')
+      return
+    }
     if (!selectedPartner || !trackingNumber) {
       alert('Please select a logistics partner and enter a tracking number')
       return

@@ -14,11 +14,14 @@ const OrderTransactionModal = ({ order, isOpen, onClose }) => {
   const fetchTransactionDetails = async () => {
     try {
       setLoading(true);
+      console.log('Fetching transaction details for order:', order.id);
       // Fetch wallet transactions related to this order
       const transactions = await firebaseService.wallet.getOrderTransactions(order.id);
+      console.log('Transaction details fetched:', transactions);
       setTransactionDetails(transactions);
     } catch (error) {
       console.error('Error fetching transaction details:', error);
+      setTransactionDetails([]); // Set empty array on error
     } finally {
       setLoading(false);
     }
@@ -141,42 +144,50 @@ const OrderTransactionModal = ({ order, isOpen, onClose }) => {
           )}
 
           {/* Transaction History */}
-          {loading ? (
-            <div className="text-center py-4">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-              <p className="text-gray-600 mt-2">Loading transaction details...</p>
-            </div>
-          ) : (
-            <div className="bg-white border rounded-lg p-4">
-              <h4 className="font-medium text-gray-900 mb-3">Transaction History</h4>
-              {transactionDetails && transactionDetails.length > 0 ? (
-                <div className="space-y-3">
-                  {transactionDetails.map((transaction, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded">
-                      <div>
-                        <p className="font-medium">{transaction.description}</p>
-                        <p className="text-sm text-gray-600">
-                          {transaction.createdAt ? new Date(transaction.createdAt).toLocaleString() : 'N/A'}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className={`font-medium ${
-                          transaction.type === 'credit' ? 'text-green-600' : 'text-red-600'
-                        }`}>
-                          {transaction.type === 'credit' ? '+' : '-'}₦{transaction.amount?.toLocaleString()}
-                        </p>
-                        <p className="text-sm text-gray-600">
-                          Balance: ₦{transaction.balanceAfter?.toLocaleString()}
-                        </p>
-                      </div>
+          <div className="bg-white border rounded-lg p-4">
+            <h4 className="font-medium text-gray-900 mb-3">Transaction History</h4>
+            {loading ? (
+              <div className="text-center py-4">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                <p className="text-gray-600 mt-2">Loading transaction details...</p>
+              </div>
+            ) : transactionDetails && transactionDetails.length > 0 ? (
+              <div className="space-y-3">
+                {transactionDetails.map((transaction, index) => (
+                  <div key={transaction.id || index} className="flex items-center justify-between p-3 bg-gray-50 rounded">
+                    <div>
+                      <p className="font-medium">{transaction.description || 'Transaction'}</p>
+                      <p className="text-sm text-gray-600">
+                        {transaction.createdAt ? 
+                          (transaction.createdAt.toDate ? 
+                            transaction.createdAt.toDate().toLocaleString() : 
+                            new Date(transaction.createdAt).toLocaleString()
+                          ) : 'N/A'}
+                      </p>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-gray-600 text-center py-4">No transaction details available</p>
-              )}
-            </div>
-          )}
+                    <div className="text-right">
+                      <p className={`font-medium ${
+                        transaction.type === 'credit' ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        {transaction.type === 'credit' ? '+' : '-'}₦{(transaction.amount || 0).toLocaleString()}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        Balance: ₦{(transaction.balanceAfter || 0).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-6">
+                <div className="text-gray-400 text-4xl mb-2">📊</div>
+                <p className="text-gray-600">No transaction details available</p>
+                <p className="text-sm text-gray-500 mt-1">
+                  Transaction history will appear here once payments are processed
+                </p>
+              </div>
+            )}
+          </div>
 
           {/* Action Buttons */}
           <div className="flex justify-end gap-3 pt-4 border-t">

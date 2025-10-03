@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useCart } from '../contexts/CartContext';
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -17,6 +18,7 @@ const Register = () => {
   const [loading, setLoading] = useState(false);
   
   const { signup } = useAuth();
+  const { getIntendedDestination } = useCart();
   const navigate = useNavigate();
   const location = useLocation();
   
@@ -69,9 +71,15 @@ const Register = () => {
         address: formData.address,
         userType: formData.userType
       });
-      // Redirect based on user type after registration
-      if (from !== '/dashboard') {
-        navigate(from); // Go back to intended destination (like checkout)
+      
+      // Check for intended destination from cart context
+      const intendedDestination = getIntendedDestination();
+      if (intendedDestination) {
+        // Navigate to the intended destination (e.g., checkout, product page)
+        navigate(intendedDestination.path);
+      } else if (from !== '/dashboard') {
+        // Go back to intended destination (like checkout)
+        navigate(from);
       } else {
         // Redirect to appropriate dashboard based on user type
         switch (formData.userType) {

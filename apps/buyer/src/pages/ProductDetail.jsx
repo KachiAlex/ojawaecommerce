@@ -3,13 +3,15 @@ import { useParams } from 'react-router-dom';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useCart } from '../contexts/CartContext';
+import { useAuth } from '../contexts/AuthContext';
 
 const ProductDetail = () => {
   const { id } = useParams();
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
-  const { addToCart } = useCart();
+  const { addToCart, saveIntendedDestination } = useCart();
+  const { currentUser } = useAuth();
 
   const getCurrencyCode = (currencyValue) => {
     if (!currencyValue) return 'USD'
@@ -61,9 +63,36 @@ const ProductDetail = () => {
   }, [id]);
 
   const handleAddToCart = () => {
-    if (product) {
+    if (!product) return;
+    
+    // Check if user is logged in
+    if (!currentUser) {
+      // Save intended destination for post-authentication redirect
+      saveIntendedDestination(`/products/${product.id}`, product.id);
+      // Redirect to login with a specific message
+      window.location.href = `/login?message=${encodeURIComponent('Please sign in to add this product to your cart and complete your purchase.')}`;
+      return;
+    }
+    
+    try {
+      // Check stock availability
+      const isOutOfStock = product.inStock === false || (product.stock || 0) <= 0;
+      if (isOutOfStock) {
+        alert('This product is currently out of stock.');
+        return;
+      }
+
+      // Check if requested quantity exceeds available stock
+      if (quantity > (product.stock || 0)) {
+        alert(`Only ${product.stock} items available in stock.`);
+        return;
+      }
+
       addToCart(product, quantity);
-      alert(`Added ${quantity} ${product.name}(s) to cart!`);
+      alert(`Added ${quantity} ${quantity === 1 ? 'item' : 'items'} of ${product.name} to cart!`);
+    } catch (error) {
+      console.error('Error adding to cart:', error);
+      alert(error.message || 'Failed to add product to cart.');
     }
   };
 
@@ -139,19 +168,33 @@ const ProductDetail = () => {
               </button>
               <span className="text-lg font-semibold">{quantity}</span>
               <button
-                onClick={() => setQuantity(quantity + 1)}
-                className="w-10 h-10 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-50"
+                onClick={() => setQuantity(Math.min(product.stock || 999, quantity + 1))}
+                disabled={quantity >= (product.stock || 0)}
+                className="w-10 h-10 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 +
               </button>
             </div>
+            {product.stock && (
+              <p className="text-sm text-gray-500 mt-1">
+                Maximum: {product.stock} items
+              </p>
+            )}
           </div>
 
           <button
             onClick={handleAddToCart}
-            className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg text-lg font-semibold hover:bg-blue-700 transition-colors"
+            disabled={product.inStock === false || (product.stock || 0) <= 0}
+            className={`w-full py-3 px-6 rounded-lg text-lg font-semibold transition-colors ${
+              product.inStock === false || (product.stock || 0) <= 0
+                ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                : 'bg-blue-600 text-white hover:bg-blue-700'
+            }`}
           >
-            Add to Cart
+            {product.inStock === false || (product.stock || 0) <= 0
+              ? 'Out of Stock'
+              : 'Add to Cart'
+            }
           </button>
         </div>
       </div>

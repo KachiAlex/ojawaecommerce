@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useCart } from '../contexts/CartContext';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -10,10 +11,11 @@ const Login = () => {
   const [userType, setUserType] = useState('');
   
   const { signin } = useAuth();
+  const { getIntendedDestination } = useCart();
   const navigate = useNavigate();
   const location = useLocation();
   
-  const message = location.state?.message;
+  const message = location.state?.message || new URLSearchParams(location.search).get('message');
   const from = location.state?.from?.pathname || '/dashboard';
 
   const handleSubmit = async (e) => {
@@ -28,7 +30,16 @@ const Login = () => {
       setError('');
       setLoading(true);
       await signin(email, password);
-      navigate(from);
+      
+      // Check for intended destination from cart context
+      const intendedDestination = getIntendedDestination();
+      if (intendedDestination) {
+        // Navigate to the intended destination (e.g., checkout, product page)
+        navigate(intendedDestination.path);
+      } else {
+        // Use the standard redirect from location state
+        navigate(from);
+      }
     } catch (error) {
       setError('Failed to sign in. Please check your credentials.');
       console.error('Login error:', error);

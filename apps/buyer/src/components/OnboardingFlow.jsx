@@ -49,9 +49,8 @@ const OnboardingFlow = () => {
     return (
       <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-blue-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="text-gray-400 text-6xl mb-4">🚫</div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">No Onboarding Step</h2>
-          <p className="text-gray-600">Unable to load onboarding step.</p>
+          <LoadingSpinner size="xl" className="mx-auto mb-4" />
+          <p className="text-gray-600">Loading onboarding...</p>
         </div>
       </div>
     )

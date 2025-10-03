@@ -27,7 +27,7 @@ const Vendor = () => {
   const pageSize = 10;
   const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(true);
-  const { currentUser } = useAuth();
+  const { currentUser, userProfile } = useAuth();
   const [filters, setFilters] = useState({ status: '', buyer: '', from: '', to: '' });
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [isOrderDetailsOpen, setIsOrderDetailsOpen] = useState(false);
@@ -128,9 +128,10 @@ const Vendor = () => {
   }, [currentUser]);
 
   // Derived product filters and counts
+  const safeProducts = Array.isArray(products) ? products : [];
   const productCountsByStatus = useMemo(() => {
-    const counts = { all: products.length, pending: 0, active: 0, rejected: 0, outofstock: 0, draft: 0 };
-    products.forEach(p => {
+    const counts = { all: safeProducts.length, pending: 0, active: 0, rejected: 0, outofstock: 0, draft: 0 };
+    safeProducts.forEach(p => {
       const status = (p.status || '').toLowerCase();
       if (status === 'pending') counts.pending += 1;
       else if (status === 'active') counts.active += 1;
@@ -139,13 +140,13 @@ const Vendor = () => {
       else if (status === 'draft') counts.draft += 1;
     });
     return counts;
-  }, [products]);
+  }, [safeProducts]);
 
   const displayedProducts = useMemo(() => {
-    if (productStatusFilter === 'all') return products;
-    if (productStatusFilter === 'outofstock') return products.filter(p => (p.status || '').toLowerCase() === 'out of stock');
-    return products.filter(p => (p.status || '').toLowerCase() === productStatusFilter);
-  }, [products, productStatusFilter]);
+    if (productStatusFilter === 'all') return safeProducts;
+    if (productStatusFilter === 'outofstock') return safeProducts.filter(p => (p.status || '').toLowerCase() === 'out of stock');
+    return safeProducts.filter(p => (p.status || '').toLowerCase() === productStatusFilter);
+  }, [safeProducts, productStatusFilter]);
 
   // Real-time order status updates
   useEffect(() => {
@@ -399,7 +400,7 @@ const Vendor = () => {
     try {
       setUploadProgress(0);
       if (editingProduct) {
-        await firebaseService.products.saveWithUploadsWithProgress(payload, currentUser.uid, editingProduct.id, { onProgress: (p) => setUploadProgress(p) });
+        await firebaseService.products.saveWithUploadsWithProgress(payload, currentUser.uid, (editingProduct?.id || null), { onProgress: (p) => setUploadProgress(p) });
       } else {
         await firebaseService.products.saveWithUploadsWithProgress(payload, currentUser.uid, null, { onProgress: (p) => setUploadProgress(p) });
       }
@@ -440,6 +441,24 @@ const Vendor = () => {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading your vendor dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        <p className="text-gray-700">Please sign in to access your vendor dashboard.</p>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="max-w-6xl mx-auto px-4 py-8">
+        <div className="bg-white rounded-xl border p-6">
+          <p className="text-gray-700">Loading vendor dashboard…</p>
         </div>
       </div>
     );
@@ -776,7 +795,7 @@ const Vendor = () => {
             </>
           )}
 
-          {activeTab === 'orders' && (
+          {activeTab === 'orders' && Array.isArray(orders) && (
             <div className="bg-white rounded-xl border">
               <div className="p-6 border-b border-gray-200">
                 <div className="flex items-center justify-between">
@@ -800,7 +819,7 @@ const Vendor = () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredOrders.map((order) => (
+                    {(Array.isArray(filteredOrders) ? filteredOrders : []).map((order) => (
                       <tr key={order.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{order.id}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{order.item}</td>
@@ -893,7 +912,7 @@ const Vendor = () => {
             </div>
           )}
 
-          {activeTab === 'products' && (
+          {activeTab === 'products' && Array.isArray(products) && (
             <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-gray-900">Product Management</h2>
@@ -946,7 +965,7 @@ const Vendor = () => {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {displayedProducts.map((product) => (
+                      {(Array.isArray(displayedProducts) ? displayedProducts : []).map((product) => (
                         <tr key={product.id} className="hover:bg-gray-50">
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center gap-3">
@@ -1308,7 +1327,7 @@ const Vendor = () => {
             </div>
           )}
 
-          {activeTab === 'payouts' && (
+          {activeTab === 'payouts' && Array.isArray(payouts) && (
             <div className="space-y-6">
               <div className="bg-white rounded-xl border">
                 <div className="p-6 border-b border-gray-200">
@@ -1430,7 +1449,7 @@ const Vendor = () => {
             </div>
           )}
 
-          {activeTab === 'disputes' && (
+          {activeTab === 'disputes' && Array.isArray(disputes) && (
             <div className="space-y-6">
               <div className="bg-white rounded-xl border">
                 <div className="p-6 border-b border-gray-200">
@@ -1644,6 +1663,7 @@ const Vendor = () => {
       />
 
       {/* Logistics Assignment Modal */}
+      {isLogisticsModalOpen && selectedOrderForLogistics && (
       <LogisticsAssignmentModal
         order={selectedOrderForLogistics}
         onClose={() => {
@@ -1652,6 +1672,7 @@ const Vendor = () => {
         }}
         onAssignmentComplete={handleLogisticsAssignmentComplete}
       />
+      )}
     </div>
   );
 };

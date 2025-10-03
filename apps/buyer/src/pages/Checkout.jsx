@@ -106,7 +106,16 @@ const CheckoutForm = ({ total, cartItems, onSuccess, orderDetails, walletBalance
       // For now we assume single-vendor orders; use first item's vendorId
       const orderVendorId = itemsWithVendors[0]?.vendorId || null;
 
-      // Create comprehensive order data with escrow status
+      // Process escrow payment FIRST before creating order
+      // This ensures the order is only created if payment succeeds
+      const tempOrderId = `temp-${Date.now()}`;
+      const escrowResult = await escrowPaymentService.processEscrowPayment({
+        buyerId: currentUser.uid,
+        totalAmount: total,
+        orderId: tempOrderId
+      });
+
+      // Create comprehensive order data with escrow_funded status
       const orderData = {
         buyerId: currentUser.uid,
         buyerEmail: currentUser.email,
@@ -119,51 +128,42 @@ const CheckoutForm = ({ total, cartItems, onSuccess, orderDetails, walletBalance
         totalAmount: total,
         currency: currencyCode,
         paymentProvider: 'wallet_escrow',
-        paymentStatus: 'escrow_held',
+        paymentStatus: 'escrow_funded',
         escrowStatus: 'funds_transferred_to_escrow',
+        escrowHeld: true,
+        escrowAmount: total,
         deliveryOption: orderDetails.deliveryOption,
         deliveryAddress: orderDetails.buyerAddress || '',
         logisticsCompany: orderDetails.selectedLogistics?.company || null,
         logisticsCompanyId: orderDetails.selectedLogistics?.id || null,
         estimatedDelivery: orderDetails.selectedLogistics?.estimatedDays || null,
         trackingId: orderDetails.deliveryOption === 'delivery' ? `TRK-${Date.now()}` : null,
-        status: 'pending_wallet_funding', // Initial status
+        status: 'escrow_funded', // Order is created with escrow already funded
         createdAt: new Date(),
         updatedAt: new Date()
       };
 
-      // Create order using service
+      // Create order using service with escrow_funded status
       const orderId = await firebaseService.orders.create(orderData);
-      
-      // Process escrow payment
-      const escrowResult = await escrowPaymentService.processEscrowPayment({
-        buyerId: currentUser.uid,
-        totalAmount: total,
-        orderId: orderId
-      });
 
-      // Update order status to indicate escrow is funded
-      await firebaseService.orders.updateStatus(orderId, 'escrow_funded', {
-        escrowHeld: true,
-        escrowAmount: total,
-        vendorNotified: false,
-        paymentStatus: 'escrow_funded'
-      });
-
-      // Notify vendor of new order
-      try {
-        const { httpsCallable } = await import('firebase/functions');
-        const { functions } = await import('../firebase/config');
-        const notifyVendor = httpsCallable(functions, 'notifyVendorNewOrder');
-        await notifyVendor({
-          vendorId: orderVendorId,
-          orderId: orderId,
-          buyerName: currentUser.displayName || 'Customer',
-          totalAmount: total,
-          items: itemsWithVendors
-        });
-      } catch (notificationError) {
-        console.warn('Failed to notify vendor:', notificationError);
+      // Notify vendor of new order (only if vendor is known)
+      if (orderVendorId) {
+        try {
+          // Create notification directly in Firestore instead of using Cloud Function
+          await firebaseService.notifications.create({
+            userId: orderVendorId,
+            type: 'new_order',
+            title: 'New Order Received',
+            message: `You have received a new order from ${currentUser.displayName || 'Customer'} for ₦${total.toLocaleString()}`,
+            orderId: orderId,
+            buyerName: currentUser.displayName || 'Customer',
+            totalAmount: total,
+            items: itemsWithVendors,
+            read: false
+          });
+        } catch (notificationError) {
+          console.warn('Failed to notify vendor:', notificationError);
+        }
       }
 
       // Create buyer notification
@@ -421,7 +421,7 @@ const Checkout = () => {
                 <div className="flex-1">
                   <h3 className="text-sm font-medium text-gray-900">{item.name}</h3>
                   <p className="text-sm text-gray-500">Qty: {item.quantity}</p>
-                  <p className="text-sm font-medium text-gray-900">₦{(item.price * item.quantity).toLocaleString()}</p>
+                  <p className="text-sm font-medium text-gray-900">{formatAmount(item.price * item.quantity, currencyCode)}</p>
                 </div>
               </div>
             ))}
@@ -430,7 +430,7 @@ const Checkout = () => {
             <div className="border-t pt-4 space-y-2">
               <div className="flex justify-between">
                 <span>Subtotal:</span>
-                <span>₦{subtotal.toLocaleString()}</span>
+                <span>{formatAmount(subtotal, currencyCode)}</span>
               </div>
               {deliveryOption === 'delivery' && selectedLogistics && (
                 <div className="flex justify-between">
@@ -440,11 +440,11 @@ const Checkout = () => {
               )}
               <div className="flex justify-between text-sm text-gray-600">
                 <span>Ojawa Service Fee (5%):</span>
-                <span>₦{ojawaCommission.toLocaleString()}</span>
+                <span>{formatAmount(ojawaCommission, currencyCode)}</span>
               </div>
               <div className="flex justify-between text-lg font-semibold border-t pt-2">
               <span>Total:</span>
-                <span>₦{grandTotal.toLocaleString()}</span>
+                <span>{formatAmount(grandTotal, currencyCode)}</span>
               </div>
               <div className="text-xs text-gray-500 mt-2">
                 * Includes wallet protection and dispute resolution

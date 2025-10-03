@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import firebaseService from '../services/firebaseService';
+import { openWalletTopUpCheckout } from '../utils/flutterwave';
 
 const WalletManager = ({ userType = 'buyer' }) => {
   const [wallet, setWallet] = useState(null);
@@ -61,16 +62,9 @@ const WalletManager = ({ userType = 'buyer' }) => {
     }
 
     try {
-      // In a real implementation, this would integrate with Stripe or other payment processor
       const amount = parseFloat(topUpAmount);
-      const mockPaymentIntentId = `pi_mock_${Date.now()}`;
-      
-      await firebaseService.wallet.addFunds(
-        wallet.id, 
-        amount, 
-        mockPaymentIntentId, 
-        'Wallet top-up'
-      );
+      // Launch Flutterwave Checkout
+      await openWalletTopUpCheckout({ user: currentUser, amount, currency: wallet?.currency || 'NGN' });
       
       // Refresh wallet data
       const updatedWallet = await firebaseService.wallet.getUserWallet(currentUser.uid);
@@ -108,6 +102,11 @@ const WalletManager = ({ userType = 'buyer' }) => {
 
     if (transferData.accountType === 'mobile_money' && !transferData.provider) {
       alert('Please select a mobile money provider');
+      return;
+    }
+
+    if (!wallet || !wallet.id) {
+      alert('Wallet not found. Please refresh the page.');
       return;
     }
 

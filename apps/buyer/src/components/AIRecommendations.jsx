@@ -41,7 +41,7 @@ const AIRecommendations = ({ userId, limit = 6 }) => {
   const analyzeUserPreferences = (orders) => {
     const preferences = {
       categories: {},
-      priceRange: { min: 0, max: 0 },
+      priceRange: { min: Number.POSITIVE_INFINITY, max: 0 },
       brands: {},
       totalSpent: 0
     };
@@ -53,10 +53,11 @@ const AIRecommendations = ({ userId, limit = 6 }) => {
           preferences.categories[item.category] = (preferences.categories[item.category] || 0) + 1;
         }
         
-        // Price range analysis
-        if (item.price) {
-          preferences.priceRange.min = Math.min(preferences.priceRange.min || item.price, item.price);
-          preferences.priceRange.max = Math.max(preferences.priceRange.max, item.price);
+        // Price range analysis (defensive against strings/undefined)
+        const numericPrice = Number(item.price);
+        if (Number.isFinite(numericPrice) && numericPrice >= 0) {
+          preferences.priceRange.min = Math.min(preferences.priceRange.min, numericPrice);
+          preferences.priceRange.max = Math.max(preferences.priceRange.max, numericPrice);
         }
         
         // Brand preferences
@@ -65,9 +66,14 @@ const AIRecommendations = ({ userId, limit = 6 }) => {
         }
       });
       
-      preferences.totalSpent += order.totalAmount || 0;
+      const numericTotal = Number(order.totalAmount);
+      preferences.totalSpent += Number.isFinite(numericTotal) ? numericTotal : 0;
     });
 
+    // Normalize min if no valid prices were found
+    if (!Number.isFinite(preferences.priceRange.min)) {
+      preferences.priceRange.min = 0;
+    }
     return preferences;
   };
 
@@ -91,13 +97,15 @@ const AIRecommendations = ({ userId, limit = 6 }) => {
     const trendingProducts = await firebaseService.products.getTrending(2);
     recommendations.push(...trendingProducts);
 
-    // Add price-based recommendations
-    const priceBasedProducts = await firebaseService.products.getByPriceRange(
-      preferences.priceRange.min,
-      preferences.priceRange.max,
-      2
-    );
-    recommendations.push(...priceBasedProducts);
+    // Add price-based recommendations (only if we have a sensible range)
+    if (preferences.priceRange.max > 0) {
+      const priceBasedProducts = await firebaseService.products.getByPriceRange(
+        Math.max(0, preferences.priceRange.min || 0),
+        preferences.priceRange.max,
+        2
+      );
+      recommendations.push(...priceBasedProducts);
+    }
 
     // Remove duplicates and limit results
     const uniqueRecommendations = recommendations.filter((product, index, self) => 

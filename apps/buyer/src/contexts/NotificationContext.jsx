@@ -134,6 +134,33 @@ export const NotificationProvider = ({ children }) => {
     fetchNotifications();
   }, [currentUser]);
 
+  // Handle notification click
+  const handleNotificationClick = (notification) => {
+    // Mark as read if not already read
+    if (!notification.read) {
+      markAsRead(notification.id);
+    }
+    
+    // Handle different notification types
+    switch (notification.type) {
+      case 'new_order':
+        // Navigate to vendor dashboard orders tab
+        window.location.href = '/vendor?tab=orders';
+        break;
+      case 'order_update':
+        // Navigate to buyer dashboard orders tab
+        window.location.href = '/enhanced-buyer?tab=orders';
+        break;
+      case 'payment_success':
+        // Navigate to buyer dashboard
+        window.location.href = '/enhanced-buyer';
+        break;
+      default:
+        // Default to buyer dashboard
+        window.location.href = '/enhanced-buyer';
+    }
+  };
+
   const value = {
     notifications,
     unreadCount,
@@ -142,7 +169,8 @@ export const NotificationProvider = ({ children }) => {
     markAllAsRead,
     createNotification,
     deleteNotification,
-    fetchNotifications
+    fetchNotifications,
+    handleNotificationClick
   };
 
   return (

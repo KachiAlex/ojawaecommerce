@@ -4,9 +4,14 @@ import AdminPanel from '../components/AdminPanel';
 import EscrowTimeline from '../components/EscrowTimeline';
 import Footer from '../components/Footer';
 import OsoahiaWidget from '../components/OsoahiaWidget';
+import RecentOrdersFlow from '../components/RecentOrdersFlow';
+import RealTimeStockMonitor from '../components/RealTimeStockMonitor';
 import ComponentErrorBoundary from '../components/ComponentErrorBoundary';
 import { ProductListSkeleton, PageLoadingSkeleton } from '../components/LoadingStates';
 import { useAuth } from '../contexts/AuthContext';
+import { useRealTimeProducts } from '../hooks/useRealTimeProducts';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../firebase/config';
 
 const categories = [
   'Fashion',
@@ -110,9 +115,38 @@ const products = [
   },
 ];
 
+// Helper function to get product display properties
+const getProductDisplayProps = (product, index) => {
+  const colors = [
+    'bg-gradient-to-br from-pink-100 to-pink-200',
+    'bg-gradient-to-br from-yellow-100 to-yellow-200',
+    'bg-gradient-to-br from-green-100 to-green-200',
+    'bg-gradient-to-br from-purple-100 to-purple-200',
+    'bg-gradient-to-br from-blue-100 to-blue-200',
+    'bg-gradient-to-br from-amber-100 to-amber-200',
+    'bg-gradient-to-br from-orange-100 to-orange-200',
+    'bg-gradient-to-br from-rose-100 to-rose-200'
+  ];
+  
+  const icons = ['👗', '🧴', '👡', '🧣', '🤵', '☕', '🧺', '💎'];
+  
+  return {
+    bgColor: colors[index % colors.length],
+    icon: icons[index % icons.length]
+  };
+};
+
 const Home = () => {
   const { currentUser, userProfile } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Get real-time featured products (limit to 8 for display)
+  const { products: realTimeProducts, loading: productsLoading } = useRealTimeProducts({
+    sortBy: 'newest'
+  });
+  
+  // Take first 8 products for featured display
+  const featuredProducts = realTimeProducts.slice(0, 8);
 
   useEffect(() => {
     // Simulate loading time for demo
@@ -122,6 +156,7 @@ const Home = () => {
 
     return () => clearTimeout(timer);
   }, []);
+
 
   if (isLoading) {
     return <PageLoadingSkeleton />;
@@ -158,11 +193,14 @@ const Home = () => {
           <Link to="/products" className="inline-flex items-center justify-center rounded-md bg-emerald-600 px-6 py-3 text-white hover:bg-emerald-700 font-medium">
             Browse Products
           </Link>
-          {!currentUser && (
-            <Link to="/register" className="inline-flex items-center justify-center rounded-md border px-6 py-3 text-slate-800 hover:bg-slate-100 font-medium">
-              Join Ojawa
-              </Link>
-          )}
+                   {!currentUser && (
+                     <Link to="/register" className="inline-flex items-center justify-center rounded-md border px-6 py-3 text-slate-800 hover:bg-slate-100 font-medium">
+                       Join Ojawa
+                     </Link>
+                   )}
+                   <Link to="/admin" className="inline-flex items-center justify-center rounded-md bg-blue-600 px-6 py-3 text-white hover:bg-blue-700 font-medium">
+                     🎛️ Admin Dashboard
+                   </Link>
         </div>
         <div className="flex items-center gap-4 pt-2">
           <div className="text-xs text-slate-600">Backed by dispute resolution and identity verification</div>
@@ -177,37 +215,115 @@ const Home = () => {
       </div>
 
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {products.map((p) => (
-            <div key={p.id} className="overflow-hidden rounded-xl border bg-white group hover:shadow-lg transition-shadow">
-              <div className={`relative aspect-square w-full overflow-hidden ${p.bgColor}`}>
-                <div className="flex items-center justify-center h-full">
-                  <span className="text-6xl">{p.icon}</span>
-          </div>
-                {p.verified && (
-                  <span className="absolute top-3 left-3 inline-flex items-center rounded-full bg-emerald-600 px-2 py-1 text-xs font-medium text-white">Verified</span>
-                )}
+          {productsLoading ? (
+            // Show loading skeleton
+            Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="overflow-hidden rounded-xl border bg-white animate-pulse">
+                <div className="aspect-square w-full bg-gray-200"></div>
+                <div className="p-4">
+                  <div className="h-4 bg-gray-200 rounded mb-2"></div>
+                  <div className="h-3 bg-gray-200 rounded w-3/4"></div>
+                </div>
               </div>
-              <div className="p-4">
-                <div className="mb-2">
-                  <h3 className="font-semibold text-gray-900 leading-tight">{p.name}</h3>
-                  <p className="text-sm text-gray-600">by {p.vendor}</p>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="text-lg font-bold text-gray-900">{p.price}</div>
-                </div>
-                <div className="mt-3 flex items-center justify-between">
-                  <div className="text-sm text-gray-600">
-                    <span aria-hidden>⭐</span> {p.rating.toFixed(1)} ({p.reviews})
+            ))
+          ) : featuredProducts.length > 0 ? (
+            featuredProducts.map((product, index) => {
+              const displayProps = getProductDisplayProps(product, index);
+              return (
+                <div key={product.id} className="overflow-hidden rounded-xl border bg-white group hover:shadow-lg transition-shadow">
+                  <div className={`relative aspect-square w-full overflow-hidden ${displayProps.bgColor}`}>
+                    <div className="flex items-center justify-center h-full">
+                      <span className="text-6xl">{displayProps.icon}</span>
+                    </div>
+                    
+                    {/* Stock Status Badge */}
+                    {product.inStock === false || (product.stock || 0) <= 0 ? (
+                      <div className="absolute top-2 left-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                        Out of Stock
+                      </div>
+                    ) : (
+                      <div className="absolute top-2 left-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full">
+                        In Stock ({product.stock || 0})
+                      </div>
+                    )}
                   </div>
-                  <Link to="/checkout" className="inline-flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 transition-colors">
-                    Buy with Wallet Protection
-              </Link>
-            </div>
-          </div>
-        </div>
-          ))}
+                  <div className="p-4">
+                    <div className="mb-2">
+                      <h3 className="font-semibold text-gray-900 leading-tight">{product.name}</h3>
+                      <p className="text-sm text-gray-600">by {product.vendorName || 'Vendor'}</p>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="text-lg font-bold text-gray-900">
+                        {product.currency ? `${product.currency.replace(/\d+/, (product.price || 0).toLocaleString())}` : `₦${(product.price || 0).toLocaleString()}`}
+                      </div>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between">
+                      <div className="text-sm text-gray-600">
+                        <span aria-hidden>⭐</span> {(product.rating || 0).toFixed(1)} ({(product.reviewCount || 0)})
+                      </div>
+                      <Link 
+                        to={`/products/${product.id}`}
+                        className="inline-flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 transition-colors"
+                      >
+                        View Product
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            // Fallback to static products if no real-time products available
+            products.map((p) => (
+              <div key={p.id} className="overflow-hidden rounded-xl border bg-white group hover:shadow-lg transition-shadow">
+                <div className={`relative aspect-square w-full overflow-hidden ${p.bgColor}`}>
+                  <div className="flex items-center justify-center h-full">
+                    <span className="text-6xl">{p.icon}</span>
+                  </div>
+                  {p.verified && (
+                    <span className="absolute top-3 left-3 inline-flex items-center rounded-full bg-emerald-600 px-2 py-1 text-xs font-medium text-white">Verified</span>
+                  )}
+                </div>
+                <div className="p-4">
+                  <div className="mb-2">
+                    <h3 className="font-semibold text-gray-900 leading-tight">{p.name}</h3>
+                    <p className="text-sm text-gray-600">by {p.vendor}</p>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="text-lg font-bold text-gray-900">{p.price}</div>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between">
+                    <div className="text-sm text-gray-600">
+                      <span aria-hidden>⭐</span> {p.rating.toFixed(1)} ({p.reviews})
+                    </div>
+                    <Link to="/products" className="inline-flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 transition-colors">
+                      Browse Products
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
       </div>
       </section>
+
+      {/* Recent Orders Flow - Only show for logged in users */}
+      {currentUser && (
+        <section className="max-w-7xl mx-auto px-4 py-10">
+          <ComponentErrorBoundary>
+            <RecentOrdersFlow />
+          </ComponentErrorBoundary>
+        </section>
+      )}
+
+      {/* Real-Time Stock Monitor - Only show for logged in users */}
+      {currentUser && (
+        <section className="max-w-7xl mx-auto px-4 py-10">
+          <ComponentErrorBoundary>
+            <RealTimeStockMonitor />
+          </ComponentErrorBoundary>
+        </section>
+      )}
 
       {/* Escrow Explainer */}
       <section className="max-w-7xl mx-auto px-4 py-10" id="how-it-works">

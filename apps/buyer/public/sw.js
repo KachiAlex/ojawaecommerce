@@ -1,15 +1,16 @@
 // Service Worker for Ojawa E-commerce PWA
-const CACHE_NAME = 'ojawa-v1.0.0';
-const STATIC_CACHE = 'ojawa-static-v1.0.0';
-const DYNAMIC_CACHE = 'ojawa-dynamic-v1.0.0';
+const CACHE_NAME = 'ojawa-v1.0.1';
+const STATIC_CACHE = 'ojawa-static-v1.0.1';
+const DYNAMIC_CACHE = 'ojawa-dynamic-v1.0.1';
 
 // Files to cache for offline functionality
 const STATIC_FILES = [
   '/',
   '/index.html',
-  '/static/js/bundle.js',
-  '/static/css/main.css',
   '/manifest.json',
+  '/vite.svg',
+  '/icons/icon-32x32.png',
+  '/icons/icon-16x16.png',
   '/icons/icon-192x192.png',
   '/icons/icon-512x512.png'
 ];
@@ -80,46 +81,51 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Only handle same-origin requests to avoid interfering with third-party APIs (e.g., Firebase Functions)
+  if (url.origin !== self.location.origin) {
+    return; // let the network handle cross-origin requests
+  }
+
+  // Always bypass SW caching for Vite-built hashed assets and external resources
+  if (url.pathname.startsWith('/assets/') || url.pathname === '/vite.svg') {
+    return; // allow default network handling
+  }
+
   event.respondWith(
     caches.match(request)
       .then((cachedResponse) => {
-        // Return cached version if available
         if (cachedResponse) {
-          console.log('Service Worker: Serving from cache', request.url);
           return cachedResponse;
         }
 
-        // Otherwise fetch from network
         return fetch(request)
           .then((response) => {
-            // Don't cache if not a valid response
+            // Skip caching non-OK or cross-origin/basic checks
             if (!response || response.status !== 200 || response.type !== 'basic') {
               return response;
             }
 
-            // Clone the response
             const responseToCache = response.clone();
-
-            // Cache API responses
             if (isApiRequest(request.url)) {
-              caches.open(DYNAMIC_CACHE)
-                .then((cache) => {
-                  cache.put(request, responseToCache);
-                });
+              caches.open(DYNAMIC_CACHE).then((cache) => {
+                cache.put(request, responseToCache);
+              });
             }
-
             return response;
           })
-          .catch((error) => {
+          .catch(async (error) => {
             console.error('Service Worker: Fetch failed', error);
-            
-            // Return offline page for navigation requests
+
             if (request.mode === 'navigate') {
-              return caches.match('/index.html');
+              const offline = await caches.match('/index.html');
+              if (offline) return offline;
             }
-            
-            // Return cached version if available
-            return caches.match(request);
+
+            const fallback = await caches.match(request);
+            if (fallback) return fallback;
+
+            // Return a minimal error response to satisfy the Response contract
+            return new Response('', { status: 504, statusText: 'Gateway Timeout' });
           });
       })
   );

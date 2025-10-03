@@ -278,6 +278,34 @@ export const OnboardingProvider = ({ children }) => {
     }
   }, [currentUser, onboardingData, isCompleted, initializeOnboarding])
 
+  // Provide default onboarding data if none exists
+  useEffect(() => {
+    if (currentUser && !onboardingData && !isLoading) {
+      // Create default onboarding data for existing users
+      const defaultData = {
+        userId: currentUser.uid,
+        userType: userProfile?.role || 'buyer',
+        currentStep: 'welcome',
+        completedSteps: [],
+        skippedSteps: [],
+        data: {},
+        startedAt: new Date(),
+        completedAt: null,
+        isCompleted: false
+      }
+      setOnboardingData(defaultData)
+      setCurrentStep({
+        id: 'welcome',
+        title: 'Welcome to Ojawa!',
+        description: 'Let\'s get you started with your personalized experience',
+        component: 'WelcomeStep',
+        duration: 2000,
+        required: true,
+        nextStep: 'profile_setup'
+      })
+    }
+  }, [currentUser, userProfile, onboardingData, isLoading])
+
   // Update progress when onboarding data changes
   useEffect(() => {
     if (currentUser && onboardingData) {

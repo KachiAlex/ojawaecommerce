@@ -9,6 +9,19 @@ import WalletTopUpModal from '../components/WalletTopUpModal';
 import VendorReviewModal from '../components/VendorReviewModal';
 import OrderConfirmationModal from '../components/OrderConfirmationModal';
 
+// Currency formatting helper
+const formatCurrency = (amount, currencyValue) => {
+  const numAmount = parseFloat(amount) || 0;
+  if (!currencyValue) return `₦${numAmount.toLocaleString()}`;
+  
+  // Extract currency symbol and code from string like "₦ NGN"
+  const parts = String(currencyValue).trim().split(/\s+/);
+  const symbol = parts[0] || '₦';
+  const code = parts[1] || 'NGN';
+  
+  return `${symbol}${numAmount.toLocaleString()}`;
+};
+
 const Buyer = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [orders, setOrders] = useState([]);
@@ -70,22 +83,24 @@ const Buyer = () => {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'escrow_funded': return 'bg-blue-100 text-blue-800';
+      case 'escrow_funded': return 'bg-emerald-100 text-emerald-800';
       case 'shipped': return 'bg-blue-100 text-blue-800';
-      case 'delivered': return 'bg-green-100 text-green-800';
+      case 'delivered': return 'bg-purple-100 text-purple-800';
       case 'completed': return 'bg-green-100 text-green-800';
-      case 'pending_wallet_funding': return 'bg-gray-100 text-gray-800';
+      case 'pending_wallet_funding': return 'bg-yellow-100 text-yellow-800';
+      case 'pending': return 'bg-gray-100 text-gray-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
 
   const formatStatus = (status) => {
     switch (status) {
-      case 'escrow_funded': return 'Escrow Funded';
-      case 'shipped': return 'Shipped';
-      case 'delivered': return 'Delivered';
-      case 'completed': return 'Completed';
-      case 'pending_wallet_funding': return 'Awaiting Wallet Funding';
+      case 'escrow_funded': return '🔒 Escrow Funded';
+      case 'shipped': return '🚚 Shipped';
+      case 'delivered': return '📦 Delivered';
+      case 'completed': return '✅ Completed';
+      case 'pending_wallet_funding': return '⏳ Awaiting Wallet Funding';
+      case 'pending': return 'Pending';
       default: return status;
     }
   };
@@ -376,19 +391,41 @@ const Buyer = () => {
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          ₦{(order.totalAmount || 0).toLocaleString()}
+                          {formatCurrency(order.totalAmount || 0, order.currency)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {order.createdAt?.toDate ? order.createdAt.toDate().toLocaleDateString() : 'Unknown'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{order.walletId || 'N/A'}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm flex gap-3">
-                          <button onClick={() => openOrderDetails(order)} className="text-emerald-600 hover:text-emerald-700 font-medium">View Details</button>
-                          {order.status === 'escrow_funded' ? (
-                            <button onClick={() => openOrderConfirmation(order)} className="text-emerald-600 hover:text-emerald-700 font-medium">Confirm Order</button>
-                          ) : order.status === 'pending_wallet_funding' ? (
-                            <button onClick={() => setIsWalletTopUpOpen(true) || setSelectedOrder(order)} className="text-gray-600 hover:text-gray-900">Fund Wallet</button>
-                          ) : null}
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <div className="flex flex-col gap-2">
+                            <button onClick={() => openOrderDetails(order)} className="text-emerald-600 hover:text-emerald-700 font-medium text-left">View Details</button>
+                            {order.status === 'escrow_funded' && (
+                              <button 
+                                onClick={() => openOrderConfirmation(order)} 
+                                className="bg-emerald-600 text-white px-3 py-1 rounded text-xs font-medium hover:bg-emerald-700"
+                              >
+                                ✓ Confirm Delivery
+                              </button>
+                            )}
+                            {order.status === 'pending_wallet_funding' && (
+                              <button 
+                                onClick={() => setActiveTab('wallet')} 
+                                className="bg-blue-600 text-white px-3 py-1 rounded text-xs font-medium hover:bg-blue-700"
+                                title="Fund your wallet to complete this order"
+                              >
+                                💳 Fund Wallet
+                              </button>
+                            )}
+                            {(order.status === 'shipped' || order.status === 'delivered') && (
+                              <button 
+                                onClick={() => openOrderConfirmation(order)} 
+                                className="bg-green-600 text-white px-3 py-1 rounded text-xs font-medium hover:bg-green-700"
+                              >
+                                ✓ Confirm Receipt
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}

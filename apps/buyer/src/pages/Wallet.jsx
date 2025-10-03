@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import firebaseService from '../services/firebaseService'
+import { openWalletTopUpCheckout } from '../utils/flutterwave'
 
 const Wallet = () => {
   const { currentUser, userProfile } = useAuth()
@@ -54,26 +55,15 @@ const Wallet = () => {
         await load()
       }
       if (!wallet) {
-        throw new Error('Wallet not ready yet. Please wait a moment and try again.')
+        setError('Wallet is initializing. Please wait a moment and try again.')
+        return
       }
 
       const amountNgn = Number(topupAmount)
       if (!amountNgn || amountNgn <= 0) throw new Error('Enter a valid amount')
 
-      // For demo purposes, simulate a successful payment
-      // In production, integrate with your preferred payment processor
-      const mockTransactionId = `TXN-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-      
-      // Simulate payment processing delay
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      
-      // Add funds to wallet using the existing service
-      await firebaseService.wallet.addFunds(
-        wallet.id,
-        amountNgn,
-        mockTransactionId,
-        'Wallet top-up via payment'
-      )
+      // Launch Flutterwave Checkout and let the Cloud Function credit the wallet
+      await openWalletTopUpCheckout({ user: currentUser, amount: amountNgn, currency: wallet?.currency || 'NGN' })
       
       // Refresh wallet data
       setTopupAmount('')
@@ -184,7 +174,7 @@ const Wallet = () => {
               className="flex-1 border border-gray-300 rounded-lg px-4 py-2"
               placeholder="Amount (₦)"
             />
-            <button onClick={handleTopup} disabled={submitting || !topupAmount}
+            <button onClick={handleTopup} disabled={submitting || !topupAmount || !wallet || loading}
               className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50">
               {submitting ? 'Processing...' : 'Add Funds'}
             </button>
