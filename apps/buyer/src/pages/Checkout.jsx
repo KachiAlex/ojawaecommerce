@@ -4,10 +4,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { collection, addDoc, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
-import LogisticsSelector from '../components/LogisticsSelector';
+import EnhancedLogisticsSelector from '../components/EnhancedLogisticsSelector';
 import firebaseService from '../services/firebaseService';
 import WalletBalanceCheck from '../components/WalletBalanceCheck';
 import escrowPaymentService from '../services/escrowPaymentService';
+import { pricingService } from '../services/pricingService';
 
 // Currency helpers
 const currencySymbolMap = {
@@ -35,7 +36,7 @@ const formatAmount = (amount, code = 'NGN') => {
   }
 }
 
-const CheckoutForm = ({ total, cartItems, onSuccess, orderDetails, walletBalance, canProceed, currencyCode }) => {
+const CheckoutForm = ({ total, pricingBreakdown, cartItems, onSuccess, orderDetails, walletBalance, canProceed, currencyCode }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const { currentUser } = useAuth();
@@ -217,11 +218,38 @@ const CheckoutForm = ({ total, cartItems, onSuccess, orderDetails, walletBalance
         </div>
 
         <div className="bg-gray-50 rounded-lg p-4 mb-4">
-          <div className="flex justify-between items-center">
-            <span className="text-gray-700">Payment Amount:</span>
-            <span className="font-semibold text-lg">{formatAmount(total, currencyCode)}</span>
-          </div>
-          <div className="flex justify-between items-center mt-2">
+          {/* Pricing Breakdown */}
+          {pricingBreakdown ? (
+            <div className="space-y-2 mb-4">
+              {Object.entries(pricingBreakdown.breakdown).map(([key, item]) => {
+                if (!item) return null;
+                
+                return (
+                  <div key={key} className="flex justify-between text-sm">
+                    <div>
+                      <span className="text-gray-600">{item.label}</span>
+                      {item.description && key !== 'total' && (
+                        <p className="text-xs text-gray-500">{item.description}</p>
+                      )}
+                      {item.rate && (
+                        <p className="text-xs text-gray-500">({item.rate}%)</p>
+                      )}
+                    </div>
+                    <span className={`font-semibold ${key === 'total' ? 'text-lg' : ''}`}>
+                      {formatAmount(item.amount, currencyCode)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex justify-between items-center">
+              <span className="text-gray-700">Payment Amount:</span>
+              <span className="font-semibold text-lg">{formatAmount(total, currencyCode)}</span>
+            </div>
+          )}
+          
+          <div className="flex justify-between items-center mt-2 pt-2 border-t">
             <span className="text-gray-600 text-sm">Current Wallet Balance:</span>
             <span className="text-sm">{formatAmount(walletBalance, currencyCode)}</span>
           </div>
@@ -255,23 +283,40 @@ const CheckoutForm = ({ total, cartItems, onSuccess, orderDetails, walletBalance
 };
 
 const Checkout = () => {
-  const { cartItems, getCartTotal, clearCart } = useCart();
+  const { cartItems, getCartTotal, getPricingBreakdown, clearCart } = useCart();
   const { currentUser } = useAuth();
   const navigate = useNavigate();
   const [showSuccess, setShowSuccess] = useState(false);
   const [selectedLogistics, setSelectedLogistics] = useState(null);
   const [deliveryOption, setDeliveryOption] = useState('pickup'); // 'pickup' or 'delivery'
   const [buyerAddress, setBuyerAddress] = useState('');
+  const [vendorAddress, setVendorAddress] = useState('');
   const [availableLogistics, setAvailableLogistics] = useState([]);
   const [loadingLogistics, setLoadingLogistics] = useState(false);
   const [walletBalance, setWalletBalance] = useState(0);
+  const [pricingBreakdown, setPricingBreakdown] = useState(null);
+  const [loadingPricing, setLoadingPricing] = useState(false);
   const currencyCode = getCurrencyCode(cartItems[0]?.currency || cartItems[0]?.priceCurrency || 'NGN');
   const [canProceed, setCanProceed] = useState(false);
-  const subtotal = getCartTotal();
-  const deliveryFee = selectedLogistics ? parseFloat(selectedLogistics.price.replace(/[^\d.]/g, '')) : 0;
-  const baseTotal = subtotal + deliveryFee;
-  const ojawaCommission = baseTotal * 0.05; // 5% commission
-  const grandTotal = baseTotal + ojawaCommission;
+
+  // Calculate pricing breakdown whenever cart items or delivery options change
+  useEffect(() => {
+    const calculatePricing = async () => {
+      if (cartItems.length === 0) return;
+
+      try {
+        setLoadingPricing(true);
+        const breakdown = await getPricingBreakdown(deliveryOption, selectedLogistics);
+        setPricingBreakdown(breakdown);
+      } catch (error) {
+        console.error('Error calculating pricing:', error);
+      } finally {
+        setLoadingPricing(false);
+      }
+    };
+
+    calculatePricing();
+  }, [cartItems, deliveryOption, selectedLogistics, getPricingBreakdown]);
 
   useEffect(() => {
     if (!currentUser) {
@@ -286,6 +331,8 @@ const Checkout = () => {
 
     // Check for self-purchase prevention
     checkSelfPurchase();
+    // Prefill buyer and vendor addresses
+    prefillAddresses();
   }, [currentUser, cartItems, navigate]);
 
   const checkSelfPurchase = async () => {
@@ -332,6 +379,36 @@ const Checkout = () => {
     }
   };
 
+  const prefillAddresses = async () => {
+    try {
+      // Buyer address
+      const buyerDoc = await getDoc(doc(db, 'users', currentUser.uid));
+      if (buyerDoc.exists()) {
+        const data = buyerDoc.data();
+        if (data.address) setBuyerAddress(data.address);
+      }
+
+      // Vendor address from first item
+      let vendorId = cartItems[0]?.vendorId;
+      if (!vendorId && cartItems[0]?.id) {
+        try {
+          const prodSnap = await getDoc(doc(db, 'products', cartItems[0].id));
+          if (prodSnap.exists()) vendorId = prodSnap.data().vendorId;
+        } catch (_) {}
+      }
+      if (vendorId) {
+        const vendorSnap = await getDoc(doc(db, 'users', vendorId));
+        if (vendorSnap.exists()) {
+          const v = vendorSnap.data();
+          const addr = v.vendorProfile?.businessAddress || v.address || '';
+          setVendorAddress(addr);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to prefill addresses', e);
+    }
+  };
+
   const fetchAvailableLogistics = async () => {
     if (deliveryOption !== 'delivery' || !buyerAddress) return;
     
@@ -343,7 +420,7 @@ const Checkout = () => {
       const estimatedDistance = 50; // Default 50km - in real app, calculate from addresses
       
       const deliveryData = {
-        pickupLocation: 'Vendor Location', // This should come from vendor profile
+        pickupLocation: vendorAddress || 'Vendor Location',
         deliveryLocation: buyerAddress,
         weight: estimatedWeight,
         distance: estimatedDistance
@@ -430,7 +507,7 @@ const Checkout = () => {
             <div className="border-t pt-4 space-y-2">
               <div className="flex justify-between">
                 <span>Subtotal:</span>
-                <span>{formatAmount(subtotal, currencyCode)}</span>
+                <span>{formatAmount(getCartTotal(), currencyCode)}</span>
               </div>
               {deliveryOption === 'delivery' && selectedLogistics && (
                 <div className="flex justify-between">
@@ -440,11 +517,11 @@ const Checkout = () => {
               )}
               <div className="flex justify-between text-sm text-gray-600">
                 <span>Ojawa Service Fee (5%):</span>
-                <span>{formatAmount(ojawaCommission, currencyCode)}</span>
+                <span>{formatAmount((getCartTotal() * 0.05), currencyCode)}</span>
               </div>
               <div className="flex justify-between text-lg font-semibold border-t pt-2">
               <span>Total:</span>
-                <span>{formatAmount(grandTotal, currencyCode)}</span>
+                <span>{formatAmount(pricingBreakdown?.total || getCartTotal(), currencyCode)}</span>
               </div>
               <div className="text-xs text-gray-500 mt-2">
                 * Includes wallet protection and dispute resolution
@@ -509,11 +586,23 @@ const Checkout = () => {
                   />
                 </div>
                 
-                <LogisticsSelector 
-                  vendorLocation="Lagos, Nigeria"
-                  buyerLocation={buyerAddress || "Your delivery address"}
-                  onSelect={setSelectedLogistics}
-                  cartItems={cartItems}
+                <EnhancedLogisticsSelector 
+                  onLogisticsSelect={(logisticsData) => {
+                    setSelectedLogistics({
+                      ...logisticsData.partner,
+                      price: `₦${logisticsData.partner.pricing.cost.toLocaleString()}`,
+                      company: logisticsData.partner.name,
+                      estimatedDays: logisticsData.partner.estimatedDelivery
+                    });
+                  }}
+                  deliveryData={{
+                    weight: cartItems.reduce((total, item) => total + (item.weight || 1) * item.quantity, 0),
+                    deliveryType: 'standard',
+                    isFragile: cartItems.some(item => item.isFragile),
+                    requiresSignature: cartItems.some(item => item.requiresSignature),
+                    itemValue: getCartTotal()
+                  }}
+                  showRouteVisualization={true}
                 />
               </div>
             )}
@@ -522,7 +611,7 @@ const Checkout = () => {
 
         {/* Wallet Balance Check */}
         <WalletBalanceCheck 
-          totalAmount={grandTotal}
+          totalAmount={pricingBreakdown?.total || getCartTotal()}
           onBalanceCheck={(sufficient) => {
             setCanProceed(sufficient);
           }}
@@ -535,16 +624,18 @@ const Checkout = () => {
         {/* Payment Form */}
         <div>
           <CheckoutForm 
-            total={grandTotal} 
+            total={pricingBreakdown?.total || getCartTotal()} 
+            pricingBreakdown={pricingBreakdown}
             cartItems={cartItems}
             onSuccess={handlePaymentSuccess}
             orderDetails={{
-              subtotal,
-              deliveryFee,
-              ojawaCommission,
               selectedLogistics,
               deliveryOption,
-              buyerAddress
+              buyerAddress,
+              pricingBreakdown,
+              subtotal: getCartTotal(),
+              deliveryFee: selectedLogistics ? parseFloat(selectedLogistics.price.replace(/[^\d.]/g, '')) : 0,
+              ojawaCommission: getCartTotal() * 0.05
             }}
             walletBalance={walletBalance}
             canProceed={canProceed}
