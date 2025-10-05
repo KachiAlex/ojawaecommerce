@@ -8,6 +8,16 @@ service cloud.firestore {
       return request.auth != null;
     }
     
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
     // Notifications collection - users can access only their notifications
     match /notifications/{notificationId} {
       allow read: if isOwner(resource.data.userId);
@@ -18,6 +28,12 @@ service cloud.firestore {
 
     // Admin messages collection - only admins can read/write
     match /admin_messages/{messageId} {
+      allow read, write: if isAdmin();
+      allow list: if isAdmin();
+    }
+
+    // Admin settings collection - only admins can read/write
+    match /admin_settings/{settingId} {
       allow read, write: if isAdmin();
       allow list: if isAdmin();
     }
@@ -63,16 +79,6 @@ service cloud.firestore {
       allow list: if isAuthenticated();
     }
 
-    function isOwner(userId) {
-      return request.auth != null && request.auth.uid == userId;
-    }
-    
-    function isAdmin() {
-      return isAuthenticated() && 
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
-    
     // Users collection - users can read/write their own profile
     match /users/{userId} {
       allow read, write: if isOwner(userId);
@@ -187,12 +193,14 @@ service cloud.firestore {
              allow list: if isAuthenticated(); // Allow aggregation queries
            }
 
-           // Logistics companies collection - company owners can read/write their companies
+           // Logistics companies collection - public can read active companies; owners can write
            match /logistics_companies/{companyId} {
-             allow read, write: if isOwner(resource.data.ownerId);
-             allow create: if isAuthenticated() && request.auth.uid == request.resource.data.ownerId;
-             allow read: if isAdmin(); // Admins can read all companies
-             allow list: if isAuthenticated(); // Allow aggregation queries
+             // Public read for discovery
+             allow read: if true;
+             allow list: if true;
+             // Owners (by ownerUserId) or admins can write
+             allow create: if isAuthenticated() && request.auth.uid == request.resource.data.ownerUserId;
+             allow update, delete: if (isAuthenticated() && request.auth.uid == resource.data.ownerUserId) || isAdmin();
            }
 
            // Logistics routes collection - company owners can read/write their routes
