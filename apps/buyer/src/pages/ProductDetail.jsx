@@ -118,6 +118,9 @@ const ProductDetail = () => {
     );
   }
 
+  const availableStock = product.stock || product.stockQuantity || 0
+  const isOutOfStock = product.inStock === false || availableStock <= 0
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -147,12 +150,14 @@ const ProductDetail = () => {
             </span>
           </div>
 
-          {product.stock && (
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Stock</h3>
-              <p className="text-gray-600">{product.stock} items available</p>
-            </div>
-          )}
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Stock</h3>
+            {isOutOfStock ? (
+              <p className="text-red-600 font-medium">Out of Stock</p>
+            ) : (
+              <p className="text-gray-600">{availableStock} item{availableStock === 1 ? '' : 's'} available</p>
+            )}
+          </div>
 
           {/* Quantity and Add to Cart */}
           <div className="mb-6">
@@ -168,33 +173,28 @@ const ProductDetail = () => {
               </button>
               <span className="text-lg font-semibold">{quantity}</span>
               <button
-                onClick={() => setQuantity(Math.min(product.stock || 999, quantity + 1))}
-                disabled={quantity >= (product.stock || 0)}
+                onClick={() => setQuantity(Math.min(availableStock || 999, quantity + 1))}
+                disabled={quantity >= (availableStock || 0)}
                 className="w-10 h-10 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 +
               </button>
             </div>
-            {product.stock && (
-              <p className="text-sm text-gray-500 mt-1">
-                Maximum: {product.stock} items
-              </p>
-            )}
+            <p className="text-sm text-gray-500 mt-1">
+              {isOutOfStock ? 'No units available' : `Maximum: ${availableStock} items`}
+            </p>
           </div>
 
           <button
             onClick={handleAddToCart}
-            disabled={product.inStock === false || (product.stock || 0) <= 0}
+            disabled={isOutOfStock}
             className={`w-full py-3 px-6 rounded-lg text-lg font-semibold transition-colors ${
-              product.inStock === false || (product.stock || 0) <= 0
+              isOutOfStock
                 ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
                 : 'bg-blue-600 text-white hover:bg-blue-700'
             }`}
           >
-            {product.inStock === false || (product.stock || 0) <= 0
-              ? 'Out of Stock'
-              : 'Add to Cart'
-            }
+            {isOutOfStock ? 'Out of Stock' : 'Add to Cart'}
           </button>
         </div>
       </div>

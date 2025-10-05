@@ -117,7 +117,8 @@ const ProductCard = ({ product, onAddToCart }) => {
     return '/placeholder-product.png'
   }
 
-  const isOutOfStock = product.inStock === false || (product.stock || product.stockQuantity || 0) <= 0
+  const availableStock = product.stock || product.stockQuantity || 0
+  const isOutOfStock = product.inStock === false || availableStock <= 0
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-all duration-200 group">
@@ -134,11 +135,17 @@ const ProductCard = ({ product, onAddToCart }) => {
           />
           
           {/* Stock Status Badge */}
-          {isOutOfStock && (
-            <div className="absolute top-2 left-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full">
-              Out of Stock
-            </div>
-          )}
+          <div className="absolute top-2 left-2">
+            {isOutOfStock ? (
+              <div className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                Out of Stock
+              </div>
+            ) : (
+              <div className="bg-green-500 text-white text-xs px-2 py-1 rounded-full">
+                In Stock ({availableStock})
+              </div>
+            )}
+          </div>
           
           {/* Sale Badge (if applicable) */}
           {product.onSale && (
@@ -228,6 +235,11 @@ const ProductCard = ({ product, onAddToCart }) => {
             </div>
           </div>
         )}
+
+        {/* Stock count indicator */}
+        <div className="mb-3 text-xs text-gray-500">
+          {isOutOfStock ? 'No units available' : `${availableStock} unit${availableStock === 1 ? '' : 's'} available`}
+        </div>
 
         {/* Add to Cart Button */}
         <button

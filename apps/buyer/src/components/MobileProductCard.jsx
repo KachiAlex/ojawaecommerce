@@ -42,6 +42,9 @@ const MobileProductCard = ({
     handleAddToCart();
   };
 
+  const availableStock = product.stock || product.stockQuantity || 0;
+  const isOutOfStock = product.inStock === false || availableStock <= 0;
+
   return (
     <MobileSwipeableCard
       onSwipeLeft={handleSwipeLeft}
@@ -72,6 +75,19 @@ const MobileProductCard = ({
               onError={() => setImageLoaded(true)}
             />
             
+            {/* Stock Status Badge */}
+            <div className="absolute top-2 left-2">
+              {isOutOfStock ? (
+                <div className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full">
+                  Out of Stock
+                </div>
+              ) : (
+                <div className="bg-green-500 text-white text-[10px] px-2 py-0.5 rounded-full">
+                  In Stock ({availableStock})
+                </div>
+              )}
+            </div>
+
             {/* Quick Actions Overlay */}
             {showActions && (
               <div className="absolute top-2 right-2 flex flex-col space-y-2">
@@ -107,7 +123,7 @@ const MobileProductCard = ({
               {product.name}
             </h3>
             
-            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center justify-between mb-2">
               <div className="flex items-center space-x-1">
                 <span className="text-lg font-bold text-emerald-600">
                   ₦{product.price?.toLocaleString()}
@@ -129,6 +145,11 @@ const MobileProductCard = ({
               )}
             </div>
 
+              {/* Stock count under price */}
+              <p className="text-[11px] text-gray-500 mb-2">
+                {isOutOfStock ? 'No units available' : `${availableStock} unit${availableStock === 1 ? '' : 's'} available`}
+              </p>
+
             {/* Vendor Info */}
             {product.vendorName && (
               <p className="text-xs text-gray-500 mb-2">
@@ -137,13 +158,18 @@ const MobileProductCard = ({
             )}
 
             {/* Action Buttons */}
-            {showActions && (
+              {showActions && (
               <div className="flex space-x-2">
                 <button
                   onClick={handleAddToCart}
-                  className="flex-1 bg-emerald-600 text-white py-2 px-3 rounded-md text-sm font-medium hover:bg-emerald-700 transition-colors"
+                  disabled={isOutOfStock}
+                  className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
+                    isOutOfStock
+                      ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                      : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                  }`}
                 >
-                  Add to Cart
+                  {isOutOfStock ? 'Out of Stock' : 'Add to Cart'}
                 </button>
                 <button
                   onClick={handleQuickView}
