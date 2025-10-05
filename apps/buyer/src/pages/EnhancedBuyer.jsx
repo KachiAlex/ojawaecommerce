@@ -14,12 +14,16 @@ import { useMessaging } from '../contexts/MessagingContext'
 import { ORDER_STATUS } from '../services/orderWorkflow'
 import { errorLogger } from '../utils/errorLogger'
 import firebaseService from '../services/firebaseService'
+import { openWalletTopUpCheckout } from '../utils/flutterwave'
 
 const EnhancedBuyer = () => {
   const { currentUser } = useAuth()
   const [activeTab, setActiveTab] = useState('overview')
   const [walletBalance, setWalletBalance] = useState(0)
   const [loadingWallet, setLoadingWallet] = useState(true)
+  const [wallet, setWallet] = useState(null)
+  const [showTopUp, setShowTopUp] = useState(false)
+  const [topUpAmount, setTopUpAmount] = useState('')
   const [isSatisfactionModalOpen, setIsSatisfactionModalOpen] = useState(false)
   const [selectedOrderForSatisfaction, setSelectedOrderForSatisfaction] = useState(null)
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false)
@@ -60,8 +64,9 @@ const EnhancedBuyer = () => {
       
       try {
         setLoadingWallet(true)
-        const wallet = await firebaseService.wallet.getUserWallet(currentUser.uid)
-        setWalletBalance(wallet?.balance || 0)
+        const walletData = await firebaseService.wallet.getUserWallet(currentUser.uid)
+        setWallet(walletData)
+        setWalletBalance(walletData?.balance || 0)
       } catch (error) {
         errorLogger.error('Failed to fetch wallet balance', error)
       } finally {
@@ -71,6 +76,31 @@ const EnhancedBuyer = () => {
 
     fetchWalletBalance()
   }, [currentUser])
+
+  // Handle wallet top-up
+  const handleTopUp = async () => {
+    if (!topUpAmount || parseFloat(topUpAmount) <= 0) {
+      alert('Please enter a valid amount')
+      return
+    }
+
+    try {
+      const amount = parseFloat(topUpAmount)
+      // Launch Flutterwave Checkout
+      await openWalletTopUpCheckout({ user: currentUser, amount, currency: wallet?.currency || 'NGN' })
+      
+      // Refresh wallet data
+      const updatedWallet = await firebaseService.wallet.getUserWallet(currentUser.uid)
+      setWallet(updatedWallet)
+      setWalletBalance(updatedWallet?.balance || 0)
+      
+      setShowTopUp(false)
+      setTopUpAmount('')
+    } catch (error) {
+      errorLogger.error('Failed to top up wallet', error)
+      alert('Failed to top up wallet. Please try again.')
+    }
+  }
 
   // Handle order actions
   const handleOrderAction = async (orderId, action, additionalData = {}) => {
@@ -295,7 +325,7 @@ const EnhancedBuyer = () => {
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-500">Wallet Balance</p>
                   <p className="text-2xl font-semibold text-gray-900">
-                    {loadingWallet ? '...' : `$${walletBalance.toFixed(2)}`}
+                    {loadingWallet ? '...' : `₦${walletBalance.toFixed(2)}`}
                   </p>
                 </div>
               </div>
@@ -602,11 +632,14 @@ const EnhancedBuyer = () => {
                   <div>
                     <h3 className="text-lg font-medium text-gray-900 mb-2">Current Balance</h3>
                     <p className="text-3xl font-bold text-emerald-600">
-                      ${loadingWallet ? '...' : walletBalance.toFixed(2)}
+                      ₦{loadingWallet ? '...' : walletBalance.toFixed(2)}
                     </p>
                   </div>
                   <div className="flex gap-3">
-                    <button className="bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700">
+                    <button 
+                      onClick={() => setShowTopUp(true)}
+                      className="bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700"
+                    >
                       Add Funds
                     </button>
                     <button className="bg-gray-100 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-200">
@@ -660,6 +693,9 @@ const EnhancedBuyer = () => {
                           {action.name}
                         </button>
                       ))}
+                      {selectedOrder?.status === ORDER_STATUS.ESCROW_FUNDED && (
+                        <p className="text-sm text-gray-500">Awaiting vendor confirmation.</p>
+                      )}
                       {selectedOrder?.status === ORDER_STATUS.PENDING && (
                         <button
                           onClick={async () => {
@@ -762,6 +798,64 @@ const EnhancedBuyer = () => {
             order={selectedOrderForMessaging}
             otherUserId={selectedOrderForMessaging.vendorId}
           />
+        )}
+
+        {/* Top Up Modal */}
+        {showTopUp && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl max-w-md w-full p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Top Up Wallet</h3>
+                <button 
+                  onClick={() => setShowTopUp(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  ✕
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Amount to Add
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2 text-gray-500">₦</span>
+                    <input
+                      type="number"
+                      value={topUpAmount}
+                      onChange={(e) => setTopUpAmount(e.target.value)}
+                      className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                      placeholder="0.00"
+                      min="0"
+                      step="0.01"
+                    />
+                  </div>
+                </div>
+                
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-sm text-gray-600">
+                    💡 Funds will be added to your wallet balance after successful payment
+                  </p>
+                </div>
+                
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleTopUp}
+                    className="flex-1 bg-emerald-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-emerald-700"
+                  >
+                    Add Funds
+                  </button>
+                  <button
+                    onClick={() => setShowTopUp(false)}
+                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </ComponentErrorBoundary>

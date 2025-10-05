@@ -12,6 +12,12 @@ export const useOrderManagement = (userId, userType = 'buyer') => {
 
   // Fetch orders
   const fetchOrders = useCallback(async () => {
+    if (!userId) {
+      setOrders([])
+      setLoading(false)
+      return
+    }
+    
     try {
       setLoading(true)
       setError(null)
@@ -201,8 +207,35 @@ export const useOrderManagement = (userId, userType = 'buyer') => {
     return orderWorkflowManager.getOrderProgress(order)
   }, [])
 
-  // Get next possible actions for an order
+  // Get next possible actions for an order, scoped by user type
   const getNextActions = useCallback((order) => {
+    // Buyers should not see vendor workflow actions like Processing/Shipped/etc.
+    if (userType === 'buyer') {
+      const buyerActions = []
+      // Primary buyer action happens after delivery: confirm delivery & satisfaction
+      if (order.status === ORDER_STATUS.DELIVERED && !order.satisfactionConfirmed) {
+        buyerActions.push({
+          status: 'confirm_delivery',
+          name: 'Confirm Delivery',
+          description: 'Confirm you received and are satisfied with the product',
+          color: 'green',
+          action: 'confirm_delivery'
+        })
+      }
+      // Optionally allow cancel while pending payment processing
+      if (order.status === ORDER_STATUS.PENDING || order.status === ORDER_STATUS.PAYMENT_PENDING) {
+        buyerActions.push({
+          status: 'cancel',
+          name: 'Cancel Order',
+          description: 'Cancel this order before it is processed',
+          color: 'red',
+          action: 'cancel'
+        })
+      }
+      return buyerActions
+    }
+
+    // Vendors see the standard next workflow states
     const nextStatuses = orderWorkflowManager.getNextStatuses(order.status)
     const actions = []
 
@@ -220,7 +253,7 @@ export const useOrderManagement = (userId, userType = 'buyer') => {
     })
 
     return actions
-  }, [])
+  }, [userType])
 
   // Load orders on mount
   useEffect(() => {
