@@ -86,7 +86,15 @@ async function createProductsForVendor(vendorId, storeId, products) {
       isActive: true
     };
     delete data.image;
-    await db.collection('products').add(data);
+    // Avoid duplicate by name + vendor
+    const existing = await db.collection('products')
+      .where('vendorId', '==', vendorId)
+      .where('name', '==', data.name)
+      .limit(1)
+      .get();
+    if (existing.empty) {
+      await db.collection('products').add(data);
+    }
   }
 }
 
@@ -111,11 +119,23 @@ async function ensureLogisticsCompany(authData, company) {
       ownerUserId: uid,
       status: 'active',
       address: company.address,
-      serviceAreas: company.serviceAreas || ['Lagos'],
-      pricing: company.pricing || { baseFee: 1500, perKm: 100, perKg: 50 },
+      serviceAreas: company.serviceAreas || ['Lagos', 'Abuja', 'Port Harcourt', 'Uyo', 'Aba', 'Enugu', 'Kano'],
+      pricing: company.pricing || { baseFee: 1800, perKm: 110, perKg: 70 },
       routes: company.routes || [
-        { from: 'Ikeja', to: 'Lekki', price: 2500 },
-        { from: 'Ikeja', to: 'Yaba', price: 2000 }
+        // Intracity Lagos
+        { from: 'Ikeja', to: 'Lekki', price: 3000 },
+        { from: 'Yaba', to: 'Victoria Island', price: 2800 },
+        { from: 'Surulere', to: 'Ajah', price: 3200 },
+        // Intercity
+        { from: 'Lagos', to: 'Abuja', price: 15000 },
+        { from: 'Lagos', to: 'Port Harcourt', price: 12000 },
+        { from: 'Lagos', to: 'Uyo', price: 11000 },
+        { from: 'Lagos', to: 'Aba', price: 10000 },
+        { from: 'Lagos', to: 'Enugu', price: 9000 },
+        { from: 'Lagos', to: 'Kano', price: 18000 },
+        { from: 'Abuja', to: 'Kano', price: 9000 },
+        { from: 'Abuja', to: 'Enugu', price: 10000 },
+        { from: 'Port Harcourt', to: 'Enugu', price: 7000 }
       ],
       rating: 4.5,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -187,6 +207,50 @@ async function main() {
         stockQuantity: 10,
         rating: 4.8,
         reviewCount: 25
+      },
+      {
+        name: 'Noise Cancelling Headphones',
+        price: 89999.99,
+        currency: '₦ NGN',
+        description: 'Over-ear wireless headphones with ANC.',
+        category: 'electronics',
+        image: 'https://images.unsplash.com/photo-1518443895914-8e0b0ed2865c?w=400',
+        brand: 'QuietSound',
+        inStock: true,
+        stock: 35
+      },
+      {
+        name: '4K Smart TV 55"',
+        price: 299999.99,
+        currency: '₦ NGN',
+        description: '55-inch UHD Smart TV with HDR.',
+        category: 'electronics',
+        image: 'https://images.unsplash.com/photo-1583225365940-9b5405a1efd8?w=400',
+        brand: 'ViewMax',
+        inStock: true,
+        stock: 12
+      },
+      {
+        name: 'Gaming Console Z',
+        price: 349999.99,
+        currency: '₦ NGN',
+        description: 'Next-gen gaming console with 1TB SSD.',
+        category: 'electronics',
+        image: 'https://images.unsplash.com/photo-1605901309584-818e25960a8b?w=400',
+        brand: 'PlayTime',
+        inStock: true,
+        stock: 18
+      },
+      {
+        name: 'Bluetooth Speaker Mini',
+        price: 19999.99,
+        currency: '₦ NGN',
+        description: 'Portable waterproof Bluetooth speaker.',
+        category: 'electronics',
+        image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400',
+        brand: 'BoomBox',
+        inStock: true,
+        stock: 60
       }
     ]);
 
@@ -199,11 +263,17 @@ async function main() {
         name: 'Ojawa Mock Logistics',
         address: '1 Airport Road, Ikeja, Lagos, NG',
         contact: { name: 'Mock Dispatcher', phone: '+2348098765432' },
-        pricing: { baseFee: 2000, perKm: 120, perKg: 80 },
+        pricing: { baseFee: 1800, perKm: 110, perKg: 70 },
         routes: [
           { from: 'Ikeja', to: 'Lekki', price: 3000 },
-          { from: 'Ikeja', to: 'Yaba', price: 2200 },
-          { from: 'Ikeja', to: 'Ajah', price: 4000 }
+          { from: 'Yaba', to: 'Victoria Island', price: 2800 },
+          { from: 'Surulere', to: 'Ajah', price: 3200 },
+          { from: 'Lagos', to: 'Abuja', price: 15000 },
+          { from: 'Lagos', to: 'Port Harcourt', price: 12000 },
+          { from: 'Lagos', to: 'Uyo', price: 11000 },
+          { from: 'Lagos', to: 'Aba', price: 10000 },
+          { from: 'Lagos', to: 'Enugu', price: 9000 },
+          { from: 'Lagos', to: 'Kano', price: 18000 }
         ]
       }
     );
