@@ -405,7 +405,7 @@ const Buyer = () => {
                                 onClick={() => openOrderConfirmation(order)} 
                                 className="bg-emerald-600 text-white px-3 py-1 rounded text-xs font-medium hover:bg-emerald-700"
                               >
-                                ✓ Confirm Delivery
+                                ✓ Confirm Order
                               </button>
                             )}
                             {order.status === 'pending_wallet_funding' && (
@@ -422,7 +422,7 @@ const Buyer = () => {
                                 onClick={() => openOrderConfirmation(order)} 
                                 className="bg-green-600 text-white px-3 py-1 rounded text-xs font-medium hover:bg-green-700"
                               >
-                                ✓ Confirm Receipt
+                                ✓ Confirm Order
                               </button>
                             )}
                           </div>

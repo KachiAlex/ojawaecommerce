@@ -194,7 +194,7 @@ const DeliveryTrackingModal = ({ order, isOpen, onClose }) => {
                 }}
                 className="bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700 text-sm font-medium"
               >
-                Confirm Delivery & Satisfaction
+                Confirm Order
               </button>
             )}
             <button

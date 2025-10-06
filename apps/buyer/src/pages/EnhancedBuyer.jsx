@@ -112,7 +112,7 @@ const EnhancedBuyer = () => {
         case 'dispute':
           await createDispute(orderId, additionalData)
           break
-        case 'confirm_delivery':
+        case 'confirm_order':
           await updateOrderStatus(orderId, ORDER_STATUS.COMPLETED, {
             confirmedBy: 'buyer',
             confirmedAt: new Date()
@@ -574,7 +574,7 @@ const EnhancedBuyer = () => {
                                   onClick={() => openSatisfactionModal(order)}
                                   className="bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700 text-sm font-medium"
                                 >
-                                  Confirm Delivery & Satisfaction
+                                  Confirm Order
                                 </button>
                               )}
                               
@@ -721,7 +721,7 @@ const EnhancedBuyer = () => {
                           }}
                           className="bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700 text-sm font-medium"
                         >
-                          Confirm Delivery & Satisfaction
+                          Confirm Order
                         </button>
                       )}
                       <button

@@ -56,7 +56,7 @@ const OrderSatisfactionModal = ({ order, isOpen, onClose, onSatisfactionConfirme
       <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-medium text-gray-900">
-            Confirm Delivery & Satisfaction - Order #{order.id.slice(-8)}
+            Confirm Order - Order #{order.id.slice(-8)}
           </h3>
           <button
             onClick={onClose}

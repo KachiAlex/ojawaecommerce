@@ -75,7 +75,7 @@ const RecentOrdersFlow = () => {
       case 'shipped':
         return { text: 'Track shipment', action: 'track' };
       case 'delivered':
-        return { text: 'Confirm delivery', action: 'confirm' };
+        return { text: 'Confirm order', action: 'confirm' };
       case 'completed':
         return { text: 'Reorder items', action: 'reorder' };
       default:
@@ -100,7 +100,7 @@ const RecentOrdersFlow = () => {
           alert('Delivery confirmed successfully!');
         } catch (error) {
           console.error('Error confirming delivery:', error);
-          alert('Failed to confirm delivery. Please try again.');
+          alert('Failed to confirm order. Please try again.');
         }
         break;
       case 'reorder':

@@ -182,7 +182,7 @@ export const useOrderManagement = (userId, userType = 'buyer') => {
     
     if (userType === 'buyer') {
       actionRequiredStatuses.push(
-        ORDER_STATUS.DELIVERED, // Confirm delivery
+        ORDER_STATUS.DELIVERED, // Confirm order
         ORDER_STATUS.PAYMENT_FAILED // Retry payment
       )
     } else if (userType === 'vendor') {
@@ -212,14 +212,14 @@ export const useOrderManagement = (userId, userType = 'buyer') => {
     // Buyers should not see vendor workflow actions like Processing/Shipped/etc.
     if (userType === 'buyer') {
       const buyerActions = []
-      // Primary buyer action happens after delivery: confirm delivery & satisfaction
+      // Primary buyer action happens after delivery: confirm order & satisfaction
       if (order.status === ORDER_STATUS.DELIVERED && !order.satisfactionConfirmed) {
         buyerActions.push({
-          status: 'confirm_delivery',
-          name: 'Confirm Delivery',
-          description: 'Confirm you received and are satisfied with the product',
+          status: 'confirm_order',
+          name: 'Confirm Order',
+          description: 'Confirm you have received the product and are satisfied with it',
           color: 'green',
-          action: 'confirm_delivery'
+          action: 'confirm_order'
         })
       }
       // Optionally allow cancel while pending payment processing
