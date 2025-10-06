@@ -411,7 +411,7 @@ const EnhancedBuyer = () => {
                               </div>
                               <p className="text-gray-600">
                                 {order.items?.length || 0} item{(order.items?.length || 0) !== 1 ? 's' : ''} • 
-                                ${order.totalAmount?.toFixed(2)} • 
+                                {order.currency ? `${order.currency.split(' ')[0]}${order.totalAmount?.toFixed(2)}` : `₦${order.totalAmount?.toFixed(2)}`} • 
                                 {new Date(order.createdAt).toLocaleDateString()}
                               </p>
                             </div>
@@ -503,7 +503,7 @@ const EnhancedBuyer = () => {
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                               <div>
                                 <p className="text-sm text-gray-500">Total Amount</p>
-                                <p className="font-medium">${order.totalAmount?.toFixed(2)}</p>
+                                <p className="font-medium">{order.currency ? `${order.currency.split(' ')[0]}${order.totalAmount?.toFixed(2)}` : `₦${order.totalAmount?.toFixed(2)}`}</p>
                               </div>
                               <div>
                                 <p className="text-sm text-gray-500">Order Date</p>
@@ -694,7 +694,7 @@ const EnhancedBuyer = () => {
                         </button>
                       ))}
                       {selectedOrder?.status === ORDER_STATUS.ESCROW_FUNDED && (
-                        <p className="text-sm text-gray-500">Awaiting vendor confirmation.</p>
+                        <p className="text-sm text-gray-500">Awaiting vendor processing.</p>
                       )}
                       {selectedOrder?.status === ORDER_STATUS.PENDING && (
                         <button

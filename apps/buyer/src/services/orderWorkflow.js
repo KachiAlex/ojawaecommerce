@@ -71,6 +71,16 @@ export const ORDER_WORKFLOW = {
     estimatedDuration: 'Immediate'
   },
   
+  'escrow_funded': {
+    name: 'Escrow Funded',
+    description: 'Payment held in escrow, awaiting vendor processing',
+    color: 'emerald',
+    nextStates: ['processing', 'cancelled'],
+    notifications: ['buyer_escrow_funded', 'vendor_escrow_funded'],
+    autoTransition: false,
+    estimatedDuration: 'Immediate'
+  },
+  
   [ORDER_STATUS.PROCESSING]: {
     name: 'Processing',
     description: 'Vendor is preparing the order',
