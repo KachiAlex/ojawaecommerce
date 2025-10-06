@@ -46,9 +46,13 @@ const EnhancedTrackingStatus = ({ orderId, trackingNumber }) => {
       if (timestamp.toDate) {
         return timestamp.toDate().toLocaleString();
       }
-      return new Date(timestamp).toLocaleString();
+      const date = new Date(timestamp);
+      if (isNaN(date.getTime())) {
+        return new Date().toLocaleString(); // Use current system date as fallback
+      }
+      return date.toLocaleString();
     } catch {
-      return 'Invalid Date';
+      return new Date().toLocaleString(); // Use current system date as fallback
     }
   };
 
