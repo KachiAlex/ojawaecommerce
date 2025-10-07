@@ -497,12 +497,6 @@ const Vendor = () => {
                 📦 Orders
               </button>
               <button 
-                onClick={() => setActiveTab('products')}
-                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'products' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
-              >
-                🛍️ Products
-              </button>
-              <button 
                 onClick={() => setActiveTab('store')}
                 className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'store' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
               >
@@ -920,7 +914,13 @@ const Vendor = () => {
           )}
 
           {activeTab === 'store' && (
-            <VendorStoreManager />
+            <VendorStoreManager 
+              products={products}
+              onEditProduct={openEditProduct}
+              onDeleteProduct={(product) => setConfirmDelete({ open: true, product })}
+              onCreateProduct={openCreateProduct}
+              onRefreshProducts={handleRefreshProducts}
+            />
           )}
 
           {activeTab === 'products' && Array.isArray(products) && (
