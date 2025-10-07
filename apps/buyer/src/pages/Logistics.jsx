@@ -2,22 +2,51 @@ import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import firebaseService from '../services/firebaseService';
+import googleMapsService from '../services/googleMapsService';
 import WalletManager from '../components/WalletManager';
 
 const Logistics = () => {
   const { currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
   const [showAddRouteForm, setShowAddRouteForm] = useState(false);
+  const [showEditRouteForm, setShowEditRouteForm] = useState(false);
+  const [editingRoute, setEditingRoute] = useState(null);
   const [deliveries, setDeliveries] = useState([]);
+  const [routes, setRoutes] = useState([]);
   const [analytics, setAnalytics] = useState(null);
+  const [routeAnalytics, setRouteAnalytics] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadingAnalytics, setLoadingAnalytics] = useState(false);
+  
+  // Form state for adding new route
+  const [routeForm, setRouteForm] = useState({
+    from: '',
+    to: '',
+    distance: '',
+    price: '',
+    currency: '₦ NGN',
+    estimatedTime: '',
+    serviceType: 'Standard Delivery'
+  });
+  const [submittingRoute, setSubmittingRoute] = useState(false);
+  
+  // Route analysis state
+  const [routeAnalysis, setRouteAnalysis] = useState(null);
+  const [analyzingRoute, setAnalyzingRoute] = useState(false);
+  const [suggestedPricing, setSuggestedPricing] = useState(null);
 
   useEffect(() => {
     if (currentUser) {
       loadLogisticsData();
     }
   }, [currentUser]);
+
+  useEffect(() => {
+    if (activeTab === 'routes' && profile?.id) {
+      loadRouteAnalytics();
+    }
+  }, [activeTab, profile?.id]);
 
   const loadLogisticsData = async () => {
     try {
@@ -31,6 +60,9 @@ const Logistics = () => {
         // Get deliveries
         const deliveriesData = await firebaseService.logistics.getDeliveriesByPartner(logisticsProfile.id);
         setDeliveries(deliveriesData);
+
+        // Get routes
+        await loadRoutes();
 
         // Get analytics for last 30 days
         const endDate = new Date();
@@ -51,15 +83,236 @@ const Logistics = () => {
     }
   };
 
-  // Remove hardcoded data - now using real data from backend
+  // Route form handlers
+  const handleRouteFormChange = (field, value) => {
+    setRouteForm(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
 
-  const routes = [
-    { id: 'RT-001', from: 'Lagos, Nigeria', to: 'Abuja, Nigeria', distance: '462 km', price: '₦5,000', estimatedTime: '1-2 days', status: 'Active' },
-    { id: 'RT-002', from: 'Lagos, Nigeria', to: 'Port Harcourt, Nigeria', distance: '435 km', price: '₦4,500', estimatedTime: '1-2 days', status: 'Active' },
-    { id: 'RT-003', from: 'Accra, Ghana', to: 'Kumasi, Ghana', distance: '270 km', price: '₵80', estimatedTime: '1 day', status: 'Active' },
-    { id: 'RT-004', from: 'Addis Ababa, Ethiopia', to: 'Dire Dawa, Ethiopia', distance: '515 km', price: 'Br 150', estimatedTime: '2-3 days', status: 'Active' },
-    { id: 'RT-005', from: 'Nairobi, Kenya', to: 'Mombasa, Kenya', distance: '480 km', price: 'KSh 500', estimatedTime: '1-2 days', status: 'Inactive' },
-  ];
+  // Analyze route when both pickup and delivery locations are entered
+  const analyzeRoute = async (from, to) => {
+    if (!from || !to || from.trim() === '' || to.trim() === '') {
+      setRouteAnalysis(null);
+      setSuggestedPricing(null);
+      return;
+    }
+
+    try {
+      setAnalyzingRoute(true);
+      
+      // Use Google Maps service to analyze the route
+      const analysis = await googleMapsService.analyzeRouteType(from, to);
+      setRouteAnalysis(analysis);
+
+      // Get optimized pricing suggestion
+      const pricing = await googleMapsService.getOptimizedPricing(from, to, {
+        deliveryType: routeForm.serviceType.toLowerCase().replace(' delivery', '').replace(' ', '_'),
+        weight: 1 // Default weight
+      });
+      setSuggestedPricing(pricing);
+
+      // Auto-fill distance and estimated time if not already set
+      setRouteForm(prev => ({
+        ...prev,
+        distance: prev.distance || Math.round(analysis.distanceKm * 10) / 10, // Round to 1 decimal
+        estimatedTime: prev.estimatedTime || analysis.duration.text,
+        price: prev.price || pricing.cost.toString()
+      }));
+
+    } catch (error) {
+      console.error('Error analyzing route:', error);
+      // Don't show error to user, just don't update the analysis
+      setRouteAnalysis(null);
+      setSuggestedPricing(null);
+    } finally {
+      setAnalyzingRoute(false);
+    }
+  };
+
+  // Debounced route analysis
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (routeForm.from && routeForm.to) {
+        analyzeRoute(routeForm.from, routeForm.to);
+      }
+    }, 1000); // Wait 1 second after user stops typing
+
+    return () => clearTimeout(timer);
+  }, [routeForm.from, routeForm.to]);
+
+  const handleSubmitRoute = async (e) => {
+    e.preventDefault();
+    
+    if (!profile?.id) {
+      const shouldCreateProfile = confirm(
+        'You need to create a logistics profile first to add routes. Would you like to set up your logistics profile now?'
+      );
+      if (shouldCreateProfile) {
+        // Navigate to become logistics page
+        window.location.href = '/become-logistics';
+      }
+      return;
+    }
+
+    try {
+      setSubmittingRoute(true);
+      
+      const routeData = {
+        from: routeForm.from.trim(),
+        to: routeForm.to.trim(),
+        distance: parseFloat(routeForm.distance) || 0,
+        price: parseFloat(routeForm.price) || 0,
+        currency: routeForm.currency,
+        estimatedTime: routeForm.estimatedTime.trim(),
+        serviceType: routeForm.serviceType
+      };
+
+      // Validate required fields
+      if (!routeData.from || !routeData.to || !routeData.distance || !routeData.price || !routeData.estimatedTime) {
+        alert('Please fill in all required fields.');
+        return;
+      }
+
+      if (editingRoute) {
+        // Update existing route
+        await firebaseService.logistics.updateRoute(editingRoute.id, routeData);
+        setShowEditRouteForm(false);
+        setEditingRoute(null);
+        alert('Route updated successfully!');
+      } else {
+        // Create new route
+        await firebaseService.logistics.addRoute(profile.id, routeData);
+        setShowAddRouteForm(false);
+        alert('Route added successfully!');
+      }
+      
+      // Reset form
+      setRouteForm({
+        from: '',
+        to: '',
+        distance: '',
+        price: '',
+        currency: '₦ NGN',
+        estimatedTime: '',
+        serviceType: 'Standard Delivery'
+      });
+      
+      // Reload routes
+      await loadRoutes();
+      
+    } catch (error) {
+      console.error('Error saving route:', error);
+      alert('Failed to save route. Please try again.');
+    } finally {
+      setSubmittingRoute(false);
+    }
+  };
+
+  const loadRoutes = async () => {
+    if (profile?.id) {
+      const routesData = await firebaseService.logistics.getRoutesByPartner(profile.id);
+      setRoutes(routesData);
+    }
+  };
+
+  const handleEditRoute = (route) => {
+    setEditingRoute(route);
+    setRouteForm({
+      from: route.from,
+      to: route.to,
+      distance: route.distance.toString(),
+      price: route.price.toString(),
+      currency: route.currency,
+      estimatedTime: route.estimatedTime,
+      serviceType: route.serviceType
+    });
+    setShowEditRouteForm(true);
+  };
+
+  const handleToggleRouteStatus = async (route) => {
+    try {
+      const newStatus = await firebaseService.logistics.toggleRouteStatus(route.id, route.status);
+      alert(`Route ${newStatus === 'active' ? 'activated' : 'deactivated'} successfully!`);
+      await loadRoutes();
+    } catch (error) {
+      console.error('Error toggling route status:', error);
+      alert('Failed to update route status. Please try again.');
+    }
+  };
+
+  const handleDeleteRoute = async (route) => {
+    if (!confirm(`Are you sure you want to delete the route from "${route.from}" to "${route.to}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      await firebaseService.logistics.deleteRoute(route.id);
+      alert('Route deleted successfully!');
+      await loadRoutes();
+    } catch (error) {
+      console.error('Error deleting route:', error);
+      alert('Failed to delete route. Please try again.');
+    }
+  };
+
+  const loadRouteAnalytics = async (timeRange = 30) => {
+    if (!profile?.id) return;
+    
+    try {
+      setLoadingAnalytics(true);
+      const analytics = await firebaseService.logistics.getRouteAnalytics(profile.id, timeRange);
+      setRouteAnalytics(analytics);
+    } catch (error) {
+      console.error('Error loading route analytics:', error);
+    } finally {
+      setLoadingAnalytics(false);
+    }
+  };
+
+  // Helper function to get route type display information
+  const getRouteTypeInfo = (routeType) => {
+    const routeTypes = {
+      intracity_short: {
+        label: 'Intracity (Short)',
+        description: 'Within city, 0-10km',
+        color: 'bg-blue-100 text-blue-800',
+        icon: '🏙️'
+      },
+      intracity_long: {
+        label: 'Intracity (Long)',
+        description: 'Within city, 10-30km',
+        color: 'bg-blue-100 text-blue-800',
+        icon: '🏙️'
+      },
+      intracity_extended: {
+        label: 'Intracity (Extended)',
+        description: 'Within city, 30km+',
+        color: 'bg-blue-100 text-blue-800',
+        icon: '🏙️'
+      },
+      intercity: {
+        label: 'Intercity',
+        description: 'Different cities, same state',
+        color: 'bg-green-100 text-green-800',
+        icon: '🚗'
+      },
+      interstate: {
+        label: 'Interstate',
+        description: 'Different states/countries',
+        color: 'bg-red-100 text-red-800',
+        icon: '✈️'
+      }
+    };
+    
+    return routeTypes[routeType] || {
+      label: 'Unknown',
+      description: 'Route type not determined',
+      color: 'bg-gray-100 text-gray-800',
+      icon: '❓'
+    };
+  };
 
   const earnings = [
     { id: 'ERN-001', month: 'September 2025', deliveries: 45, revenue: '₦225,000', commission: '₦33,750', payout: 'Pending' },
@@ -164,30 +417,66 @@ const Logistics = () => {
                   </div>
                 </div>
                 
-                <form className="p-6 space-y-6">
+                <form onSubmit={handleSubmitRoute} className="p-6 space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">From (Pickup Location)</label>
-                      <input type="text" className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" placeholder="City, Country" />
+                      <input 
+                        type="text" 
+                        value={routeForm.from}
+                        onChange={(e) => handleRouteFormChange('from', e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" 
+                        placeholder="City, Country" 
+                        required
+                      />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">To (Delivery Location)</label>
-                      <input type="text" className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" placeholder="City, Country" />
+                      <input 
+                        type="text" 
+                        value={routeForm.to}
+                        onChange={(e) => handleRouteFormChange('to', e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" 
+                        placeholder="City, Country" 
+                        required
+                      />
                     </div>
                   </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Distance (km)</label>
-                      <input type="number" className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" placeholder="0" />
+                      <input 
+                        type="number" 
+                        value={routeForm.distance}
+                        onChange={(e) => handleRouteFormChange('distance', e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" 
+                        placeholder="0" 
+                        min="0"
+                        step="0.1"
+                        required
+                      />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Delivery Price</label>
-                      <input type="number" className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" placeholder="0.00" />
+                      <input 
+                        type="number" 
+                        value={routeForm.price}
+                        onChange={(e) => handleRouteFormChange('price', e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" 
+                        placeholder="0.00" 
+                        min="0"
+                        step="0.01"
+                        required
+                      />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Currency</label>
-                      <select className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+                      <select 
+                        value={routeForm.currency}
+                        onChange={(e) => handleRouteFormChange('currency', e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                      >
                         <option>₦ NGN</option>
                         <option>₵ GHS</option>
                         <option>KSh KES</option>
@@ -199,27 +488,364 @@ const Logistics = () => {
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Estimated Delivery Time</label>
-                    <input type="text" className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" placeholder="e.g., 1-2 days" />
+                    <input 
+                      type="text" 
+                      value={routeForm.estimatedTime}
+                      onChange={(e) => handleRouteFormChange('estimatedTime', e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" 
+                      placeholder="e.g., 1-2 days" 
+                      required
+                    />
                   </div>
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Service Type</label>
-                    <select className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+                    <select 
+                      value={routeForm.serviceType}
+                      onChange={(e) => handleRouteFormChange('serviceType', e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    >
                       <option>Standard Delivery</option>
                       <option>Express Delivery</option>
                       <option>Same Day Delivery</option>
                       <option>Overnight Delivery</option>
                     </select>
                   </div>
-                  
+
+                  {/* Route Analysis Section */}
+                  {(routeAnalysis || analyzingRoute) && (
+                    <div className="border-t pt-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Route Analysis</h3>
+                      
+                      {analyzingRoute ? (
+                        <div className="flex items-center justify-center py-8">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600 mr-3"></div>
+                          <span className="text-gray-600">Analyzing route...</span>
+                        </div>
+                      ) : routeAnalysis ? (
+                        <div className="space-y-4">
+                          {/* Route Type */}
+                          <div className="bg-gray-50 p-4 rounded-lg">
+                            <div className="flex items-center justify-between mb-2">
+                              <h4 className="font-medium text-gray-900">Route Type</h4>
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getRouteTypeInfo(routeAnalysis.routeType).color}`}>
+                                {getRouteTypeInfo(routeAnalysis.routeType).icon} {getRouteTypeInfo(routeAnalysis.routeType).label}
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-600">{getRouteTypeInfo(routeAnalysis.routeType).description}</p>
+                          </div>
+
+                          {/* Route Details */}
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="bg-blue-50 p-3 rounded-lg">
+                              <p className="text-sm font-medium text-blue-600">Distance</p>
+                              <p className="text-lg font-bold text-blue-900">{routeAnalysis.distance.text}</p>
+                            </div>
+                            <div className="bg-green-50 p-3 rounded-lg">
+                              <p className="text-sm font-medium text-green-600">Duration</p>
+                              <p className="text-lg font-bold text-green-900">{routeAnalysis.duration.text}</p>
+                            </div>
+                            <div className="bg-purple-50 p-3 rounded-lg">
+                              <p className="text-sm font-medium text-purple-600">Route Complexity</p>
+                              <p className="text-lg font-bold text-purple-900">
+                                {routeAnalysis.isSameCity ? 'Same City' : routeAnalysis.isSameState ? 'Same State' : 'Cross-State'}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Suggested Pricing */}
+                          {suggestedPricing && (
+                            <div className="bg-emerald-50 p-4 rounded-lg">
+                              <div className="flex items-center justify-between mb-2">
+                                <h4 className="font-medium text-emerald-900">Suggested Pricing</h4>
+                                <span className="text-lg font-bold text-emerald-900">
+                                  ₦{suggestedPricing.cost.toLocaleString()}
+                                </span>
+                              </div>
+                              <p className="text-sm text-emerald-700 mb-2">
+                                Based on {getRouteTypeInfo(routeAnalysis.routeType).label.toLowerCase()} route analysis
+                              </p>
+                              <div className="grid grid-cols-2 gap-2 text-xs text-emerald-600">
+                                <div>Base Rate: ₦{suggestedPricing.pricing.baseRate}</div>
+                                <div>Per KM: ₦{suggestedPricing.pricing.perKmRate}</div>
+                                <div>Min Cost: ₦{suggestedPricing.pricing.minCost}</div>
+                                <div>Max Cost: ₦{suggestedPricing.pricing.maxCost}</div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setRouteForm(prev => ({
+                                    ...prev,
+                                    price: suggestedPricing.cost.toString()
+                                  }));
+                                }}
+                                className="mt-2 bg-emerald-600 text-white px-3 py-1 rounded text-sm hover:bg-emerald-700"
+                              >
+                                Use Suggested Price
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="text-center py-8">
+                          <p className="text-gray-500">Enter pickup and delivery locations to analyze the route</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div className="flex gap-3 pt-4">
-                    <button type="submit" className="flex-1 bg-emerald-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-emerald-700">
-                      Add Route
+                    <button
+                      type="submit"
+                      disabled={submittingRoute}
+                      className="flex-1 bg-emerald-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {submittingRoute ? 'Adding Route...' : 'Add Route'}
                     </button>
                     <button 
                       type="button" 
                       onClick={() => setShowAddRouteForm(false)}
-                      className="flex-1 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg font-medium hover:bg-gray-50"
+                      disabled={submittingRoute}
+                      className="flex-1 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg font-medium hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* Edit Route Modal */}
+          {showEditRouteForm && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                <div className="p-6 border-b border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-lg font-semibold text-gray-900">Edit Route</h2>
+                    <button 
+                      onClick={() => {
+                        setShowEditRouteForm(false);
+                        setEditingRoute(null);
+                        setRouteForm({
+                          from: '',
+                          to: '',
+                          distance: '',
+                          price: '',
+                          currency: '₦ NGN',
+                          estimatedTime: '',
+                          serviceType: 'Standard Delivery'
+                        });
+                      }}
+                      className="text-gray-400 hover:text-gray-600"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+                
+                <form onSubmit={handleSubmitRoute} className="p-6 space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">From (Pickup Location)</label>
+                      <input 
+                        type="text" 
+                        value={routeForm.from}
+                        onChange={(e) => handleRouteFormChange('from', e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" 
+                        placeholder="City, Country" 
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">To (Delivery Location)</label>
+                      <input 
+                        type="text" 
+                        value={routeForm.to}
+                        onChange={(e) => handleRouteFormChange('to', e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" 
+                        placeholder="City, Country" 
+                        required
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Distance (km)</label>
+                      <input 
+                        type="number" 
+                        value={routeForm.distance}
+                        onChange={(e) => handleRouteFormChange('distance', e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" 
+                        placeholder="0" 
+                        min="0"
+                        step="0.1"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Delivery Price</label>
+                      <input 
+                        type="number" 
+                        value={routeForm.price}
+                        onChange={(e) => handleRouteFormChange('price', e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" 
+                        placeholder="0.00" 
+                        min="0"
+                        step="0.01"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Currency</label>
+                      <select 
+                        value={routeForm.currency}
+                        onChange={(e) => handleRouteFormChange('currency', e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                      >
+                        <option>₦ NGN</option>
+                        <option>₵ GHS</option>
+                        <option>KSh KES</option>
+                        <option>Br ETB</option>
+                        <option>$ USD</option>
+                      </select>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Estimated Delivery Time</label>
+                    <input 
+                      type="text" 
+                      value={routeForm.estimatedTime}
+                      onChange={(e) => handleRouteFormChange('estimatedTime', e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" 
+                      placeholder="e.g., 1-2 days" 
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Service Type</label>
+                    <select 
+                      value={routeForm.serviceType}
+                      onChange={(e) => handleRouteFormChange('serviceType', e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    >
+                      <option>Standard Delivery</option>
+                      <option>Express Delivery</option>
+                      <option>Same Day Delivery</option>
+                      <option>Overnight Delivery</option>
+                    </select>
+                  </div>
+
+                  {/* Route Analysis Section for Edit Form */}
+                  {(routeAnalysis || analyzingRoute) && (
+                    <div className="border-t pt-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Route Analysis</h3>
+                      
+                      {analyzingRoute ? (
+                        <div className="flex items-center justify-center py-8">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600 mr-3"></div>
+                          <span className="text-gray-600">Analyzing route...</span>
+                        </div>
+                      ) : routeAnalysis ? (
+                        <div className="space-y-4">
+                          {/* Route Type */}
+                          <div className="bg-gray-50 p-4 rounded-lg">
+                            <div className="flex items-center justify-between mb-2">
+                              <h4 className="font-medium text-gray-900">Route Type</h4>
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getRouteTypeInfo(routeAnalysis.routeType).color}`}>
+                                {getRouteTypeInfo(routeAnalysis.routeType).icon} {getRouteTypeInfo(routeAnalysis.routeType).label}
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-600">{getRouteTypeInfo(routeAnalysis.routeType).description}</p>
+                          </div>
+
+                          {/* Route Details */}
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="bg-blue-50 p-3 rounded-lg">
+                              <p className="text-sm font-medium text-blue-600">Distance</p>
+                              <p className="text-lg font-bold text-blue-900">{routeAnalysis.distance.text}</p>
+                            </div>
+                            <div className="bg-green-50 p-3 rounded-lg">
+                              <p className="text-sm font-medium text-green-600">Duration</p>
+                              <p className="text-lg font-bold text-green-900">{routeAnalysis.duration.text}</p>
+                            </div>
+                            <div className="bg-purple-50 p-3 rounded-lg">
+                              <p className="text-sm font-medium text-purple-600">Route Complexity</p>
+                              <p className="text-lg font-bold text-purple-900">
+                                {routeAnalysis.isSameCity ? 'Same City' : routeAnalysis.isSameState ? 'Same State' : 'Cross-State'}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Suggested Pricing */}
+                          {suggestedPricing && (
+                            <div className="bg-emerald-50 p-4 rounded-lg">
+                              <div className="flex items-center justify-between mb-2">
+                                <h4 className="font-medium text-emerald-900">Suggested Pricing</h4>
+                                <span className="text-lg font-bold text-emerald-900">
+                                  ₦{suggestedPricing.cost.toLocaleString()}
+                                </span>
+                              </div>
+                              <p className="text-sm text-emerald-700 mb-2">
+                                Based on {getRouteTypeInfo(routeAnalysis.routeType).label.toLowerCase()} route analysis
+                              </p>
+                              <div className="grid grid-cols-2 gap-2 text-xs text-emerald-600">
+                                <div>Base Rate: ₦{suggestedPricing.pricing.baseRate}</div>
+                                <div>Per KM: ₦{suggestedPricing.pricing.perKmRate}</div>
+                                <div>Min Cost: ₦{suggestedPricing.pricing.minCost}</div>
+                                <div>Max Cost: ₦{suggestedPricing.pricing.maxCost}</div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setRouteForm(prev => ({
+                                    ...prev,
+                                    price: suggestedPricing.cost.toString()
+                                  }));
+                                }}
+                                className="mt-2 bg-emerald-600 text-white px-3 py-1 rounded text-sm hover:bg-emerald-700"
+                              >
+                                Use Suggested Price
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="text-center py-8">
+                          <p className="text-gray-500">Enter pickup and delivery locations to analyze the route</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex gap-3 pt-4">
+                    <button
+                      type="submit"
+                      disabled={submittingRoute}
+                      className="flex-1 bg-emerald-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {submittingRoute ? 'Updating Route...' : 'Update Route'}
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        setShowEditRouteForm(false);
+                        setEditingRoute(null);
+                        setRouteForm({
+                          from: '',
+                          to: '',
+                          distance: '',
+                          price: '',
+                          currency: '₦ NGN',
+                          estimatedTime: '',
+                          serviceType: 'Standard Delivery'
+                        });
+                      }}
+                      disabled={submittingRoute}
+                      className="flex-1 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg font-medium hover:bg-gray-50 disabled:opacity-50"
                     >
                       Cancel
                     </button>
@@ -350,12 +976,28 @@ const Logistics = () => {
                       <h2 className="text-lg font-semibold text-gray-900">Quick Actions</h2>
                     </div>
                     <div className="p-6 space-y-3">
-                      <button 
-                        onClick={() => setShowAddRouteForm(true)}
-                        className="w-full bg-emerald-600 text-white px-4 py-3 rounded-lg font-medium hover:bg-emerald-700 transition-colors"
-                      >
-                        Add New Route
-                      </button>
+                      {profile?.id ? (
+                        <button 
+                          onClick={() => setShowAddRouteForm(true)}
+                          className="w-full bg-emerald-600 text-white px-4 py-3 rounded-lg font-medium hover:bg-emerald-700 transition-colors"
+                        >
+                          Add New Route
+                        </button>
+                      ) : (
+                        <button 
+                          onClick={() => {
+                            const shouldCreateProfile = confirm(
+                              'You need to create a logistics profile first to add routes. Would you like to set up your logistics profile now?'
+                            );
+                            if (shouldCreateProfile) {
+                              window.location.href = '/become-logistics';
+                            }
+                          }}
+                          className="w-full bg-gray-400 text-white px-4 py-3 rounded-lg font-medium hover:bg-gray-500 transition-colors"
+                        >
+                          Create Profile First
+                        </button>
+                      )}
                       <button 
                         onClick={() => setActiveTab('deliveries')}
                         className="w-full border border-gray-300 text-gray-700 px-4 py-3 rounded-lg font-medium hover:bg-gray-50 transition-colors"
@@ -451,9 +1093,74 @@ const Logistics = () => {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{delivery.estimatedDelivery}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
                           <div className="flex gap-2">
-                            <button className="text-emerald-600 hover:text-emerald-700 font-medium">Track</button>
-                            <button className="text-blue-600 hover:text-blue-700 font-medium">Update</button>
-                            <button className="text-gray-600 hover:text-gray-700 font-medium">Contact</button>
+                            <button 
+                              onClick={() => window.location.href = `/tracking/${delivery.trackingId || delivery.orderId}`}
+                              className="text-emerald-600 hover:text-emerald-700 font-medium"
+                            >
+                              Track
+                            </button>
+                            <button 
+                              onClick={async () => {
+                                const newStatus = prompt('Enter new status (picked_up, in_transit, out_for_delivery, delivered):');
+                                if (newStatus) {
+                                  try {
+                                    await firebaseService.logistics.updateDeliveryStatus(delivery.id, newStatus, {
+                                      updatedBy: currentUser.uid,
+                                      location: 'Current Location',
+                                      notes: 'Status updated by logistics partner'
+                                    });
+                                    
+                                    // Notify buyer about delivery update
+                                    if (delivery.buyerId) {
+                                      const statusMessages = {
+                                        picked_up: 'Your order has been picked up and is on its way!',
+                                        in_transit: 'Your order is in transit.',
+                                        out_for_delivery: 'Your order is out for delivery today!',
+                                        delivered: 'Your order has been delivered. Please confirm receipt.'
+                                      };
+                                      await firebaseService.notifications.create({
+                                        userId: delivery.buyerId,
+                                        type: 'delivery_update',
+                                        title: 'Delivery Update',
+                                        message: statusMessages[newStatus] || `Delivery status updated to ${newStatus}`,
+                                        orderId: delivery.orderId,
+                                        read: false
+                                      });
+                                    }
+                                    
+                                    // Update order status to match delivery
+                                    if (delivery.orderId) {
+                                      const orderStatusMap = {
+                                        picked_up: 'shipped',
+                                        in_transit: 'in_transit',
+                                        out_for_delivery: 'out_for_delivery',
+                                        delivered: 'delivered'
+                                      };
+                                      if (orderStatusMap[newStatus]) {
+                                        await firebaseService.orders.updateStatus(delivery.orderId, orderStatusMap[newStatus], {
+                                          logisticsUpdatedAt: new Date()
+                                        });
+                                      }
+                                    }
+                                    
+                                    await loadLogisticsData();
+                                    alert('Delivery status updated');
+                                  } catch (err) {
+                                    console.error('Failed to update delivery', err);
+                                    alert('Failed to update delivery status');
+                                  }
+                                }
+                              }}
+                              className="text-blue-600 hover:text-blue-700 font-medium"
+                            >
+                              Update
+                            </button>
+                            <button 
+                              onClick={() => alert('Contact feature coming soon')}
+                              className="text-gray-600 hover:text-gray-700 font-medium"
+                            >
+                              Contact
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -468,12 +1175,28 @@ const Logistics = () => {
             <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-gray-900">Routes & Pricing Management</h2>
-                <button 
-                  onClick={() => setShowAddRouteForm(true)}
-                  className="bg-emerald-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-emerald-700"
-                >
-                  Add New Route
-                </button>
+                {profile?.id ? (
+                  <button 
+                    onClick={() => setShowAddRouteForm(true)}
+                    className="bg-emerald-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-emerald-700"
+                  >
+                    Add New Route
+                  </button>
+                ) : (
+                  <button 
+                    onClick={() => {
+                      const shouldCreateProfile = confirm(
+                        'You need to create a logistics profile first to add routes. Would you like to set up your logistics profile now?'
+                      );
+                      if (shouldCreateProfile) {
+                        window.location.href = '/become-logistics';
+                      }
+                    }}
+                    className="bg-gray-400 text-white px-4 py-2 rounded-lg font-medium hover:bg-gray-500"
+                  >
+                    Create Profile First
+                  </button>
+                )}
               </div>
 
               <div className="bg-white rounded-xl border">
@@ -500,39 +1223,241 @@ const Logistics = () => {
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Distance</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Est. Time</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Route Type</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {routes.map((route) => (
-                        <tr key={route.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{route.id}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{route.from}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{route.to}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{route.distance}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{route.price}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{route.estimatedTime}</td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                              route.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                            }`}>
-                              {route.status}
-                            </span>
+                      {routes.length === 0 ? (
+                        <tr>
+                          <td colSpan="8" className="px-6 py-8 text-center text-gray-500">
+                            {profile?.id ? (
+                              <>No routes found. Click "Add New Route" to create your first route.</>
+                            ) : (
+                              <>
+                                No routes found. You need to create a logistics profile first.
+                                <br />
+                                <button 
+                                  onClick={() => window.location.href = '/become-logistics'}
+                                  className="mt-2 text-emerald-600 hover:text-emerald-700 underline"
+                                >
+                                  Create your logistics profile here
+                                </button>
+                              </>
+                            )}
                           </td>
+                        </tr>
+                      ) : (
+                        routes.map((route) => (
+                          <tr key={route.id} className="hover:bg-gray-50">
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                              {route.id.substring(0, 8)}...
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{route.from}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{route.to}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{route.distanceDisplay}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{route.priceDisplay}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{route.estimatedTime}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              {route.routeType ? (
+                                <span className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${getRouteTypeInfo(route.routeType).color}`}>
+                                  {getRouteTypeInfo(route.routeType).icon} {getRouteTypeInfo(route.routeType).label}
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
+                                  ❓ Unknown
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                route.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                              }`}>
+                                {route.status}
+                              </span>
+                            </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm">
                             <div className="flex gap-2">
-                              <button className="text-emerald-600 hover:text-emerald-700 font-medium">Edit</button>
-                              <button className="text-blue-600 hover:text-blue-700 font-medium">
-                                {route.status === 'Active' ? 'Deactivate' : 'Activate'}
+                              <button 
+                                onClick={() => handleEditRoute(route)}
+                                className="text-emerald-600 hover:text-emerald-700 font-medium"
+                              >
+                                Edit
+                              </button>
+                              <button 
+                                onClick={() => handleToggleRouteStatus(route)}
+                                className={`font-medium ${
+                                  route.status === 'active' 
+                                    ? 'text-orange-600 hover:text-orange-700' 
+                                    : 'text-blue-600 hover:text-blue-700'
+                                }`}
+                              >
+                                {route.status === 'active' ? 'Deactivate' : 'Activate'}
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteRoute(route)}
+                                className="text-red-600 hover:text-red-700 font-medium"
+                              >
+                                Delete
                               </button>
                             </div>
                           </td>
                         </tr>
-                      ))}
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
+              </div>
+
+              {/* Route Analytics Section */}
+              <div className="mt-8 bg-white rounded-xl border">
+                <div className="p-6 border-b border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-gray-900">Route Analytics</h3>
+                    <div className="flex gap-3">
+                      <select 
+                        onChange={(e) => loadRouteAnalytics(parseInt(e.target.value))}
+                        className="text-sm border rounded-lg px-3 py-1"
+                        defaultValue="30"
+                      >
+                        <option value="7">Last 7 days</option>
+                        <option value="30">Last 30 days</option>
+                        <option value="90">Last 90 days</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                
+                {loadingAnalytics ? (
+                  <div className="p-8 text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600 mx-auto mb-4"></div>
+                    <p className="text-gray-600">Loading analytics...</p>
+                  </div>
+                ) : routeAnalytics ? (
+                  <div className="p-6">
+                    {/* Analytics Overview */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                      <div className="bg-blue-50 p-4 rounded-lg">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-blue-600">Total Routes</p>
+                            <p className="text-2xl font-bold text-blue-900">{routeAnalytics.totalRoutes}</p>
+                          </div>
+                          <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                            <span className="text-blue-600 text-xl">🗺️</span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="bg-green-50 p-4 rounded-lg">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-green-600">Active Routes</p>
+                            <p className="text-2xl font-bold text-green-900">{routeAnalytics.activeRoutes}</p>
+                          </div>
+                          <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                            <span className="text-green-600 text-xl">✅</span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="bg-purple-50 p-4 rounded-lg">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-purple-600">Total Deliveries</p>
+                            <p className="text-2xl font-bold text-purple-900">{routeAnalytics.totalDeliveries}</p>
+                          </div>
+                          <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                            <span className="text-purple-600 text-xl">📦</span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="bg-emerald-50 p-4 rounded-lg">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-emerald-600">Total Revenue</p>
+                            <p className="text-2xl font-bold text-emerald-900">
+                              ₦{routeAnalytics.totalRevenue.toLocaleString()}
+                            </p>
+                          </div>
+                          <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
+                            <span className="text-emerald-600 text-xl">💰</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Top Routes */}
+                    <div className="mb-8">
+                      <h4 className="text-lg font-semibold text-gray-900 mb-4">Top Performing Routes</h4>
+                      <div className="space-y-3">
+                        {routeAnalytics.topRoutes.map((route, index) => (
+                          <div key={route.routeId} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                            <div className="flex items-center gap-4">
+                              <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center">
+                                <span className="text-emerald-600 font-bold text-sm">#{index + 1}</span>
+                              </div>
+                              <div>
+                                <p className="font-medium text-gray-900">{route.from} → {route.to}</p>
+                                <p className="text-sm text-gray-600">{route.deliveries} deliveries</p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-semibold text-gray-900">₦{route.revenue.toLocaleString()}</p>
+                              <p className="text-sm text-gray-600">{route.completionRate.toFixed(1)}% completion</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Route Performance Table */}
+                    <div>
+                      <h4 className="text-lg font-semibold text-gray-900 mb-4">Route Performance Details</h4>
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Route</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Deliveries</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Completion Rate</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Revenue</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Avg. Time</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200">
+                            {routeAnalytics.routePerformance.map((route) => (
+                              <tr key={route.routeId} className="hover:bg-gray-50">
+                                <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                                  {route.from} → {route.to}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                    route.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                                  }`}>
+                                    {route.status}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-sm text-gray-900">{route.totalDeliveries}</td>
+                                <td className="px-4 py-3 text-sm text-gray-900">{route.completionRate.toFixed(1)}%</td>
+                                <td className="px-4 py-3 text-sm font-medium text-gray-900">₦{route.revenue.toLocaleString()}</td>
+                                <td className="px-4 py-3 text-sm text-gray-900">{route.averageDeliveryTime}h</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-8 text-center text-gray-500">
+                    <p>No analytics data available. Create some routes and complete deliveries to see analytics.</p>
+                  </div>
+                )}
               </div>
             </div>
           )}

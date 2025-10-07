@@ -841,11 +841,73 @@ const Vendor = () => {
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
                           <div className="flex gap-2">
                             <button onClick={() => openOrderDetails(order)} className="text-emerald-600 hover:text-emerald-700 font-medium">View</button>
-                            {order.status === 'pending_wallet_funding' && (
-                            <>
-                              <button onClick={() => openShipModal(order)} className="text-blue-600 hover:text-blue-700 font-medium">Ship</button>
-                              <button onClick={() => openLogisticsModal(order)} className="text-purple-600 hover:text-purple-700 font-medium">Assign Logistics</button>
-                            </>
+                            {order.status === 'escrow_funded' && (
+                              <button 
+                                onClick={async () => {
+                                  try {
+                                    await firebaseService.orders.updateStatus(order.id, 'processing', { vendorStartedAt: new Date() });
+                                    // Notify buyer
+                                    await firebaseService.notifications.create({
+                                      userId: order.buyerId,
+                                      type: 'order_processing',
+                                      title: 'Order is Being Processed',
+                                      message: `Your order #${order.id.slice(-8)} is now being processed by the vendor.`,
+                                      orderId: order.id,
+                                      read: false
+                                    });
+                                    await fetchVendorData();
+                                    alert('Order moved to Processing');
+                                  } catch (err) {
+                                    console.error('Failed to update order', err);
+                                    alert('Failed to update order status');
+                                  }
+                                }}
+                                className="text-blue-600 hover:text-blue-700 font-medium"
+                              >
+                                Start Processing
+                              </button>
+                            )}
+                            {order.status === 'processing' && (
+                              <button 
+                                onClick={async () => {
+                                  try {
+                                    await firebaseService.orders.updateStatus(order.id, 'ready_for_shipment', { readyForShipmentAt: new Date() });
+                                    // Notify buyer and logistics
+                                    await firebaseService.notifications.create({
+                                      userId: order.buyerId,
+                                      type: 'order_ready',
+                                      title: 'Order Ready for Shipment',
+                                      message: `Your order #${order.id.slice(-8)} is ready for pickup by logistics.`,
+                                      orderId: order.id,
+                                      read: false
+                                    });
+                                    if (order.logisticsCompanyId) {
+                                      await firebaseService.notifications.create({
+                                        userId: order.logisticsCompanyId,
+                                        type: 'pickup_required',
+                                        title: 'Pickup Required',
+                                        message: `Order #${order.id.slice(-8)} is ready for pickup from vendor.`,
+                                        orderId: order.id,
+                                        read: false
+                                      });
+                                    }
+                                    await fetchVendorData();
+                                    alert('Order ready for shipment');
+                                  } catch (err) {
+                                    console.error('Failed to update order', err);
+                                    alert('Failed to update order status');
+                                  }
+                                }}
+                                className="text-purple-600 hover:text-purple-700 font-medium"
+                              >
+                                Mark Ready
+                              </button>
+                            )}
+                            {order.status === 'ready_for_shipment' && (
+                              <>
+                                <button onClick={() => openShipModal(order)} className="text-blue-600 hover:text-blue-700 font-medium">Ship</button>
+                                <button onClick={() => openLogisticsModal(order)} className="text-purple-600 hover:text-purple-700 font-medium">Assign Logistics</button>
+                              </>
                             )}
                             {order.status === 'shipped' && (
                               <button 
