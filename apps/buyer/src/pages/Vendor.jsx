@@ -10,6 +10,7 @@ import PayoutRequestModal from '../components/PayoutRequestModal';
 import ProductEditorModal from '../components/ProductEditorModal';
 import VendorProfileModal from '../components/VendorProfileModal';
 import LogisticsAssignmentModal from '../components/LogisticsAssignmentModal';
+import VendorStoreManager from '../components/VendorStoreManager';
 
 const Vendor = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -502,6 +503,12 @@ const Vendor = () => {
                 🛍️ Products
               </button>
               <button 
+                onClick={() => setActiveTab('store')}
+                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'store' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+              >
+                🏪 My Store
+              </button>
+              <button 
                 onClick={() => setActiveTab('logistics')}
                 className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'logistics' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
               >
@@ -912,6 +919,10 @@ const Vendor = () => {
             </div>
           )}
 
+          {activeTab === 'store' && (
+            <VendorStoreManager />
+          )}
+
           {activeTab === 'products' && Array.isArray(products) && (
             <div className="space-y-6">
               <div className="flex items-center justify-between">
@@ -1029,7 +1040,17 @@ const Vendor = () => {
                           <td className="px-6 py-4 whitespace-nowrap text-sm">
                               <div className="flex gap-2">
                               <button onClick={() => openEditProduct(product)} className="text-emerald-600 hover:text-emerald-700 font-medium">Edit</button>
-                              <button className="text-blue-600 hover:text-blue-700 font-medium">View</button>
+                              <button 
+                                onClick={() => {
+                                  const productLink = `${window.location.origin}/products/${product.id}`;
+                                  navigator.clipboard.writeText(productLink);
+                                  alert('Product link copied to clipboard!');
+                                }}
+                                className="text-blue-600 hover:text-blue-700 font-medium" 
+                                title="Copy product link"
+                              >
+                                Share
+                              </button>
                               <button onClick={() => setConfirmDelete({ open: true, product })} className="text-red-600 hover:text-red-700 font-medium" disabled={deletingProductId === product.id}>
                                 {deletingProductId === product.id ? 'Deleting…' : 'Delete'}
                               </button>

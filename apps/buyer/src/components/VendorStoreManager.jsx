@@ -1,0 +1,331 @@
+import { useState, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import { storeService } from '../services/trackingService';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { db } from '../firebase/config';
+
+const VendorStoreManager = () => {
+  const { currentUser, userProfile } = useAuth();
+  const [store, setStore] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [copiedLink, setCopiedLink] = useState('');
+  const [storeSettings, setStoreSettings] = useState({
+    businessName: '',
+    storeDescription: '',
+    storeSlug: '',
+    contactEmail: '',
+    contactPhone: '',
+    contactAddress: '',
+    showContactInfo: true,
+  });
+
+  useEffect(() => {
+    if (userProfile?.vendorProfile) {
+      const slug = userProfile.vendorProfile.storeSlug || 
+                    userProfile.vendorProfile.storeName?.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
+      
+      setStoreSettings({
+        businessName: userProfile.vendorProfile.businessName || userProfile.vendorProfile.storeName || '',
+        storeDescription: userProfile.vendorProfile.storeDescription || '',
+        storeSlug: slug || '',
+        contactEmail: userProfile.email || '',
+        contactPhone: userProfile.vendorProfile.businessPhone || '',
+        contactAddress: userProfile.vendorProfile.businessAddress || '',
+        showContactInfo: true,
+      });
+      
+      fetchOrCreateStore(slug);
+    }
+  }, [userProfile]);
+
+  const fetchOrCreateStore = async (slug) => {
+    if (!slug || !currentUser) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      // Try to get existing store by slug
+      const existingStore = await storeService.getStoreByTrackingId(slug);
+      
+      if (existingStore) {
+        setStore(existingStore);
+      } else {
+        // Create store if it doesn't exist
+        const newStore = await storeService.createStore(currentUser.uid, {
+          name: storeSettings.businessName || 'My Store',
+          description: storeSettings.storeDescription || 'Welcome to my store',
+          category: userProfile?.vendorProfile?.businessType || 'general',
+          contactInfo: {
+            email: storeSettings.contactEmail,
+            phone: storeSettings.contactPhone,
+            address: storeSettings.contactAddress,
+          },
+          settings: {
+            isPublic: true,
+            allowReviews: true,
+            showContactInfo: storeSettings.showContactInfo,
+          }
+        });
+        setStore(newStore);
+      }
+    } catch (error) {
+      console.error('Error fetching/creating store:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveSettings = async () => {
+    if (!userProfile || !currentUser) return;
+
+    try {
+      setSaving(true);
+      
+      // Update vendor profile with new settings
+      const userDocRef = doc(db, 'users', currentUser.uid);
+      await updateDoc(userDocRef, {
+        'vendorProfile.storeName': storeSettings.businessName,
+        'vendorProfile.storeDescription': storeSettings.storeDescription,
+        'vendorProfile.storeSlug': storeSettings.storeSlug,
+        'vendorProfile.businessPhone': storeSettings.contactPhone,
+        'vendorProfile.businessAddress': storeSettings.contactAddress,
+        updatedAt: new Date()
+      });
+
+      alert('Store settings updated successfully!');
+    } catch (error) {
+      console.error('Error updating store settings:', error);
+      alert('Failed to update store settings. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const copyToClipboard = (text, label) => {
+    navigator.clipboard.writeText(text);
+    setCopiedLink(label);
+    setTimeout(() => setCopiedLink(''), 2000);
+  };
+
+  const getStoreLink = () => {
+    return `${window.location.origin}/store/${storeSettings.storeSlug}`;
+  };
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-xl border p-6">
+        <p className="text-gray-600">Loading store information...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Store Links Card */}
+      <div className="bg-gradient-to-r from-emerald-50 to-blue-50 rounded-xl border border-emerald-200 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900 mb-1">Your Store Link</h2>
+            <p className="text-sm text-gray-600">Share this link with customers to showcase your products</p>
+          </div>
+          <div className="text-4xl">🏪</div>
+        </div>
+
+        <div className="bg-white rounded-lg p-4 mb-4">
+          <div className="flex items-center justify-between">
+            <div className="flex-1 mr-4">
+              <p className="text-sm text-gray-600 mb-1">Store URL</p>
+              <p className="font-mono text-blue-600 break-all">{getStoreLink()}</p>
+            </div>
+            <button
+              onClick={() => copyToClipboard(getStoreLink(), 'store')}
+              className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors whitespace-nowrap"
+            >
+              {copiedLink === 'store' ? '✓ Copied!' : 'Copy Link'}
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <a
+            href={getStoreLink()}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="bg-white border border-emerald-200 rounded-lg p-4 hover:bg-emerald-50 transition-colors text-center"
+          >
+            <div className="text-2xl mb-2">👁️</div>
+            <p className="font-medium text-gray-900">Preview Store</p>
+            <p className="text-xs text-gray-600 mt-1">See how customers view your store</p>
+          </a>
+          
+          <button
+            onClick={() => {
+              const shareText = `Check out my store on Ojawa: ${getStoreLink()}`;
+              if (navigator.share) {
+                navigator.share({ title: storeSettings.businessName, text: shareText, url: getStoreLink() });
+              } else {
+                copyToClipboard(shareText, 'share');
+              }
+            }}
+            className="bg-white border border-blue-200 rounded-lg p-4 hover:bg-blue-50 transition-colors"
+          >
+            <div className="text-2xl mb-2">📱</div>
+            <p className="font-medium text-gray-900">Share Store</p>
+            <p className="text-xs text-gray-600 mt-1">Share on social media</p>
+          </button>
+        </div>
+      </div>
+
+      {/* Store Settings Card */}
+      <div className="bg-white rounded-xl border">
+        <div className="p-6 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-900">Store Settings</h2>
+          <p className="text-sm text-gray-600 mt-1">Customize how your store appears to customers</p>
+        </div>
+
+        <div className="p-6 space-y-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Business Name
+            </label>
+            <input
+              type="text"
+              value={storeSettings.businessName}
+              onChange={(e) => setStoreSettings({ ...storeSettings, businessName: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              placeholder="Your Business Name"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Store Description
+            </label>
+            <textarea
+              value={storeSettings.storeDescription}
+              onChange={(e) => setStoreSettings({ ...storeSettings, storeDescription: e.target.value })}
+              rows={3}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              placeholder="Tell customers about your store..."
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Store URL Slug
+            </label>
+            <div className="flex items-center">
+              <span className="text-gray-600 mr-2">{window.location.origin}/store/</span>
+              <input
+                type="text"
+                value={storeSettings.storeSlug}
+                onChange={(e) => {
+                  const slug = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '');
+                  setStoreSettings({ ...storeSettings, storeSlug: slug });
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                placeholder="your-store-name"
+              />
+            </div>
+            <p className="text-xs text-gray-500 mt-1">Only lowercase letters, numbers, and hyphens</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Contact Email
+              </label>
+              <input
+                type="email"
+                value={storeSettings.contactEmail}
+                onChange={(e) => setStoreSettings({ ...storeSettings, contactEmail: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                placeholder="store@example.com"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Contact Phone
+              </label>
+              <input
+                type="tel"
+                value={storeSettings.contactPhone}
+                onChange={(e) => setStoreSettings({ ...storeSettings, contactPhone: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                placeholder="+234 xxx xxx xxxx"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Business Address
+            </label>
+            <input
+              type="text"
+              value={storeSettings.contactAddress}
+              onChange={(e) => setStoreSettings({ ...storeSettings, contactAddress: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              placeholder="Your business address"
+            />
+          </div>
+
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="showContactInfo"
+              checked={storeSettings.showContactInfo}
+              onChange={(e) => setStoreSettings({ ...storeSettings, showContactInfo: e.target.checked })}
+              className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
+            />
+            <label htmlFor="showContactInfo" className="ml-2 text-sm text-gray-700">
+              Show contact information on public store page
+            </label>
+          </div>
+
+          <div className="pt-4 border-t border-gray-200">
+            <button
+              onClick={handleSaveSettings}
+              disabled={saving}
+              className="w-full bg-emerald-600 text-white px-6 py-3 rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+            >
+              {saving ? 'Saving...' : 'Save Store Settings'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Store Stats */}
+      {store && (
+        <div className="bg-white rounded-xl border p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Store Statistics</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="text-center p-4 bg-blue-50 rounded-lg">
+              <p className="text-2xl font-bold text-blue-600">{store.totalProducts || 0}</p>
+              <p className="text-sm text-gray-600">Products</p>
+            </div>
+            <div className="text-center p-4 bg-green-50 rounded-lg">
+              <p className="text-2xl font-bold text-green-600">{store.totalOrders || 0}</p>
+              <p className="text-sm text-gray-600">Orders</p>
+            </div>
+            <div className="text-center p-4 bg-purple-50 rounded-lg">
+              <p className="text-2xl font-bold text-purple-600">{store.rating?.toFixed(1) || 0}</p>
+              <p className="text-sm text-gray-600">Rating</p>
+            </div>
+            <div className="text-center p-4 bg-orange-50 rounded-lg">
+              <p className="text-2xl font-bold text-orange-600">{store.reviewCount || 0}</p>
+              <p className="text-sm text-gray-600">Reviews</p>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default VendorStoreManager;
+
