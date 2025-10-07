@@ -6,6 +6,7 @@ import OrderTimeline from '../components/OrderTimeline'
 import { LoadingSpinner, ProductListSkeleton } from '../components/LoadingStates'
 import ComponentErrorBoundary from '../components/ComponentErrorBoundary'
 import OrderSatisfactionModal from '../components/OrderSatisfactionModal'
+import ReviewModal from '../components/ReviewModal'
 import OrderTransactionModal from '../components/OrderTransactionModal'
 import DeliveryTrackingModal from '../components/DeliveryTrackingModal'
 import AdvancedDisputeModal from '../components/AdvancedDisputeModal'
@@ -26,6 +27,8 @@ const EnhancedBuyer = () => {
   const [topUpAmount, setTopUpAmount] = useState('')
   const [isSatisfactionModalOpen, setIsSatisfactionModalOpen] = useState(false)
   const [selectedOrderForSatisfaction, setSelectedOrderForSatisfaction] = useState(null)
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false)
+  const [selectedOrderForReview, setSelectedOrderForReview] = useState(null)
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false)
   const [selectedOrderForTransaction, setSelectedOrderForTransaction] = useState(null)
   const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false)
@@ -131,6 +134,65 @@ const EnhancedBuyer = () => {
   }
 
   // Handle satisfaction confirmation
+  const handleReviewSubmit = async (reviewData) => {
+    try {
+      const { orderId, productRating, vendorRating, reviewText, vendorReviewText, items } = reviewData
+      
+      // Submit product reviews for each item
+      for (const item of items) {
+        await firebaseService.reviews.create({
+          productId: item.productId,
+          orderId,
+          userId: currentUser.uid,
+          userName: currentUser.displayName || 'Anonymous',
+          rating: productRating,
+          reviewText,
+          verified: true, // Verified purchase
+          createdAt: new Date()
+        })
+      }
+      
+      // Submit vendor review
+      if (selectedOrderForReview?.vendorId) {
+        await firebaseService.reviews.create({
+          vendorId: selectedOrderForReview.vendorId,
+          orderId,
+          userId: currentUser.uid,
+          userName: currentUser.displayName || 'Anonymous',
+          rating: vendorRating,
+          reviewText: vendorReviewText,
+          verified: true,
+          createdAt: new Date()
+        })
+        
+        // Update vendor's average rating
+        await updateVendorRating(selectedOrderForReview.vendorId)
+      }
+      
+      errorLogger.info('Review submitted successfully', { orderId, productRating, vendorRating })
+      alert('Thank you for your review!')
+    } catch (error) {
+      errorLogger.error('Failed to submit review', error)
+      alert('Failed to submit review. Please try again later.')
+    }
+  }
+
+  const updateVendorRating = async (vendorId) => {
+    try {
+      // Calculate average vendor rating from all reviews
+      const vendorReviews = await firebaseService.reviews.getByVendor(vendorId)
+      if (vendorReviews.length > 0) {
+        const avgRating = vendorReviews.reduce((sum, r) => sum + r.rating, 0) / vendorReviews.length
+        await firebaseService.users.update(vendorId, {
+          'vendorProfile.rating': avgRating,
+          'vendorProfile.reviewCount': vendorReviews.length
+        })
+      }
+    } catch (error) {
+      console.error('Failed to update vendor rating', error)
+    }
+  }
+
   const handleSatisfactionConfirmed = async (satisfactionData) => {
     try {
       if (!selectedOrderForSatisfaction) return
@@ -169,8 +231,15 @@ const EnhancedBuyer = () => {
         })
       }
       
-      // Close modal and refresh
+      // Close satisfaction modal and open review modal
       setIsSatisfactionModalOpen(false)
+      
+      // Open review modal for satisfied customers
+      if (isSatisfied) {
+        setSelectedOrderForReview(selectedOrderForSatisfaction)
+        setIsReviewModalOpen(true)
+      }
+      
       setSelectedOrderForSatisfaction(null)
       refreshOrders()
     } catch (error) {
@@ -742,10 +811,24 @@ const EnhancedBuyer = () => {
         {isSatisfactionModalOpen && selectedOrderForSatisfaction && (
           <OrderSatisfactionModal
             order={selectedOrderForSatisfaction}
+            isOpen={isSatisfactionModalOpen}
             onSatisfactionConfirmed={handleSatisfactionConfirmed}
             onClose={() => {
               setIsSatisfactionModalOpen(false)
               setSelectedOrderForSatisfaction(null)
+            }}
+          />
+        )}
+
+        {/* Review Modal */}
+        {isReviewModalOpen && selectedOrderForReview && (
+          <ReviewModal
+            open={isReviewModalOpen}
+            order={selectedOrderForReview}
+            onSubmit={handleReviewSubmit}
+            onClose={() => {
+              setIsReviewModalOpen(false)
+              setSelectedOrderForReview(null)
             }}
           />
         )}

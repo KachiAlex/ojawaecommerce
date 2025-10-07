@@ -379,6 +379,12 @@ export const orderService = {
   // Paged orders for a user
   async getByUserPaged({ userId, userType = 'buyer', pageSize = 10, cursor = null }) {
     try {
+      // Validate userId before making query
+      if (!userId) {
+        console.warn('getByUserPaged called with undefined userId');
+        return { items: [], nextCursor: null };
+      }
+      
       const field = userType === 'buyer' ? 'buyerId' : 'vendorId';
       let q = query(
         collection(db, 'orders'),
@@ -996,6 +1002,8 @@ export async function getOrderTransactions(orderId, userId) {
 // LOGISTICS OPERATIONS
 // ===============================
 
+import googleMapsService from './googleMapsService';
+
 export const logisticsService = {
   // Create logistics company
   async createCompany(companyData, ownerId) {
@@ -1061,6 +1069,263 @@ export const logisticsService = {
       console.error('Error fetching available routes:', error);
       throw error;
     }
+  },
+
+  // Get routes by logistics partner
+  async getRoutesByPartner(partnerId) {
+    try {
+      const q = query(
+        collection(db, 'logistics_routes'),
+        where('companyId', '==', partnerId),
+        orderBy('createdAt', 'desc')
+      );
+      
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        // Format price display
+        priceDisplay: `${doc.data().currency} ${Number(doc.data().price).toLocaleString()}`,
+        distanceDisplay: `${doc.data().distance} km`
+      }));
+    } catch (error) {
+      console.error('Error fetching routes by partner:', error);
+      throw error;
+    }
+  },
+
+  // Update route
+  async updateRoute(routeId, updateData) {
+    try {
+      const routeRef = doc(db, 'logistics_routes', routeId);
+      await updateDoc(routeRef, {
+        ...updateData,
+        updatedAt: serverTimestamp()
+      });
+      return true;
+    } catch (error) {
+      console.error('Error updating route:', error);
+      throw error;
+    }
+  },
+
+  // Toggle route status (activate/deactivate)
+  async toggleRouteStatus(routeId, currentStatus) {
+    try {
+      const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
+      const routeRef = doc(db, 'logistics_routes', routeId);
+      await updateDoc(routeRef, {
+        status: newStatus,
+        updatedAt: serverTimestamp()
+      });
+      return newStatus;
+    } catch (error) {
+      console.error('Error toggling route status:', error);
+      throw error;
+    }
+  },
+
+  // Delete route
+  async deleteRoute(routeId) {
+    try {
+      const routeRef = doc(db, 'logistics_routes', routeId);
+      await deleteDoc(routeRef);
+      return true;
+    } catch (error) {
+      console.error('Error deleting route:', error);
+      throw error;
+    }
+  },
+
+  // Get route analytics
+  async getRouteAnalytics(partnerId, timeRange = 30) {
+    try {
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - timeRange);
+
+      // Get all routes for the partner
+      const routesQuery = query(
+        collection(db, 'logistics_routes'),
+        where('companyId', '==', partnerId)
+      );
+      const routesSnapshot = await getDocs(routesQuery);
+      const routes = routesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+      // Get deliveries for these routes with date range filters (requires index)
+      const deliveriesQuery = query(
+        collection(db, 'deliveries'),
+        where('logisticsPartnerId', '==', partnerId),
+        where('createdAt', '>=', startDate),
+        where('createdAt', '<=', endDate)
+      );
+      const deliveriesSnapshot = await getDocs(deliveriesQuery);
+      const deliveries = deliveriesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+      // Calculate analytics
+      const analytics = {
+        totalRoutes: routes.length,
+        activeRoutes: routes.filter(route => route.status === 'active').length,
+        inactiveRoutes: routes.filter(route => route.status === 'inactive').length,
+        totalDeliveries: deliveries.length,
+        completedDeliveries: deliveries.filter(d => d.status === 'delivered').length,
+        pendingDeliveries: deliveries.filter(d => d.status === 'pending_pickup').length,
+        inTransitDeliveries: deliveries.filter(d => d.status === 'in_transit').length,
+        totalRevenue: deliveries.reduce((sum, d) => sum + (d.price || 0), 0),
+        averageDeliveryTime: this.calculateAverageDeliveryTime(deliveries),
+        topRoutes: this.getTopRoutes(routes, deliveries),
+        routePerformance: this.getRoutePerformance(routes, deliveries),
+        timeRange: timeRange
+      };
+
+      return analytics;
+    } catch (error) {
+      // If index doesn't exist yet, try without date range and filter client-side
+      if (error.code === 'failed-precondition' && error.message.includes('index')) {
+        console.warn('Route analytics index not ready yet, fetching without date filters and filtering client-side');
+        try {
+          const endDate = new Date();
+          const startDate = new Date();
+          startDate.setDate(startDate.getDate() - timeRange);
+
+          // Get all routes for the partner
+          const routesQuery = query(
+            collection(db, 'logistics_routes'),
+            where('companyId', '==', partnerId)
+          );
+          const routesSnapshot = await getDocs(routesQuery);
+          const routes = routesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+          // Get all deliveries for the partner (without date filters)
+          const deliveriesQuery = query(
+            collection(db, 'deliveries'),
+            where('logisticsPartnerId', '==', partnerId)
+          );
+          const deliveriesSnapshot = await getDocs(deliveriesQuery);
+          const allDeliveries = deliveriesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+          // Filter by date range client-side
+          const deliveries = allDeliveries.filter(delivery => {
+            const createdAt = delivery.createdAt?.toDate?.() || new Date(delivery.createdAt || 0);
+            return createdAt >= startDate && createdAt <= endDate;
+          });
+
+          // Calculate analytics
+          const analytics = {
+            totalRoutes: routes.length,
+            activeRoutes: routes.filter(route => route.status === 'active').length,
+            inactiveRoutes: routes.filter(route => route.status === 'inactive').length,
+            totalDeliveries: deliveries.length,
+            completedDeliveries: deliveries.filter(d => d.status === 'delivered').length,
+            pendingDeliveries: deliveries.filter(d => d.status === 'pending_pickup').length,
+            inTransitDeliveries: deliveries.filter(d => d.status === 'in_transit').length,
+            totalRevenue: deliveries.reduce((sum, d) => sum + (d.price || 0), 0),
+            averageDeliveryTime: this.calculateAverageDeliveryTime(deliveries),
+            topRoutes: this.getTopRoutes(routes, deliveries),
+            routePerformance: this.getRoutePerformance(routes, deliveries),
+            timeRange: timeRange
+          };
+
+          return analytics;
+        } catch (fallbackError) {
+          console.error('Error getting route analytics (fallback):', fallbackError);
+          // Return empty analytics instead of throwing
+          return {
+            totalRoutes: 0,
+            activeRoutes: 0,
+            inactiveRoutes: 0,
+            totalDeliveries: 0,
+            completedDeliveries: 0,
+            pendingDeliveries: 0,
+            inTransitDeliveries: 0,
+            totalRevenue: 0,
+            averageDeliveryTime: 0,
+            topRoutes: [],
+            routePerformance: [],
+            timeRange: timeRange
+          };
+        }
+      }
+      console.error('Error getting route analytics:', error);
+      throw error;
+    }
+  },
+
+  // Helper: Calculate average delivery time
+  calculateAverageDeliveryTime(deliveries) {
+    const completedDeliveries = deliveries.filter(d => 
+      d.status === 'delivered' && d.deliveredAt && d.pickedUpAt
+    );
+
+    if (completedDeliveries.length === 0) return 0;
+
+    const totalTime = completedDeliveries.reduce((sum, delivery) => {
+      const pickupTime = delivery.pickedUpAt?.toDate?.() || new Date(delivery.pickedUpAt);
+      const deliveryTime = delivery.deliveredAt?.toDate?.() || new Date(delivery.deliveredAt);
+      return sum + (deliveryTime - pickupTime);
+    }, 0);
+
+    return Math.round(totalTime / completedDeliveries.length / (1000 * 60 * 60)); // Hours
+  },
+
+  // Helper: Get top performing routes
+  getTopRoutes(routes, deliveries) {
+    const routeStats = routes.map(route => {
+      const routeDeliveries = deliveries.filter(d => d.routeId === route.id);
+      return {
+        routeId: route.id,
+        from: route.from,
+        to: route.to,
+        deliveries: routeDeliveries.length,
+        revenue: routeDeliveries.reduce((sum, d) => sum + (d.price || 0), 0),
+        completionRate: routeDeliveries.length > 0 
+          ? (routeDeliveries.filter(d => d.status === 'delivered').length / routeDeliveries.length) * 100
+          : 0
+      };
+    });
+
+    return routeStats
+      .sort((a, b) => b.deliveries - a.deliveries)
+      .slice(0, 5);
+  },
+
+  // Helper: Get route performance metrics
+  getRoutePerformance(routes, deliveries) {
+    return routes.map(route => {
+      const routeDeliveries = deliveries.filter(d => d.routeId === route.id);
+      const completedDeliveries = routeDeliveries.filter(d => d.status === 'delivered');
+      
+      return {
+        routeId: route.id,
+        from: route.from,
+        to: route.to,
+        status: route.status,
+        totalDeliveries: routeDeliveries.length,
+        completedDeliveries: completedDeliveries.length,
+        completionRate: routeDeliveries.length > 0 
+          ? (completedDeliveries.length / routeDeliveries.length) * 100 
+          : 0,
+        revenue: routeDeliveries.reduce((sum, d) => sum + (d.price || 0), 0),
+        averageDeliveryTime: this.calculateRouteAverageTime(routeDeliveries)
+      };
+    });
+  },
+
+  // Helper: Calculate average time for a specific route
+  calculateRouteAverageTime(deliveries) {
+    const completedDeliveries = deliveries.filter(d => 
+      d.status === 'delivered' && d.deliveredAt && d.pickedUpAt
+    );
+
+    if (completedDeliveries.length === 0) return 0;
+
+    const totalTime = completedDeliveries.reduce((sum, delivery) => {
+      const pickupTime = delivery.pickedUpAt?.toDate?.() || new Date(delivery.pickedUpAt);
+      const deliveryTime = delivery.deliveredAt?.toDate?.() || new Date(delivery.deliveredAt);
+      return sum + (deliveryTime - pickupTime);
+    }, 0);
+
+    return Math.round(totalTime / completedDeliveries.length / (1000 * 60 * 60)); // Hours
   },
 
   // Create delivery
@@ -1208,6 +1473,7 @@ export const logisticsService = {
   // Get deliveries for logistics partner
   async getDeliveriesByPartner(partnerId) {
     try {
+      // Try with orderBy first (requires index)
       const q = query(
         collection(db, 'deliveries'),
         where('logisticsPartnerId', '==', partnerId),
@@ -1219,12 +1485,90 @@ export const logisticsService = {
         ...doc.data()
       }));
     } catch (error) {
+      // If index doesn't exist yet, try without orderBy and sort client-side
+      if (error.code === 'failed-precondition' && error.message.includes('index')) {
+        console.warn('Index not ready yet, fetching without orderBy and sorting client-side');
+        try {
+          const q = query(
+            collection(db, 'deliveries'),
+            where('logisticsPartnerId', '==', partnerId)
+          );
+          const snapshot = await getDocs(q);
+          const deliveries = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }));
+          
+          // Sort client-side by createdAt descending
+          return deliveries.sort((a, b) => {
+            const aTime = a.createdAt?.toDate?.() || new Date(a.createdAt || 0);
+            const bTime = b.createdAt?.toDate?.() || new Date(b.createdAt || 0);
+            return bTime - aTime;
+          });
+        } catch (fallbackError) {
+          console.error('Error fetching deliveries (fallback):', fallbackError);
+          return []; // Return empty array instead of throwing
+        }
+      }
       console.error('Error fetching deliveries:', error);
       throw error;
     }
   },
 
-  // Enhanced dynamic pricing calculation
+  // Enhanced dynamic pricing calculation with Google Maps integration
+  async calculateCostWithMaps(partner, deliveryData) {
+    try {
+      const {
+        pickupLocation,
+        deliveryLocation,
+        weight = 1,
+        deliveryType = 'standard',
+        urgency = 'normal',
+        itemValue = 0,
+        isFragile = false,
+        requiresSignature = false,
+        timeOfDay = 'business'
+      } = deliveryData;
+
+      // Get optimized pricing using Google Maps
+      const optimizedPricing = await googleMapsService.getOptimizedPricing(
+        pickupLocation,
+        deliveryLocation,
+        {
+          weight,
+          deliveryType,
+          isFragile,
+          requiresSignature,
+          itemValue
+        }
+      );
+
+      // Apply partner-specific adjustments
+      const partnerAdjustment = partner.priceAdjustment || 1.0;
+      const adjustedCost = Math.round(optimizedPricing.cost * partnerAdjustment);
+
+      return {
+        cost: adjustedCost,
+        routeAnalysis: optimizedPricing.routeAnalysis,
+        breakdown: {
+          ...optimizedPricing.breakdown,
+          partnerAdjustment,
+          finalCost: adjustedCost
+        },
+        partner: {
+          id: partner.id,
+          name: partner.name,
+          adjustment: partnerAdjustment
+        }
+      };
+    } catch (error) {
+      console.error('Error calculating cost with Maps:', error);
+      // Fallback to legacy calculation
+      return this.calculateCost(partner, deliveryData);
+    }
+  },
+
+  // Legacy pricing calculation (fallback)
   calculateCost(partner, deliveryData) {
     const {
       distance,
@@ -1571,6 +1915,7 @@ export const logisticsService = {
   // Get delivery analytics
   async getAnalytics(partnerId, startDate, endDate) {
     try {
+      // Try with date range filters (requires index)
       const q = query(
         collection(db, 'deliveries'),
         where('logisticsPartnerId', '==', partnerId),
@@ -1594,6 +1939,49 @@ export const logisticsService = {
       
       return analytics;
     } catch (error) {
+      // If index doesn't exist yet, try without date range and filter client-side
+      if (error.code === 'failed-precondition' && error.message.includes('index')) {
+        console.warn('Analytics index not ready yet, fetching without date filters and filtering client-side');
+        try {
+          const q = query(
+            collection(db, 'deliveries'),
+            where('logisticsPartnerId', '==', partnerId)
+          );
+          
+          const snapshot = await getDocs(q);
+          const allDeliveries = snapshot.docs.map(doc => doc.data());
+          
+          // Filter by date range client-side
+          const deliveries = allDeliveries.filter(delivery => {
+            const createdAt = delivery.createdAt?.toDate?.() || new Date(delivery.createdAt || 0);
+            return createdAt >= startDate && createdAt <= endDate;
+          });
+          
+          const analytics = {
+            totalDeliveries: deliveries.length,
+            completedDeliveries: deliveries.filter(d => d.status === 'delivered').length,
+            pendingDeliveries: deliveries.filter(d => d.status === 'pending').length,
+            inTransitDeliveries: deliveries.filter(d => d.status === 'in_transit').length,
+            totalEarnings: deliveries
+              .filter(d => d.status === 'delivered')
+              .reduce((sum, d) => sum + (d.amount || 0), 0),
+            averageDeliveryTime: this.calculateAverageDeliveryTime(deliveries)
+          };
+          
+          return analytics;
+        } catch (fallbackError) {
+          console.error('Error fetching analytics (fallback):', fallbackError);
+          // Return empty analytics instead of throwing
+          return {
+            totalDeliveries: 0,
+            completedDeliveries: 0,
+            pendingDeliveries: 0,
+            inTransitDeliveries: 0,
+            totalEarnings: 0,
+            averageDeliveryTime: 0
+          };
+        }
+      }
       console.error('Error fetching analytics:', error);
       throw error;
     }
@@ -1613,6 +2001,138 @@ export const logisticsService = {
     }, 0);
     
     return totalHours / completedDeliveries.length;
+  },
+
+  // Get enhanced logistics partners with route analysis
+  async getEnhancedLogisticsPartners(pickupLocation, deliveryLocation, deliveryData = {}) {
+    try {
+      // Get nearby logistics partners
+      const nearbyPartners = await googleMapsService.getNearbyLogisticsPartners(pickupLocation);
+      
+      // Calculate pricing for each partner
+      const partnersWithPricing = await Promise.all(
+        nearbyPartners.map(async (partner) => {
+          try {
+            const pricing = await this.calculateCostWithMaps(partner, {
+              pickupLocation,
+              deliveryLocation,
+              ...deliveryData
+            });
+            
+            return {
+              ...partner,
+              pricing,
+              estimatedDelivery: pricing.routeAnalysis.duration.text,
+              routeType: pricing.routeAnalysis.routeType,
+              distance: pricing.routeAnalysis.distance.text
+            };
+          } catch (error) {
+            console.error(`Error calculating pricing for partner ${partner.id}:`, error);
+            return {
+              ...partner,
+              pricing: { cost: 0, error: 'Pricing unavailable' },
+              estimatedDelivery: 'N/A',
+              routeType: 'unknown',
+              distance: 'N/A'
+            };
+          }
+        })
+      );
+
+      // Sort by cost and rating
+      return partnersWithPricing.sort((a, b) => {
+        if (a.pricing.error || b.pricing.error) return 0;
+        const costA = a.pricing.cost;
+        const costB = b.pricing.cost;
+        const ratingA = a.rating || 0;
+        const ratingB = b.rating || 0;
+        
+        // Primary sort by cost, secondary by rating
+        if (costA !== costB) return costA - costB;
+        return ratingB - ratingA;
+      });
+    } catch (error) {
+      console.error('Error getting enhanced logistics partners:', error);
+      throw error;
+    }
+  },
+
+  // Create delivery with enhanced route analysis
+  async createDeliveryWithAnalysis(deliveryData) {
+    try {
+      const {
+        pickupLocation,
+        deliveryLocation,
+        orderId,
+        buyerId,
+        vendorId,
+        logisticsPartnerId,
+        ...otherData
+      } = deliveryData;
+
+      // Analyze route
+      const routeAnalysis = await googleMapsService.analyzeRouteType(pickupLocation, deliveryLocation);
+      
+      // Create delivery record with route analysis
+      const docRef = await addDoc(collection(db, 'deliveries'), {
+        ...otherData,
+        orderId,
+        buyerId,
+        vendorId,
+        logisticsPartnerId,
+        pickupLocation,
+        deliveryLocation,
+        routeAnalysis: {
+          routeType: routeAnalysis.routeType,
+          distance: routeAnalysis.distance,
+          duration: routeAnalysis.duration,
+          isSameCity: routeAnalysis.isSameCity,
+          isSameState: routeAnalysis.isSameState,
+          distanceKm: routeAnalysis.distanceKm,
+          pickupCoordinates: routeAnalysis.pickup,
+          deliveryCoordinates: routeAnalysis.delivery
+        },
+        status: 'pending_pickup',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+
+      return docRef.id;
+    } catch (error) {
+      console.error('Error creating delivery with analysis:', error);
+      throw error;
+    }
+  },
+
+  // Update delivery status with location tracking
+  async updateDeliveryStatus(deliveryId, status, locationData = null) {
+    try {
+      const deliveryRef = doc(db, 'deliveries', deliveryId);
+      const updateData = {
+        status,
+        updatedAt: serverTimestamp()
+      };
+
+      if (locationData) {
+        updateData.currentLocation = locationData;
+        updateData.lastLocationUpdate = serverTimestamp();
+      }
+
+      await updateDoc(deliveryRef, updateData);
+      
+      // Log status change
+      await addDoc(collection(db, 'delivery_status_logs'), {
+        deliveryId,
+        status,
+        location: locationData,
+        timestamp: serverTimestamp()
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Error updating delivery status:', error);
+      throw error;
+    }
   }
 };
 
@@ -3193,6 +3713,94 @@ export const fraudService = {
 };
 
 // ===============================
+// REVIEWS SERVICE
+// ===============================
+
+export const reviewsService = {
+  // Create a review
+  async create(reviewData) {
+    try {
+      const docRef = await addDoc(collection(db, 'reviews'), {
+        ...reviewData,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        helpful: 0,
+        reported: false
+      });
+      return docRef.id;
+    } catch (error) {
+      console.error('Error creating review:', error);
+      throw error;
+    }
+  },
+
+  // Get reviews for a product
+  async getByProduct(productId) {
+    try {
+      const q = query(
+        collection(db, 'reviews'),
+        where('productId', '==', productId),
+        orderBy('createdAt', 'desc')
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      console.error('Error fetching product reviews:', error);
+      return [];
+    }
+  },
+
+  // Get reviews for a vendor
+  async getByVendor(vendorId) {
+    try {
+      const q = query(
+        collection(db, 'reviews'),
+        where('vendorId', '==', vendorId),
+        orderBy('createdAt', 'desc')
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      console.error('Error fetching vendor reviews:', error);
+      return [];
+    }
+  },
+
+  // Get reviews by user
+  async getByUser(userId) {
+    try {
+      const q = query(
+        collection(db, 'reviews'),
+        where('userId', '==', userId),
+        orderBy('createdAt', 'desc')
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      console.error('Error fetching user reviews:', error);
+      return [];
+    }
+  },
+
+  // Mark review as helpful
+  async markHelpful(reviewId) {
+    try {
+      const reviewRef = doc(db, 'reviews', reviewId);
+      const reviewDoc = await getDoc(reviewRef);
+      if (reviewDoc.exists()) {
+        await updateDoc(reviewRef, {
+          helpful: (reviewDoc.data().helpful || 0) + 1,
+          updatedAt: serverTimestamp()
+        });
+      }
+    } catch (error) {
+      console.error('Error marking review as helpful:', error);
+      throw error;
+    }
+  }
+};
+
+// ===============================
 // EXPORT ALL SERVICES
 // ===============================
 
@@ -3212,5 +3820,6 @@ export default {
   notifications: notifications,
   messaging: messagingService,
   auth: authService,
-  fraud: fraudService
+  fraud: fraudService,
+  reviews: reviewsService
 };
