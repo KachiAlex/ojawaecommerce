@@ -919,7 +919,7 @@ const Vendor = () => {
               onEditProduct={openEditProduct}
               onDeleteProduct={(product) => setConfirmDelete({ open: true, product })}
               onCreateProduct={openCreateProduct}
-              onRefreshProducts={handleRefreshProducts}
+              onRefreshProducts={fetchVendorData}
             />
           )}
 
