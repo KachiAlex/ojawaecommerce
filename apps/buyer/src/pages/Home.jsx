@@ -193,6 +193,9 @@ const Home = () => {
           <Link to="/products" className="inline-flex items-center justify-center rounded-md bg-emerald-600 px-6 py-3 text-white hover:bg-emerald-700 font-medium">
             Browse Products
           </Link>
+          <Link to="/products" className="inline-flex items-center justify-center rounded-md bg-purple-600 px-6 py-3 text-white hover:bg-purple-700 font-medium">
+            🛍️ Marketplace
+          </Link>
                    {!currentUser && (
                      <Link to="/register" className="inline-flex items-center justify-center rounded-md border px-6 py-3 text-slate-800 hover:bg-slate-100 font-medium">
                        Join Ojawa
@@ -211,7 +214,7 @@ const Home = () => {
       <section id="products" className="max-w-7xl mx-auto px-4 py-10">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold">Featured Products</h2>
-          <Link to="/products" className="text-sm text-emerald-700 hover:underline">View marketplace</Link>
+          <Link to="/products" className="text-sm text-emerald-700 hover:underline">View all products</Link>
       </div>
 
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
@@ -229,10 +232,39 @@ const Home = () => {
           ) : featuredProducts.length > 0 ? (
             featuredProducts.map((product, index) => {
               const displayProps = getProductDisplayProps(product, index);
+              
+              // Get the first product image or fallback to generic icon
+              const productImage = product.images && Array.isArray(product.images) && product.images.length > 0 
+                ? product.images[0] 
+                : product.image || null;
+              
+              // Format price properly
+              const formatPrice = (price, currency) => {
+                if (!price && price !== 0) return 'Price TBD';
+                
+                // Extract currency symbol and code from currency string like "₦ NGN"
+                const currencyParts = currency ? currency.split(' ') : ['₦', 'NGN'];
+                const symbol = currencyParts[0] || '₦';
+                
+                return `${symbol}${Number(price).toLocaleString()}`;
+              };
+              
               return (
-                <div key={product.id} className="overflow-hidden rounded-xl border bg-white group hover:shadow-lg transition-shadow">
-                  <div className={`relative aspect-square w-full overflow-hidden ${displayProps.bgColor}`}>
-                    <div className="flex items-center justify-center h-full">
+                <Link key={product.id} to={`/products/${product.id}`} className="block overflow-hidden rounded-xl border bg-white group hover:shadow-lg transition-shadow">
+                  <div className={`relative aspect-square w-full overflow-hidden ${productImage ? 'bg-white' : displayProps.bgColor}`}>
+                    {productImage ? (
+                      <img
+                        src={productImage}
+                        alt={product.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        onError={(e) => {
+                          // Fallback to generic icon if image fails to load
+                          e.target.style.display = 'none';
+                          e.target.nextSibling.style.display = 'flex';
+                        }}
+                      />
+                    ) : null}
+                    <div className={`flex items-center justify-center h-full ${productImage ? 'hidden' : ''}`}>
                       <span className="text-6xl">{displayProps.icon}</span>
                     </div>
                     
@@ -254,54 +286,51 @@ const Home = () => {
                     </div>
                     <div className="flex items-center justify-between">
                       <div className="text-lg font-bold text-gray-900">
-                        {product.currency ? `${product.currency.replace(/\d+/, (product.price || 0).toLocaleString())}` : `₦${(product.price || 0).toLocaleString()}`}
+                        {formatPrice(product.price, product.currency)}
                       </div>
                     </div>
                     <div className="mt-3 flex items-center justify-between">
                       <div className="text-sm text-gray-600">
                         <span aria-hidden>⭐</span> {(product.rating || 0).toFixed(1)} ({(product.reviewCount || 0)})
                       </div>
-                      <Link 
-                        to={`/products/${product.id}`}
-                        className="inline-flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 transition-colors"
-                      >
+                      <span className="inline-flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white group-hover:bg-emerald-700 transition-colors">
                         View Product
-                      </Link>
+                      </span>
                     </div>
                   </div>
-                </div>
+                </Link>
               );
             })
           ) : (
             // Fallback to static products if no real-time products available
             products.map((p) => (
-              <div key={p.id} className="overflow-hidden rounded-xl border bg-white group hover:shadow-lg transition-shadow">
-                <div className={`relative aspect-square w-full overflow-hidden ${p.bgColor}`}>
-                  <div className="flex items-center justify-center h-full">
-                    <span className="text-6xl">{p.icon}</span>
-                  </div>
-                  {p.verified && (
-                    <span className="absolute top-3 left-3 inline-flex items-center rounded-full bg-emerald-600 px-2 py-1 text-xs font-medium text-white">Verified</span>
-                  )}
+            <div key={p.id} className="overflow-hidden rounded-xl border bg-white group hover:shadow-lg transition-shadow">
+              <div className={`relative aspect-square w-full overflow-hidden ${p.bgColor}`}>
+                <div className="flex items-center justify-center h-full">
+                  <span className="text-6xl">{p.icon}</span>
+          </div>
+                {p.verified && (
+                  <span className="absolute top-3 left-3 inline-flex items-center rounded-full bg-emerald-600 px-2 py-1 text-xs font-medium text-white">Verified</span>
+                )}
+              </div>
+              <div className="p-4">
+                <div className="mb-2">
+                  <h3 className="font-semibold text-gray-900 leading-tight">{p.name}</h3>
+                  <p className="text-sm text-gray-600">by {p.vendor}</p>
                 </div>
-                <div className="p-4">
-                  <div className="mb-2">
-                    <h3 className="font-semibold text-gray-900 leading-tight">{p.name}</h3>
-                    <p className="text-sm text-gray-600">by {p.vendor}</p>
+                <div className="flex items-center justify-between">
+                  <div className="text-lg font-bold text-gray-900">{p.price}</div>
+                </div>
+                <div className="mt-3 flex items-center justify-between">
+                  <div className="text-sm text-gray-600">
+                    <span aria-hidden>⭐</span> {p.rating.toFixed(1)} ({p.reviews})
                   </div>
-                  <div className="flex items-center justify-between">
-                    <div className="text-lg font-bold text-gray-900">{p.price}</div>
-                  </div>
-                  <div className="mt-3 flex items-center justify-between">
-                    <div className="text-sm text-gray-600">
-                      <span aria-hidden>⭐</span> {p.rating.toFixed(1)} ({p.reviews})
-                    </div>
                     <Link to="/products" className="inline-flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 transition-colors">
                       Browse Products
-                    </Link>
-                  </div>
-                </div>
-              </div>
+              </Link>
+            </div>
+          </div>
+        </div>
             ))
           )}
       </div>
