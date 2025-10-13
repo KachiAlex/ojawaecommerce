@@ -224,6 +224,9 @@ export const productService = {
       
       if (filters.status) {
         q = query(q, where('status', '==', filters.status));
+      } else if (!filters.showAll) {
+        // Default: only show active products unless showAll is true
+        q = query(q, where('status', '==', 'active'));
       }
       
       q = query(q, orderBy('createdAt', 'desc'));

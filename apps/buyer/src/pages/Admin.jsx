@@ -78,8 +78,8 @@ const Admin = () => {
       const ordersData = ordersResult.items || [];
       setOrders(ordersData);
 
-      // Load all products
-      const productsData = await firebaseService.products.getAll();
+      // Load all products (including pending, active, and rejected for admin review)
+      const productsData = await firebaseService.products.getAll({ showAll: true });
       setProducts(productsData);
 
       // Load disputes with pagination
