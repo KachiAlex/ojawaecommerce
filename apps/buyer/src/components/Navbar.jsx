@@ -36,10 +36,10 @@ const Navbar = () => {
     return currentUser?.email?.split('@')[0] || 'User';
   };
 
-  // Handle dashboard navigation
-  const handleDashboardNavigation = (dashboardType) => {
+  // Handle dashboard navigation - route to /dashboard which auto-redirects
+  const handleDashboardNavigation = () => {
     setIsUserDropdownOpen(false);
-    navigate(`/${dashboardType}`);
+    navigate('/dashboard');
   };
 
   // Handle search
@@ -185,43 +185,28 @@ const Navbar = () => {
                         <p className="text-sm text-gray-500">{currentUser.email}</p>
                       </div>
 
-                      {/* Dashboard Options */}
+                      {/* Dashboard Link */}
                       <div className="py-2">
-                        <div className="px-4 py-2">
-                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Dashboards</p>
-                        </div>
-                        
                         <button
-                          onClick={() => handleDashboardNavigation('buyer')}
-                          className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-600 transition-colors"
+                          onClick={handleDashboardNavigation}
+                          className="w-full flex items-center px-4 py-3 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-600 transition-colors"
                         >
-                          <span className="mr-3">🛒</span>
-                          <div className="text-left">
-                            <p className="font-medium">Buyer Dashboard</p>
-                            <p className="text-xs text-gray-500">Orders, wallet, vendors</p>
+                          <span className="mr-3 text-lg">📊</span>
+                          <div className="text-left flex-1">
+                            <p className="font-medium">Dashboard</p>
+                            <p className="text-xs text-gray-500">
+                              {userProfile?.role === 'vendor' || userProfile?.isVendor
+                                ? 'Manage your store' 
+                                : userProfile?.role === 'logistics' || userProfile?.isLogisticsPartner
+                                ? 'Manage deliveries'
+                                : userProfile?.role === 'admin' || userProfile?.isAdmin
+                                ? 'Admin panel'
+                                : 'View your orders'}
+                            </p>
                           </div>
-                        </button>
-
-                        <button
-                          onClick={() => handleDashboardNavigation('vendor')}
-                          className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
-                        >
-                          <span className="mr-3">🏪</span>
-                          <div className="text-left">
-                            <p className="font-medium">Vendor Dashboard</p>
-                            <p className="text-xs text-gray-500">Products, sales, analytics</p>
-                          </div>
-                        </button>
-
-                        <button
-                          onClick={() => handleDashboardNavigation('logistics')}
-                          className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-purple-50 hover:text-purple-600 transition-colors"
-                        >
-                          <span className="mr-3">🚚</span>
-                          <div className="text-left">
-                            <p className="font-medium">Logistics Dashboard</p>
-                            <p className="text-xs text-gray-500">Deliveries, routes, earnings</p>
-                          </div>
+                          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
+                          </svg>
                         </button>
                       </div>
 

@@ -8,6 +8,7 @@ import { MessagingProvider } from './contexts/MessagingContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import ProtectedRoute from './components/ProtectedRoute';
+import RoleGuard from './components/RoleGuard';
 import { RouteLoadingSpinner, ComponentLoadingSpinner } from './components/OptimizedLoadingSpinner';
 import PerformanceMonitor from './components/PerformanceMonitor';
 import { setupGlobalErrorHandling } from './utils/errorLogger';
@@ -17,6 +18,7 @@ import './App.css';
 
 // Core pages (loaded immediately)
 import Home from './pages/Home';
+import DashboardRedirect from './components/DashboardRedirect';
 
 // Lazy load components with better chunking
 const Navbar = lazy(() => import('./components/Navbar'));
@@ -252,9 +254,12 @@ const OnboardingWrapper = () => {
           <Route path="/admin-setup" element={<AdminSetup />} />
           <Route path="/admin-test" element={<AdminDashboard />} />
           <Route path="/admin/login" element={<AdminLogin />} />
+              {/* Smart Dashboard Route - redirects to user's primary dashboard */}
+              <Route path="/dashboard" element={<DashboardRedirect />} />
+              
               <Route path="/buyer" element={
                 <Suspense fallback={<RouteLoadingSpinner route="default" />}>
-                  <Buyer />
+                  <EnhancedBuyer />
                 </Suspense>
               } />
               <Route path="/enhanced-buyer" element={
@@ -263,14 +268,18 @@ const OnboardingWrapper = () => {
                 </Suspense>
               } />
               <Route path="/vendor" element={
-                <Suspense fallback={<RouteLoadingSpinner route="vendor" />}>
-                  <Vendor />
-                </Suspense>
+                <RoleGuard requiredRole="vendor">
+                  <Suspense fallback={<RouteLoadingSpinner route="vendor" />}>
+                    <Vendor />
+                  </Suspense>
+                </RoleGuard>
               } />
               <Route path="/logistics" element={
-                <Suspense fallback={<RouteLoadingSpinner route="logistics" />}>
-                  <Logistics />
-                </Suspense>
+                <RoleGuard requiredRole="logistics">
+                  <Suspense fallback={<RouteLoadingSpinner route="logistics" />}>
+                    <Logistics />
+                  </Suspense>
+                </RoleGuard>
               } />
               <Route path="/tracking" element={
                 <Suspense fallback={<RouteLoadingSpinner route="tracking" />}>

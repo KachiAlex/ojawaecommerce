@@ -14,6 +14,7 @@ import VendorStoreManager from '../components/VendorStoreManager';
 import VendorAnalyticsDashboard from '../components/VendorAnalyticsDashboard';
 import DisputeManagement from '../components/DisputeManagement';
 import NotificationPreferences from '../components/NotificationPreferences';
+import DashboardSwitcher from '../components/DashboardSwitcher';
 
 const Vendor = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -483,6 +484,7 @@ const Vendor = () => {
             
             {/* Dashboard Switcher */}
             <div className="mb-8">
+              <DashboardSwitcher />
             </div>
             
             <div className="space-y-1">

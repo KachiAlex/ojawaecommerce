@@ -5,6 +5,7 @@ import firebaseService from '../services/firebaseService';
 import googleMapsService from '../services/googleMapsService';
 import WalletManager from '../components/WalletManager';
 import LogisticsPerformanceDashboard from '../components/LogisticsPerformanceDashboard';
+import DashboardSwitcher from '../components/DashboardSwitcher';
 
 const Logistics = () => {
   const { currentUser } = useAuth();
@@ -346,6 +347,7 @@ const Logistics = () => {
             
             {/* Dashboard Switcher */}
             <div className="mb-8">
+              <DashboardSwitcher />
             </div>
             
             <div className="space-y-1">

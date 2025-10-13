@@ -13,6 +13,7 @@ import DeliveryTrackingModal from '../components/DeliveryTrackingModal'
 import AdvancedDisputeModal from '../components/AdvancedDisputeModal'
 import MessagingInterface from '../components/MessagingInterface'
 import NotificationPreferences from '../components/NotificationPreferences'
+import DashboardSwitcher from '../components/DashboardSwitcher'
 import { useMessaging } from '../contexts/MessagingContext'
 import { ORDER_STATUS } from '../services/orderWorkflow'
 import { errorLogger } from '../utils/errorLogger'
@@ -337,9 +338,12 @@ const EnhancedBuyer = () => {
       <div className="min-h-screen bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900">Buyer Dashboard</h1>
-            <p className="text-gray-600 mt-1">Manage your orders and track your purchases</p>
+          <div className="mb-8 flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Buyer Dashboard</h1>
+              <p className="text-gray-600 mt-1">Manage your orders and track your purchases</p>
+            </div>
+            <DashboardSwitcher />
           </div>
 
           {/* Stats Cards */}
