@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import firebaseService from '../services/firebaseService';
 import WalletManager from '../components/WalletManager';
@@ -61,76 +61,77 @@ const Vendor = () => {
   const [isLogisticsModalOpen, setIsLogisticsModalOpen] = useState(false);
   const [selectedOrderForLogistics, setSelectedOrderForLogistics] = useState(null);
 
-  useEffect(() => {
-    const fetchVendorData = async () => {
-      if (!currentUser) return;
+  // Fetch vendor data function (moved outside useEffect for reusability)
+  const fetchVendorData = useCallback(async () => {
+    if (!currentUser) return;
+    
+    try {
+      setLoading(true);
       
-      try {
-        setLoading(true);
-        
-        // Fetch vendor orders (paged)
-        const [ordersPage, ordersTotal] = await Promise.all([
-          firebaseService.orders.getByUserPaged({ userId: currentUser.uid, userType: 'vendor', pageSize }),
-          firebaseService.orders.countByUser(currentUser.uid, 'vendor')
-        ]);
-        setOrders(ordersPage.items);
-        setOrdersCursor(ordersPage.nextCursor);
-        setOrdersPages([{ items: ordersPage.items, cursor: ordersPage.nextCursor }]);
-        setOrdersPageIndex(0);
-        setOrdersCount(ordersTotal);
-        
-        // Fetch vendor products (paged)
-        const [productsPage, productsTotal] = await Promise.all([
-          firebaseService.products.getByVendorPaged({ vendorId: currentUser.uid, pageSize }),
-          firebaseService.products.countByVendor(currentUser.uid)
-        ]);
-        setProducts(productsPage.items);
-        setProductsCursor(productsPage.nextCursor);
-        setProductsPages([{ items: productsPage.items, cursor: productsPage.nextCursor }]);
-        setProductsPageIndex(0);
-        setProductsCount(productsTotal);
-        
-        // Fetch vendor analytics
-        const statsData = await firebaseService.analytics.getVendorStats(currentUser.uid);
-        setStats(statsData);
-        
-        // Optional: payouts and disputes
-        // Payouts and disputes paged
-        const [payoutsPage, payoutsTotal] = await Promise.all([
-          firebaseService.payouts.getByVendorPaged({ vendorId: currentUser.uid, pageSize }),
-          firebaseService.payouts.countByVendor(currentUser.uid)
-        ]);
-        setPayouts(payoutsPage.items);
-        setPayoutsCursor(payoutsPage.nextCursor);
-        setPayoutsPages([{ items: payoutsPage.items, cursor: payoutsPage.nextCursor }]);
-        setPayoutsPageIndex(0);
-        setPayoutsCount(payoutsTotal);
+      // Fetch vendor orders (paged)
+      const [ordersPage, ordersTotal] = await Promise.all([
+        firebaseService.orders.getByUserPaged({ userId: currentUser.uid, userType: 'vendor', pageSize }),
+        firebaseService.orders.countByUser(currentUser.uid, 'vendor')
+      ]);
+      setOrders(ordersPage.items);
+      setOrdersCursor(ordersPage.nextCursor);
+      setOrdersPages([{ items: ordersPage.items, cursor: ordersPage.nextCursor }]);
+      setOrdersPageIndex(0);
+      setOrdersCount(ordersTotal);
+      
+      // Fetch vendor products (paged)
+      const [productsPage, productsTotal] = await Promise.all([
+        firebaseService.products.getByVendorPaged({ vendorId: currentUser.uid, pageSize }),
+        firebaseService.products.countByVendor(currentUser.uid)
+      ]);
+      setProducts(productsPage.items);
+      setProductsCursor(productsPage.nextCursor);
+      setProductsPages([{ items: productsPage.items, cursor: productsPage.nextCursor }]);
+      setProductsPageIndex(0);
+      setProductsCount(productsTotal);
+      
+      // Fetch vendor analytics
+      const statsData = await firebaseService.analytics.getVendorStats(currentUser.uid);
+      setStats(statsData);
+      
+      // Optional: payouts and disputes
+      // Payouts and disputes paged
+      const [payoutsPage, payoutsTotal] = await Promise.all([
+        firebaseService.payouts.getByVendorPaged({ vendorId: currentUser.uid, pageSize }),
+        firebaseService.payouts.countByVendor(currentUser.uid)
+      ]);
+      setPayouts(payoutsPage.items);
+      setPayoutsCursor(payoutsPage.nextCursor);
+      setPayoutsPages([{ items: payoutsPage.items, cursor: payoutsPage.nextCursor }]);
+      setPayoutsPageIndex(0);
+      setPayoutsCount(payoutsTotal);
 
-        const [disputesPage, disputesTotal] = await Promise.all([
-          firebaseService.disputes.getByVendorPaged({ vendorId: currentUser.uid, pageSize }),
-          firebaseService.disputes.countByVendor(currentUser.uid)
-        ]);
-        setDisputes(disputesPage.items);
-        setDisputesCursor(disputesPage.nextCursor);
-        setDisputesPages([{ items: disputesPage.items, cursor: disputesPage.nextCursor }]);
-        setDisputesPageIndex(0);
-        setDisputesCount(disputesTotal);
-        
-      } catch (error) {
-        console.error('Error fetching vendor data:', error);
-        // Fallback to mock data
-        setOrders([]);
-        setProducts([]);
-        setStats({ totalSales: 0, activeOrders: 0 });
-        setPayouts([]);
-        setDisputes([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchVendorData();
+      const [disputesPage, disputesTotal] = await Promise.all([
+        firebaseService.disputes.getByVendorPaged({ vendorId: currentUser.uid, pageSize }),
+        firebaseService.disputes.countByVendor(currentUser.uid)
+      ]);
+      setDisputes(disputesPage.items);
+      setDisputesCursor(disputesPage.nextCursor);
+      setDisputesPages([{ items: disputesPage.items, cursor: disputesPage.nextCursor }]);
+      setDisputesPageIndex(0);
+      setDisputesCount(disputesTotal);
+      
+    } catch (error) {
+      console.error('Error fetching vendor data:', error);
+      // Fallback to mock data
+      setOrders([]);
+      setProducts([]);
+      setStats({ totalSales: 0, activeOrders: 0 });
+      setPayouts([]);
+      setDisputes([]);
+    } finally {
+      setLoading(false);
+    }
   }, [currentUser]);
+
+  useEffect(() => {
+    fetchVendorData();
+  }, [fetchVendorData]);
 
   // Derived product filters and counts
   const safeProducts = Array.isArray(products) ? products : [];

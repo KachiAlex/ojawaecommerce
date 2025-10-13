@@ -778,9 +778,6 @@ const EnhancedBuyer = () => {
                           {action.name}
                         </button>
                       ))}
-                      {selectedOrder?.status === ORDER_STATUS.ESCROW_FUNDED && (
-                        <p className="text-sm text-gray-500">Awaiting vendor processing.</p>
-                      )}
                       {selectedOrder?.status === ORDER_STATUS.PENDING && (
                         <button
                           onClick={async () => {
@@ -797,7 +794,10 @@ const EnhancedBuyer = () => {
                           Fund Wallet for this Order
                         </button>
                       )}
-                      {selectedOrder?.status === ORDER_STATUS.DELIVERED && !selectedOrder.satisfactionConfirmed && (
+                      {(selectedOrder?.status === ORDER_STATUS.ESCROW_FUNDED || 
+                        selectedOrder?.status === ORDER_STATUS.SHIPPED || 
+                        selectedOrder?.status === ORDER_STATUS.DELIVERED) && 
+                        !selectedOrder.satisfactionConfirmed && (
                         <button
                           onClick={() => {
                             setSelectedOrderForSatisfaction(selectedOrder)
@@ -806,7 +806,7 @@ const EnhancedBuyer = () => {
                           }}
                           className="bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700 text-sm font-medium"
                         >
-                          Confirm Order
+                          ✓ Confirm Order
                         </button>
                       )}
                       <button
