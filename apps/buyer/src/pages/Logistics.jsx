@@ -6,6 +6,7 @@ import googleMapsService from '../services/googleMapsService';
 import WalletManager from '../components/WalletManager';
 import LogisticsPerformanceDashboard from '../components/LogisticsPerformanceDashboard';
 import DashboardSwitcher from '../components/DashboardSwitcher';
+import { calculateDeliveryPrice, determineRouteCategory, DEFAULT_PLATFORM_PRICING } from '../data/logisticsPricingModel';
 
 const Logistics = () => {
   const { currentUser } = useAuth();
@@ -29,7 +30,8 @@ const Logistics = () => {
     price: '',
     currency: '₦ NGN',
     estimatedTime: '',
-    serviceType: 'Standard Delivery'
+    serviceType: 'Standard Delivery',
+    ratePerKm: DEFAULT_PLATFORM_PRICING.ratePerKm
   });
   const [submittingRoute, setSubmittingRoute] = useState(false);
   
@@ -37,6 +39,7 @@ const Logistics = () => {
   const [routeAnalysis, setRouteAnalysis] = useState(null);
   const [analyzingRoute, setAnalyzingRoute] = useState(false);
   const [suggestedPricing, setSuggestedPricing] = useState(null);
+  const [calculatedPricing, setCalculatedPricing] = useState(null);
 
   useEffect(() => {
     if (currentUser) {
@@ -98,6 +101,7 @@ const Logistics = () => {
     if (!from || !to || from.trim() === '' || to.trim() === '') {
       setRouteAnalysis(null);
       setSuggestedPricing(null);
+      setCalculatedPricing(null);
       return;
     }
 
@@ -106,32 +110,46 @@ const Logistics = () => {
       
       // Use Google Maps service to analyze the route
       const analysis = await googleMapsService.analyzeRouteType(from, to);
-      
-      // Get optimized pricing suggestion
-      const pricing = await googleMapsService.getOptimizedPricing(from, to, {
-        deliveryType: routeForm.serviceType.toLowerCase().replace(' delivery', '').replace(' ', '_'),
-        weight: 1 // Default weight
-      });
 
       // Only update state if we got valid data
       if (analysis && analysis.distanceKm) {
         setRouteAnalysis(analysis);
         
-        // Auto-fill distance and estimated time if not already set
+        // Calculate pricing using our new model
+        const pricing = calculateDeliveryPrice({
+          distance: analysis.distanceKm,
+          ratePerKm: routeForm.ratePerKm
+        });
+        
+        setCalculatedPricing(pricing);
+        
+        // Auto-fill distance and estimated time
         setRouteForm(prev => ({
           ...prev,
-          distance: prev.distance || Math.round(analysis.distanceKm * 10) / 10, // Round to 1 decimal
-          estimatedTime: prev.estimatedTime || (analysis.duration?.text || ''),
-          price: prev.price || (pricing?.cost ? pricing.cost.toString() : '')
+          distance: Math.round(analysis.distanceKm * 10) / 10, // Round to 1 decimal
+          estimatedTime: analysis.duration?.text || prev.estimatedTime,
+          price: pricing.finalPrice.toString()
         }));
       } else {
         console.warn('Route analysis returned null or incomplete data');
         setRouteAnalysis(null);
+        setCalculatedPricing(null);
       }
 
-      if (pricing && pricing.cost) {
-        setSuggestedPricing(pricing);
-      } else {
+      // Keep Google Maps pricing as fallback (optional)
+      try {
+        const googlePricing = await googleMapsService.getOptimizedPricing(from, to, {
+          deliveryType: routeForm.serviceType.toLowerCase().replace(' delivery', '').replace(' ', '_'),
+          weight: 1
+        });
+        
+        if (googlePricing && googlePricing.cost) {
+          setSuggestedPricing(googlePricing);
+        } else {
+          setSuggestedPricing(null);
+        }
+      } catch (error) {
+        console.warn('Google Maps pricing failed, using calculated pricing only:', error);
         setSuggestedPricing(null);
       }
 
@@ -140,6 +158,7 @@ const Logistics = () => {
       // Don't show error to user, just don't update the analysis
       setRouteAnalysis(null);
       setSuggestedPricing(null);
+      setCalculatedPricing(null);
     } finally {
       setAnalyzingRoute(false);
     }
@@ -155,6 +174,22 @@ const Logistics = () => {
 
     return () => clearTimeout(timer);
   }, [routeForm.from, routeForm.to]);
+
+  // Recalculate pricing when rate per km changes
+  useEffect(() => {
+    if (routeAnalysis?.distanceKm && routeForm.ratePerKm) {
+      const pricing = calculateDeliveryPrice({
+        distance: routeAnalysis.distanceKm,
+        ratePerKm: routeForm.ratePerKm
+      });
+      
+      setCalculatedPricing(pricing);
+      setRouteForm(prev => ({
+        ...prev,
+        price: pricing.finalPrice.toString()
+      }));
+    }
+  }, [routeForm.ratePerKm, routeAnalysis?.distanceKm]);
 
   const handleSubmitRoute = async (e) => {
     e.preventDefault();
