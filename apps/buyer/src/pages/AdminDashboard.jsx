@@ -23,6 +23,14 @@ const AdminDashboard = () => {
   const [escrowTransactions, setEscrowTransactions] = useState([]);
   const [messages, setMessages] = useState([]);
   
+  // Pagination states for users
+  const [allUsers, setAllUsers] = useState([]);
+  const [usersCursor, setUsersCursor] = useState(null);
+  const [hasMoreUsers, setHasMoreUsers] = useState(false);
+  const [loadingMoreUsers, setLoadingMoreUsers] = useState(false);
+  const [userSearchTerm, setUserSearchTerm] = useState('');
+  const [userRoleFilter, setUserRoleFilter] = useState('all');
+  
   // UI states
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [selectedDispute, setSelectedDispute] = useState(null);
@@ -50,7 +58,7 @@ const AdminDashboard = () => {
       setLoading(true);
       
       const [usersResult, ordersResult, disputesResult, productsSnapshot, transactionsSnapshot, messagesSnapshot] = await Promise.all([
-        firebaseService.admin.getAllUsers({ pageSize: 100 }),
+        firebaseService.admin.getAllUsers({ pageSize: 50 }),
         firebaseService.admin.getAllOrders({ pageSize: 100 }),
         firebaseService.admin.getAllDisputes({ pageSize: 100 }),
         getDocs(collection(db, 'products')),
@@ -64,7 +72,12 @@ const AdminDashboard = () => {
       const productsList = productsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setAllProducts(productsList);
       
+      // Store initial users and pagination info
+      setAllUsers(usersList);
       setUsers(usersList);
+      setUsersCursor(usersResult.nextCursor);
+      setHasMoreUsers(!!usersResult.nextCursor);
+      
       setOrders(ordersList);
       setDisputes(disputesList);
       setPendingProducts(productsList.filter(p => p.status === 'pending'));
@@ -108,6 +121,29 @@ const AdminDashboard = () => {
       setLoading(false);
     }
   };
+  
+  // Load more users
+  const loadMoreUsers = async () => {
+    if (!hasMoreUsers || loadingMoreUsers) return;
+    
+    try {
+      setLoadingMoreUsers(true);
+      const usersResult = await firebaseService.admin.getAllUsers({ 
+        pageSize: 50, 
+        cursor: usersCursor 
+      });
+      
+      const newUsers = usersResult.items || [];
+      setAllUsers(prev => [...prev, ...newUsers]);
+      setUsers(prev => [...prev, ...newUsers]);
+      setUsersCursor(usersResult.nextCursor);
+      setHasMoreUsers(!!usersResult.nextCursor);
+    } catch (error) {
+      console.error('Error loading more users:', error);
+    } finally {
+      setLoadingMoreUsers(false);
+    }
+  };
 
   useEffect(() => {
     if (userProfile?.role !== 'admin') {
@@ -135,6 +171,34 @@ const AdminDashboard = () => {
     };
     loadUserRatings();
   }, [showUserModal, selectedUser]);
+  
+  // Filtered users based on search and role filter
+  const filteredUsers = useMemo(() => {
+    let filtered = allUsers;
+    
+    // Apply role filter
+    if (userRoleFilter === 'vendor') {
+      filtered = filtered.filter(u => u.isVendor);
+    } else if (userRoleFilter === 'logistics') {
+      filtered = filtered.filter(u => u.isLogisticsPartner);
+    } else if (userRoleFilter === 'buyer') {
+      filtered = filtered.filter(u => !u.isVendor && !u.isLogisticsPartner);
+    } else if (userRoleFilter === 'suspended') {
+      filtered = filtered.filter(u => u.suspended);
+    }
+    
+    // Apply search filter
+    if (userSearchTerm.trim()) {
+      const searchLower = userSearchTerm.toLowerCase();
+      filtered = filtered.filter(u => 
+        u.displayName?.toLowerCase().includes(searchLower) ||
+        u.email?.toLowerCase().includes(searchLower) ||
+        u.id?.toLowerCase().includes(searchLower)
+      );
+    }
+    
+    return filtered;
+  }, [allUsers, userRoleFilter, userSearchTerm]);
 
   // ========== COMPREHENSIVE ADMIN FUNCTIONS ==========
   
@@ -503,11 +567,52 @@ const AdminDashboard = () => {
       {activeTab === 'users' && (
     <div className="bg-white shadow overflow-hidden sm:rounded-md">
       <div className="px-4 py-5 sm:px-6">
-        <h3 className="text-lg leading-6 font-medium text-gray-900">User Management</h3>
-        <p className="mt-1 max-w-2xl text-sm text-gray-500">Manage all platform users</p>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-lg leading-6 font-medium text-gray-900">User Management</h3>
+            <p className="mt-1 max-w-2xl text-sm text-gray-500">
+              Showing {filteredUsers.length} of {allUsers.length} users
+              {hasMoreUsers && <span className="text-blue-600"> (Load more to see all users)</span>}
+            </p>
+          </div>
+        </div>
+        
+        {/* Search and Filter Controls */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label htmlFor="userSearch" className="block text-sm font-medium text-gray-700 mb-1">
+              Search Users
+            </label>
+            <input
+              id="userSearch"
+              type="text"
+              value={userSearchTerm}
+              onChange={(e) => setUserSearchTerm(e.target.value)}
+              placeholder="Search by name, email, or ID..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-emerald-500 focus:border-emerald-500"
+            />
+          </div>
+          <div>
+            <label htmlFor="roleFilter" className="block text-sm font-medium text-gray-700 mb-1">
+              Filter by Role
+            </label>
+            <select
+              id="roleFilter"
+              value={userRoleFilter}
+              onChange={(e) => setUserRoleFilter(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-emerald-500 focus:border-emerald-500"
+            >
+              <option value="all">All Users</option>
+              <option value="buyer">Buyers Only</option>
+              <option value="vendor">Vendors Only</option>
+              <option value="logistics">Logistics Only</option>
+              <option value="suspended">Suspended Users</option>
+            </select>
+          </div>
+        </div>
       </div>
       <ul className="divide-y divide-gray-200">
-            {users.map((user) => (
+            {filteredUsers.map((user) => (
           <li key={user.id} className="px-4 py-4 sm:px-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center">
@@ -568,6 +673,49 @@ const AdminDashboard = () => {
           </li>
         ))}
       </ul>
+      
+      {/* Load More Button */}
+      {hasMoreUsers && (
+        <div className="px-4 py-4 sm:px-6 border-t border-gray-200 bg-gray-50">
+          <button
+            onClick={loadMoreUsers}
+            disabled={loadingMoreUsers}
+            className="w-full flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loadingMoreUsers ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Loading...
+              </>
+            ) : (
+              <>
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+                Load More Users (50 more)
+              </>
+            )}
+          </button>
+        </div>
+      )}
+      
+      {/* No Users Message */}
+      {filteredUsers.length === 0 && (
+        <div className="px-4 py-8 text-center">
+          <p className="text-gray-500">No users found matching your filters.</p>
+          {userSearchTerm || userRoleFilter !== 'all' ? (
+            <button
+              onClick={() => { setUserSearchTerm(''); setUserRoleFilter('all'); }}
+              className="mt-2 text-sm text-emerald-600 hover:text-emerald-700"
+            >
+              Clear filters
+            </button>
+          ) : null}
+        </div>
+      )}
     </div>
       )}
 
