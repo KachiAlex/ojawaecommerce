@@ -6,16 +6,28 @@ import { OnboardingProvider, useOnboarding } from './contexts/OnboardingContext'
 import { NotificationProvider } from './contexts/NotificationContext';
 import { MessagingProvider } from './contexts/MessagingContext';
 import { LanguageProvider } from './contexts/LanguageContext';
-import WalletEducation from './components/EscrowEducation';
-import OnboardingFlow from './components/OnboardingFlow';
-const Navbar = lazy(() => import('./components/Navbar'));
 import ErrorBoundary from './components/ErrorBoundary';
-const PWAInstallPrompt = lazy(() => import('./components/PWAInstallPrompt'));
-const MobileBottomNavigation = lazy(() => import('./components/MobileBottomNavigation'));
+import ProtectedRoute from './components/ProtectedRoute';
+import { RouteLoadingSpinner, ComponentLoadingSpinner } from './components/OptimizedLoadingSpinner';
+import PerformanceMonitor from './components/PerformanceMonitor';
 import { setupGlobalErrorHandling } from './utils/errorLogger';
 import { validateEnvironment } from './config/env';
 import './utils/clearFlutterwaveScripts';
+import './App.css';
+
+// Core pages (loaded immediately)
 import Home from './pages/Home';
+
+// Lazy load components with better chunking
+const Navbar = lazy(() => import('./components/Navbar'));
+const PWAInstallPrompt = lazy(() => import('./components/PWAInstallPrompt'));
+const MobileBottomNavigation = lazy(() => import('./components/MobileBottomNavigation'));
+const OsoahiaButton = lazy(() => import('./components/OsoahiaButton'));
+const NotificationToastContainer = lazy(() => import('./components/NotificationToast').then(m => ({ default: m.NotificationToastContainer })));
+const WalletEducation = lazy(() => import('./components/EscrowEducation'));
+const OnboardingFlow = lazy(() => import('./components/OnboardingFlow'));
+
+// Customer-facing pages
 const Products = lazy(() => import('./pages/Products'));
 const ProductDetail = lazy(() => import('./pages/ProductDetail'));
 const Cart = lazy(() => import('./pages/Cart'));
@@ -23,23 +35,35 @@ const Checkout = lazy(() => import('./pages/Checkout'));
 const Login = lazy(() => import('./pages/Login'));
 const Register = lazy(() => import('./pages/Register'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
-const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
-import ProtectedRoute from './components/ProtectedRoute';
-const OsoahiaButton = lazy(() => import('./components/OsoahiaButton'));
-const NotificationToastContainer = lazy(() => import('./components/NotificationToast').then(m => ({ default: m.NotificationToastContainer })));
-import './App.css';
 const Buyer = lazy(() => import('./pages/Buyer'));
 const EnhancedBuyer = lazy(() => import('./pages/EnhancedBuyer'));
-const Vendor = lazy(() => import('./pages/Vendor'));
-const Logistics = lazy(() => import('./pages/Logistics'));
-const Tracking = lazy(() => import('./pages/Tracking'));
 const HowWalletWorks = lazy(() => import('./components/HowWalletWorks'));
 const Categories = lazy(() => import('./pages/Categories'));
 const Wallet = lazy(() => import('./pages/Wallet'));
-const BecomeVendor = lazy(() => import('./pages/BecomeVendor'));
-const BecomeLogistics = lazy(() => import('./pages/BecomeLogistics'));
+
+// Admin pages (separate chunk)
+const Admin = lazy(() => import('./pages/Admin'));
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const AdminSetup = lazy(() => import('./pages/AdminSetup'));
 const AdminLogin = lazy(() => import('./pages/AdminLogin'));
+const PricingAdminPanel = lazy(() => import('./components/PricingAdminPanel'));
+
+// Vendor pages (separate chunk)
+const Vendor = lazy(() => import('./pages/Vendor'));
+const BecomeVendor = lazy(() => import('./pages/BecomeVendor'));
+const StoreManager = lazy(() => import('./components/StoreManager'));
+
+// Logistics pages (separate chunk)
+const Logistics = lazy(() => import('./pages/Logistics'));
+const BecomeLogistics = lazy(() => import('./pages/BecomeLogistics'));
+const LogisticsTrackingManager = lazy(() => import('./components/LogisticsTrackingManager'));
+
+// Tracking pages (separate chunk)
+const Tracking = lazy(() => import('./pages/Tracking'));
+const TrackingInterface = lazy(() => import('./components/TrackingInterface'));
+const EnhancedTrackingStatus = lazy(() => import('./components/EnhancedTrackingStatus'));
+
+// Test/Development pages (separate chunk for production builds)
 const FlutterwaveTest = lazy(() => import('./pages/FlutterwaveTest'));
 const FunctionTest = lazy(() => import('./pages/FunctionTest'));
 const CloudTest = lazy(() => import('./pages/CloudTest'));
@@ -47,14 +71,12 @@ const ModalTest = lazy(() => import('./pages/ModalTest'));
 const StockTest = lazy(() => import('./pages/StockTest'));
 const StockSyncTest = lazy(() => import('./pages/StockSyncTest'));
 const AuthFlowTest = lazy(() => import('./pages/AuthFlowTest'));
-const StoreManager = lazy(() => import('./components/StoreManager'));
 const ProductStoreAssignment = lazy(() => import('./components/ProductStoreAssignment'));
-const TrackingInterface = lazy(() => import('./components/TrackingInterface'));
 const StoreDisplay = lazy(() => import('./components/StoreDisplay'));
 const TrackingSystemTest = lazy(() => import('./pages/TrackingSystemTest'));
-const LogisticsTrackingManager = lazy(() => import('./components/LogisticsTrackingManager'));
-const EnhancedTrackingStatus = lazy(() => import('./components/EnhancedTrackingStatus'));
 const LogisticsTrackingTest = lazy(() => import('./pages/LogisticsTrackingTest'));
+const PricingTest = lazy(() => import('./pages/PricingTest'));
+const ProductDebug = lazy(() => import('./pages/ProductDebug'));
 
 // Admin Route Protection Component
 const AdminRoute = ({ children }) => {
@@ -152,14 +174,14 @@ const OnboardingWrapper = () => {
   return (
     <Router>
       <div className="min-h-screen">
-        <Suspense fallback={null}>
+        <Suspense fallback={<ComponentLoadingSpinner />}>
           <Navbar />
         </Suspense>
         <Suspense fallback={null}>
           <PWAInstallPrompt />
         </Suspense>
         <main>
-        <Suspense fallback={<div className="min-h-[50vh] flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div></div>}>
+        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/products" element={<Products />} />
@@ -172,26 +194,44 @@ const OnboardingWrapper = () => {
             path="/wallet" 
             element={
               <ProtectedRoute>
-                <Wallet />
+                <Suspense fallback={<RouteLoadingSpinner route="wallet" />}>
+                  <Wallet />
+                </Suspense>
               </ProtectedRoute>
             } 
           />
-          <Route path="/cart" element={<Cart />} />
+          <Route path="/cart" element={
+            <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+              <Cart />
+            </Suspense>
+          } />
           <Route 
             path="/checkout" 
             element={
               <ProtectedRoute>
-                <Checkout />
+                <Suspense fallback={<RouteLoadingSpinner route="checkout" />}>
+                  <Checkout />
+                </Suspense>
               </ProtectedRoute>
             } 
           />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
+          <Route path="/login" element={
+            <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+              <Login />
+            </Suspense>
+          } />
+          <Route path="/register" element={
+            <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+              <Register />
+            </Suspense>
+          } />
           <Route 
             path="/dashboard" 
             element={
               <ProtectedRoute>
-                <Dashboard />
+                <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+                  <Dashboard />
+                </Suspense>
               </ProtectedRoute>
             } 
           />
@@ -199,7 +239,9 @@ const OnboardingWrapper = () => {
             path="/admin" 
             element={
               <AdminRoute>
-                <AdminDashboard />
+                <Suspense fallback={<RouteLoadingSpinner route="admin" />}>
+                  <Admin />
+                </Suspense>
               </AdminRoute>
             } 
           />
@@ -210,11 +252,31 @@ const OnboardingWrapper = () => {
           <Route path="/admin-setup" element={<AdminSetup />} />
           <Route path="/admin-test" element={<AdminDashboard />} />
           <Route path="/admin/login" element={<AdminLogin />} />
-              <Route path="/buyer" element={<Buyer />} />
-              <Route path="/enhanced-buyer" element={<EnhancedBuyer />} />
-              <Route path="/vendor" element={<Vendor />} />
-              <Route path="/logistics" element={<Logistics />} />
-              <Route path="/tracking" element={<Tracking />} />
+              <Route path="/buyer" element={
+                <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+                  <Buyer />
+                </Suspense>
+              } />
+              <Route path="/enhanced-buyer" element={
+                <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+                  <EnhancedBuyer />
+                </Suspense>
+              } />
+              <Route path="/vendor" element={
+                <Suspense fallback={<RouteLoadingSpinner route="vendor" />}>
+                  <Vendor />
+                </Suspense>
+              } />
+              <Route path="/logistics" element={
+                <Suspense fallback={<RouteLoadingSpinner route="logistics" />}>
+                  <Logistics />
+                </Suspense>
+              } />
+              <Route path="/tracking" element={
+                <Suspense fallback={<RouteLoadingSpinner route="tracking" />}>
+                  <Tracking />
+                </Suspense>
+              } />
               <Route 
                 path="/become-vendor" 
                 element={
@@ -248,6 +310,16 @@ const OnboardingWrapper = () => {
           <Route path="/tracking/:orderId" element={<EnhancedTrackingStatus />} />
           <Route path="/tracking-by-number/:trackingNumber" element={<EnhancedTrackingStatus />} />
           <Route path="/logistics-tracking-test" element={<LogisticsTrackingTest />} />
+          <Route path="/pricing-test" element={<PricingTest />} />
+          <Route path="/product-debug" element={<ProductDebug />} />
+          <Route 
+            path="/admin/pricing" 
+            element={
+              <AdminRoute>
+                <PricingAdminPanel />
+              </AdminRoute>
+            } 
+          />
         </Routes>
         </Suspense>
         </main>
@@ -270,6 +342,9 @@ const OnboardingWrapper = () => {
         <Suspense fallback={null}>
           <OsoahiaButton />
         </Suspense>
+        
+        {/* Performance Monitor (Development Only) */}
+        <PerformanceMonitor />
       </div>
     </Router>
   );

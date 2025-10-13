@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
+import { pricingService } from '../services/pricingService';
 
 const CartContext = createContext();
 
@@ -126,6 +127,35 @@ export const CartProvider = ({ children }) => {
     return cartItems.reduce((total, item) => total + (item.price * item.quantity), 0);
   };
 
+  // Get comprehensive pricing breakdown including VAT, service fee, and logistics
+  const getPricingBreakdown = async (deliveryOption = 'pickup', selectedLogistics = null) => {
+    try {
+      return await pricingService.calculatePricingBreakdown(cartItems, deliveryOption, selectedLogistics);
+    } catch (error) {
+      console.error('Error calculating pricing breakdown:', error);
+      // Fallback to basic calculation
+      const subtotal = getCartTotal();
+      return {
+        subtotal,
+        vatAmount: 0,
+        serviceFeeAmount: 0,
+        logisticsFee: 0,
+        logisticsDetails: null,
+        discountAmount: 0,
+        total: subtotal,
+        breakdown: {
+          subtotal: { label: 'Subtotal', amount: subtotal, description: 'Sum of all items' },
+          total: { label: 'Total', amount: subtotal, description: 'Final amount to be paid' }
+        }
+      };
+    }
+  };
+
+  // Get simple cart total (for backward compatibility)
+  const getSimpleCartTotal = () => {
+    return cartItems.reduce((total, item) => total + (item.price * item.quantity), 0);
+  };
+
   const getCartItemsCount = () => {
     return cartItems.reduce((total, item) => total + item.quantity, 0);
   };
@@ -162,6 +192,8 @@ export const CartProvider = ({ children }) => {
     updateQuantity,
     clearCart,
     getCartTotal,
+    getSimpleCartTotal,
+    getPricingBreakdown,
     getCartItemsCount,
     validateCartItems,
     hasOutOfStockItems,

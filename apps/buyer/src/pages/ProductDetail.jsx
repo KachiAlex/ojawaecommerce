@@ -13,6 +13,7 @@ const ProductDetail = () => {
   const [quantity, setQuantity] = useState(1);
   const [reviews, setReviews] = useState([]);
   const [loadingReviews, setLoadingReviews] = useState(true);
+  const [vendorInfo, setVendorInfo] = useState(null);
   const { addToCart, saveIntendedDestination } = useCart();
   const { currentUser } = useAuth();
 
@@ -42,7 +43,27 @@ const ProductDetail = () => {
         const productSnap = await getDoc(productRef);
         
         if (productSnap.exists()) {
-          setProduct({ id: productSnap.id, ...productSnap.data() });
+          const productData = { id: productSnap.id, ...productSnap.data() };
+          setProduct(productData);
+          
+          // Fetch vendor info
+          if (productData.vendorId) {
+            try {
+              const vendorRef = doc(db, 'users', productData.vendorId);
+              const vendorSnap = await getDoc(vendorRef);
+              
+              if (vendorSnap.exists()) {
+                const vendorData = vendorSnap.data();
+                setVendorInfo({
+                  id: productData.vendorId,
+                  name: vendorData.vendorProfile?.storeName || vendorData.displayName || vendorData.name || 'Vendor',
+                  address: vendorData.vendorProfile?.businessAddress || vendorData.address || 'Not specified'
+                });
+              }
+            } catch (vendorError) {
+              console.error('Error fetching vendor info:', vendorError);
+            }
+          }
         } else {
           // Mock data for demo
           setProduct({
@@ -75,8 +96,14 @@ const ProductDetail = () => {
         const productReviews = await firebaseService.reviews.getByProduct(id);
         setReviews(productReviews || []);
       } catch (error) {
-        console.error('Error fetching reviews:', error);
-        setReviews([]);
+        // If index is missing, silently skip reviews - page will still work
+        if (error.message && error.message.includes('index')) {
+          console.warn('Reviews index not ready yet. Reviews will be available once the index is built.');
+          setReviews([]);
+        } else {
+          console.error('Error fetching reviews:', error);
+          setReviews([]);
+        }
       } finally {
         setLoadingReviews(false);
       }
@@ -158,7 +185,20 @@ const ProductDetail = () => {
 
         {/* Product Details */}
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">{product.name}</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">{product.name}</h1>
+          
+          {/* Vendor/Store Name */}
+          {vendorInfo && (
+            <div className="mb-4 flex items-center text-gray-600">
+              <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a1 1 0 110 2h-3a1 1 0 01-1-1v-2a1 1 0 00-1-1H9a1 1 0 00-1 1v2a1 1 0 01-1 1H4a1 1 0 110-2V4zm3 1h2v2H7V5zm2 4H7v2h2V9zm2-4h2v2h-2V5zm2 4h-2v2h2V9z" clipRule="evenodd" />
+              </svg>
+              <span className="text-sm">
+                Sold by: <span className="font-semibold text-gray-900">{vendorInfo.name}</span>
+              </span>
+            </div>
+          )}
+          
           <p className="text-3xl font-bold text-blue-600 mb-4">{formatPrice(product.price, product.currency)}</p>
           
           <div className="mb-6">

@@ -27,6 +27,7 @@ const Cart = () => {
   const [availableLogistics, setAvailableLogistics] = useState([]);
   const [loading, setLoading] = useState(false);
   const [vendorInfo, setVendorInfo] = useState(null);
+  const [itemVendors, setItemVendors] = useState({});
 
   // Calculate pricing breakdown whenever cart items or delivery options change
   useEffect(() => {
@@ -50,39 +51,78 @@ const Cart = () => {
     calculatePricing();
   }, [cartItems, deliveryOption, selectedLogistics, getPricingBreakdown]);
 
-  // Fetch vendor info for the first cart item (assumes single-vendor for now)
+  // Fetch vendor info for all cart items
   useEffect(() => {
-    const fetchVendor = async () => {
+    const fetchVendors = async () => {
       try {
         if (!cartItems.length) {
           setVendorInfo(null);
+          setItemVendors({});
           return;
         }
-        let vendorId = cartItems[0].vendorId;
-        if (!vendorId && cartItems[0].id) {
-          const prodSnap = await getDoc(doc(db, 'products', cartItems[0].id));
-          if (prodSnap.exists()) vendorId = prodSnap.data().vendorId;
+        
+        const vendorMap = {};
+        const itemToVendorMap = {};
+        
+        // Fetch vendor info for each unique vendor
+        for (const item of cartItems) {
+          let vendorId = item.vendorId;
+          
+          // If no vendorId in cart item, fetch from product document
+          if (!vendorId && item.id) {
+            try {
+              const prodSnap = await getDoc(doc(db, 'products', item.id));
+              if (prodSnap.exists()) {
+                vendorId = prodSnap.data().vendorId;
+              }
+            } catch (err) {
+              console.error(`Error fetching product ${item.id}:`, err);
+            }
+          }
+          
+          // Store the mapping from item ID to vendor ID
+          if (vendorId) {
+            itemToVendorMap[item.id] = vendorId;
+            
+            // Fetch vendor details if not already fetched
+            if (!vendorMap[vendorId]) {
+              try {
+                const userSnap = await getDoc(doc(db, 'users', vendorId));
+                if (userSnap.exists()) {
+                  const u = userSnap.data();
+                  vendorMap[vendorId] = {
+                    id: vendorId,
+                    name: u.vendorProfile?.storeName || u.displayName || u.name || 'Vendor',
+                    address: u.vendorProfile?.businessAddress || u.address || 'Not specified'
+                  };
+                }
+              } catch (err) {
+                console.error(`Error fetching vendor ${vendorId}:`, err);
+              }
+            }
+          }
         }
-        if (!vendorId) {
-          setVendorInfo(null);
-          return;
-        }
-        const userSnap = await getDoc(doc(db, 'users', vendorId));
-        if (userSnap.exists()) {
-          const u = userSnap.data();
-          setVendorInfo({
-            name: u.vendorProfile?.storeName || u.displayName || 'Vendor',
-            address: u.vendorProfile?.businessAddress || u.address || 'Not specified'
-          });
+        
+        // Merge both maps
+        const finalVendorMap = { ...vendorMap, ...itemToVendorMap };
+        setItemVendors(finalVendorMap);
+        
+        console.log('Vendor map:', finalVendorMap); // Debug log
+        
+        // Set primary vendor info (first vendor)
+        const firstVendorId = cartItems[0].vendorId || itemToVendorMap[cartItems[0].id];
+        if (firstVendorId && vendorMap[firstVendorId]) {
+          setVendorInfo(vendorMap[firstVendorId]);
         } else {
           setVendorInfo(null);
         }
       } catch (e) {
         console.error('Failed to fetch vendor info', e);
         setVendorInfo(null);
+        setItemVendors({});
       }
     };
-    fetchVendor();
+    fetchVendors();
   }, [cartItems]);
 
   // Fetch available logistics companies
@@ -167,18 +207,27 @@ const Cart = () => {
             </div>
           )}
           <div className="space-y-4">
-            {cartItems.map((item) => (
-              <div key={item.id} className="bg-white rounded-lg shadow p-6">
-                <div className="flex items-center space-x-4">
-                  <img
-                    src={item.image || (Array.isArray(item.images) && item.images[0]) || '/placeholder.png'}
-                    alt={item.name}
-                    className="w-20 h-20 object-cover rounded-lg"
-                  />
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-gray-900">{item.name}</h3>
-                    <p className="text-gray-600">{formatCurrency(item.price, item.currency)}</p>
-                  </div>
+            {cartItems.map((item) => {
+              const vendorId = item.vendorId || itemVendors[item.id];
+              const vendorData = vendorId ? itemVendors[vendorId] : null;
+              
+              return (
+                <div key={item.id} className="bg-white rounded-lg shadow p-6">
+                  <div className="flex items-center space-x-4">
+                    <img
+                      src={item.image || (Array.isArray(item.images) && item.images[0]) || '/placeholder.png'}
+                      alt={item.name}
+                      className="w-20 h-20 object-cover rounded-lg"
+                    />
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-gray-900">{item.name}</h3>
+                      {vendorData && (
+                        <p className="text-sm text-gray-500 mb-1">
+                          🏪 {vendorData.name}
+                        </p>
+                      )}
+                      <p className="text-gray-600">{formatCurrency(item.price, item.currency)}</p>
+                    </div>
                   <div className="flex items-center space-x-2">
                     <button
                       onClick={() => updateQuantity(item.id, item.quantity - 1)}
@@ -224,7 +273,8 @@ const Cart = () => {
                   </div>
                 </div>
               </div>
-            ))}
+            );
+            })}
           </div>
         </div>
 

@@ -1543,6 +1543,12 @@ export const logisticsService = {
         }
       );
 
+      // If Maps pricing failed, use fallback
+      if (!optimizedPricing) {
+        console.warn('Maps pricing unavailable, using fallback calculation');
+        return this.calculateCost(partner, deliveryData);
+      }
+
       // Apply partner-specific adjustments
       const partnerAdjustment = partner.priceAdjustment || 1.0;
       const adjustedCost = Math.round(optimizedPricing.cost * partnerAdjustment);
@@ -2019,12 +2025,17 @@ export const logisticsService = {
               ...deliveryData
             });
             
+            // Safely access route analysis properties
+            const routeAnalysis = pricing?.routeAnalysis || {};
+            const duration = routeAnalysis.duration || {};
+            const distance = routeAnalysis.distance || {};
+            
             return {
               ...partner,
               pricing,
-              estimatedDelivery: pricing.routeAnalysis.duration.text,
-              routeType: pricing.routeAnalysis.routeType,
-              distance: pricing.routeAnalysis.distance.text
+              estimatedDelivery: duration.text || 'Calculating...',
+              routeType: routeAnalysis.routeType || 'standard',
+              distance: distance.text || 'N/A'
             };
           } catch (error) {
             console.error(`Error calculating pricing for partner ${partner.id}:`, error);
@@ -2467,6 +2478,74 @@ export const disputeService = {
     } catch (e) {
       console.error('Error counting disputes:', e);
       return 0;
+    }
+  },
+
+  // Get disputes by buyer
+  async getByBuyer(buyerId) {
+    try {
+      const q = query(
+        collection(db, 'disputes'),
+        where('buyerId', '==', buyerId),
+        orderBy('createdAt', 'desc')
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      console.error('Error fetching buyer disputes:', error);
+      return [];
+    }
+  },
+
+  // Get disputes by logistics
+  async getByLogistics(logisticsId) {
+    try {
+      const q = query(
+        collection(db, 'disputes'),
+        where('logisticsCompanyId', '==', logisticsId),
+        orderBy('createdAt', 'desc')
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      console.error('Error fetching logistics disputes:', error);
+      return [];
+    }
+  },
+
+  // Add response to dispute
+  async addResponse(disputeId, response) {
+    try {
+      const disputeRef = doc(db, 'disputes', disputeId);
+      const disputeDoc = await getDoc(disputeRef);
+      
+      if (!disputeDoc.exists()) {
+        throw new Error('Dispute not found');
+      }
+
+      const currentResponses = disputeDoc.data().responses || [];
+      await updateDoc(disputeRef, {
+        responses: [...currentResponses, response],
+        updatedAt: serverTimestamp()
+      });
+    } catch (error) {
+      console.error('Error adding dispute response:', error);
+      throw error;
+    }
+  },
+
+  // Get all disputes (admin)
+  async getAll() {
+    try {
+      const q = query(
+        collection(db, 'disputes'),
+        orderBy('createdAt', 'desc')
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      console.error('Error fetching all disputes:', error);
+      return [];
     }
   }
 };

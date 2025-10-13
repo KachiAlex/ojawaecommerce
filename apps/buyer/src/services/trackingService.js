@@ -138,7 +138,17 @@ export const walletTrackingService = {
         const walletDoc = snapshot.docs[0];
         return { id: walletDoc.id, ...walletDoc.data() };
       }
-      return null;
+      
+      // If no wallet found, try to create one automatically
+      console.log(`No wallet found for user ${userId}, attempting to create one...`);
+      try {
+        const walletId = await this.createWallet(userId, 'buyer');
+        // Return the newly created wallet
+        return await this.getWalletByUserId(userId);
+      } catch (createError) {
+        console.error('Error creating wallet automatically:', createError);
+        return null;
+      }
     } catch (error) {
       console.error('Error fetching wallet by user ID:', error);
       throw error;

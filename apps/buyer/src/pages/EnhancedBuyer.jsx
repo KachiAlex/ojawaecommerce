@@ -8,9 +8,11 @@ import ComponentErrorBoundary from '../components/ComponentErrorBoundary'
 import OrderSatisfactionModal from '../components/OrderSatisfactionModal'
 import ReviewModal from '../components/ReviewModal'
 import OrderTransactionModal from '../components/OrderTransactionModal'
+import DisputeManagement from '../components/DisputeManagement'
 import DeliveryTrackingModal from '../components/DeliveryTrackingModal'
 import AdvancedDisputeModal from '../components/AdvancedDisputeModal'
 import MessagingInterface from '../components/MessagingInterface'
+import NotificationPreferences from '../components/NotificationPreferences'
 import { useMessaging } from '../contexts/MessagingContext'
 import { ORDER_STATUS } from '../services/orderWorkflow'
 import { errorLogger } from '../utils/errorLogger'
@@ -433,7 +435,9 @@ const EnhancedBuyer = () => {
               {[
                 { id: 'overview', name: 'Overview', icon: '📊' },
                 { id: 'orders', name: 'Orders', icon: '📦' },
-                { id: 'wallet', name: 'Wallet', icon: '💰' }
+                { id: 'wallet', name: 'Wallet', icon: '💰' },
+                { id: 'disputes', name: 'Disputes', icon: '⚖️' },
+                { id: 'settings', name: 'Settings', icon: '⚙️' }
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -691,6 +695,14 @@ const EnhancedBuyer = () => {
                 )}
               </div>
             </div>
+          )}
+
+          {activeTab === 'disputes' && (
+            <DisputeManagement userType="buyer" />
+          )}
+
+          {activeTab === 'settings' && (
+            <NotificationPreferences />
           )}
 
           {activeTab === 'wallet' && (

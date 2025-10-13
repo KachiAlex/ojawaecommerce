@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import firebaseService from '../services/firebaseService';
 import googleMapsService from '../services/googleMapsService';
 import WalletManager from '../components/WalletManager';
+import LogisticsPerformanceDashboard from '../components/LogisticsPerformanceDashboard';
 
 const Logistics = () => {
   const { currentUser } = useAuth();
@@ -858,8 +859,15 @@ const Logistics = () => {
           {/* Tab Content */}
           {activeTab === 'overview' && (
             <>
+              {/* Enhanced Performance Dashboard */}
+              <LogisticsPerformanceDashboard 
+                logisticsId={profile?.id}
+                deliveries={deliveries}
+                routes={routes}
+              />
+              
               {/* Stats Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8 mt-8">
                 <div className="bg-white p-6 rounded-xl border">
                   <div className="flex items-center justify-between">
                     <div>

@@ -14,14 +14,19 @@ const WalletBalanceCheck = ({ totalAmount, onBalanceCheck, onInsufficientFunds }
       
       try {
         setLoading(true);
+        console.log('Fetching wallet balance for user:', currentUser.uid);
         const wallet = await firebaseService.wallet.getUserWallet(currentUser.uid);
-        setWalletBalance(wallet?.balance || 0);
+        console.log('Wallet data received:', wallet);
+        
+        const balance = wallet?.balance || 0;
+        setWalletBalance(balance);
+        console.log('Setting wallet balance to:', balance);
         
         // Check if balance is sufficient
-        if (wallet?.balance >= totalAmount) {
+        if (balance >= totalAmount) {
           onBalanceCheck(true);
         } else {
-          onInsufficientFunds(wallet?.balance || 0);
+          onInsufficientFunds(balance);
         }
       } catch (err) {
         console.error('Error fetching wallet balance:', err);

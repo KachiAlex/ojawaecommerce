@@ -20,6 +20,11 @@ export const config = {
     },
   },
 
+  // Google Maps configuration
+  googleMaps: {
+    apiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+  },
+
   // App configuration
   app: {
     name: import.meta.env.VITE_APP_NAME || 'Ojawa',

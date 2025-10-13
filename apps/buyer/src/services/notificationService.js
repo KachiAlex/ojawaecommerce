@@ -51,6 +51,85 @@ export const notificationService = {
     }
   },
 
+  // Create notification with push and email delivery options
+  async createWithPushAndEmail(notificationData, sendPush = true, sendEmail = false) {
+    try {
+      const docRef = await addDoc(collection(db, 'notifications'), {
+        ...notificationData,
+        sendEmail: sendEmail,
+        // Push notifications are handled automatically by Cloud Function
+        // Email flag controls whether email should be sent
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      
+      console.log(`Notification created: ${docRef.id}, Push: ${sendPush}, Email: ${sendEmail}`);
+      
+      return {
+        id: docRef.id,
+        ...notificationData
+      };
+    } catch (error) {
+      console.error('Error creating notification with push/email:', error);
+      throw error;
+    }
+  },
+
+  // Send bulk notifications to multiple users
+  async sendBulkNotifications(userIds, notificationData) {
+    try {
+      const promises = userIds.map(userId =>
+        this.createWithPushAndEmail(
+          {
+            ...notificationData,
+            userId: userId
+          },
+          true,
+          notificationData.sendEmail || false
+        )
+      );
+      
+      const results = await Promise.allSettled(promises);
+      
+      const summary = {
+        total: results.length,
+        successful: results.filter(r => r.status === 'fulfilled').length,
+        failed: results.filter(r => r.status === 'rejected').length
+      };
+      
+      console.log('Bulk notification results:', summary);
+      
+      return summary;
+    } catch (error) {
+      console.error('Error sending bulk notifications:', error);
+      throw error;
+    }
+  },
+
+  // Schedule notification for future delivery (note: requires additional Cloud Function)
+  async scheduleNotification(notificationData, scheduledTime) {
+    try {
+      // Store scheduled notification
+      const docRef = await addDoc(collection(db, 'scheduled_notifications'), {
+        ...notificationData,
+        scheduledFor: scheduledTime,
+        status: 'pending',
+        createdAt: serverTimestamp()
+      });
+      
+      console.log(`Notification scheduled for ${scheduledTime}: ${docRef.id}`);
+      
+      return {
+        id: docRef.id,
+        ...notificationData,
+        scheduledFor: scheduledTime
+      };
+    } catch (error) {
+      console.error('Error scheduling notification:', error);
+      throw error;
+    }
+  },
+
   // Get notifications for a specific user
   async getByUser(userId, options = {}) {
     try {
@@ -154,57 +233,65 @@ export const notificationService = {
     }
   },
 
-  // Create notification for order events
-  async createOrderNotification(orderData, eventType) {
+  // Create notification for order events (with push and email)
+  async createOrderNotification(orderData, eventType, sendEmail = true) {
     try {
       const notificationTypes = {
         'order_placed': {
           title: 'Order Placed Successfully',
           message: `Your order #${orderData.id} has been placed and payment is being processed.`,
-          type: 'success',
-          icon: '📦'
+          type: 'order_placed',
+          icon: '📦',
+          emailEnabled: true
         },
         'payment_processed': {
           title: 'Payment Processed',
           message: `Payment for order #${orderData.id} has been processed. Funds are held in escrow.`,
-          type: 'info',
-          icon: '💰'
+          type: 'payment',
+          icon: '💰',
+          emailEnabled: true
         },
         'order_shipped': {
           title: 'Order Shipped',
           message: `Your order #${orderData.id} has been shipped. Track your delivery.`,
-          type: 'info',
-          icon: '🚚'
+          type: 'order_shipped',
+          icon: '🚚',
+          emailEnabled: true
         },
         'order_delivered': {
           title: 'Order Delivered',
           message: `Your order #${orderData.id} has been delivered. Please confirm receipt.`,
-          type: 'success',
-          icon: '✅'
+          type: 'order_delivered',
+          icon: '✅',
+          emailEnabled: true
         },
         'order_completed': {
           title: 'Order Completed',
           message: `Order #${orderData.id} has been completed. Thank you for your business!`,
-          type: 'success',
-          icon: '🎉'
+          type: 'order_update',
+          icon: '🎉',
+          emailEnabled: false
         },
         'order_cancelled': {
           title: 'Order Cancelled',
           message: `Order #${orderData.id} has been cancelled. Refund will be processed.`,
-          type: 'warning',
-          icon: '❌'
+          type: 'order_update',
+          icon: '❌',
+          emailEnabled: true
         },
         'dispute_created': {
           title: 'Dispute Created',
           message: `A dispute has been created for order #${orderData.id}. We'll review and resolve it.`,
-          type: 'warning',
-          icon: '⚖️'
+          type: 'dispute',
+          icon: '⚖️',
+          emailEnabled: true
         },
         'dispute_resolved': {
           title: 'Dispute Resolved',
           message: `The dispute for order #${orderData.id} has been resolved.`,
-          type: 'info',
-          icon: '✅'
+          type: 'dispute_resolved',
+          icon: '✅',
+          emailEnabled: true
         }
       };
 
@@ -213,7 +300,7 @@ export const notificationService = {
         throw new Error(`Unknown notification type: ${eventType}`);
       }
 
-      return await this.create({
+      return await this.createWithPushAndEmail({
         userId: orderData.buyerId,
         title: notificationConfig.title,
         message: notificationConfig.message,
@@ -223,40 +310,44 @@ export const notificationService = {
         orderStatus: orderData.status,
         read: false,
         priority: 'normal'
-      });
+      }, true, sendEmail && notificationConfig.emailEnabled);
     } catch (error) {
       console.error('Error creating order notification:', error);
       throw error;
     }
   },
 
-  // Create notification for vendor events
-  async createVendorNotification(vendorId, eventType, orderData) {
+  // Create notification for vendor events (with push and email)
+  async createVendorNotification(vendorId, eventType, orderData, sendEmail = true) {
     try {
       const notificationTypes = {
         'new_order': {
           title: 'New Order Received',
           message: `You have received a new order #${orderData.id} for ₦${orderData.totalAmount.toLocaleString()}.`,
-          type: 'info',
-          icon: '🛒'
+          type: 'new_order',
+          icon: '🛒',
+          emailEnabled: true
         },
         'payment_released': {
           title: 'Payment Released',
           message: `Payment for order #${orderData.id} has been released to your wallet.`,
-          type: 'success',
-          icon: '💰'
+          type: 'payment_released',
+          icon: '💰',
+          emailEnabled: true
         },
         'dispute_created': {
           title: 'Dispute Created',
           message: `A dispute has been created for order #${orderData.id}. Please respond.`,
-          type: 'warning',
-          icon: '⚖️'
+          type: 'dispute',
+          icon: '⚖️',
+          emailEnabled: true
         },
         'dispute_resolved': {
           title: 'Dispute Resolved',
           message: `The dispute for order #${orderData.id} has been resolved.`,
-          type: 'info',
-          icon: '✅'
+          type: 'dispute_resolved',
+          icon: '✅',
+          emailEnabled: true
         }
       };
 
@@ -265,7 +356,7 @@ export const notificationService = {
         throw new Error(`Unknown notification type: ${eventType}`);
       }
 
-      return await this.create({
+      return await this.createWithPushAndEmail({
         userId: vendorId,
         title: notificationConfig.title,
         message: notificationConfig.message,
@@ -275,7 +366,7 @@ export const notificationService = {
         orderStatus: orderData.status,
         read: false,
         priority: 'normal'
-      });
+      }, true, sendEmail && notificationConfig.emailEnabled);
     } catch (error) {
       console.error('Error creating vendor notification:', error);
       throw error;

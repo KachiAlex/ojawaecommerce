@@ -1,13 +1,18 @@
-// Service Worker for Ojawa E-commerce PWA
-const CACHE_NAME = 'ojawa-v1.0.1';
-const STATIC_CACHE = 'ojawa-static-v1.0.1';
-const DYNAMIC_CACHE = 'ojawa-dynamic-v1.0.1';
+// Service Worker for Ojawa E-commerce PWA - Optimized
+const CACHE_NAME = 'ojawa-v2.0.0';
+const STATIC_CACHE = 'ojawa-static-v2.0.0';
+const DYNAMIC_CACHE = 'ojawa-dynamic-v2.0.0';
+const IMAGE_CACHE = 'ojawa-images-v2.0.0';
 
-// Files to cache for offline functionality
+// Critical files to cache immediately
 const STATIC_FILES = [
   '/',
   '/index.html',
-  '/manifest.json',
+  '/manifest.json'
+];
+
+// Non-critical files to cache after initial load
+const SECONDARY_FILES = [
   '/vite.svg',
   '/icons/icon-32x32.png',
   '/icons/icon-16x16.png',
@@ -23,27 +28,36 @@ const API_CACHE_PATTERNS = [
   /\/api\/notifications/
 ];
 
-// Install event - cache static files
+// Install event - cache critical files first, then secondary files
 self.addEventListener('install', (event) => {
   console.log('Service Worker: Installing...');
   
   event.waitUntil(
     caches.open(STATIC_CACHE)
       .then((cache) => {
-        console.log('Service Worker: Caching static files');
+        console.log('Service Worker: Caching critical files');
         return cache.addAll(STATIC_FILES);
       })
       .then(() => {
-        console.log('Service Worker: Static files cached');
+        console.log('Service Worker: Critical files cached');
+        // Cache secondary files in background
+        return caches.open(STATIC_CACHE).then(cache => {
+          return cache.addAll(SECONDARY_FILES).catch(err => {
+            console.warn('Service Worker: Some secondary files failed to cache', err);
+          });
+        });
+      })
+      .then(() => {
+        console.log('Service Worker: All files cached');
         return self.skipWaiting();
       })
       .catch((error) => {
-        console.error('Service Worker: Failed to cache static files', error);
+        console.error('Service Worker: Failed to cache files', error);
       })
   );
 });
 
-// Activate event - clean up old caches
+// Activate event - clean up old caches and manage cache size
 self.addEventListener('activate', (event) => {
   console.log('Service Worker: Activating...');
   
@@ -52,7 +66,7 @@ self.addEventListener('activate', (event) => {
       .then((cacheNames) => {
         return Promise.all(
           cacheNames.map((cacheName) => {
-            if (cacheName !== STATIC_CACHE && cacheName !== DYNAMIC_CACHE) {
+            if (cacheName !== STATIC_CACHE && cacheName !== DYNAMIC_CACHE && cacheName !== IMAGE_CACHE) {
               console.log('Service Worker: Deleting old cache', cacheName);
               return caches.delete(cacheName);
             }
@@ -63,10 +77,14 @@ self.addEventListener('activate', (event) => {
         console.log('Service Worker: Activated');
         return self.clients.claim();
       })
+      .then(() => {
+        // Clean up old dynamic cache entries
+        return cleanupOldCacheEntries();
+      })
   );
 });
 
-// Fetch event - serve from cache, fallback to network
+// Fetch event - optimized caching strategy
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
@@ -81,55 +99,92 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Only handle same-origin requests to avoid interfering with third-party APIs (e.g., Firebase Functions)
-  if (url.origin !== self.location.origin) {
-    return; // let the network handle cross-origin requests
+  // Handle different types of requests with different strategies
+  if (url.origin === self.location.origin) {
+    // Same-origin requests
+    if (url.pathname.startsWith('/assets/')) {
+      // Vite assets - cache first, then network
+      event.respondWith(cacheFirstStrategy(request));
+    } else if (isImageRequest(url)) {
+      // Images - cache first with fallback
+      event.respondWith(imageCacheStrategy(request));
+    } else if (isApiRequest(url.pathname)) {
+      // API requests - network first, then cache
+      event.respondWith(networkFirstStrategy(request));
+    } else {
+      // HTML pages - cache first, then network
+      event.respondWith(cacheFirstStrategy(request));
+    }
+  } else {
+    // Cross-origin requests - let network handle them
+    return;
   }
-
-  // Always bypass SW caching for Vite-built hashed assets and external resources
-  if (url.pathname.startsWith('/assets/') || url.pathname === '/vite.svg') {
-    return; // allow default network handling
-  }
-
-  event.respondWith(
-    caches.match(request)
-      .then((cachedResponse) => {
-        if (cachedResponse) {
-          return cachedResponse;
-        }
-
-        return fetch(request)
-          .then((response) => {
-            // Skip caching non-OK or cross-origin/basic checks
-            if (!response || response.status !== 200 || response.type !== 'basic') {
-              return response;
-            }
-
-            const responseToCache = response.clone();
-            if (isApiRequest(request.url)) {
-              caches.open(DYNAMIC_CACHE).then((cache) => {
-                cache.put(request, responseToCache);
-              });
-            }
-            return response;
-          })
-          .catch(async (error) => {
-            console.error('Service Worker: Fetch failed', error);
-
-            if (request.mode === 'navigate') {
-              const offline = await caches.match('/index.html');
-              if (offline) return offline;
-            }
-
-            const fallback = await caches.match(request);
-            if (fallback) return fallback;
-
-            // Return a minimal error response to satisfy the Response contract
-            return new Response('', { status: 504, statusText: 'Gateway Timeout' });
-          });
-      })
-  );
 });
+
+// Cache-first strategy for static assets
+async function cacheFirstStrategy(request) {
+  try {
+    const cachedResponse = await caches.match(request);
+    if (cachedResponse) {
+      return cachedResponse;
+    }
+
+    const networkResponse = await fetch(request);
+    if (networkResponse.ok) {
+      const cache = await caches.open(STATIC_CACHE);
+      cache.put(request, networkResponse.clone());
+    }
+    return networkResponse;
+  } catch (error) {
+    console.error('Cache-first strategy failed:', error);
+    return new Response('', { status: 504, statusText: 'Gateway Timeout' });
+  }
+}
+
+// Network-first strategy for API requests
+async function networkFirstStrategy(request) {
+  try {
+    const networkResponse = await fetch(request);
+    if (networkResponse.ok) {
+      const cache = await caches.open(DYNAMIC_CACHE);
+      cache.put(request, networkResponse.clone());
+    }
+    return networkResponse;
+  } catch (error) {
+    console.error('Network-first strategy failed:', error);
+    const cachedResponse = await caches.match(request);
+    if (cachedResponse) {
+      return cachedResponse;
+    }
+    return new Response('', { status: 504, statusText: 'Gateway Timeout' });
+  }
+}
+
+// Image caching strategy
+async function imageCacheStrategy(request) {
+  try {
+    const cachedResponse = await caches.match(request);
+    if (cachedResponse) {
+      return cachedResponse;
+    }
+
+    const networkResponse = await fetch(request);
+    if (networkResponse.ok) {
+      const cache = await caches.open(IMAGE_CACHE);
+      cache.put(request, networkResponse.clone());
+    }
+    return networkResponse;
+  } catch (error) {
+    console.error('Image cache strategy failed:', error);
+    // Return a placeholder image or fallback
+    return new Response('', { status: 404, statusText: 'Not Found' });
+  }
+}
+
+// Helper function to detect image requests
+function isImageRequest(url) {
+  return /\.(jpg|jpeg|png|gif|webp|svg|ico)$/i.test(url.pathname);
+}
 
 // Background sync for offline actions
 self.addEventListener('sync', (event) => {
@@ -254,6 +309,38 @@ async function getPendingOrders() {
 async function removePendingOrder(orderId) {
   // Remove from IndexedDB
   console.log('Removing pending order:', orderId);
+}
+
+// Clean up old cache entries to manage storage
+async function cleanupOldCacheEntries() {
+  const maxCacheSize = 50; // Maximum number of entries per cache
+  
+  try {
+    const dynamicCache = await caches.open(DYNAMIC_CACHE);
+    const requests = await dynamicCache.keys();
+    
+    if (requests.length > maxCacheSize) {
+      // Remove oldest entries (simple FIFO)
+      const entriesToDelete = requests.slice(0, requests.length - maxCacheSize);
+      await Promise.all(
+        entriesToDelete.map(request => dynamicCache.delete(request))
+      );
+      console.log(`Service Worker: Cleaned up ${entriesToDelete.length} old cache entries`);
+    }
+    
+    const imageCache = await caches.open(IMAGE_CACHE);
+    const imageRequests = await imageCache.keys();
+    
+    if (imageRequests.length > maxCacheSize) {
+      const imagesToDelete = imageRequests.slice(0, imageRequests.length - maxCacheSize);
+      await Promise.all(
+        imagesToDelete.map(request => imageCache.delete(request))
+      );
+      console.log(`Service Worker: Cleaned up ${imagesToDelete.length} old image cache entries`);
+    }
+  } catch (error) {
+    console.error('Service Worker: Failed to cleanup cache entries', error);
+  }
 }
 
 // Message handling for communication with main thread

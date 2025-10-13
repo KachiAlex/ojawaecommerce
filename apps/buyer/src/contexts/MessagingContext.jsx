@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import firebaseService from '../services/firebaseService';
+import fcmService from '../services/fcmService';
 
 const MessagingContext = createContext();
 
@@ -19,6 +20,8 @@ export const MessagingProvider = ({ children }) => {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [fcmToken, setFcmToken] = useState(null);
+  const [notificationPermission, setNotificationPermission] = useState('default');
 
   // Fetch user's conversations
   const fetchConversations = async () => {
@@ -148,17 +151,87 @@ export const MessagingProvider = ({ children }) => {
     fetchConversations();
   }, [currentUser]);
 
+  // Initialize FCM when user logs in
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const initFCM = async () => {
+      try {
+        console.log('Initializing FCM for user:', currentUser.uid);
+        
+        // Initialize FCM and get token
+        const token = await fcmService.initializeFCM(currentUser.uid);
+        
+        if (token) {
+          setFcmToken(token);
+          console.log('FCM initialized successfully');
+        }
+        
+        // Update permission status
+        setNotificationPermission(fcmService.getPermissionStatus());
+      } catch (error) {
+        console.error('Error initializing FCM:', error);
+      }
+    };
+
+    initFCM();
+
+    // Cleanup on logout
+    return () => {
+      if (fcmToken && currentUser) {
+        fcmService.removeFCMToken(currentUser.uid).catch(console.error);
+      }
+    };
+  }, [currentUser?.uid]);
+
+  // Handle foreground messages
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const unsubscribe = fcmService.handleForegroundMessage((payload) => {
+      console.log('Foreground message received:', payload);
+      
+      // The notification will be shown by the browser's native notification
+      // We don't need to show it in-app here to avoid duplication
+      // The NotificationContext will pick it up from Firestore listener
+    });
+
+    return unsubscribe;
+  }, [currentUser]);
+
+  // Request notification permission
+  const requestNotificationPermission = async () => {
+    try {
+      const granted = await fcmService.requestNotificationPermission();
+      setNotificationPermission(fcmService.getPermissionStatus());
+      
+      if (granted && currentUser) {
+        // Get and save FCM token
+        const token = await fcmService.getFCMToken(currentUser.uid);
+        setFcmToken(token);
+      }
+      
+      return granted;
+    } catch (error) {
+      console.error('Error requesting notification permission:', error);
+      return false;
+    }
+  };
+
   const value = {
     conversations,
     activeConversation,
     messages,
     loading,
     unreadCount,
+    fcmToken,
+    notificationPermission,
     setActiveConversation,
     startConversation,
     sendMessage,
     markAsRead,
-    fetchConversations
+    fetchConversations,
+    requestNotificationPermission
   };
 
   return (
