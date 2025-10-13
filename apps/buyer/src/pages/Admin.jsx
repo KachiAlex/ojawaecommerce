@@ -68,20 +68,23 @@ const Admin = () => {
     try {
       setLoading(true);
 
-      // Load all users
-      const usersData = await firebaseService.users.getAll();
+      // Load all users with pagination
+      const usersResult = await firebaseService.admin.getAllUsers({ pageSize: 1000 });
+      const usersData = usersResult.items || [];
       setUsers(usersData);
 
-      // Load all orders
-      const ordersData = await firebaseService.orders.getAll();
+      // Load all orders with pagination
+      const ordersResult = await firebaseService.admin.getAllOrders({ pageSize: 1000 });
+      const ordersData = ordersResult.items || [];
       setOrders(ordersData);
 
       // Load all products
       const productsData = await firebaseService.products.getAll();
       setProducts(productsData);
 
-      // Load disputes
-      const disputesData = await firebaseService.disputes?.getAll() || [];
+      // Load disputes with pagination
+      const disputesResult = await firebaseService.admin.getAllDisputes({ pageSize: 1000 });
+      const disputesData = disputesResult.items || [];
       setDisputes(disputesData);
 
       // Calculate stats
@@ -112,9 +115,31 @@ const Admin = () => {
         pendingDisputes,
         activeUsers
       });
+      
+      console.log('✅ Admin data loaded successfully:', {
+        users: usersData.length,
+        orders: ordersData.length,
+        products: productsData.length,
+        disputes: disputesData.length
+      });
 
     } catch (error) {
       console.error('Error loading admin data:', error);
+      // Set empty arrays on error to prevent crashes
+      setUsers([]);
+      setOrders([]);
+      setProducts([]);
+      setDisputes([]);
+      setStats({
+        totalUsers: 0,
+        totalVendors: 0,
+        totalLogistics: 0,
+        totalOrders: 0,
+        totalProducts: 0,
+        totalRevenue: 0,
+        pendingDisputes: 0,
+        activeUsers: 0
+      });
     } finally {
       setLoading(false);
     }
