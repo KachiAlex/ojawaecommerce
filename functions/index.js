@@ -1,9 +1,10 @@
-const functions = require("firebase-functions");
+const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
 
 // Initialize Firebase Admin
 admin.initializeApp();
 const db = admin.firestore();
+const messaging = admin.messaging();
 
 // Basic notification function
 exports.notifyVendorNewOrder = functions.https.onCall(async (data, context) => {
@@ -301,5 +302,356 @@ exports.releaseEscrowFundsHttp = functions.https.onRequest(async (req, res) => {
   } catch (error) {
     console.error('releaseEscrowFundsHttp error:', error);
     return res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// ===== NEW NOTIFICATION FUNCTIONS =====
+
+// Send push notification when notification document is created
+exports.sendPushNotification = functions.firestore
+  .document('notifications/{notificationId}')
+  .onCreate(async (snap, context) => {
+    try {
+      const notification = snap.data();
+      const userId = notification.userId;
+      const notificationId = context.params.notificationId;
+      
+      console.log(`Sending push notification to user ${userId}:`, notification.title);
+      
+      // Get user's FCM token
+      const userDoc = await db.collection('users').doc(userId).get();
+      if (!userDoc.exists) {
+        console.log(`User ${userId} not found`);
+        return null;
+      }
+      
+      const userData = userDoc.data();
+      const fcmToken = userData.fcmToken;
+      
+      if (!fcmToken) {
+        console.log(`No FCM token for user ${userId}`);
+        return null;
+      }
+      
+      // Check user's notification preferences
+      const prefs = userData.notificationPreferences || {};
+      const pushPrefs = prefs.push || {};
+      
+      // If push notifications disabled globally, skip
+      if (pushPrefs.enabled === false) {
+        console.log(`Push notifications disabled for user ${userId}`);
+        return null;
+      }
+      
+      // Check category-specific preferences
+      const notificationType = notification.type;
+      if (notificationType === 'order_update' && pushPrefs.orders === false) {
+        console.log(`Order push notifications disabled for user ${userId}`);
+        return null;
+      }
+      if (notificationType === 'payment' && pushPrefs.payments === false) {
+        console.log(`Payment push notifications disabled for user ${userId}`);
+        return null;
+      }
+      if (notificationType === 'dispute' && pushPrefs.disputes === false) {
+        console.log(`Dispute push notifications disabled for user ${userId}`);
+        return null;
+      }
+      if (notificationType === 'marketing' && pushPrefs.marketing === false) {
+        console.log(`Marketing push notifications disabled for user ${userId}`);
+        return null;
+      }
+      
+      // Prepare message payload
+      const message = {
+        token: fcmToken,
+        notification: {
+          title: notification.title || 'Ojawa Notification',
+          body: notification.message || ''
+        },
+        data: {
+          notificationId: notificationId,
+          type: notification.type || 'general',
+          orderId: notification.orderId || '',
+          url: notification.link || '',
+          priority: notification.priority || 'normal'
+        },
+        webpush: {
+          notification: {
+            icon: '/icon-192x192.png',
+            badge: '/badge-72x72.png',
+            requireInteraction: notification.priority === 'urgent'
+          }
+        }
+      };
+      
+      // Send push notification
+      const response = await messaging.send(message);
+      console.log(`Push notification sent successfully to ${userId}:`, response);
+      
+      // Update notification with sent status
+      await snap.ref.update({
+        pushSent: true,
+        pushSentAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      
+      return response;
+    } catch (error) {
+      console.error('Error sending push notification:', error);
+      
+      // If token is invalid, remove it from user document
+      if (error.code === 'messaging/invalid-registration-token' ||
+          error.code === 'messaging/registration-token-not-registered') {
+        const notification = snap.data();
+        await db.collection('users').doc(notification.userId).update({
+          fcmToken: null
+        });
+        console.log(`Removed invalid FCM token for user ${notification.userId}`);
+      }
+      
+      return null;
+    }
+  });
+
+// Trigger email notification when notification document is created
+exports.sendEmailNotification = functions.firestore
+  .document('notifications/{notificationId}')
+  .onCreate(async (snap, context) => {
+    try {
+      const notification = snap.data();
+      const userId = notification.userId;
+      
+      // Check if email should be sent
+      if (!notification.sendEmail) {
+        console.log('Email sending not requested for this notification');
+        return null;
+      }
+      
+      console.log(`Sending email notification to user ${userId}:`, notification.title);
+      
+      // Get user email
+      const userDoc = await db.collection('users').doc(userId).get();
+      if (!userDoc.exists) {
+        console.log(`User ${userId} not found`);
+        return null;
+      }
+      
+      const userData = userDoc.data();
+      const email = userData.email;
+      
+      if (!email) {
+        console.log(`No email for user ${userId}`);
+        return null;
+      }
+      
+      // Check user's email notification preferences
+      const prefs = userData.notificationPreferences || {};
+      const emailPrefs = prefs.email || {};
+      
+      // If email notifications disabled globally, skip
+      if (emailPrefs.enabled === false) {
+        console.log(`Email notifications disabled for user ${userId}`);
+        return null;
+      }
+      
+      // Check category-specific preferences
+      const notificationType = notification.type;
+      if (notificationType === 'order_update' && emailPrefs.orders === false) {
+        console.log(`Order email notifications disabled for user ${userId}`);
+        return null;
+      }
+      if (notificationType === 'payment' && emailPrefs.payments === false) {
+        console.log(`Payment email notifications disabled for user ${userId}`);
+        return null;
+      }
+      if (notificationType === 'dispute' && emailPrefs.disputes === false) {
+        console.log(`Dispute email notifications disabled for user ${userId}`);
+        return null;
+      }
+      if (notificationType === 'marketing' && emailPrefs.marketing === false) {
+        console.log(`Marketing email notifications disabled for user ${userId}`);
+        return null;
+      }
+      
+      // Get email template based on notification type
+      const emailBody = getEmailTemplate(notification, userData);
+      
+      // Create mail document for Firebase Extension to process
+      const mailRef = await db.collection('mail').add({
+        to: email,
+        message: {
+          subject: notification.title || 'Ojawa Notification',
+          text: emailBody
+        },
+        notificationId: context.params.notificationId,
+        userId: userId,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      
+      console.log(`Email queued for user ${userId}, mail document:`, mailRef.id);
+      
+      // Update notification with email sent status
+      await snap.ref.update({
+        emailQueued: true,
+        emailQueuedAt: admin.firestore.FieldValue.serverTimestamp(),
+        mailDocId: mailRef.id
+      });
+      
+      return mailRef.id;
+    } catch (error) {
+      console.error('Error sending email notification:', error);
+      return null;
+    }
+  });
+
+// Helper function to generate email templates
+function getEmailTemplate(notification, userData) {
+  const userName = userData.displayName || userData.name || 'User';
+  const baseUrl = 'https://ojawa-ecommerce.web.app';
+  
+  let body = `Hello ${userName},\n\n`;
+  
+  switch (notification.type) {
+    case 'order_placed':
+      body += `Your order has been placed successfully!\n\n`;
+      body += `Order ID: ${notification.orderId || 'N/A'}\n`;
+      body += `${notification.message}\n\n`;
+      body += `View your order: ${baseUrl}/buyer\n\n`;
+      break;
+      
+    case 'order_update':
+      body += `Your order status has been updated.\n\n`;
+      body += `${notification.message}\n\n`;
+      body += `Order ID: ${notification.orderId || 'N/A'}\n`;
+      body += `View order details: ${baseUrl}/buyer\n\n`;
+      break;
+      
+    case 'order_shipped':
+      body += `Good news! Your order has been shipped.\n\n`;
+      body += `${notification.message}\n\n`;
+      body += `Track your order: ${baseUrl}/tracking/${notification.orderId || ''}\n\n`;
+      break;
+      
+    case 'order_delivered':
+      body += `Your order has been delivered!\n\n`;
+      body += `${notification.message}\n\n`;
+      body += `Please confirm receipt: ${baseUrl}/buyer\n\n`;
+      break;
+      
+    case 'payment':
+    case 'payment_success':
+      body += `Payment processed successfully.\n\n`;
+      body += `${notification.message}\n\n`;
+      body += `View transaction: ${baseUrl}/buyer?tab=wallet\n\n`;
+      break;
+      
+    case 'payment_released':
+      body += `Escrow payment has been released.\n\n`;
+      body += `${notification.message}\n\n`;
+      body += `View your wallet: ${baseUrl}/buyer?tab=wallet\n\n`;
+      break;
+      
+    case 'dispute':
+    case 'dispute_created':
+      body += `A dispute has been created.\n\n`;
+      body += `${notification.message}\n\n`;
+      body += `View dispute: ${baseUrl}/buyer?tab=disputes\n\n`;
+      break;
+      
+    case 'dispute_resolved':
+      body += `Your dispute has been resolved.\n\n`;
+      body += `${notification.message}\n\n`;
+      body += `View details: ${baseUrl}/buyer?tab=disputes\n\n`;
+      break;
+      
+    case 'new_order':
+      body += `You have received a new order!\n\n`;
+      body += `${notification.message}\n\n`;
+      body += `View order: ${baseUrl}/vendor\n\n`;
+      break;
+      
+    case 'low_stock':
+      body += `Low stock alert for your products.\n\n`;
+      body += `${notification.message}\n\n`;
+      body += `Manage inventory: ${baseUrl}/vendor?tab=store\n\n`;
+      break;
+      
+    default:
+      body += `${notification.message}\n\n`;
+      if (notification.link) {
+        body += `View details: ${notification.link}\n\n`;
+      }
+  }
+  
+  body += `Thank you for using Ojawa!\n\n`;
+  body += `Best regards,\n`;
+  body += `The Ojawa Team\n\n`;
+  body += `---\n`;
+  body += `If you wish to unsubscribe from these emails, please update your notification preferences in your account settings.`;
+  
+  return body;
+}
+
+// Send bulk push notifications
+exports.sendBulkPushNotifications = functions.https.onCall(async (data, context) => {
+  try {
+    // Verify authenticated
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+    }
+    
+    const { userIds, notification } = data;
+    
+    if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
+      throw new functions.https.HttpsError('invalid-argument', 'userIds must be a non-empty array');
+    }
+    
+    if (!notification || !notification.title || !notification.message) {
+      throw new functions.https.HttpsError('invalid-argument', 'notification must include title and message');
+    }
+    
+    console.log(`Sending bulk notifications to ${userIds.length} users`);
+    
+    const results = {
+      total: userIds.length,
+      sent: 0,
+      failed: 0,
+      errors: []
+    };
+    
+    // Send notifications in batches
+    const batchSize = 10;
+    for (let i = 0; i < userIds.length; i += batchSize) {
+      const batch = userIds.slice(i, i + batchSize);
+      
+      await Promise.all(batch.map(async (userId) => {
+        try {
+          await db.collection('notifications').add({
+            userId: userId,
+            type: notification.type || 'general',
+            title: notification.title,
+            message: notification.message,
+            orderId: notification.orderId || null,
+            link: notification.link || null,
+            priority: notification.priority || 'normal',
+            sendEmail: notification.sendEmail || false,
+            read: false,
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+          
+          results.sent++;
+        } catch (error) {
+          results.failed++;
+          results.errors.push({ userId, error: error.message });
+        }
+      }));
+    }
+    
+    console.log(`Bulk notification results:`, results);
+    
+    return results;
+  } catch (error) {
+    console.error('Error sending bulk notifications:', error);
+    throw new functions.https.HttpsError('internal', error.message);
   }
 });

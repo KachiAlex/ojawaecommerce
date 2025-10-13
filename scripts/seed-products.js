@@ -14,12 +14,13 @@ const sampleProducts = [
   {
     name: 'Samsung Galaxy S24 Ultra',
     price: 1199.99,
+    currency: '₦ NGN',
     description: 'Latest flagship smartphone with advanced AI features, 200MP camera, and S Pen.',
     category: 'electronics',
     image: 'https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?w=400',
     brand: 'Samsung',
     inStock: true,
-    stockQuantity: 50,
+    stock: 50,
     rating: 4.8,
     reviewCount: 324,
     features: ['200MP Camera', 'S Pen', 'AI Features', '5G Ready'],
@@ -196,8 +197,17 @@ async function seedDatabase() {
     // Add products
     console.log('Adding products...');
     for (const product of sampleProducts) {
-      await db.collection('products').add({
+      // Convert single image to images array for compatibility
+      const productData = {
         ...product,
+        images: product.image ? [product.image] : [],
+        // Remove the old image field
+        image: undefined
+      };
+      delete productData.image;
+      
+      await db.collection('products').add({
+        ...productData,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });

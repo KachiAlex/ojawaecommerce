@@ -93,16 +93,6 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "trackingNumber",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "products",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
           "fieldPath": "storeId",
           "order": "ASCENDING"
         },
@@ -117,26 +107,6 @@
       ]
     },
     {
-      "collectionGroup": "wallets",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "walletId",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "stores",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "storeId",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
       "collectionGroup": "stores",
       "queryScope": "COLLECTION",
       "fields": [
@@ -147,36 +117,6 @@
         {
           "fieldPath": "createdAt",
           "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "orders",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "trackingNumber",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "delivery_tracking",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "trackingNumber",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "delivery_tracking",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "orderId",
-          "order": "ASCENDING"
         }
       ]
     },
@@ -242,6 +182,98 @@
       "fields": [
         {
           "fieldPath": "vendorId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "admin_settings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "settingType",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "lastUpdated",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "logistics_companies",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "rating",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "deliveries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "logisticsPartnerId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "deliveries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "logisticsPartnerId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "deliveries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "logisticsPartnerId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "reviews",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "productId",
           "order": "ASCENDING"
         },
         {

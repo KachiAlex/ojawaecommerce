@@ -71,8 +71,8 @@ export const MessagingProvider = ({ children }) => {
         timestamp: new Date()
       });
       
-      // Update local messages
-      setMessages(prev => [...prev, message]);
+      // Don't update local messages here - let the real-time listener handle it
+      // This prevents duplicate messages
       
       // Update conversation last message
       setConversations(prev => 

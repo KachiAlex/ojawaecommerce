@@ -211,5 +211,15 @@ service cloud.firestore {
              allow read: if isAdmin(); // Admins can read all routes
              allow list: if true; // Allow public route queries
            }
+
+           // Mail collection - for Firebase Extension (Trigger Email from Firestore)
+           match /mail/{mailId} {
+             // Authenticated users can create mail documents (to trigger emails)
+             allow create: if isAuthenticated();
+             // No read access (emails are sent via Extension)
+             allow read: if false;
+             // Only admins can list/delete mail documents
+             allow list, delete: if isAdmin();
+           }
          }
        }
