@@ -2,6 +2,37 @@
 let isGoogleMapsLoading = false;
 let googleMapsLoadPromise = null;
 
+// Custom error classes for better error handling
+export class GoogleMapsError extends Error {
+  constructor(message, code, details = null) {
+    super(message);
+    this.name = 'GoogleMapsError';
+    this.code = code;
+    this.details = details;
+  }
+}
+
+export class GoogleMapsApiKeyError extends GoogleMapsError {
+  constructor(message, details) {
+    super(message, 'API_KEY_ERROR', details);
+    this.name = 'GoogleMapsApiKeyError';
+  }
+}
+
+export class GoogleMapsNetworkError extends GoogleMapsError {
+  constructor(message, details) {
+    super(message, 'NETWORK_ERROR', details);
+    this.name = 'GoogleMapsNetworkError';
+  }
+}
+
+export class GoogleMapsPermissionError extends GoogleMapsError {
+  constructor(message, details) {
+    super(message, 'PERMISSION_ERROR', details);
+    this.name = 'GoogleMapsPermissionError';
+  }
+}
+
 // Google Maps service for logistics and location handling
 class GoogleMapsService {
   constructor() {
@@ -11,6 +42,7 @@ class GoogleMapsService {
     this.directionsService = null;
     this.directionsRenderer = null;
     this.loadAttempted = false;
+    this.lastError = null;
   }
 
   // Initialize Google Maps services
@@ -83,14 +115,32 @@ class GoogleMapsService {
       const existingScript = document.querySelector('script[src*="maps.googleapis.com"]');
       if (existingScript) {
         // Script is loading, wait for it
-        existingScript.addEventListener('load', () => resolve());
-        existingScript.addEventListener('error', () => reject(new Error('Failed to load Google Maps API')));
+        existingScript.addEventListener('load', () => {
+          // Check for Google Maps errors after load
+          if (window.google && window.google.maps) {
+            resolve();
+          } else {
+            reject(new GoogleMapsApiKeyError('Google Maps failed to initialize', {
+              hint: 'Check API key restrictions and enabled APIs'
+            }));
+          }
+        });
+        existingScript.addEventListener('error', (event) => {
+          this.lastError = new GoogleMapsNetworkError('Failed to load Google Maps script', {
+            hint: 'Check network connection and firewall settings',
+            event
+          });
+          reject(this.lastError);
+        });
         return;
       }
 
       // Don't load if API key is missing
       if (!this.apiKey || this.apiKey === 'undefined') {
-        reject(new Error('Google Maps API key not configured'));
+        this.lastError = new GoogleMapsApiKeyError('Google Maps API key not configured', {
+          hint: 'Add VITE_GOOGLE_MAPS_API_KEY to environment variables'
+        });
+        reject(this.lastError);
         return;
       }
 
@@ -99,8 +149,27 @@ class GoogleMapsService {
       script.async = true;
       script.defer = true;
       
-      script.onload = () => resolve();
-      script.onerror = () => reject(new Error('Failed to load Google Maps API'));
+      script.onload = () => {
+        // Verify Maps loaded correctly
+        if (window.google && window.google.maps) {
+          console.log('✅ Google Maps loaded successfully');
+          resolve();
+        } else {
+          this.lastError = new GoogleMapsApiKeyError('Google Maps object not available after script load', {
+            hint: 'Check API key validity and restrictions'
+          });
+          reject(this.lastError);
+        }
+      };
+      
+      script.onerror = (event) => {
+        this.lastError = new GoogleMapsNetworkError('Failed to load Google Maps API script', {
+          hint: 'Check Content Security Policy and network connection',
+          url: script.src,
+          event
+        });
+        reject(this.lastError);
+      };
       
       document.head.appendChild(script);
     });

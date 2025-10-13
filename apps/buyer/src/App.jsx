@@ -79,6 +79,7 @@ const TrackingSystemTest = lazy(() => import('./pages/TrackingSystemTest'));
 const LogisticsTrackingTest = lazy(() => import('./pages/LogisticsTrackingTest'));
 const PricingTest = lazy(() => import('./pages/PricingTest'));
 const ProductDebug = lazy(() => import('./pages/ProductDebug'));
+const GoogleMapsTest = lazy(() => import('./pages/GoogleMapsTest'));
 
 // Admin Route Protection Component
 const AdminRoute = ({ children }) => {
@@ -321,6 +322,11 @@ const OnboardingWrapper = () => {
           <Route path="/logistics-tracking-test" element={<LogisticsTrackingTest />} />
           <Route path="/pricing-test" element={<PricingTest />} />
           <Route path="/product-debug" element={<ProductDebug />} />
+          <Route path="/google-maps-test" element={
+            <Suspense fallback={<RouteLoadingSpinner route="test" />}>
+              <GoogleMapsTest />
+            </Suspense>
+          } />
           <Route 
             path="/admin/pricing" 
             element={
