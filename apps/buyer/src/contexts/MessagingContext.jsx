@@ -132,6 +132,8 @@ export const MessagingProvider = ({ children }) => {
   useEffect(() => {
     if (!currentUser) return;
 
+    setLoading(true);
+    
     const unsubscribe = firebaseService.messaging.listenToUserConversations(
       currentUser.uid,
       (newConversations) => {
@@ -140,16 +142,15 @@ export const MessagingProvider = ({ children }) => {
         // Calculate unread count
         const unread = newConversations.reduce((total, conv) => total + (conv.unreadCount || 0), 0);
         setUnreadCount(unread);
+        
+        setLoading(false);
       }
     );
 
     return () => unsubscribe();
   }, [currentUser]);
 
-  // Initial fetch
-  useEffect(() => {
-    fetchConversations();
-  }, [currentUser]);
+  // Note: Removed duplicate fetchConversations() call since real-time listener handles it
 
   // Initialize FCM when user logs in
   useEffect(() => {
