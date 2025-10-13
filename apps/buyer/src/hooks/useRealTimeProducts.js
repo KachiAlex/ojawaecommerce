@@ -28,8 +28,13 @@ export const useRealTimeProducts = (filters = {}) => {
           q = query(q, where('vendorId', '==', filters.vendorId));
         }
 
+        // Only show approved (active) products to buyers by default
+        // Unless explicitly overridden (e.g., for admin/vendor views)
         if (filters.status) {
           q = query(q, where('status', '==', filters.status));
+        } else if (filters.showAll !== true) {
+          // Default: only show active products to buyers
+          q = query(q, where('status', '==', 'active'));
         }
 
         // Always order by creation date (newest first)

@@ -106,22 +106,34 @@ const Logistics = () => {
       
       // Use Google Maps service to analyze the route
       const analysis = await googleMapsService.analyzeRouteType(from, to);
-      setRouteAnalysis(analysis);
-
+      
       // Get optimized pricing suggestion
       const pricing = await googleMapsService.getOptimizedPricing(from, to, {
         deliveryType: routeForm.serviceType.toLowerCase().replace(' delivery', '').replace(' ', '_'),
         weight: 1 // Default weight
       });
-      setSuggestedPricing(pricing);
 
-      // Auto-fill distance and estimated time if not already set
-      setRouteForm(prev => ({
-        ...prev,
-        distance: prev.distance || Math.round(analysis.distanceKm * 10) / 10, // Round to 1 decimal
-        estimatedTime: prev.estimatedTime || analysis.duration.text,
-        price: prev.price || pricing.cost.toString()
-      }));
+      // Only update state if we got valid data
+      if (analysis && analysis.distanceKm) {
+        setRouteAnalysis(analysis);
+        
+        // Auto-fill distance and estimated time if not already set
+        setRouteForm(prev => ({
+          ...prev,
+          distance: prev.distance || Math.round(analysis.distanceKm * 10) / 10, // Round to 1 decimal
+          estimatedTime: prev.estimatedTime || (analysis.duration?.text || ''),
+          price: prev.price || (pricing?.cost ? pricing.cost.toString() : '')
+        }));
+      } else {
+        console.warn('Route analysis returned null or incomplete data');
+        setRouteAnalysis(null);
+      }
+
+      if (pricing && pricing.cost) {
+        setSuggestedPricing(pricing);
+      } else {
+        setSuggestedPricing(null);
+      }
 
     } catch (error) {
       console.error('Error analyzing route:', error);

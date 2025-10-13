@@ -107,6 +107,20 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Check if user profile is complete
+  const isProfileComplete = () => {
+    if (!userProfile) return false;
+    
+    // Required fields for a complete profile
+    const requiredFields = [
+      userProfile.displayName,
+      userProfile.phone,
+      userProfile.address
+    ];
+    
+    return requiredFields.every(field => field && field.trim().length > 0);
+  };
+
   // Vendor onboarding
   const completeVendorOnboarding = async (vendorData) => {
     if (!currentUser) throw new Error('No user logged in');
@@ -181,6 +195,7 @@ export const AuthProvider = ({ children }) => {
     logout,
     updateUserProfile,
     completeVendorOnboarding,
+    isProfileComplete,
     loading,
     showEscrowEducation,
     setShowEscrowEducation,

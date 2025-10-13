@@ -39,6 +39,7 @@ const Register = lazy(() => import('./pages/Register'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Buyer = lazy(() => import('./pages/Buyer'));
 const EnhancedBuyer = lazy(() => import('./pages/EnhancedBuyer'));
+const ProfileSetup = lazy(() => import('./pages/ProfileSetup'));
 const HowWalletWorks = lazy(() => import('./components/HowWalletWorks'));
 const Categories = lazy(() => import('./pages/Categories'));
 const Wallet = lazy(() => import('./pages/Wallet'));
@@ -211,7 +212,7 @@ const OnboardingWrapper = () => {
           <Route 
             path="/checkout" 
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requireCompleteProfile={true}>
                 <Suspense fallback={<RouteLoadingSpinner route="checkout" />}>
                   <Checkout />
                 </Suspense>
@@ -228,6 +229,16 @@ const OnboardingWrapper = () => {
               <Register />
             </Suspense>
           } />
+          <Route 
+            path="/profile-setup" 
+            element={
+              <ProtectedRoute>
+                <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+                  <ProfileSetup />
+                </Suspense>
+              </ProtectedRoute>
+            } 
+          />
           <Route 
             path="/dashboard" 
             element={
