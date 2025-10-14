@@ -74,10 +74,17 @@ const Logistics = () => {
           loadDeliveries(profileData.id),
           loadRoutes(profileData.id)
         ]);
+      } else {
+        // Clear existing data if no profile
+        setDeliveries([]);
+        setRoutes([]);
       }
       
     } catch (error) {
       console.error('Error loading logistics data:', error);
+      // Clear data on error
+      setDeliveries([]);
+      setRoutes([]);
     } finally {
       setLoading(false);
     }
@@ -332,7 +339,7 @@ const Logistics = () => {
       });
       
       // Reload routes
-      await loadRoutes();
+      await loadRoutes(profile?.id);
       
     } catch (error) {
       console.error('Error saving route:', error);
@@ -911,7 +918,7 @@ const Logistics = () => {
                                 if (confirm('Are you sure you want to delete this route?')) {
                                   try {
                                     await firebaseService.logistics.deleteRoute(route.id);
-                                    await loadRoutes();
+                                    await loadRoutes(profile?.id);
                                     alert('Route deleted successfully!');
                                   } catch (error) {
                                     console.error('Error deleting route:', error);
@@ -1004,7 +1011,7 @@ const Logistics = () => {
                                       });
                                     }
                                     
-                                    await loadDeliveries();
+                                    await loadDeliveries(profile?.id);
                                     alert('Delivery status updated successfully!');
                                   } catch (error) {
                                     console.error('Error updating delivery status:', error);
