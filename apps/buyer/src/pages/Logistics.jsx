@@ -97,7 +97,7 @@ const Logistics = () => {
         console.warn('No logistics profile ID available');
         return;
       }
-      const deliveriesData = await firebaseService.logistics.getDeliveries(logisticsId);
+      const deliveriesData = await firebaseService.logistics.getDeliveriesByPartner(logisticsId);
       setDeliveries(deliveriesData);
     } catch (error) {
       console.error('Error loading deliveries:', error);
