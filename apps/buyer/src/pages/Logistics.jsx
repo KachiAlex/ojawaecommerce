@@ -1085,7 +1085,7 @@ const Logistics = () => {
       <ServiceAreaModal
         isOpen={showServiceAreaModal}
         onClose={() => setShowServiceAreaModal(false)}
-        onAddAreas={handleAddServiceAreas}
+        onAdd={handleAddServiceAreas}
         existingAreas={routeForm.serviceAreas}
       />
     </div>
