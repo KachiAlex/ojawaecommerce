@@ -426,8 +426,16 @@ const Logistics = () => {
             </button>
           </div>
           
-          <div className="absolute bottom-4 left-4">
-            <Link to="/" className="text-sm text-gray-500 hover:text-gray-700">← Back to Home</Link>
+          <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 bg-white">
+            <Link 
+              to="/" 
+              className="flex items-center justify-center px-4 py-2 text-sm font-medium text-gray-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+            >
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              Back to Home
+            </Link>
           </div>
         </div>
 
