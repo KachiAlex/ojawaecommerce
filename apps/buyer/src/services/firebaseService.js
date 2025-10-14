@@ -1408,9 +1408,14 @@ export const logisticsService = {
         ...doc.data()
       };
     } catch (error) {
-      console.error('Error fetching logistics profile:', error);
+      console.error('Error getting logistics profile:', error);
       throw error;
     }
+  },
+
+  // Alias for getProfileByUserId for consistency
+  async getProfile(userId) {
+    return this.getProfileByUserId(userId);
   },
 
   // Update logistics profile
