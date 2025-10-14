@@ -71,8 +71,8 @@ const Logistics = () => {
       // Load deliveries and routes if profile exists
       if (profileData?.id) {
         await Promise.all([
-          loadDeliveries(),
-          loadRoutes()
+          loadDeliveries(profileData.id),
+          loadRoutes(profileData.id)
         ]);
       }
       
@@ -83,18 +83,28 @@ const Logistics = () => {
     }
   };
 
-  const loadDeliveries = async () => {
+  const loadDeliveries = async (profileId) => {
     try {
-      const deliveriesData = await firebaseService.logistics.getDeliveries(profile.id);
+      const logisticsId = profileId || profile?.id;
+      if (!logisticsId) {
+        console.warn('No logistics profile ID available');
+        return;
+      }
+      const deliveriesData = await firebaseService.logistics.getDeliveries(logisticsId);
       setDeliveries(deliveriesData);
     } catch (error) {
       console.error('Error loading deliveries:', error);
     }
   };
 
-  const loadRoutes = async () => {
+  const loadRoutes = async (profileId) => {
     try {
-      const routesData = await firebaseService.logistics.getRoutesByPartner(profile.id);
+      const logisticsId = profileId || profile?.id;
+      if (!logisticsId) {
+        console.warn('No logistics profile ID available');
+        return;
+      }
+      const routesData = await firebaseService.logistics.getRoutesByPartner(logisticsId);
       setRoutes(routesData);
     } catch (error) {
       console.error('Error loading routes:', error);
