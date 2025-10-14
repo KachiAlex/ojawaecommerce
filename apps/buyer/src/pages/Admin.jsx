@@ -76,7 +76,39 @@ const Admin = () => {
       // Load all orders with pagination
       const ordersResult = await firebaseService.admin.getAllOrders({ pageSize: 1000 });
       const ordersData = ordersResult.items || [];
-      setOrders(ordersData);
+      
+      // Enrich orders with vendor information
+      const enrichedOrders = await Promise.all(
+        ordersData.map(async (order) => {
+          if (order.vendorId) {
+            try {
+              const vendor = await firebaseService.userService.getProfile(order.vendorId);
+              return {
+                ...order,
+                vendorName: vendor?.displayName || vendor?.email || 'Unknown Vendor',
+                vendorEmail: vendor?.email || 'N/A',
+                storeName: vendor?.vendorProfile?.storeName || vendor?.storeName || 'N/A'
+              };
+            } catch (error) {
+              console.error(`Error fetching vendor info for order ${order.id}:`, error);
+              return {
+                ...order,
+                vendorName: 'Error loading vendor',
+                vendorEmail: 'N/A',
+                storeName: 'N/A'
+              };
+            }
+          }
+          return {
+            ...order,
+            vendorName: 'N/A',
+            vendorEmail: 'N/A',
+            storeName: 'N/A'
+          };
+        })
+      );
+      
+      setOrders(enrichedOrders);
 
       // Load all products (including pending, active, and rejected for admin review)
       const productsData = await firebaseService.products.getAll({ showAll: true });
@@ -118,9 +150,10 @@ const Admin = () => {
       
       console.log('✅ Admin data loaded successfully:', {
         users: usersData.length,
-        orders: ordersData.length,
+        orders: enrichedOrders.length,
         products: productsData.length,
-        disputes: disputesData.length
+        disputes: disputesData.length,
+        ordersWithVendors: enrichedOrders.filter(o => o.vendorName !== 'N/A').length
       });
 
     } catch (error) {
@@ -524,7 +557,16 @@ const Admin = () => {
                             {order.buyerEmail || 'N/A'}
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-900">
-                            {order.vendorName || 'N/A'}
+                            {order.vendorName && order.vendorName !== 'N/A' ? (
+                              <div>
+                                <div className="font-medium">{order.storeName !== 'N/A' ? order.storeName : order.vendorName}</div>
+                                {order.storeName !== 'N/A' && order.storeName !== order.vendorName && (
+                                  <div className="text-xs text-gray-500">{order.vendorName}</div>
+                                )}
+                              </div>
+                            ) : (
+                              'N/A'
+                            )}
                           </td>
                         </tr>
                       ))}
