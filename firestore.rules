@@ -213,13 +213,12 @@ service cloud.firestore {
              allow update, delete: if (isAuthenticated() && request.auth.uid == resource.data.ownerUserId) || isAdmin();
            }
 
-           // Logistics routes collection - company owners can read/write their routes
+           // Logistics routes collection - logistics partners can manage their own routes
            match /logistics_routes/{routeId} {
-             allow read, write: if isOwner(resource.data.companyId);
+             allow read, write: if isAuthenticated() && request.auth.uid == resource.data.companyId;
              allow create: if isAuthenticated() && request.auth.uid == request.resource.data.companyId;
-             allow read: if true; // Public read for route discovery
              allow read: if isAdmin(); // Admins can read all routes
-             allow list: if true; // Allow public route queries
+             allow list: if isAuthenticated(); // Allow aggregation queries
            }
 
            // Mail collection - for Firebase Extension (Trigger Email from Firestore)
