@@ -114,3 +114,60 @@ export const formatPrice = (price, currency = '₦') => {
   return `${currency} ${price.toLocaleString()}`;
 };
 
+// Calculate price based on partner's rate per km with min/max caps
+export const calculatePartnerPrice = (distance, ratePerKm = 500, minCharge = 2000, maxCharge = 100000) => {
+  const basePrice = distance * ratePerKm;
+  const finalPrice = Math.max(minCharge, Math.min(maxCharge, basePrice));
+  
+  return {
+    basePrice: Math.round(basePrice),
+    finalPrice: Math.round(finalPrice),
+    appliedMin: basePrice < minCharge,
+    appliedMax: basePrice > maxCharge
+  };
+};
+
+// Compare partner's calculated price with suggested price
+export const comparePrices = (partnerPrice, suggestedPrice) => {
+  const difference = partnerPrice - suggestedPrice;
+  const percentageDiff = ((difference / suggestedPrice) * 100).toFixed(1);
+  
+  return {
+    difference,
+    percentageDiff: parseFloat(percentageDiff),
+    isHigher: difference > 0,
+    isLower: difference < 0,
+    isSimilar: Math.abs(percentageDiff) < 5, // Within 5% is considered similar
+    recommendation: getRecommendation(parseFloat(percentageDiff))
+  };
+};
+
+// Get pricing recommendation based on percentage difference
+const getRecommendation = (percentageDiff) => {
+  if (percentageDiff < -30) return 'Consider increasing price - significantly below market rate';
+  if (percentageDiff < -15) return 'Below market rate - may impact profitability';
+  if (percentageDiff < -5) return 'Competitive pricing - slightly below market';
+  if (percentageDiff <= 5) return 'Market-aligned pricing - good balance';
+  if (percentageDiff <= 15) return 'Above market rate - may reduce competitiveness';
+  if (percentageDiff <= 30) return 'Significantly above market - consider adjusting';
+  return 'Very high pricing - likely to lose customers';
+};
+
+// Enrich route with partner pricing calculations
+export const enrichRouteWithPartnerPricing = (route, partnerRate = 500, minCharge = 2000, maxCharge = 100000) => {
+  const partnerPricing = calculatePartnerPrice(route.distance, partnerRate, minCharge, maxCharge);
+  const comparison = comparePrices(partnerPricing.finalPrice, route.suggestedPrice);
+  
+  return {
+    ...route,
+    partnerPrice: partnerPricing.finalPrice,
+    partnerBasePrice: partnerPricing.basePrice,
+    appliedMin: partnerPricing.appliedMin,
+    appliedMax: partnerPricing.appliedMax,
+    priceDifference: comparison.difference,
+    percentageDiff: comparison.percentageDiff,
+    priceComparison: comparison.recommendation,
+    usePartnerPrice: comparison.isSimilar || comparison.isLower // Default to partner price if similar or lower
+  };
+};
+

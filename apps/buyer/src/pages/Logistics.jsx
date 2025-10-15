@@ -14,7 +14,10 @@ import {
   getCountriesWithIntercityRoutes,
   searchIntercityRoutes,
   searchInternationalRoutes,
-  formatPrice 
+  formatPrice,
+  enrichRouteWithPartnerPricing,
+  calculatePartnerPrice,
+  comparePrices
 } from '../data/popularRoutes';
 
 const Logistics = () => {
@@ -60,6 +63,7 @@ const Logistics = () => {
   const [intercitySearchTerm, setIntercitySearchTerm] = useState('');
   const [internationalSearchTerm, setInternationalSearchTerm] = useState('');
   const [selectedRoutes, setSelectedRoutes] = useState([]); // Array of {from, to, price, estimatedTime, vehicleType}
+  const [usePartnerPricing, setUsePartnerPricing] = useState(true); // Use partner's rate for auto-calculation
 
   useEffect(() => {
     if (currentUser) {
@@ -300,11 +304,26 @@ const Logistics = () => {
       // Remove route
       setSelectedRoutes(selectedRoutes.filter(r => `${r.from}-${r.to}` !== routeKey));
     } else {
-      // Add route with suggested values (can be edited)
+      // Determine initial price based on partner pricing preference
+      let initialPrice = route.suggestedPrice;
+      
+      if (usePartnerPricing && profile?.pricing?.ratePerKm) {
+        const partnerPricing = calculatePartnerPrice(
+          route.distance,
+          profile.pricing.ratePerKm,
+          profile.pricing?.intracity?.minCharge || 2000,
+          profile.pricing?.intercity?.maxCharge || 100000
+        );
+        initialPrice = partnerPricing.finalPrice;
+      }
+      
+      // Add route with calculated or suggested price (can be edited)
       setSelectedRoutes([...selectedRoutes, {
         from: route.from,
         to: route.to,
-        price: route.suggestedPrice,
+        price: initialPrice,
+        suggestedPrice: route.suggestedPrice,
+        partnerPrice: initialPrice !== route.suggestedPrice ? initialPrice : null,
         estimatedTime: route.estimatedTime,
         vehicleType: route.vehicleTypes ? route.vehicleTypes[0] : 'Van',
         distance: route.distance || 0
@@ -732,6 +751,28 @@ const Logistics = () => {
                         </select>
                       </div>
                       
+                      {/* Pricing Mode Toggle */}
+                      {profile?.pricing?.ratePerKm && (
+                        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                          <label className="flex items-center space-x-3 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={usePartnerPricing}
+                              onChange={(e) => setUsePartnerPricing(e.target.checked)}
+                              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                            />
+                            <div className="flex-1">
+                              <span className="text-sm font-medium text-blue-900">
+                                Use My Pricing (₦{profile.pricing.ratePerKm}/km)
+                              </span>
+                              <p className="text-xs text-blue-700 mt-1">
+                                Auto-calculate prices based on your configured rate instead of market suggestions
+                              </p>
+                            </div>
+                          </label>
+                        </div>
+                      )}
+                      
                       {/* Search Box */}
                       {selectedCountryForIntercity && (
                         <div className="mb-4">
@@ -753,6 +794,20 @@ const Logistics = () => {
                             const routeKey = `${route.from}-${route.to}`;
                             const selectedRoute = selectedRoutes.find(r => `${r.from}-${r.to}` === routeKey);
                             
+                            // Calculate partner pricing for comparison
+                            let partnerPrice = null;
+                            let priceComparison = null;
+                            if (profile?.pricing?.ratePerKm) {
+                              const pricing = calculatePartnerPrice(
+                                route.distance,
+                                profile.pricing.ratePerKm,
+                                profile.pricing?.intracity?.minCharge || 2000,
+                                profile.pricing?.intercity?.maxCharge || 100000
+                              );
+                              partnerPrice = pricing.finalPrice;
+                              priceComparison = comparePrices(partnerPrice, route.suggestedPrice);
+                            }
+                            
                             return (
                               <div key={idx} className={`border rounded-lg p-3 ${isSelected ? 'border-emerald-500 bg-emerald-50' : 'border-gray-300 bg-white'}`}>
                                 <div className="flex items-start justify-between">
@@ -769,31 +824,62 @@ const Logistics = () => {
                                         Distance: ~{route.distance}km | Est. Time: {route.estimatedTime}
                                       </div>
                                       
+                                      {/* Price comparison when not selected */}
+                                      {!isSelected && partnerPrice && usePartnerPricing && (
+                                        <div className="mt-2 text-xs">
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-gray-600">Your rate:</span>
+                                            <span className={`font-semibold ${priceComparison.isLower ? 'text-emerald-600' : priceComparison.isHigher ? 'text-orange-600' : 'text-blue-600'}`}>
+                                              ₦{partnerPrice.toLocaleString()}
+                                            </span>
+                                            <span className={`text-xs ${priceComparison.isLower ? 'text-emerald-600' : priceComparison.isHigher ? 'text-orange-600' : 'text-gray-500'}`}>
+                                              ({priceComparison.percentageDiff > 0 ? '+' : ''}{priceComparison.percentageDiff}%)
+                                            </span>
+                                          </div>
+                                        </div>
+                                      )}
+                                      
                                       {isSelected && selectedRoute && (
-                                        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-                                          <div>
-                                            <label className="block text-xs font-medium text-gray-700 mb-1">Price (₦)</label>
-                                            <input
-                                              type="number"
-                                              value={selectedRoute.price}
-                                              onChange={(e) => updateSelectedRoute(routeKey, 'price', e.target.value)}
-                                              className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
-                                              min="0"
-                                            />
+                                        <div className="mt-3 space-y-3">
+                                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            <div>
+                                              <label className="block text-xs font-medium text-gray-700 mb-1">Price (₦)</label>
+                                              <input
+                                                type="number"
+                                                value={selectedRoute.price}
+                                                onChange={(e) => updateSelectedRoute(routeKey, 'price', e.target.value)}
+                                                className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                                                min="0"
+                                              />
+                                            </div>
+                                            <div>
+                                              <label className="block text-xs font-medium text-gray-700 mb-1">Vehicle Type</label>
+                                              <select
+                                                value={selectedRoute.vehicleType}
+                                                onChange={(e) => updateSelectedRoute(routeKey, 'vehicleType', e.target.value)}
+                                                className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                                              >
+                                                <option>Van</option>
+                                                <option>Truck</option>
+                                                <option>Motorcycle</option>
+                                                <option>Car</option>
+                                              </select>
+                                            </div>
                                           </div>
-                                          <div>
-                                            <label className="block text-xs font-medium text-gray-700 mb-1">Vehicle Type</label>
-                                            <select
-                                              value={selectedRoute.vehicleType}
-                                              onChange={(e) => updateSelectedRoute(routeKey, 'vehicleType', e.target.value)}
-                                              className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
-                                            >
-                                              <option>Van</option>
-                                              <option>Truck</option>
-                                              <option>Motorcycle</option>
-                                              <option>Car</option>
-                                            </select>
-                                          </div>
+                                          {/* Show comparison in selected route */}
+                                          {selectedRoute.suggestedPrice !== selectedRoute.price && (
+                                            <div className="text-xs text-gray-600 bg-blue-50 p-2 rounded">
+                                              Market suggestion: ₦{selectedRoute.suggestedPrice.toLocaleString()}
+                                              {(() => {
+                                                const comp = comparePrices(selectedRoute.price, selectedRoute.suggestedPrice);
+                                                return (
+                                                  <span className={`ml-2 ${comp.isLower ? 'text-emerald-600' : comp.isHigher ? 'text-orange-600' : 'text-gray-600'}`}>
+                                                    ({comp.percentageDiff > 0 ? '+' : ''}{comp.percentageDiff}%)
+                                                  </span>
+                                                );
+                                              })()}
+                                            </div>
+                                          )}
                                         </div>
                                       )}
                                     </div>
@@ -803,7 +889,7 @@ const Logistics = () => {
                                       <div className="text-sm font-semibold text-emerald-600">
                                         ₦{route.suggestedPrice.toLocaleString()}
                                       </div>
-                                      <div className="text-xs text-gray-500">Suggested</div>
+                                      <div className="text-xs text-gray-500">Market</div>
                                     </div>
                                   )}
                                 </div>
@@ -832,6 +918,28 @@ const Logistics = () => {
                     <div className="bg-gray-50 p-4 rounded-lg">
                       <h3 className="text-lg font-semibold text-gray-900 mb-4">✈️ Select International Routes</h3>
                       
+                      {/* Pricing Mode Toggle */}
+                      {profile?.pricing?.ratePerKm && (
+                        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                          <label className="flex items-center space-x-3 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={usePartnerPricing}
+                              onChange={(e) => setUsePartnerPricing(e.target.checked)}
+                              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                            />
+                            <div className="flex-1">
+                              <span className="text-sm font-medium text-blue-900">
+                                Use My Pricing (₦{profile.pricing.ratePerKm}/km)
+                              </span>
+                              <p className="text-xs text-blue-700 mt-1">
+                                Auto-calculate prices based on your configured rate instead of market suggestions
+                              </p>
+                            </div>
+                          </label>
+                        </div>
+                      )}
+                      
                       {/* Search Box */}
                       <div className="mb-4">
                         <input
@@ -849,6 +957,20 @@ const Logistics = () => {
                           const isSelected = isRouteSelected(route);
                           const routeKey = `${route.from}-${route.to}`;
                           const selectedRoute = selectedRoutes.find(r => `${r.from}-${r.to}` === routeKey);
+                          
+                          // Calculate partner pricing for comparison
+                          let partnerPrice = null;
+                          let priceComparison = null;
+                          if (profile?.pricing?.ratePerKm) {
+                            const pricing = calculatePartnerPrice(
+                              route.distance,
+                              profile.pricing.ratePerKm,
+                              profile.pricing?.intracity?.minCharge || 2000,
+                              200000 // Higher max for international
+                            );
+                            partnerPrice = pricing.finalPrice;
+                            priceComparison = comparePrices(partnerPrice, route.suggestedPrice);
+                          }
                           
                           return (
                             <div key={idx} className={`border rounded-lg p-3 ${isSelected ? 'border-emerald-500 bg-emerald-50' : 'border-gray-300 bg-white'}`}>
@@ -869,36 +991,67 @@ const Logistics = () => {
                                       Available: {route.vehicleTypes?.join(', ') || 'Van, Truck'}
                                     </div>
                                     
+                                    {/* Price comparison when not selected */}
+                                    {!isSelected && partnerPrice && usePartnerPricing && (
+                                      <div className="mt-2 text-xs">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-gray-600">Your rate:</span>
+                                          <span className={`font-semibold ${priceComparison.isLower ? 'text-emerald-600' : priceComparison.isHigher ? 'text-orange-600' : 'text-blue-600'}`}>
+                                            ₦{partnerPrice.toLocaleString()}
+                                          </span>
+                                          <span className={`text-xs ${priceComparison.isLower ? 'text-emerald-600' : priceComparison.isHigher ? 'text-orange-600' : 'text-gray-500'}`}>
+                                            ({priceComparison.percentageDiff > 0 ? '+' : ''}{priceComparison.percentageDiff}%)
+                                          </span>
+                                        </div>
+                                      </div>
+                                    )}
+                                    
                                     {isSelected && selectedRoute && (
-                                      <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-                                        <div>
-                                          <label className="block text-xs font-medium text-gray-700 mb-1">Price (₦)</label>
-                                          <input
-                                            type="number"
-                                            value={selectedRoute.price}
-                                            onChange={(e) => updateSelectedRoute(routeKey, 'price', e.target.value)}
-                                            className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
-                                            min="0"
-                                          />
+                                      <div className="mt-3 space-y-3">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                          <div>
+                                            <label className="block text-xs font-medium text-gray-700 mb-1">Price (₦)</label>
+                                            <input
+                                              type="number"
+                                              value={selectedRoute.price}
+                                              onChange={(e) => updateSelectedRoute(routeKey, 'price', e.target.value)}
+                                              className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                                              min="0"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="block text-xs font-medium text-gray-700 mb-1">Vehicle Type</label>
+                                            <select
+                                              value={selectedRoute.vehicleType}
+                                              onChange={(e) => updateSelectedRoute(routeKey, 'vehicleType', e.target.value)}
+                                              className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                                            >
+                                              {route.vehicleTypes?.map(vt => (
+                                                <option key={vt} value={vt}>{vt}</option>
+                                              )) || (
+                                                <>
+                                                  <option>Van</option>
+                                                  <option>Truck</option>
+                                                  <option>Flight</option>
+                                                </>
+                                              )}
+                                            </select>
+                                          </div>
                                         </div>
-                                        <div>
-                                          <label className="block text-xs font-medium text-gray-700 mb-1">Vehicle Type</label>
-                                          <select
-                                            value={selectedRoute.vehicleType}
-                                            onChange={(e) => updateSelectedRoute(routeKey, 'vehicleType', e.target.value)}
-                                            className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
-                                          >
-                                            {route.vehicleTypes?.map(vt => (
-                                              <option key={vt} value={vt}>{vt}</option>
-                                            )) || (
-                                              <>
-                                                <option>Van</option>
-                                                <option>Truck</option>
-                                                <option>Flight</option>
-                                              </>
-                                            )}
-                                          </select>
-                                        </div>
+                                        {/* Show comparison in selected route */}
+                                        {selectedRoute.suggestedPrice !== selectedRoute.price && (
+                                          <div className="text-xs text-gray-600 bg-blue-50 p-2 rounded">
+                                            Market suggestion: ₦{selectedRoute.suggestedPrice.toLocaleString()}
+                                            {(() => {
+                                              const comp = comparePrices(selectedRoute.price, selectedRoute.suggestedPrice);
+                                              return (
+                                                <span className={`ml-2 ${comp.isLower ? 'text-emerald-600' : comp.isHigher ? 'text-orange-600' : 'text-gray-600'}`}>
+                                                  ({comp.percentageDiff > 0 ? '+' : ''}{comp.percentageDiff}%)
+                                                </span>
+                                              );
+                                            })()}
+                                          </div>
+                                        )}
                                       </div>
                                     )}
                                   </div>
@@ -908,7 +1061,7 @@ const Logistics = () => {
                                     <div className="text-sm font-semibold text-emerald-600">
                                       ₦{route.suggestedPrice.toLocaleString()}
                                     </div>
-                                    <div className="text-xs text-gray-500">Suggested</div>
+                                    <div className="text-xs text-gray-500">Market</div>
                                   </div>
                                 )}
                               </div>
