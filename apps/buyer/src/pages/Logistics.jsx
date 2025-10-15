@@ -39,6 +39,8 @@ import {
   getDemandIndicator 
 } from '../data/marketAnalytics';
 import { ROUTE_TEMPLATE_PRESETS } from '../data/routeTemplates';
+import { detectCurrency, convertCurrency, formatCurrency, getAllCurrencies, getDualCurrencyDisplay } from '../utils/currencyUtils';
+import { getRouteDemandInfo, getSeasonalAdjustment, applySeasonalPricing, getTopRecommendations } from '../data/demandAnalytics';
 
 const Logistics = () => {
   const { currentUser } = useAuth();
