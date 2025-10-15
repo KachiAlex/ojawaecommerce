@@ -1,8 +1,8 @@
 // Service Worker for Ojawa E-commerce PWA - Optimized
-const CACHE_NAME = 'ojawa-v2.0.0';
-const STATIC_CACHE = 'ojawa-static-v2.0.0';
-const DYNAMIC_CACHE = 'ojawa-dynamic-v2.0.0';
-const IMAGE_CACHE = 'ojawa-images-v2.0.0';
+const CACHE_NAME = 'ojawa-v2.0.1';
+const STATIC_CACHE = 'ojawa-static-v2.0.1';
+const DYNAMIC_CACHE = 'ojawa-dynamic-v2.0.1';
+const IMAGE_CACHE = 'ojawa-images-v2.0.1';
 
 // Critical files to cache immediately
 const STATIC_FILES = [
