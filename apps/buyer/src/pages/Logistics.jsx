@@ -7,6 +7,7 @@ import WalletManager from '../components/WalletManager';
 import LogisticsPerformanceDashboard from '../components/LogisticsPerformanceDashboard';
 import DashboardSwitcher from '../components/DashboardSwitcher';
 import CSVRouteImport from '../components/CSVRouteImport';
+import QuickActionsMenu from '../components/QuickActionsMenu';
 import { calculateDeliveryPrice, determineRouteCategory, DEFAULT_PLATFORM_PRICING, ROUTE_CATEGORY_INFO, RECOMMENDED_PRICING } from '../data/logisticsPricingModel';
 import { 
   POPULAR_INTERCITY_ROUTES, 
@@ -32,6 +33,12 @@ import {
   validatePricing,
   validateEstimatedTime 
 } from '../utils/routeValidation';
+import { 
+  getRouteMarketInsights, 
+  getPricingRecommendation, 
+  getDemandIndicator 
+} from '../data/marketAnalytics';
+import { ROUTE_TEMPLATE_PRESETS } from '../data/routeTemplates';
 
 const Logistics = () => {
   const { currentUser } = useAuth();
@@ -40,6 +47,7 @@ const Logistics = () => {
   const [showEditRouteForm, setShowEditRouteForm] = useState(false);
   const [editingRoute, setEditingRoute] = useState(null);
   const [showCSVImport, setShowCSVImport] = useState(false);
+  const [showQuickActions, setShowQuickActions] = useState(false);
   const [deliveries, setDeliveries] = useState([]);
   const [routes, setRoutes] = useState([]);
   const [analytics, setAnalytics] = useState(null);
@@ -519,6 +527,72 @@ const Logistics = () => {
   // Check if draft exists
   const hasDraft = () => {
     return !!localStorage.getItem(`logistics_route_draft_${profile?.id}`);
+  };
+  
+  // Quick actions handler
+  const handleQuickAction = (actionType, value) => {
+    switch (actionType) {
+      case 'template':
+        const template = ROUTE_TEMPLATE_PRESETS[value];
+        if (template) {
+          const adjusted = selectedRoutes.map(route => ({
+            ...route,
+            price: Math.round(route.price * (1 + template.priceAdjustment / 100))
+          }));
+          setSelectedRoutes(adjusted);
+        }
+        break;
+      
+      case 'match_market':
+        const matched = selectedRoutes.map(route => ({
+          ...route,
+          price: route.suggestedPrice
+        }));
+        setSelectedRoutes(matched);
+        break;
+      
+      case 'round_prices':
+        const rounded = selectedRoutes.map(route => ({
+          ...route,
+          price: Math.round(route.price / 1000) * 1000
+        }));
+        setSelectedRoutes(rounded);
+        break;
+      
+      case 'export_csv':
+        exportRoutesToCSV(selectedRoutes);
+        break;
+      
+      default:
+        break;
+    }
+  };
+  
+  // Export routes to CSV
+  const exportRoutesToCSV = (routes) => {
+    const headers = ['Route Type', 'From', 'To', 'Distance (km)', 'Price', 'Estimated Time', 'Vehicle Type'];
+    const rows = routes.map(r => [
+      routeForm.routeType,
+      r.from,
+      r.to,
+      r.distance,
+      r.price,
+      r.estimatedTime,
+      r.vehicleType
+    ]);
+    
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `logistics_routes_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    window.URL.revokeObjectURL(url);
   };
 
   const handleSubmitRoute = async (e) => {
@@ -2275,6 +2349,28 @@ const Logistics = () => {
           }
         }}
       />
+      
+      {/* Quick Actions Menu */}
+      <QuickActionsMenu
+        isOpen={showQuickActions}
+        onClose={() => setShowQuickActions(false)}
+        selectedRoutes={selectedRoutes}
+        onAction={handleQuickAction}
+      />
+      
+      {/* Floating Quick Actions Button - Shows when routes are selected */}
+      {selectedRoutes.length > 0 && showAddRouteForm && (
+        <button
+          onClick={() => setShowQuickActions(true)}
+          className="fixed bottom-6 right-6 bg-gradient-to-r from-emerald-600 to-blue-600 text-white px-6 py-3 rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-105 flex items-center gap-2 z-40"
+        >
+          <span className="text-lg">🚀</span>
+          <span className="font-medium">Quick Actions</span>
+          <span className="bg-white text-emerald-600 px-2 py-0.5 rounded-full text-xs font-bold">
+            {selectedRoutes.length}
+          </span>
+        </button>
+      )}
 
     </div>
   );
