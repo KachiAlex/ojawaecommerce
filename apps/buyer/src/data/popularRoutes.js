@@ -93,8 +93,8 @@ export const searchIntercityRoutes = (country, searchTerm) => {
   
   const term = searchTerm.toLowerCase();
   return routes.filter(route => 
-    route.from.toLowerCase().includes(term) || 
-    route.to.toLowerCase().includes(term)
+    (route.from || '').toLowerCase().includes(term) || 
+    (route.to || '').toLowerCase().includes(term)
   );
 };
 
@@ -104,8 +104,8 @@ export const searchInternationalRoutes = (searchTerm) => {
   
   const term = searchTerm.toLowerCase();
   return POPULAR_INTERNATIONAL_ROUTES.filter(route => 
-    route.from.toLowerCase().includes(term) || 
-    route.to.toLowerCase().includes(term)
+    (route.from || '').toLowerCase().includes(term) || 
+    (route.to || '').toLowerCase().includes(term)
   );
 };
 

@@ -293,7 +293,7 @@ const Logistics = () => {
       // Keep Google Maps pricing as fallback (optional)
       try {
         const googlePricing = await googleMapsService.getOptimizedPricing(from, to, {
-          deliveryType: routeForm.serviceType.toLowerCase().replace(' delivery', '').replace(' ', '_'),
+          deliveryType: (routeForm.serviceType || 'standard').toLowerCase().replace(' delivery', '').replace(' ', '_'),
           weight: 1
         });
         
@@ -754,6 +754,7 @@ const Logistics = () => {
   };
 
   const getStatusColor = (status) => {
+    if (!status) return 'bg-gray-100 text-gray-800';
     switch (status.toLowerCase()) {
       case 'pending':
         return 'bg-yellow-100 text-yellow-800';
