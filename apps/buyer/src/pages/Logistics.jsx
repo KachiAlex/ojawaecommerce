@@ -6,6 +6,7 @@ import googleMapsService from '../services/googleMapsService';
 import WalletManager from '../components/WalletManager';
 import LogisticsPerformanceDashboard from '../components/LogisticsPerformanceDashboard';
 import DashboardSwitcher from '../components/DashboardSwitcher';
+import CSVRouteImport from '../components/CSVRouteImport';
 import { calculateDeliveryPrice, determineRouteCategory, DEFAULT_PLATFORM_PRICING, ROUTE_CATEGORY_INFO, RECOMMENDED_PRICING } from '../data/logisticsPricingModel';
 import { 
   POPULAR_INTERCITY_ROUTES, 
@@ -36,6 +37,7 @@ const Logistics = () => {
   const [showAddRouteForm, setShowAddRouteForm] = useState(false);
   const [showEditRouteForm, setShowEditRouteForm] = useState(false);
   const [editingRoute, setEditingRoute] = useState(null);
+  const [showCSVImport, setShowCSVImport] = useState(false);
   const [deliveries, setDeliveries] = useState([]);
   const [routes, setRoutes] = useState([]);
   const [analytics, setAnalytics] = useState(null);
@@ -1843,28 +1845,38 @@ const Logistics = () => {
             <div className="space-y-6">
               <div className="flex justify-between items-center">
                 <h2 className="text-xl font-semibold text-gray-900">Manage Routes</h2>
-                {profile?.id ? (
-                  <button 
-                    onClick={() => setShowAddRouteForm(true)}
-                    className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors"
-                  >
-                    Add New Route
-                  </button>
-                ) : (
-                  <button 
-                    onClick={() => {
-                      const shouldCreateProfile = confirm(
-                        'You need to create a logistics profile first to add routes. Would you like to set up your logistics profile now?'
-                      );
-                      if (shouldCreateProfile) {
-                        window.location.href = '/become-logistics';
-                      }
-                    }}
-                    className="bg-gray-400 text-white px-4 py-2 rounded-lg cursor-not-allowed"
-                  >
-                    Add New Route
-                  </button>
-                )}
+                <div className="flex gap-3">
+                  {profile?.id && (
+                    <button 
+                      onClick={() => setShowCSVImport(true)}
+                      className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                    >
+                      📊 Import CSV
+                    </button>
+                  )}
+                  {profile?.id ? (
+                    <button 
+                      onClick={() => setShowAddRouteForm(true)}
+                      className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors"
+                    >
+                      Add New Route
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={() => {
+                        const shouldCreateProfile = confirm(
+                          'You need to create a logistics profile first to add routes. Would you like to set up your logistics profile now?'
+                        );
+                        if (shouldCreateProfile) {
+                          window.location.href = '/become-logistics';
+                        }
+                      }}
+                      className="bg-gray-400 text-white px-4 py-2 rounded-lg cursor-not-allowed"
+                    >
+                      Add New Route
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -1914,7 +1926,41 @@ const Logistics = () => {
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₦{route.ratePerKm || DEFAULT_PLATFORM_PRICING.ratePerKm}/km</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{route.serviceType}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{route.estimatedTime}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm space-x-3">
+                            <button 
+                              onClick={async () => {
+                                if (confirm(`Duplicate this route?\n\n${route.from} → ${route.to}\nPrice: ${route.currency} ${route.price}\n\nA copy will be created that you can edit.`)) {
+                                  try {
+                                    const duplicatedRoute = {
+                                      routeType: route.routeType || 'intercity',
+                                      country: route.country || '',
+                                      state: route.state || '',
+                                      city: route.city || '',
+                                      stateAsCity: route.stateAsCity || false,
+                                      from: route.from,
+                                      to: route.to,
+                                      distance: route.distance || 0,
+                                      price: route.price,
+                                      currency: route.currency,
+                                      estimatedTime: route.estimatedTime,
+                                      vehicleType: route.vehicleType || 'Van',
+                                      serviceType: route.serviceType || 'Standard Delivery',
+                                      createdAt: new Date().toISOString(),
+                                      status: 'active'
+                                    };
+                                    await firebaseService.logistics.addRoute(profile.id, duplicatedRoute);
+                                    await loadRoutes(profile?.id);
+                                    alert('Route duplicated successfully! You can now edit the copy.');
+                                  } catch (error) {
+                                    console.error('Error duplicating route:', error);
+                                    alert('Error duplicating route. Please try again.');
+                                  }
+                                }
+                              }}
+                              className="text-blue-600 hover:text-blue-700 font-medium"
+                            >
+                              📋 Copy
+                            </button>
                             <button 
                               onClick={() => {
                                 setEditingRoute(route);
@@ -1930,9 +1976,9 @@ const Logistics = () => {
                                 });
                                 setShowEditRouteForm(true);
                               }}
-                              className="text-emerald-600 hover:text-emerald-700 font-medium mr-3"
+                              className="text-emerald-600 hover:text-emerald-700 font-medium"
                             >
-                              Edit
+                              ✏️ Edit
                             </button>
                             <button 
                               onClick={async () => {
@@ -1949,7 +1995,7 @@ const Logistics = () => {
                               }}
                               className="text-red-600 hover:text-red-700 font-medium"
                             >
-                              Delete
+                              🗑️ Delete
                             </button>
                           </td>
                         </tr>
@@ -2093,6 +2139,32 @@ const Logistics = () => {
           )}
         </div>
       </div>
+      
+      {/* CSV Import Modal */}
+      <CSVRouteImport
+        isOpen={showCSVImport}
+        onClose={() => setShowCSVImport(false)}
+        currency={routeForm.currency}
+        onImport={async (routes) => {
+          try {
+            setSubmittingRoute(true);
+            
+            // Import all routes
+            const importPromises = routes.map(route => 
+              firebaseService.logistics.addRoute(profile.id, route)
+            );
+            
+            await Promise.all(importPromises);
+            await loadRoutes(profile?.id);
+            alert(`Successfully imported ${routes.length} route(s)!`);
+          } catch (error) {
+            console.error('Error importing routes:', error);
+            alert('Error importing routes. Please try again.');
+          } finally {
+            setSubmittingRoute(false);
+          }
+        }}
+      />
 
     </div>
   );
