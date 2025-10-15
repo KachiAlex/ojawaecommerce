@@ -17,28 +17,254 @@ const RouteSelector = ({
   // Default vehicle types for all routes
   const DEFAULT_VEHICLES = ['Van', 'Truck', 'Motorcycle', 'Car'];
 
-  // Intercity routes data
+  // Intercity routes data - Comprehensive African coverage
   const INTERCITY_ROUTES = {
     Nigeria: [
+      // Major routes from Lagos
       { from: 'Lagos', to: 'Abuja', distance: 750, price: 45000, time: '8-12 hours' },
       { from: 'Lagos', to: 'Port Harcourt', distance: 630, price: 38000, time: '8-10 hours' },
       { from: 'Lagos', to: 'Ibadan', distance: 130, price: 12000, time: '2-3 hours' },
       { from: 'Lagos', to: 'Benin City', distance: 320, price: 22000, time: '4-6 hours' },
       { from: 'Lagos', to: 'Kano', distance: 1000, price: 60000, time: '12-16 hours' },
+      { from: 'Lagos', to: 'Enugu', distance: 650, price: 40000, time: '8-10 hours' },
+      { from: 'Lagos', to: 'Calabar', distance: 850, price: 50000, time: '10-14 hours' },
+      { from: 'Lagos', to: 'Kaduna', distance: 800, price: 48000, time: '10-12 hours' },
+      { from: 'Lagos', to: 'Jos', distance: 900, price: 55000, time: '11-14 hours' },
+      { from: 'Lagos', to: 'Ilorin', distance: 310, price: 21000, time: '4-6 hours' },
+      { from: 'Lagos', to: 'Owerri', distance: 580, price: 35000, time: '7-9 hours' },
+      { from: 'Lagos', to: 'Warri', distance: 420, price: 28000, time: '5-7 hours' },
+      { from: 'Lagos', to: 'Akure', distance: 290, price: 20000, time: '4-5 hours' },
+      { from: 'Lagos', to: 'Abeokuta', distance: 80, price: 8000, time: '1-2 hours' },
+      
+      // Major routes from Abuja
       { from: 'Abuja', to: 'Lagos', distance: 750, price: 45000, time: '8-12 hours' },
       { from: 'Abuja', to: 'Kano', distance: 350, price: 25000, time: '5-7 hours' },
+      { from: 'Abuja', to: 'Port Harcourt', distance: 700, price: 42000, time: '9-12 hours' },
+      { from: 'Abuja', to: 'Kaduna', distance: 160, price: 13000, time: '2-3 hours' },
+      { from: 'Abuja', to: 'Jos', distance: 220, price: 16000, time: '3-4 hours' },
+      { from: 'Abuja', to: 'Enugu', distance: 290, price: 20000, time: '4-5 hours' },
+      { from: 'Abuja', to: 'Makurdi', distance: 280, price: 19000, time: '4-5 hours' },
+      
+      // Other major intercity routes
       { from: 'Port Harcourt', to: 'Lagos', distance: 630, price: 38000, time: '8-10 hours' },
+      { from: 'Port Harcourt', to: 'Abuja', distance: 700, price: 42000, time: '9-12 hours' },
+      { from: 'Port Harcourt', to: 'Enugu', distance: 160, price: 13000, time: '2-3 hours' },
+      { from: 'Port Harcourt', to: 'Calabar', distance: 220, price: 16000, time: '3-4 hours' },
+      { from: 'Port Harcourt', to: 'Owerri', distance: 100, price: 9000, time: '1-2 hours' },
+      
+      { from: 'Ibadan', to: 'Lagos', distance: 130, price: 12000, time: '2-3 hours' },
+      { from: 'Ibadan', to: 'Abuja', distance: 650, price: 40000, time: '8-10 hours' },
+      { from: 'Ibadan', to: 'Ilorin', distance: 200, price: 15000, time: '3-4 hours' },
+      
+      { from: 'Kano', to: 'Lagos', distance: 1000, price: 60000, time: '12-16 hours' },
+      { from: 'Kano', to: 'Abuja', distance: 350, price: 25000, time: '5-7 hours' },
+      { from: 'Kano', to: 'Kaduna', distance: 210, price: 15000, time: '3-4 hours' },
+      
+      { from: 'Enugu', to: 'Lagos', distance: 650, price: 40000, time: '8-10 hours' },
+      { from: 'Enugu', to: 'Port Harcourt', distance: 160, price: 13000, time: '2-3 hours' },
+      { from: 'Enugu', to: 'Abuja', distance: 290, price: 20000, time: '4-5 hours' },
     ],
+    
     Ghana: [
       { from: 'Accra', to: 'Kumasi', distance: 250, price: 15000, time: '3-4 hours' },
       { from: 'Accra', to: 'Tamale', distance: 400, price: 25000, time: '6-8 hours' },
+      { from: 'Accra', to: 'Takoradi', distance: 230, price: 14000, time: '3-4 hours' },
+      { from: 'Accra', to: 'Cape Coast', distance: 150, price: 11000, time: '2-3 hours' },
+      { from: 'Accra', to: 'Sunyani', distance: 380, price: 23000, time: '5-7 hours' },
+      { from: 'Accra', to: 'Ho', distance: 160, price: 12000, time: '2-3 hours' },
+      
       { from: 'Kumasi', to: 'Accra', distance: 250, price: 15000, time: '3-4 hours' },
+      { from: 'Kumasi', to: 'Tamale', distance: 320, price: 20000, time: '5-6 hours' },
+      { from: 'Kumasi', to: 'Takoradi', distance: 270, price: 17000, time: '4-5 hours' },
+      { from: 'Kumasi', to: 'Sunyani', distance: 130, price: 10000, time: '2-3 hours' },
+      
+      { from: 'Tamale', to: 'Accra', distance: 400, price: 25000, time: '6-8 hours' },
+      { from: 'Tamale', to: 'Kumasi', distance: 320, price: 20000, time: '5-6 hours' },
+      
+      { from: 'Takoradi', to: 'Accra', distance: 230, price: 14000, time: '3-4 hours' },
+      { from: 'Takoradi', to: 'Kumasi', distance: 270, price: 17000, time: '4-5 hours' },
     ],
+    
     Kenya: [
       { from: 'Nairobi', to: 'Mombasa', distance: 480, price: 28000, time: '6-8 hours' },
       { from: 'Nairobi', to: 'Kisumu', distance: 350, price: 22000, time: '5-7 hours' },
+      { from: 'Nairobi', to: 'Nakuru', distance: 160, price: 12000, time: '2-3 hours' },
+      { from: 'Nairobi', to: 'Eldoret', distance: 310, price: 20000, time: '4-6 hours' },
+      { from: 'Nairobi', to: 'Thika', distance: 45, price: 5000, time: '1 hour' },
+      { from: 'Nairobi', to: 'Nyeri', distance: 150, price: 11000, time: '2-3 hours' },
+      { from: 'Nairobi', to: 'Machakos', distance: 65, price: 6000, time: '1-2 hours' },
+      
       { from: 'Mombasa', to: 'Nairobi', distance: 480, price: 28000, time: '6-8 hours' },
-    ]
+      { from: 'Mombasa', to: 'Malindi', distance: 120, price: 9000, time: '2-3 hours' },
+      { from: 'Mombasa', to: 'Lamu', distance: 240, price: 16000, time: '4-5 hours' },
+      
+      { from: 'Kisumu', to: 'Nairobi', distance: 350, price: 22000, time: '5-7 hours' },
+      { from: 'Kisumu', to: 'Eldoret', distance: 200, price: 14000, time: '3-4 hours' },
+      
+      { from: 'Nakuru', to: 'Nairobi', distance: 160, price: 12000, time: '2-3 hours' },
+      { from: 'Nakuru', to: 'Eldoret', distance: 150, price: 11000, time: '2-3 hours' },
+    ],
+    
+    'South Africa': [
+      { from: 'Johannesburg', to: 'Cape Town', distance: 1400, price: 80000, time: '14-18 hours' },
+      { from: 'Johannesburg', to: 'Durban', distance: 600, price: 38000, time: '7-9 hours' },
+      { from: 'Johannesburg', to: 'Pretoria', distance: 60, price: 8000, time: '1 hour' },
+      { from: 'Johannesburg', to: 'Bloemfontein', distance: 400, price: 26000, time: '5-7 hours' },
+      { from: 'Johannesburg', to: 'Port Elizabeth', distance: 1050, price: 65000, time: '12-15 hours' },
+      { from: 'Johannesburg', to: 'Polokwane', distance: 280, price: 19000, time: '4-5 hours' },
+      { from: 'Johannesburg', to: 'Nelspruit', distance: 360, price: 23000, time: '5-6 hours' },
+      
+      { from: 'Cape Town', to: 'Johannesburg', distance: 1400, price: 80000, time: '14-18 hours' },
+      { from: 'Cape Town', to: 'Durban', distance: 1650, price: 95000, time: '16-20 hours' },
+      { from: 'Cape Town', to: 'Port Elizabeth', distance: 770, price: 48000, time: '9-11 hours' },
+      { from: 'Cape Town', to: 'George', distance: 420, price: 27000, time: '5-7 hours' },
+      
+      { from: 'Durban', to: 'Johannesburg', distance: 600, price: 38000, time: '7-9 hours' },
+      { from: 'Durban', to: 'Cape Town', distance: 1650, price: 95000, time: '16-20 hours' },
+      { from: 'Durban', to: 'Port Elizabeth', distance: 950, price: 58000, time: '11-13 hours' },
+      { from: 'Durban', to: 'Pietermaritzburg', distance: 90, price: 8000, time: '1-2 hours' },
+      
+      { from: 'Pretoria', to: 'Johannesburg', distance: 60, price: 8000, time: '1 hour' },
+      { from: 'Pretoria', to: 'Polokwane', distance: 270, price: 18000, time: '4-5 hours' },
+    ],
+    
+    Egypt: [
+      { from: 'Cairo', to: 'Alexandria', distance: 220, price: 16000, time: '3-4 hours' },
+      { from: 'Cairo', to: 'Giza', distance: 20, price: 3000, time: '30 minutes' },
+      { from: 'Cairo', to: 'Aswan', distance: 880, price: 55000, time: '11-13 hours' },
+      { from: 'Cairo', to: 'Luxor', distance: 670, price: 42000, time: '8-10 hours' },
+      { from: 'Cairo', to: 'Port Said', distance: 220, price: 16000, time: '3-4 hours' },
+      { from: 'Cairo', to: 'Suez', distance: 140, price: 11000, time: '2-3 hours' },
+      { from: 'Cairo', to: 'Sharm El Sheikh', distance: 490, price: 32000, time: '6-8 hours' },
+      
+      { from: 'Alexandria', to: 'Cairo', distance: 220, price: 16000, time: '3-4 hours' },
+      { from: 'Alexandria', to: 'Marsa Matruh', distance: 290, price: 20000, time: '4-5 hours' },
+      
+      { from: 'Aswan', to: 'Cairo', distance: 880, price: 55000, time: '11-13 hours' },
+      { from: 'Aswan', to: 'Luxor', distance: 210, price: 15000, time: '3-4 hours' },
+      
+      { from: 'Luxor', to: 'Cairo', distance: 670, price: 42000, time: '8-10 hours' },
+      { from: 'Luxor', to: 'Aswan', distance: 210, price: 15000, time: '3-4 hours' },
+    ],
+    
+    Morocco: [
+      { from: 'Casablanca', to: 'Rabat', distance: 90, price: 8000, time: '1-2 hours' },
+      { from: 'Casablanca', to: 'Marrakech', distance: 240, price: 16000, time: '3-4 hours' },
+      { from: 'Casablanca', to: 'Fez', distance: 300, price: 20000, time: '4-5 hours' },
+      { from: 'Casablanca', to: 'Tangier', distance: 340, price: 22000, time: '4-6 hours' },
+      { from: 'Casablanca', to: 'Agadir', distance: 480, price: 30000, time: '6-8 hours' },
+      
+      { from: 'Rabat', to: 'Casablanca', distance: 90, price: 8000, time: '1-2 hours' },
+      { from: 'Rabat', to: 'Fez', distance: 210, price: 15000, time: '3-4 hours' },
+      { from: 'Rabat', to: 'Tangier', distance: 250, price: 17000, time: '3-5 hours' },
+      
+      { from: 'Marrakech', to: 'Casablanca', distance: 240, price: 16000, time: '3-4 hours' },
+      { from: 'Marrakech', to: 'Agadir', distance: 250, price: 17000, time: '3-5 hours' },
+      { from: 'Marrakech', to: 'Essaouira', distance: 180, price: 13000, time: '3-4 hours' },
+      
+      { from: 'Fez', to: 'Casablanca', distance: 300, price: 20000, time: '4-5 hours' },
+      { from: 'Fez', to: 'Rabat', distance: 210, price: 15000, time: '3-4 hours' },
+      { from: 'Fez', to: 'Meknes', distance: 60, price: 6000, time: '1 hour' },
+      
+      { from: 'Tangier', to: 'Casablanca', distance: 340, price: 22000, time: '4-6 hours' },
+      { from: 'Tangier', to: 'Rabat', distance: 250, price: 17000, time: '3-5 hours' },
+      { from: 'Tangier', to: 'Fez', distance: 300, price: 20000, time: '4-5 hours' },
+    ],
+    
+    Ethiopia: [
+      { from: 'Addis Ababa', to: 'Dire Dawa', distance: 520, price: 32000, time: '7-9 hours' },
+      { from: 'Addis Ababa', to: 'Bahir Dar', distance: 560, price: 35000, time: '7-10 hours' },
+      { from: 'Addis Ababa', to: 'Hawassa', distance: 280, price: 19000, time: '4-5 hours' },
+      { from: 'Addis Ababa', to: 'Mekelle', distance: 780, price: 48000, time: '10-12 hours' },
+      { from: 'Addis Ababa', to: 'Jimma', distance: 350, price: 23000, time: '5-7 hours' },
+      { from: 'Addis Ababa', to: 'Gondar', distance: 740, price: 46000, time: '9-12 hours' },
+      
+      { from: 'Dire Dawa', to: 'Addis Ababa', distance: 520, price: 32000, time: '7-9 hours' },
+      { from: 'Dire Dawa', to: 'Harar', distance: 55, price: 6000, time: '1 hour' },
+      
+      { from: 'Bahir Dar', to: 'Addis Ababa', distance: 560, price: 35000, time: '7-10 hours' },
+      { from: 'Bahir Dar', to: 'Gondar', distance: 180, price: 13000, time: '3-4 hours' },
+      
+      { from: 'Hawassa', to: 'Addis Ababa', distance: 280, price: 19000, time: '4-5 hours' },
+      { from: 'Mekelle', to: 'Addis Ababa', distance: 780, price: 48000, time: '10-12 hours' },
+      { from: 'Gondar', to: 'Addis Ababa', distance: 740, price: 46000, time: '9-12 hours' },
+      { from: 'Gondar', to: 'Bahir Dar', distance: 180, price: 13000, time: '3-4 hours' },
+    ],
+    
+    Tanzania: [
+      { from: 'Dar es Salaam', to: 'Dodoma', distance: 480, price: 30000, time: '6-8 hours' },
+      { from: 'Dar es Salaam', to: 'Arusha', distance: 640, price: 40000, time: '8-10 hours' },
+      { from: 'Dar es Salaam', to: 'Mwanza', distance: 1150, price: 70000, time: '14-17 hours' },
+      { from: 'Dar es Salaam', to: 'Mbeya', distance: 840, price: 52000, time: '10-13 hours' },
+      { from: 'Dar es Salaam', to: 'Tanga', distance: 350, price: 23000, time: '5-7 hours' },
+      { from: 'Dar es Salaam', to: 'Morogoro', distance: 200, price: 14000, time: '3-4 hours' },
+      
+      { from: 'Dodoma', to: 'Dar es Salaam', distance: 480, price: 30000, time: '6-8 hours' },
+      { from: 'Dodoma', to: 'Arusha', distance: 450, price: 28000, time: '6-8 hours' },
+      
+      { from: 'Arusha', to: 'Dar es Salaam', distance: 640, price: 40000, time: '8-10 hours' },
+      { from: 'Arusha', to: 'Mwanza', distance: 550, price: 35000, time: '7-9 hours' },
+      { from: 'Arusha', to: 'Moshi', distance: 80, price: 7000, time: '1-2 hours' },
+      
+      { from: 'Mwanza', to: 'Dar es Salaam', distance: 1150, price: 70000, time: '14-17 hours' },
+      { from: 'Mwanza', to: 'Arusha', distance: 550, price: 35000, time: '7-9 hours' },
+    ],
+    
+    Uganda: [
+      { from: 'Kampala', to: 'Entebbe', distance: 40, price: 5000, time: '1 hour' },
+      { from: 'Kampala', to: 'Jinja', distance: 80, price: 7000, time: '1-2 hours' },
+      { from: 'Kampala', to: 'Mbarara', distance: 270, price: 18000, time: '4-5 hours' },
+      { from: 'Kampala', to: 'Gulu', distance: 340, price: 22000, time: '5-7 hours' },
+      { from: 'Kampala', to: 'Mbale', distance: 230, price: 16000, time: '3-5 hours' },
+      { from: 'Kampala', to: 'Fort Portal', distance: 300, price: 20000, time: '4-6 hours' },
+      
+      { from: 'Entebbe', to: 'Kampala', distance: 40, price: 5000, time: '1 hour' },
+      { from: 'Jinja', to: 'Kampala', distance: 80, price: 7000, time: '1-2 hours' },
+      { from: 'Mbarara', to: 'Kampala', distance: 270, price: 18000, time: '4-5 hours' },
+      { from: 'Gulu', to: 'Kampala', distance: 340, price: 22000, time: '5-7 hours' },
+      { from: 'Mbale', to: 'Kampala', distance: 230, price: 16000, time: '3-5 hours' },
+    ],
+    
+    Senegal: [
+      { from: 'Dakar', to: 'Thiès', distance: 70, price: 7000, time: '1 hour' },
+      { from: 'Dakar', to: 'Saint-Louis', distance: 270, price: 18000, time: '4-5 hours' },
+      { from: 'Dakar', to: 'Kaolack', distance: 190, price: 14000, time: '3-4 hours' },
+      { from: 'Dakar', to: 'Ziguinchor', distance: 450, price: 28000, time: '6-8 hours' },
+      { from: 'Dakar', to: 'Touba', distance: 200, price: 15000, time: '3-4 hours' },
+      
+      { from: 'Thiès', to: 'Dakar', distance: 70, price: 7000, time: '1 hour' },
+      { from: 'Saint-Louis', to: 'Dakar', distance: 270, price: 18000, time: '4-5 hours' },
+      { from: 'Kaolack', to: 'Dakar', distance: 190, price: 14000, time: '3-4 hours' },
+      { from: 'Ziguinchor', to: 'Dakar', distance: 450, price: 28000, time: '6-8 hours' },
+    ],
+    
+    'Ivory Coast': [
+      { from: 'Abidjan', to: 'Yamoussoukro', distance: 240, price: 16000, time: '3-4 hours' },
+      { from: 'Abidjan', to: 'Bouaké', distance: 360, price: 23000, time: '5-6 hours' },
+      { from: 'Abidjan', to: 'San Pedro', distance: 320, price: 21000, time: '4-6 hours' },
+      { from: 'Abidjan', to: 'Korhogo', distance: 640, price: 40000, time: '8-10 hours' },
+      { from: 'Abidjan', to: 'Daloa', distance: 380, price: 24000, time: '5-7 hours' },
+      
+      { from: 'Yamoussoukro', to: 'Abidjan', distance: 240, price: 16000, time: '3-4 hours' },
+      { from: 'Yamoussoukro', to: 'Bouaké', distance: 120, price: 10000, time: '2-3 hours' },
+      
+      { from: 'Bouaké', to: 'Abidjan', distance: 360, price: 23000, time: '5-6 hours' },
+      { from: 'Bouaké', to: 'Korhogo', distance: 300, price: 20000, time: '4-5 hours' },
+    ],
+    
+    Zimbabwe: [
+      { from: 'Harare', to: 'Bulawayo', distance: 440, price: 28000, time: '6-8 hours' },
+      { from: 'Harare', to: 'Mutare', distance: 260, price: 18000, time: '4-5 hours' },
+      { from: 'Harare', to: 'Gweru', distance: 280, price: 19000, time: '4-5 hours' },
+      { from: 'Harare', to: 'Masvingo', distance: 290, price: 20000, time: '4-6 hours' },
+      { from: 'Harare', to: 'Chinhoyi', distance: 120, price: 10000, time: '2-3 hours' },
+      
+      { from: 'Bulawayo', to: 'Harare', distance: 440, price: 28000, time: '6-8 hours' },
+      { from: 'Bulawayo', to: 'Victoria Falls', distance: 440, price: 28000, time: '6-8 hours' },
+      
+      { from: 'Mutare', to: 'Harare', distance: 260, price: 18000, time: '4-5 hours' },
+      { from: 'Gweru', to: 'Harare', distance: 280, price: 19000, time: '4-5 hours' },
+    ],
   };
 
   // International routes data
