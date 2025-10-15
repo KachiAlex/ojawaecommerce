@@ -188,12 +188,26 @@ const OnboardingWrapper = () => {
         <Suspense fallback={<RouteLoadingSpinner route="default" />}>
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/products" element={<Products />} />
-          <Route path="/how-wallet-works" element={<HowWalletWorks />} />
-          <Route path="/categories" element={<Categories />} />
-          <Route path="/products/:id" element={<ProductDetail />} />
-          <Route path="/how-wallet-works" element={<HowWalletWorks />} />
-          <Route path="/categories" element={<Categories />} />
+          <Route path="/products" element={
+            <Suspense fallback={<RouteLoadingSpinner route="products" />}>
+              <Products />
+            </Suspense>
+          } />
+          <Route path="/how-wallet-works" element={
+            <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+              <HowWalletWorks />
+            </Suspense>
+          } />
+          <Route path="/categories" element={
+            <Suspense fallback={<RouteLoadingSpinner route="categories" />}>
+              <Categories />
+            </Suspense>
+          } />
+          <Route path="/products/:id" element={
+            <Suspense fallback={<RouteLoadingSpinner route="product" />}>
+              <ProductDetail />
+            </Suspense>
+          } />
           <Route 
             path="/wallet" 
             element={
@@ -263,9 +277,21 @@ const OnboardingWrapper = () => {
             path="/admin-dashboard" 
             element={<Navigate to="/admin" replace />} 
           />
-          <Route path="/admin-setup" element={<AdminSetup />} />
-          <Route path="/admin-test" element={<AdminDashboard />} />
-          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/admin-setup" element={
+            <Suspense fallback={<RouteLoadingSpinner route="admin" />}>
+              <AdminSetup />
+            </Suspense>
+          } />
+          <Route path="/admin-test" element={
+            <Suspense fallback={<RouteLoadingSpinner route="admin" />}>
+              <AdminDashboard />
+            </Suspense>
+          } />
+          <Route path="/admin/login" element={
+            <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+              <AdminLogin />
+            </Suspense>
+          } />
               {/* Smart Dashboard Route - redirects to user's primary dashboard */}
               <Route path="/dashboard" element={<DashboardRedirect />} />
               
@@ -302,7 +328,9 @@ const OnboardingWrapper = () => {
                 path="/become-vendor" 
                 element={
                   <ProtectedRoute>
-                    <BecomeVendor />
+                    <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+                      <BecomeVendor />
+                    </Suspense>
                   </ProtectedRoute>
                 } 
               />
@@ -310,29 +338,107 @@ const OnboardingWrapper = () => {
                 path="/become-logistics" 
                 element={
                   <ProtectedRoute>
-                    <BecomeLogistics />
+                    <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+                      <BecomeLogistics />
+                    </Suspense>
                   </ProtectedRoute>
                 } 
               />
-              <Route path="/onboarding" element={<OnboardingFlow />} />
-          <Route path="/flutterwave-test" element={<FlutterwaveTest />} />
-          <Route path="/function-test" element={<FunctionTest />} />
-          <Route path="/cloud-test" element={<CloudTest />} />
-          <Route path="/modal-test" element={<ModalTest />} />
-          <Route path="/stock-test" element={<StockTest />} />
-          <Route path="/stock-sync-test" element={<StockSyncTest />} />
-          <Route path="/auth-flow-test" element={<AuthFlowTest />} />
-          <Route path="/store-manager" element={<StoreManager />} />
-          <Route path="/product-assignment" element={<ProductStoreAssignment />} />
-          <Route path="/tracking" element={<TrackingInterface />} />
-          <Route path="/store/:storeId" element={<StoreDisplay />} />
-          <Route path="/tracking-system-test" element={<TrackingSystemTest />} />
-          <Route path="/logistics-tracking" element={<LogisticsTrackingManager />} />
-          <Route path="/tracking/:orderId" element={<EnhancedTrackingStatus />} />
-          <Route path="/tracking-by-number/:trackingNumber" element={<EnhancedTrackingStatus />} />
-          <Route path="/logistics-tracking-test" element={<LogisticsTrackingTest />} />
-          <Route path="/pricing-test" element={<PricingTest />} />
-          <Route path="/product-debug" element={<ProductDebug />} />
+              <Route path="/onboarding" element={
+                <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+                  <OnboardingFlow />
+                </Suspense>
+              } />
+          <Route path="/flutterwave-test" element={
+            <Suspense fallback={<RouteLoadingSpinner route="test" />}>
+              <FlutterwaveTest />
+            </Suspense>
+          } />
+          <Route path="/function-test" element={
+            <Suspense fallback={<RouteLoadingSpinner route="test" />}>
+              <FunctionTest />
+            </Suspense>
+          } />
+          <Route path="/cloud-test" element={
+            <Suspense fallback={<RouteLoadingSpinner route="test" />}>
+              <CloudTest />
+            </Suspense>
+          } />
+          <Route path="/modal-test" element={
+            <Suspense fallback={<RouteLoadingSpinner route="test" />}>
+              <ModalTest />
+            </Suspense>
+          } />
+          <Route path="/stock-test" element={
+            <Suspense fallback={<RouteLoadingSpinner route="test" />}>
+              <StockTest />
+            </Suspense>
+          } />
+          <Route path="/stock-sync-test" element={
+            <Suspense fallback={<RouteLoadingSpinner route="test" />}>
+              <StockSyncTest />
+            </Suspense>
+          } />
+          <Route path="/auth-flow-test" element={
+            <Suspense fallback={<RouteLoadingSpinner route="test" />}>
+              <AuthFlowTest />
+            </Suspense>
+          } />
+          <Route path="/store-manager" element={
+            <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+              <StoreManager />
+            </Suspense>
+          } />
+          <Route path="/product-assignment" element={
+            <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+              <ProductStoreAssignment />
+            </Suspense>
+          } />
+          <Route path="/tracking" element={
+            <Suspense fallback={<RouteLoadingSpinner route="tracking" />}>
+              <TrackingInterface />
+            </Suspense>
+          } />
+          <Route path="/store/:storeId" element={
+            <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+              <StoreDisplay />
+            </Suspense>
+          } />
+          <Route path="/tracking-system-test" element={
+            <Suspense fallback={<RouteLoadingSpinner route="test" />}>
+              <TrackingSystemTest />
+            </Suspense>
+          } />
+          <Route path="/logistics-tracking" element={
+            <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+              <LogisticsTrackingManager />
+            </Suspense>
+          } />
+          <Route path="/tracking/:orderId" element={
+            <Suspense fallback={<RouteLoadingSpinner route="tracking" />}>
+              <EnhancedTrackingStatus />
+            </Suspense>
+          } />
+          <Route path="/tracking-by-number/:trackingNumber" element={
+            <Suspense fallback={<RouteLoadingSpinner route="tracking" />}>
+              <EnhancedTrackingStatus />
+            </Suspense>
+          } />
+          <Route path="/logistics-tracking-test" element={
+            <Suspense fallback={<RouteLoadingSpinner route="test" />}>
+              <LogisticsTrackingTest />
+            </Suspense>
+          } />
+          <Route path="/pricing-test" element={
+            <Suspense fallback={<RouteLoadingSpinner route="test" />}>
+              <PricingTest />
+            </Suspense>
+          } />
+          <Route path="/product-debug" element={
+            <Suspense fallback={<RouteLoadingSpinner route="test" />}>
+              <ProductDebug />
+            </Suspense>
+          } />
           <Route path="/google-maps-test" element={
             <Suspense fallback={<RouteLoadingSpinner route="test" />}>
               <GoogleMapsTest />
@@ -342,7 +448,9 @@ const OnboardingWrapper = () => {
             path="/admin/pricing" 
             element={
               <AdminRoute>
-                <PricingAdminPanel />
+                <Suspense fallback={<RouteLoadingSpinner route="admin" />}>
+                  <PricingAdminPanel />
+                </Suspense>
               </AdminRoute>
             } 
           />
