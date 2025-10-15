@@ -111,6 +111,7 @@ export const searchInternationalRoutes = (searchTerm) => {
 
 // Advanced filtering for routes
 export const filterRoutes = (routes, filters = {}) => {
+  if (!routes || !Array.isArray(routes)) return [];
   let filtered = [...routes];
   
   // Price range filter
@@ -155,6 +156,7 @@ export const filterRoutes = (routes, filters = {}) => {
 
 // Sorting options for routes
 export const sortRoutes = (routes, sortBy = 'price_asc') => {
+  if (!routes || !Array.isArray(routes)) return [];
   const sorted = [...routes];
   
   switch (sortBy) {
@@ -217,6 +219,7 @@ export const getRouteStats = (routes) => {
 
 // Filter routes by service areas (partner's registered coverage)
 export const filterByServiceAreas = (routes, serviceAreas = []) => {
+  if (!routes || !Array.isArray(routes)) return [];
   if (!serviceAreas || serviceAreas.length === 0) return routes;
   
   return routes.filter(route => {
