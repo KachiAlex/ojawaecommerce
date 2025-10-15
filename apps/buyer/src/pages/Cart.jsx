@@ -5,6 +5,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { pricingService } from '../services/pricingService';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
+import logisticsPricingService from '../services/logisticsPricingService';
+import { formatLocation } from '../utils/addressUtils';
 
 // Helper function to format currency with amount
 const formatCurrency = (amount, currencyString) => {
@@ -28,6 +30,9 @@ const Cart = () => {
   const [loading, setLoading] = useState(false);
   const [vendorInfo, setVendorInfo] = useState(null);
   const [itemVendors, setItemVendors] = useState({});
+  const [buyerAddress, setBuyerAddress] = useState('');
+  const [routeInfo, setRouteInfo] = useState(null);
+  const [loadingRoute, setLoadingRoute] = useState(false);
 
   // Calculate pricing breakdown whenever cart items or delivery options change
   useEffect(() => {
@@ -50,6 +55,63 @@ const Cart = () => {
 
     calculatePricing();
   }, [cartItems, deliveryOption, selectedLogistics, getPricingBreakdown]);
+
+  // Fetch buyer address and calculate smart pricing
+  useEffect(() => {
+    const fetchBuyerAddress = async () => {
+      if (!currentUser) return;
+      
+      try {
+        const buyerDoc = await getDoc(doc(db, 'users', currentUser.uid));
+        if (buyerDoc.exists()) {
+          const data = buyerDoc.data();
+          if (data.address) {
+            setBuyerAddress(data.address);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch buyer address:', error);
+      }
+    };
+
+    fetchBuyerAddress();
+  }, [currentUser]);
+
+  // Calculate smart logistics pricing when addresses are available
+  useEffect(() => {
+    const calculateSmartPricing = async () => {
+      if (deliveryOption !== 'delivery' || !buyerAddress || !vendorInfo?.address) {
+        setRouteInfo(null);
+        return;
+      }
+
+      try {
+        setLoadingRoute(true);
+        const pricing = await logisticsPricingService.calculateDeliveryPrice(
+          vendorInfo.address,
+          buyerAddress
+        );
+        
+        if (pricing.success) {
+          setRouteInfo(pricing);
+          // Auto-select cheapest partner if available
+          if (pricing.selectedPartner) {
+            setSelectedLogistics({
+              ...pricing.selectedPartner,
+              price: `₦${pricing.price.toLocaleString()}`,
+              company: pricing.selectedPartner.company?.name || 'Logistics Partner'
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error calculating smart pricing:', error);
+      } finally {
+        setLoadingRoute(false);
+      }
+    };
+
+    calculateSmartPricing();
+  }, [buyerAddress, vendorInfo?.address, deliveryOption]);
 
   // Fetch vendor info for all cart items
   useEffect(() => {
@@ -196,16 +258,76 @@ const Cart = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Cart Items */}
         <div className="lg:col-span-2">
-          {vendorInfo && (
-            <div className="mb-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
-              <div className="text-sm text-gray-700">
-                <span className="font-semibold">Vendor:</span> {vendorInfo.name}
+          {/* Address Information */}
+          <div className="mb-4 space-y-3">
+            {vendorInfo && (
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="text-sm text-blue-700 mb-2">
+                  <span className="font-semibold">🏪 Vendor:</span> {vendorInfo.name}
+                </div>
+                <div className="text-sm text-blue-600">
+                  <span className="font-semibold">📍 Pickup Location:</span> {formatLocation(vendorInfo.address)}
+                </div>
               </div>
-              <div className="text-sm text-gray-600">
-                <span className="font-semibold">Pickup location:</span> {vendorInfo.address}
+            )}
+            
+            {buyerAddress && (
+              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                <div className="text-sm text-green-700">
+                  <span className="font-semibold">🏠 Your Delivery Address:</span> {formatLocation(buyerAddress)}
+                </div>
               </div>
-            </div>
-          )}
+            )}
+            
+            {/* Smart Route Detection */}
+            {loadingRoute && (
+              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-yellow-600"></div>
+                  <span className="text-yellow-800 text-sm font-medium">🗺️ Analyzing route and calculating delivery price...</span>
+                </div>
+              </div>
+            )}
+            
+            {routeInfo && routeInfo.success && deliveryOption === 'delivery' && (
+              <div className="p-4 bg-gradient-to-r from-emerald-50 to-blue-50 border border-emerald-200 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-2xl">
+                    {routeInfo.category === 'intracity' && '🏙️'}
+                    {routeInfo.category === 'intercity' && '🚛'}
+                    {routeInfo.category === 'international' && '✈️'}
+                  </span>
+                  <div>
+                    <h4 className="font-semibold text-gray-900 capitalize text-sm">{routeInfo.category} Delivery Detected</h4>
+                    <p className="text-xs text-gray-600">{routeInfo.from} → {routeInfo.to}</p>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="bg-white p-2 rounded">
+                    <div className="text-sm font-bold text-emerald-600">₦{routeInfo.price.toLocaleString()}</div>
+                    <div className="text-xs text-gray-600">Delivery Fee</div>
+                  </div>
+                  <div className="bg-white p-2 rounded">
+                    <div className="text-sm font-bold text-blue-600">{routeInfo.distance}km</div>
+                    <div className="text-xs text-gray-600">Distance</div>
+                  </div>
+                  <div className="bg-white p-2 rounded">
+                    <div className="text-sm font-bold text-purple-600">
+                      {routeInfo.availablePartners?.length || 0}
+                    </div>
+                    <div className="text-xs text-gray-600">Partners</div>
+                  </div>
+                </div>
+                
+                {routeInfo.usingPlatformDefault && (
+                  <div className="mt-2 text-xs text-gray-600 bg-yellow-50 p-2 rounded">
+                    ℹ️ Using platform default pricing (no logistics partners for this route)
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
           <div className="space-y-4">
             {cartItems.map((item) => {
               const vendorId = item.vendorId || itemVendors[item.id];
