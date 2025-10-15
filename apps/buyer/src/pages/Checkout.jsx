@@ -9,6 +9,7 @@ import firebaseService from '../services/firebaseService';
 import WalletBalanceCheck from '../components/WalletBalanceCheck';
 import escrowPaymentService from '../services/escrowPaymentService';
 import { pricingService } from '../services/pricingService';
+import logisticsPricingService from '../services/logisticsPricingService';
 
 // Currency helpers
 const currencySymbolMap = {
@@ -296,6 +297,9 @@ const Checkout = () => {
   const [walletBalance, setWalletBalance] = useState(0);
   const [pricingBreakdown, setPricingBreakdown] = useState(null);
   const [loadingPricing, setLoadingPricing] = useState(false);
+  const [routeInfo, setRouteInfo] = useState(null);
+  const [calculatedDeliveryFee, setCalculatedDeliveryFee] = useState(0);
+  const [showRouteDetails, setShowRouteDetails] = useState(false);
   const currencyCode = getCurrencyCode(cartItems[0]?.currency || cartItems[0]?.priceCurrency || 'NGN');
   const [canProceed, setCanProceed] = useState(false);
 
@@ -409,6 +413,44 @@ const Checkout = () => {
     }
   };
 
+  const calculateSmartLogisticsPrice = async () => {
+    if (deliveryOption !== 'delivery' || !buyerAddress || !vendorAddress) {
+      setRouteInfo(null);
+      setCalculatedDeliveryFee(0);
+      return;
+    }
+    
+    try {
+      setLoadingLogistics(true);
+      
+      // Calculate delivery price using smart routing
+      const pricing = await logisticsPricingService.calculateDeliveryPrice(
+        vendorAddress,
+        buyerAddress
+      );
+      
+      if (pricing.success) {
+        setRouteInfo(pricing);
+        setCalculatedDeliveryFee(pricing.price);
+        
+        // If we have available partners, set them
+        if (pricing.availablePartners && pricing.availablePartners.length > 0) {
+          setAvailableLogistics(pricing.availablePartners);
+          // Auto-select cheapest partner
+          setSelectedLogistics(pricing.selectedPartner);
+        }
+      } else {
+        // Use default price if calculation fails
+        setCalculatedDeliveryFee(pricing.defaultPrice || 5000);
+      }
+    } catch (error) {
+      console.error('Error calculating logistics price:', error);
+      setCalculatedDeliveryFee(5000); // Default fallback
+    } finally {
+      setLoadingLogistics(false);
+    }
+  };
+  
   const fetchAvailableLogistics = async () => {
     if (deliveryOption !== 'delivery' || !buyerAddress) return;
     

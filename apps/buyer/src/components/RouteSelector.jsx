@@ -13,9 +13,23 @@ const RouteSelector = ({
   const [selectedCountry, setSelectedCountry] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRoutes, setSelectedRoutes] = useState([]);
+  const [defaultWeight, setDefaultWeight] = useState(1); // Default weight in kg
 
   // Default vehicle types for all routes
   const DEFAULT_VEHICLES = ['Van', 'Truck', 'Motorcycle', 'Car'];
+
+  // Weight-based pricing multipliers
+  const calculateWeightMultiplier = (weight) => {
+    if (weight <= 5) return 1.0;           // 0-5kg: base price
+    if (weight <= 10) return 1.2;          // 6-10kg: +20%
+    if (weight <= 20) return 1.4;          // 11-20kg: +40%
+    if (weight <= 50) return 1.7;          // 21-50kg: +70%
+    if (weight <= 100) return 2.0;         // 51-100kg: +100%
+    if (weight <= 200) return 2.5;         // 101-200kg: +150%
+    if (weight <= 500) return 3.0;         // 201-500kg: +200%
+    if (weight <= 1000) return 4.0;        // 501-1000kg: +300%
+    return 4.0 + ((weight - 1000) / 1000); // 1000kg+: +300% + extra per ton
+  };
 
   // Intercity routes data - Comprehensive African coverage
   const INTERCITY_ROUTES = {
@@ -301,14 +315,20 @@ const RouteSelector = ({
   }, [availableRoutes, searchTerm]);
 
   // Normalize route data - ensure all routes have same structure
-  const normalizeRoute = (route) => {
+  const normalizeRoute = (route, weight = defaultWeight) => {
     // Get vehicles array - use from route or defaults
     const vehicles = Array.isArray(route.vehicles) && route.vehicles.length > 0 
       ? route.vehicles 
       : DEFAULT_VEHICLES;
 
+    // Calculate weight multiplier
+    const weightMultiplier = calculateWeightMultiplier(weight);
+
+    // Calculate base price (with weight factor)
+    let basePrice = Math.round(route.price * weightMultiplier);
+
     // Calculate partner price if available
-    let finalPrice = route.price;
+    let finalPrice = basePrice;
     if (profile?.pricing?.ratePerKm && calculatePartnerPrice) {
       const partnerPricing = calculatePartnerPrice(
         route.distance,
@@ -316,7 +336,7 @@ const RouteSelector = ({
         2000,
         100000
       );
-      finalPrice = partnerPricing.finalPrice;
+      finalPrice = Math.round(partnerPricing.finalPrice * weightMultiplier);
     }
 
     return {
@@ -324,10 +344,13 @@ const RouteSelector = ({
       to: route.to,
       distance: route.distance,
       price: finalPrice,
-      suggestedPrice: route.price,
+      basePrice: route.price,
+      suggestedPrice: basePrice,
       estimatedTime: route.time,
       vehicleType: vehicles[0],
       vehicleTypes: vehicles, // Always an array
+      weight: weight,
+      weightMultiplier: weightMultiplier,
       routeKey: `${route.from}-${route.to}`
     };
   };
@@ -376,6 +399,48 @@ const RouteSelector = ({
 
   return (
     <div className="space-y-6">
+      {/* Weight Input */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <label className="block text-sm font-medium text-blue-900 mb-2">
+          📦 Package Weight (affects pricing)
+        </label>
+        <div className="flex items-center gap-3">
+          <input
+            type="number"
+            value={defaultWeight}
+            onChange={(e) => {
+              const weight = parseFloat(e.target.value) || 1;
+              setDefaultWeight(weight);
+              // Recalculate all selected routes with new weight
+              setSelectedRoutes(selectedRoutes.map(r => ({
+                ...r,
+                weight: weight,
+                weightMultiplier: calculateWeightMultiplier(weight),
+                price: Math.round(r.basePrice * calculateWeightMultiplier(weight)),
+                suggestedPrice: Math.round(r.basePrice * calculateWeightMultiplier(weight))
+              })));
+            }}
+            min="0.1"
+            step="0.5"
+            className="w-32 border border-blue-300 rounded-lg px-3 py-2"
+          />
+          <span className="text-sm text-blue-900 font-medium">kg</span>
+          <div className="flex-1">
+            <div className="text-xs text-blue-700">
+              Multiplier: {calculateWeightMultiplier(defaultWeight).toFixed(2)}x 
+              {defaultWeight > 5 && (
+                <span className="ml-2">
+                  (+{Math.round((calculateWeightMultiplier(defaultWeight) - 1) * 100)}% of base price)
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="mt-2 text-xs text-blue-600">
+          💡 Pricing tiers: 0-5kg (base) • 6-10kg (+20%) • 11-20kg (+40%) • 21-50kg (+70%) • 51-100kg (+100%) • 101-200kg (+150%) • 201-500kg (+200%) • 500kg+ (scaled)
+        </div>
+      </div>
+
       {/* Country Selector for Intercity */}
       {routeType === 'intercity' && (
         <div>
@@ -463,6 +528,14 @@ const RouteSelector = ({
                 <div>
                   <div className="font-medium text-gray-900">{route.from} → {route.to}</div>
                   <div className="text-sm text-gray-600">{route.distance}km • {route.estimatedTime}</div>
+                  <div className="text-xs text-blue-600 mt-1">
+                    📦 Weight: {route.weight}kg • Multiplier: {route.weightMultiplier.toFixed(2)}x
+                    {route.weight > 5 && (
+                      <span className="ml-1">
+                        (+{Math.round((route.weightMultiplier - 1) * 100)}%)
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <button
                   onClick={() => removeRoute(route.routeKey)}
@@ -472,7 +545,27 @@ const RouteSelector = ({
                 </button>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Weight (kg)</label>
+                  <input
+                    type="number"
+                    value={route.weight}
+                    onChange={(e) => {
+                      const newWeight = parseFloat(e.target.value) || 1;
+                      const newMultiplier = calculateWeightMultiplier(newWeight);
+                      const newPrice = Math.round(route.basePrice * newMultiplier);
+                      setSelectedRoutes(selectedRoutes.map(r => 
+                        r.routeKey === route.routeKey 
+                          ? { ...r, weight: newWeight, weightMultiplier: newMultiplier, price: newPrice, suggestedPrice: newPrice }
+                          : r
+                      ));
+                    }}
+                    min="0.1"
+                    step="0.5"
+                    className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                  />
+                </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Price (₦)</label>
                   <input
@@ -481,6 +574,9 @@ const RouteSelector = ({
                     onChange={(e) => updateRoute(route.routeKey, 'price', parseInt(e.target.value) || 0)}
                     className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
                   />
+                  <div className="text-xs text-gray-500 mt-0.5">
+                    Base: ₦{route.basePrice.toLocaleString()}
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Vehicle Type</label>
