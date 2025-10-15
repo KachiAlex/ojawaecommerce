@@ -1680,9 +1680,11 @@ const Logistics = () => {
                                               onChange={(e) => updateSelectedRoute(routeKey, 'vehicleType', e.target.value)}
                                               className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
                                             >
-                                              {route.vehicleTypes?.map(vt => (
-                                                <option key={vt} value={vt}>{vt}</option>
-                                              )) || (
+                                              {Array.isArray(route.vehicleTypes) && route.vehicleTypes.length > 0 ? (
+                                                route.vehicleTypes.map(vt => (
+                                                  <option key={vt} value={vt}>{vt}</option>
+                                                ))
+                                              ) : (
                                                 <>
                                                   <option>Van</option>
                                                   <option>Truck</option>
