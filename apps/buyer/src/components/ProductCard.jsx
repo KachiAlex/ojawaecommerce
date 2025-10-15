@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useCart } from '../contexts/CartContext'
 import { useAuth } from '../contexts/AuthContext'
 
-const ProductCard = ({ product, onAddToCart }) => {
+const ProductCard = ({ product, onAddToCart, onClick }) => {
   const { addToCart, saveIntendedDestination } = useCart()
   const { currentUser } = useAuth()
   const [imageError, setImageError] = useState(false)
@@ -122,7 +122,7 @@ const ProductCard = ({ product, onAddToCart }) => {
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-all duration-200 group">
-      <Link to={`/products/${product.id}`} className="block">
+      <div onClick={onClick} className="block cursor-pointer">
         <div className="relative aspect-square bg-gray-100">
           <img
             src={getImageUrl()}
@@ -161,7 +161,7 @@ const ProductCard = ({ product, onAddToCart }) => {
             </button>
           </div>
         </div>
-      </Link>
+      </div>
 
       <div className="p-4">
         {/* Category */}
@@ -172,11 +172,11 @@ const ProductCard = ({ product, onAddToCart }) => {
         )}
 
         {/* Product Name */}
-        <Link to={`/products/${product.id}`} className="block">
+        <div onClick={onClick} className="block cursor-pointer">
           <h3 className="text-sm font-semibold text-gray-900 mb-2 line-clamp-2 hover:text-emerald-600 transition-colors">
             {product.name}
           </h3>
-        </Link>
+        </div>
 
         {/* Brand */}
         {product.brand && (

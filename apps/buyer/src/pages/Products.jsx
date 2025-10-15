@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useProductSearch } from '../hooks/useProductSearch';
 import AdvancedSearch from '../components/AdvancedSearch';
 import ProductCard from '../components/ProductCard';
+import ProductQuickView from '../components/ProductQuickView';
 import { ProductListSkeleton, LoadingSpinner } from '../components/LoadingStates';
 import ComponentErrorBoundary from '../components/ComponentErrorBoundary';
 import { errorLogger } from '../utils/errorLogger';
@@ -20,10 +21,17 @@ const Products = () => {
 
   const [viewMode, setViewMode] = useState('grid') // 'grid' or 'list'
   const [showFilters, setShowFilters] = useState(false)
+  const [selectedProduct, setSelectedProduct] = useState(null)
+  const [showQuickView, setShowQuickView] = useState(false)
 
   const handleAddToCart = (product) => {
     // Show a toast notification instead of alert
     errorLogger.info(`Added ${product.name} to cart`, { productId: product.id })
+  }
+
+  const handleProductClick = (product) => {
+    setSelectedProduct(product)
+    setShowQuickView(true)
   }
 
   if (loading) {
@@ -155,6 +163,7 @@ const Products = () => {
                   key={product.id}
                   product={product}
                   onAddToCart={handleAddToCart}
+                  onClick={() => handleProductClick(product)}
                 />
               ))}
             </div>
@@ -188,6 +197,16 @@ const Products = () => {
           )}
         </div>
       </div>
+
+      {/* Product Quick View Modal */}
+      <ProductQuickView
+        product={selectedProduct}
+        isOpen={showQuickView}
+        onClose={() => {
+          setShowQuickView(false)
+          setSelectedProduct(null)
+        }}
+      />
     </ComponentErrorBoundary>
   )
 };
