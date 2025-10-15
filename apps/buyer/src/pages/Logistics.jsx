@@ -28,6 +28,7 @@ const Logistics = () => {
     country: '',
     state: '',
     city: '', // For intracity
+    stateAsCity: false, // Checkbox to use state as city
     from: '', // For intercity/international
     to: '', // For intercity/international
     distance: '',
@@ -296,7 +297,8 @@ const Logistics = () => {
         routeType: routeForm.routeType,
         country: routeForm.country,
         state: routeForm.state,
-        city: routeForm.city,
+        city: routeForm.stateAsCity ? routeForm.state : routeForm.city,
+        stateAsCity: routeForm.stateAsCity,
         from: routeForm.from.trim(),
         to: routeForm.to.trim(),
         distance: parseFloat(routeForm.distance) || 0,
@@ -311,8 +313,9 @@ const Logistics = () => {
 
       // Validate required fields based on route type
       if (routeForm.routeType === 'intracity') {
-        if (!routeForm.country || !routeForm.state || !routeForm.city || !routeForm.price || !routeForm.estimatedTime) {
-          alert('Please fill in country, state, city, price, and estimated time for intracity route.');
+        const cityRequired = !routeForm.stateAsCity && !routeForm.city;
+        if (!routeForm.country || !routeForm.state || cityRequired || !routeForm.price || !routeForm.estimatedTime) {
+          alert('Please fill in country, state, city (or select "State as City"), price, and estimated time for intracity route.');
           return;
         }
       } else if (routeForm.routeType === 'intercity' || routeForm.routeType === 'international') {
@@ -341,6 +344,7 @@ const Logistics = () => {
         country: '',
         state: '',
         city: '',
+        stateAsCity: false,
         from: '',
         to: '',
         distance: '',
@@ -538,6 +542,7 @@ const Logistics = () => {
                               handleRouteFormChange('country', e.target.value);
                               handleRouteFormChange('state', '');
                               handleRouteFormChange('city', '');
+                              handleRouteFormChange('stateAsCity', false);
                             }}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                             required
@@ -569,13 +574,15 @@ const Logistics = () => {
                         </div>
                         
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">City *</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            City {!routeForm.stateAsCity && '*'}
+                          </label>
                           <select
                             value={routeForm.city}
                             onChange={(e) => handleRouteFormChange('city', e.target.value)}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                            required
-                            disabled={!routeForm.state}
+                            required={!routeForm.stateAsCity}
+                            disabled={!routeForm.state || routeForm.stateAsCity}
                           >
                             <option value="">Select City</option>
                             {routeForm.country && routeForm.state && getCitiesForState(
@@ -587,6 +594,43 @@ const Logistics = () => {
                           </select>
                         </div>
                       </div>
+                      
+                      {/* State as City Checkbox */}
+                      <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <label className="flex items-center space-x-3 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={routeForm.stateAsCity}
+                            onChange={(e) => {
+                              handleRouteFormChange('stateAsCity', e.target.checked);
+                              if (e.target.checked) {
+                                handleRouteFormChange('city', '');
+                              }
+                            }}
+                            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                          />
+                          <div>
+                            <span className="text-sm font-medium text-blue-900">
+                              Use state as city (e.g., Lagos State = Lagos City)
+                            </span>
+                            <p className="text-xs text-blue-700 mt-1">
+                              Check this if the state name is the same as the main city (like Lagos, Abuja, etc.)
+                            </p>
+                          </div>
+                        </label>
+                      </div>
+                      
+                      {/* Display Selected Location */}
+                      {routeForm.country && routeForm.state && (
+                        <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                          <div className="flex items-center gap-2">
+                            <span className="text-green-600">📍</span>
+                            <span className="text-sm font-medium text-green-900">
+                              Selected Location: {routeForm.stateAsCity ? routeForm.state : routeForm.city || 'No city selected'}, {routeForm.state}, {routeForm.country}
+                            </span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
