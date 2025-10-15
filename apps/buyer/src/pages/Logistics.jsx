@@ -1030,8 +1030,21 @@ const Logistics = () => {
                     </div>
                   )}
 
-                  {/* Intercity Routes - Multiple Selection */}
-                  {routeForm.routeType === 'intercity' && (
+                  {/* Intercity & International Routes - Clean Component */}
+                  {(routeForm.routeType === 'intercity' || routeForm.routeType === 'international') && (
+                    <RouteSelector
+                      routeType={routeForm.routeType}
+                      profile={profile}
+                      calculatePartnerPrice={calculatePartnerPrice}
+                      onRoutesSelected={(routes) => {
+                        setSelectedRoutes(routes);
+                        alert(`${routes.length} route(s) selected. Click "Add Route(s)" to save.`);
+                      }}
+                    />
+                  )}
+
+                  {/* OLD COMPLEX INTERCITY CODE - REPLACED ABOVE */}
+                  {false && routeForm.routeType === 'intercity' && (
                     <div className="bg-gray-50 p-4 rounded-lg">
                       <h3 className="text-lg font-semibold text-gray-900 mb-4">🚛 Select Intercity Routes</h3>
                       
@@ -1480,8 +1493,8 @@ const Logistics = () => {
                     </div>
                   )}
                   
-                  {/* International Routes - Multiple Selection */}
-                  {routeForm.routeType === 'international' && (
+                  {/* OLD COMPLEX INTERNATIONAL CODE - REPLACED WITH RouteSelector ABOVE */}
+                  {false && routeForm.routeType === 'international' && (
                     <div className="bg-gray-50 p-4 rounded-lg">
                       <h3 className="text-lg font-semibold text-gray-900 mb-4">✈️ Select International Routes</h3>
                       
