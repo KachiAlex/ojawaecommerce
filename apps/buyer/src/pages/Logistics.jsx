@@ -7,6 +7,15 @@ import WalletManager from '../components/WalletManager';
 import LogisticsPerformanceDashboard from '../components/LogisticsPerformanceDashboard';
 import DashboardSwitcher from '../components/DashboardSwitcher';
 import { calculateDeliveryPrice, determineRouteCategory, DEFAULT_PLATFORM_PRICING, ROUTE_CATEGORY_INFO, RECOMMENDED_PRICING } from '../data/logisticsPricingModel';
+import { 
+  POPULAR_INTERCITY_ROUTES, 
+  POPULAR_INTERNATIONAL_ROUTES, 
+  getIntercityRoutesForCountry, 
+  getCountriesWithIntercityRoutes,
+  searchIntercityRoutes,
+  searchInternationalRoutes,
+  formatPrice 
+} from '../data/popularRoutes';
 
 const Logistics = () => {
   const { currentUser } = useAuth();
@@ -45,6 +54,12 @@ const Logistics = () => {
   const [analyzingRoute, setAnalyzingRoute] = useState(false);
   const [suggestedPricing, setSuggestedPricing] = useState(null);
   const [calculatedPricing, setCalculatedPricing] = useState(null);
+  
+  // Multi-route selection state for intercity/international
+  const [selectedCountryForIntercity, setSelectedCountryForIntercity] = useState('');
+  const [intercitySearchTerm, setIntercitySearchTerm] = useState('');
+  const [internationalSearchTerm, setInternationalSearchTerm] = useState('');
+  const [selectedRoutes, setSelectedRoutes] = useState([]); // Array of {from, to, price, estimatedTime, vehicleType}
 
   useEffect(() => {
     if (currentUser) {
@@ -276,6 +291,41 @@ const Logistics = () => {
     }
   }, [routeForm.ratePerKm, routeAnalysis?.distanceKm]);
 
+  // Helper functions for multi-route selection
+  const toggleRouteSelection = (route) => {
+    const routeKey = `${route.from}-${route.to}`;
+    const existingRoute = selectedRoutes.find(r => `${r.from}-${r.to}` === routeKey);
+    
+    if (existingRoute) {
+      // Remove route
+      setSelectedRoutes(selectedRoutes.filter(r => `${r.from}-${r.to}` !== routeKey));
+    } else {
+      // Add route with suggested values (can be edited)
+      setSelectedRoutes([...selectedRoutes, {
+        from: route.from,
+        to: route.to,
+        price: route.suggestedPrice,
+        estimatedTime: route.estimatedTime,
+        vehicleType: route.vehicleTypes ? route.vehicleTypes[0] : 'Van',
+        distance: route.distance || 0
+      }]);
+    }
+  };
+  
+  const updateSelectedRoute = (routeKey, field, value) => {
+    setSelectedRoutes(selectedRoutes.map(route => {
+      if (`${route.from}-${route.to}` === routeKey) {
+        return { ...route, [field]: value };
+      }
+      return route;
+    }));
+  };
+  
+  const isRouteSelected = (route) => {
+    const routeKey = `${route.from}-${route.to}`;
+    return selectedRoutes.some(r => `${r.from}-${r.to}` === routeKey);
+  };
+
   const handleSubmitRoute = async (e) => {
     e.preventDefault();
     
@@ -293,49 +343,69 @@ const Logistics = () => {
     try {
       setSubmittingRoute(true);
       
-      const routeData = {
-        routeType: routeForm.routeType,
-        country: routeForm.country,
-        state: routeForm.state,
-        city: routeForm.stateAsCity ? routeForm.state : routeForm.city,
-        stateAsCity: routeForm.stateAsCity,
-        from: routeForm.from.trim(),
-        to: routeForm.to.trim(),
-        distance: parseFloat(routeForm.distance) || 0,
-        price: parseFloat(routeForm.price) || 0,
-        currency: routeForm.currency,
-        estimatedTime: routeForm.estimatedTime.trim(),
-        vehicleType: routeForm.vehicleType,
-        serviceType: routeForm.serviceType,
-        createdAt: new Date().toISOString(),
-        status: 'active'
-      };
-
-      // Validate required fields based on route type
+      // Handle intracity routes (single route submission)
       if (routeForm.routeType === 'intracity') {
         const cityRequired = !routeForm.stateAsCity && !routeForm.city;
         if (!routeForm.country || !routeForm.state || cityRequired || !routeForm.price || !routeForm.estimatedTime) {
           alert('Please fill in country, state, city (or select "State as City"), price, and estimated time for intracity route.');
+          setSubmittingRoute(false);
           return;
         }
-      } else if (routeForm.routeType === 'intercity' || routeForm.routeType === 'international') {
-        if (!routeForm.from || !routeForm.to || !routeForm.price || !routeForm.estimatedTime) {
-          alert('Please fill in from, to, price, and estimated time for this route.');
-          return;
-        }
-      }
-
-      if (editingRoute) {
-        // Update existing route
-        await firebaseService.logistics.updateRoute(editingRoute.id, routeData);
-        setShowEditRouteForm(false);
-        setEditingRoute(null);
-        alert('Route updated successfully!');
-      } else {
-        // Create new route
+        
+        const routeData = {
+          routeType: routeForm.routeType,
+          country: routeForm.country,
+          state: routeForm.state,
+          city: routeForm.stateAsCity ? routeForm.state : routeForm.city,
+          stateAsCity: routeForm.stateAsCity,
+          from: '',
+          to: '',
+          distance: 0,
+          price: parseFloat(routeForm.price) || 0,
+          currency: routeForm.currency,
+          estimatedTime: routeForm.estimatedTime.trim(),
+          vehicleType: routeForm.vehicleType,
+          serviceType: routeForm.serviceType,
+          createdAt: new Date().toISOString(),
+          status: 'active'
+        };
+        
         await firebaseService.logistics.addRoute(profile.id, routeData);
-        setShowAddRouteForm(false);
-        alert('Route added successfully!');
+        alert('Intracity route added successfully!');
+      } 
+      // Handle intercity/international routes (multiple route submission)
+      else if (routeForm.routeType === 'intercity' || routeForm.routeType === 'international') {
+        if (selectedRoutes.length === 0) {
+          alert(`Please select at least one ${routeForm.routeType} route to add.`);
+          setSubmittingRoute(false);
+          return;
+        }
+        
+        // Add all selected routes
+        const addPromises = selectedRoutes.map(route => {
+          const routeData = {
+            routeType: routeForm.routeType,
+            country: '',
+            state: '',
+            city: '',
+            stateAsCity: false,
+            from: route.from,
+            to: route.to,
+            distance: route.distance || 0,
+            price: parseFloat(route.price) || 0,
+            currency: routeForm.currency,
+            estimatedTime: route.estimatedTime,
+            vehicleType: route.vehicleType,
+            serviceType: routeForm.serviceType,
+            createdAt: new Date().toISOString(),
+            status: 'active'
+          };
+          return firebaseService.logistics.addRoute(profile.id, routeData);
+        });
+        
+        await Promise.all(addPromises);
+        alert(`Successfully added ${selectedRoutes.length} ${routeForm.routeType} route(s)!`);
+        setSelectedRoutes([]);
       }
       
       // Reset form
@@ -354,6 +424,11 @@ const Logistics = () => {
         vehicleType: 'Van',
         serviceType: 'Standard Delivery'
       });
+      setSelectedCountryForIntercity('');
+      setIntercitySearchTerm('');
+      setInternationalSearchTerm('');
+      
+      setShowAddRouteForm(false);
       
       // Reload routes
       await loadRoutes(profile?.id);
@@ -634,107 +709,303 @@ const Logistics = () => {
                     </div>
                   )}
 
-                  {(routeForm.routeType === 'intercity' || routeForm.routeType === 'international') && (
+                  {/* Intercity Routes - Multiple Selection */}
+                  {routeForm.routeType === 'intercity' && (
                     <div className="bg-gray-50 p-4 rounded-lg">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                        {routeForm.routeType === 'intercity' ? '🚛 Intercity Route Details' : '✈️ International Route Details'}
-                      </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">From (Origin) *</label>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">🚛 Select Intercity Routes</h3>
+                      
+                      {/* Country Selection */}
+                      <div className="mb-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Select Country</label>
+                        <select
+                          value={selectedCountryForIntercity}
+                          onChange={(e) => {
+                            setSelectedCountryForIntercity(e.target.value);
+                            setIntercitySearchTerm('');
+                          }}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                        >
+                          <option value="">-- Select a country --</option>
+                          {getCountriesWithIntercityRoutes().map(country => (
+                            <option key={country} value={country}>{country}</option>
+                          ))}
+                        </select>
+                      </div>
+                      
+                      {/* Search Box */}
+                      {selectedCountryForIntercity && (
+                        <div className="mb-4">
                           <input
                             type="text"
-                            value={routeForm.from}
-                            onChange={(e) => handleRouteFormChange('from', e.target.value)}
+                            placeholder="Search routes by city name..."
+                            value={intercitySearchTerm}
+                            onChange={(e) => setIntercitySearchTerm(e.target.value)}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                            placeholder={routeForm.routeType === 'intercity' ? 'e.g., Lagos' : 'e.g., Lagos, Nigeria'}
+                          />
+                        </div>
+                      )}
+                      
+                      {/* Popular Routes List */}
+                      {selectedCountryForIntercity && (
+                        <div className="space-y-2 max-h-96 overflow-y-auto">
+                          {searchIntercityRoutes(selectedCountryForIntercity, intercitySearchTerm).map((route, idx) => {
+                            const isSelected = isRouteSelected(route);
+                            const routeKey = `${route.from}-${route.to}`;
+                            const selectedRoute = selectedRoutes.find(r => `${r.from}-${r.to}` === routeKey);
+                            
+                            return (
+                              <div key={idx} className={`border rounded-lg p-3 ${isSelected ? 'border-emerald-500 bg-emerald-50' : 'border-gray-300 bg-white'}`}>
+                                <div className="flex items-start justify-between">
+                                  <div className="flex items-start space-x-3 flex-1">
+                                    <input
+                                      type="checkbox"
+                                      checked={isSelected}
+                                      onChange={() => toggleRouteSelection(route)}
+                                      className="mt-1 w-4 h-4 text-emerald-600 bg-gray-100 border-gray-300 rounded focus:ring-emerald-500"
+                                    />
+                                    <div className="flex-1">
+                                      <div className="font-medium text-gray-900">{route.from} → {route.to}</div>
+                                      <div className="text-sm text-gray-600">
+                                        Distance: ~{route.distance}km | Est. Time: {route.estimatedTime}
+                                      </div>
+                                      
+                                      {isSelected && selectedRoute && (
+                                        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                                          <div>
+                                            <label className="block text-xs font-medium text-gray-700 mb-1">Price (₦)</label>
+                                            <input
+                                              type="number"
+                                              value={selectedRoute.price}
+                                              onChange={(e) => updateSelectedRoute(routeKey, 'price', e.target.value)}
+                                              className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                                              min="0"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="block text-xs font-medium text-gray-700 mb-1">Vehicle Type</label>
+                                            <select
+                                              value={selectedRoute.vehicleType}
+                                              onChange={(e) => updateSelectedRoute(routeKey, 'vehicleType', e.target.value)}
+                                              className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                                            >
+                                              <option>Van</option>
+                                              <option>Truck</option>
+                                              <option>Motorcycle</option>
+                                              <option>Car</option>
+                                            </select>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                  {!isSelected && (
+                                    <div className="text-right">
+                                      <div className="text-sm font-semibold text-emerald-600">
+                                        ₦{route.suggestedPrice.toLocaleString()}
+                                      </div>
+                                      <div className="text-xs text-gray-500">Suggested</div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                      
+                      {/* Selected Routes Summary */}
+                      {selectedRoutes.length > 0 && (
+                        <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                          <div className="font-medium text-emerald-900">
+                            ✓ {selectedRoutes.length} route(s) selected
+                          </div>
+                          <div className="text-sm text-emerald-700">
+                            Total estimated value: ₦{selectedRoutes.reduce((sum, r) => sum + parseFloat(r.price || 0), 0).toLocaleString()}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* International Routes - Multiple Selection */}
+                  {routeForm.routeType === 'international' && (
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">✈️ Select International Routes</h3>
+                      
+                      {/* Search Box */}
+                      <div className="mb-4">
+                        <input
+                          type="text"
+                          placeholder="Search routes by country or city name..."
+                          value={internationalSearchTerm}
+                          onChange={(e) => setInternationalSearchTerm(e.target.value)}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                        />
+                      </div>
+                      
+                      {/* Popular Routes List */}
+                      <div className="space-y-2 max-h-96 overflow-y-auto">
+                        {searchInternationalRoutes(internationalSearchTerm).map((route, idx) => {
+                          const isSelected = isRouteSelected(route);
+                          const routeKey = `${route.from}-${route.to}`;
+                          const selectedRoute = selectedRoutes.find(r => `${r.from}-${r.to}` === routeKey);
+                          
+                          return (
+                            <div key={idx} className={`border rounded-lg p-3 ${isSelected ? 'border-emerald-500 bg-emerald-50' : 'border-gray-300 bg-white'}`}>
+                              <div className="flex items-start justify-between">
+                                <div className="flex items-start space-x-3 flex-1">
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={() => toggleRouteSelection(route)}
+                                    className="mt-1 w-4 h-4 text-emerald-600 bg-gray-100 border-gray-300 rounded focus:ring-emerald-500"
+                                  />
+                                  <div className="flex-1">
+                                    <div className="font-medium text-gray-900">{route.from} → {route.to}</div>
+                                    <div className="text-sm text-gray-600">
+                                      Distance: ~{route.distance}km | Est. Time: {route.estimatedTime}
+                                    </div>
+                                    <div className="text-xs text-gray-500 mt-1">
+                                      Available: {route.vehicleTypes?.join(', ') || 'Van, Truck'}
+                                    </div>
+                                    
+                                    {isSelected && selectedRoute && (
+                                      <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        <div>
+                                          <label className="block text-xs font-medium text-gray-700 mb-1">Price (₦)</label>
+                                          <input
+                                            type="number"
+                                            value={selectedRoute.price}
+                                            onChange={(e) => updateSelectedRoute(routeKey, 'price', e.target.value)}
+                                            className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                                            min="0"
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="block text-xs font-medium text-gray-700 mb-1">Vehicle Type</label>
+                                          <select
+                                            value={selectedRoute.vehicleType}
+                                            onChange={(e) => updateSelectedRoute(routeKey, 'vehicleType', e.target.value)}
+                                            className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                                          >
+                                            {route.vehicleTypes?.map(vt => (
+                                              <option key={vt} value={vt}>{vt}</option>
+                                            )) || (
+                                              <>
+                                                <option>Van</option>
+                                                <option>Truck</option>
+                                                <option>Flight</option>
+                                              </>
+                                            )}
+                                          </select>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                                {!isSelected && (
+                                  <div className="text-right">
+                                    <div className="text-sm font-semibold text-emerald-600">
+                                      ₦{route.suggestedPrice.toLocaleString()}
+                                    </div>
+                                    <div className="text-xs text-gray-500">Suggested</div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      
+                      {/* Selected Routes Summary */}
+                      {selectedRoutes.length > 0 && (
+                        <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                          <div className="font-medium text-emerald-900">
+                            ✓ {selectedRoutes.length} route(s) selected
+                          </div>
+                          <div className="text-sm text-emerald-700">
+                            Total estimated value: ₦{selectedRoutes.reduce((sum, r) => sum + parseFloat(r.price || 0), 0).toLocaleString()}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Pricing and Details - Only for Intracity */}
+                  {routeForm.routeType === 'intracity' && (
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">💰 Pricing & Details</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Price *</label>
+                          <input
+                            type="number"
+                            value={routeForm.price}
+                            onChange={(e) => handleRouteFormChange('price', e.target.value)}
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                            placeholder="0.00"
+                            min="0"
+                            step="1"
                             required
                           />
                         </div>
                         
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">To (Destination) *</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Currency</label>
+                          <select
+                            value={routeForm.currency}
+                            onChange={(e) => handleRouteFormChange('currency', e.target.value)}
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                          >
+                            <option>₦ NGN</option>
+                            <option>₵ GHS</option>
+                            <option>KSh KES</option>
+                            <option>Br ETB</option>
+                            <option>$ USD</option>
+                            <option>£ GBP</option>
+                            <option>€ EUR</option>
+                          </select>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Estimated Time *</label>
                           <input
                             type="text"
-                            value={routeForm.to}
-                            onChange={(e) => handleRouteFormChange('to', e.target.value)}
+                            value={routeForm.estimatedTime}
+                            onChange={(e) => handleRouteFormChange('estimatedTime', e.target.value)}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                            placeholder={routeForm.routeType === 'intercity' ? 'e.g., Abuja' : 'e.g., London, UK'}
+                            placeholder="e.g., 1-2 hours"
                             required
                           />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Vehicle Type</label>
+                          <select
+                            value={routeForm.vehicleType}
+                            onChange={(e) => handleRouteFormChange('vehicleType', e.target.value)}
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                          >
+                            <option>Van</option>
+                            <option>Truck</option>
+                            <option>Motorcycle</option>
+                            <option>Car</option>
+                          </select>
                         </div>
                       </div>
                     </div>
                   )}
-
-                  {/* Pricing and Details */}
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">💰 Pricing & Details</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Price *</label>
-                        <input
-                          type="number"
-                          value={routeForm.price}
-                          onChange={(e) => handleRouteFormChange('price', e.target.value)}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                          placeholder="0.00"
-                          min="0"
-                          step="1"
-                          required
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Currency</label>
-                        <select
-                          value={routeForm.currency}
-                          onChange={(e) => handleRouteFormChange('currency', e.target.value)}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                        >
-                          <option>₦ NGN</option>
-                          <option>₵ GHS</option>
-                          <option>KSh KES</option>
-                          <option>Br ETB</option>
-                          <option>$ USD</option>
-                          <option>£ GBP</option>
-                          <option>€ EUR</option>
-                        </select>
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Estimated Time *</label>
-                        <input
-                          type="text"
-                          value={routeForm.estimatedTime}
-                          onChange={(e) => handleRouteFormChange('estimatedTime', e.target.value)}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                          placeholder={routeForm.routeType === 'international' ? 'e.g., 3-5 days' : 'e.g., 1-2 days'}
-                          required
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Vehicle Type</label>
-                        <select
-                          value={routeForm.vehicleType}
-                          onChange={(e) => handleRouteFormChange('vehicleType', e.target.value)}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                        >
-                          <option>Van</option>
-                          <option>Truck</option>
-                          <option>Motorcycle</option>
-                          <option>Car</option>
-                          {routeForm.routeType === 'international' && <option>Flight</option>}
-                        </select>
-                      </div>
-                    </div>
-                  </div>
                   
                   <div className="flex justify-end space-x-3 pt-4">
                     <button 
                       type="button"
-                      onClick={() => setShowAddRouteForm(false)}
+                      onClick={() => {
+                        setShowAddRouteForm(false);
+                        setSelectedRoutes([]);
+                        setSelectedCountryForIntercity('');
+                        setIntercitySearchTerm('');
+                        setInternationalSearchTerm('');
+                      }}
                       className="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
                     >
                       Cancel
@@ -744,7 +1015,7 @@ const Logistics = () => {
                       disabled={submittingRoute}
                       className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50"
                     >
-                      {submittingRoute ? 'Adding...' : 'Add Route'}
+                      {submittingRoute ? 'Adding...' : routeForm.routeType === 'intracity' ? 'Add Route' : `Add ${selectedRoutes.length} Route(s)`}
                     </button>
                   </div>
                 </form>
