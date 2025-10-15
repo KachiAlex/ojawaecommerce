@@ -8,6 +8,7 @@ import LogisticsPerformanceDashboard from '../components/LogisticsPerformanceDas
 import DashboardSwitcher from '../components/DashboardSwitcher';
 import CSVRouteImport from '../components/CSVRouteImport';
 import QuickActionsMenu from '../components/QuickActionsMenu';
+import RouteMapPreview from '../components/RouteMapPreview';
 import { calculateDeliveryPrice, determineRouteCategory, DEFAULT_PLATFORM_PRICING, ROUTE_CATEGORY_INFO, RECOMMENDED_PRICING } from '../data/logisticsPricingModel';
 import { 
   POPULAR_INTERCITY_ROUTES, 
@@ -50,6 +51,8 @@ const Logistics = () => {
   const [editingRoute, setEditingRoute] = useState(null);
   const [showCSVImport, setShowCSVImport] = useState(false);
   const [showQuickActions, setShowQuickActions] = useState(false);
+  const [showMapPreview, setShowMapPreview] = useState(false);
+  const [previewRoute, setPreviewRoute] = useState(null);
   const [deliveries, setDeliveries] = useState([]);
   const [routes, setRoutes] = useState([]);
   const [analytics, setAnalytics] = useState(null);
@@ -2373,6 +2376,16 @@ const Logistics = () => {
           </span>
         </button>
       )}
+      
+      {/* Route Map Preview Modal */}
+      <RouteMapPreview
+        isOpen={showMapPreview}
+        onClose={() => {
+          setShowMapPreview(false);
+          setPreviewRoute(null);
+        }}
+        route={previewRoute}
+      />
 
     </div>
   );
