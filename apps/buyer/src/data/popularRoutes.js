@@ -89,6 +89,7 @@ export const getCountriesWithIntercityRoutes = () => {
 // Search routes by origin or destination
 export const searchIntercityRoutes = (country, searchTerm) => {
   const routes = getIntercityRoutesForCountry(country);
+  if (!Array.isArray(routes)) return [];
   if (!searchTerm) return routes;
   
   const term = searchTerm.toLowerCase();
@@ -100,6 +101,7 @@ export const searchIntercityRoutes = (country, searchTerm) => {
 
 // Search international routes
 export const searchInternationalRoutes = (searchTerm) => {
+  if (!Array.isArray(POPULAR_INTERNATIONAL_ROUTES)) return [];
   if (!searchTerm) return POPULAR_INTERNATIONAL_ROUTES;
   
   const term = searchTerm.toLowerCase();
