@@ -215,8 +215,15 @@ service cloud.firestore {
 
            // Logistics routes collection - logistics partners can manage their own routes
            match /logistics_routes/{routeId} {
-             allow read, write: if isAuthenticated() && request.auth.uid == resource.data.companyId;
-             allow create: if isAuthenticated() && request.auth.uid == request.resource.data.companyId;
+             // Helper function to check if user owns the logistics profile
+             function ownsLogisticsProfile(companyId) {
+               return exists(/databases/$(database)/documents/logistics_profiles/$(companyId)) &&
+                      get(/databases/$(database)/documents/logistics_profiles/$(companyId)).data.userId == request.auth.uid;
+             }
+             
+             allow read: if isAuthenticated() && ownsLogisticsProfile(resource.data.companyId);
+             allow create: if isAuthenticated() && ownsLogisticsProfile(request.resource.data.companyId);
+             allow update, delete: if isAuthenticated() && ownsLogisticsProfile(resource.data.companyId);
              allow read: if isAdmin(); // Admins can read all routes
              allow list: if isAuthenticated(); // Allow aggregation queries
            }
