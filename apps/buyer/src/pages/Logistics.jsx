@@ -17,7 +17,10 @@ import {
   formatPrice,
   enrichRouteWithPartnerPricing,
   calculatePartnerPrice,
-  comparePrices
+  comparePrices,
+  filterRoutes,
+  sortRoutes,
+  getRouteStats
 } from '../data/popularRoutes';
 import { 
   validateRoute, 
@@ -72,6 +75,18 @@ const Logistics = () => {
   const [selectedRoutes, setSelectedRoutes] = useState([]); // Array of {from, to, price, estimatedTime, vehicleType}
   const [usePartnerPricing, setUsePartnerPricing] = useState(true); // Use partner's rate for auto-calculation
   const [routeValidations, setRouteValidations] = useState({}); // Store validation results per route
+  
+  // Filter and sort state
+  const [showFilters, setShowFilters] = useState(false);
+  const [routeFilters, setRouteFilters] = useState({
+    minPrice: undefined,
+    maxPrice: undefined,
+    minDistance: undefined,
+    maxDistance: undefined,
+    maxHours: undefined,
+    vehicleTypes: []
+  });
+  const [sortBy, setSortBy] = useState('price_asc');
 
   useEffect(() => {
     if (currentUser) {
@@ -856,10 +871,98 @@ const Logistics = () => {
                         </div>
                       )}
                       
+                      {/* Filter & Sort Controls */}
+                      {selectedCountryForIntercity && (
+                        <div className="mb-4 flex items-center gap-2 flex-wrap">
+                          <button
+                            onClick={() => setShowFilters(!showFilters)}
+                            className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2"
+                          >
+                            🔍 Filters {Object.values(routeFilters).some(v => v !== undefined && (Array.isArray(v) ? v.length > 0 : true)) && '●'}
+                          </button>
+                          <select
+                            value={sortBy}
+                            onChange={(e) => setSortBy(e.target.value)}
+                            className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
+                          >
+                            <option value="price_asc">💰 Price: Low to High</option>
+                            <option value="price_desc">💰 Price: High to Low</option>
+                            <option value="distance_asc">📏 Distance: Short to Long</option>
+                            <option value="distance_desc">📏 Distance: Long to Short</option>
+                            <option value="time_asc">⏱️ Time: Fastest First</option>
+                            <option value="time_desc">⏱️ Time: Slowest First</option>
+                            <option value="alphabetical">🔤 Alphabetical</option>
+                          </select>
+                          <div className="text-xs text-gray-600">
+                            {(() => {
+                              const baseRoutes = searchIntercityRoutes(selectedCountryForIntercity, intercitySearchTerm);
+                              const filtered = filterRoutes(baseRoutes, routeFilters);
+                              return `${filtered.length} of ${baseRoutes.length} routes`;
+                            })()}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Filter Panel */}
+                      {showFilters && selectedCountryForIntercity && (
+                        <div className="mb-4 p-4 bg-white border border-gray-300 rounded-lg space-y-3">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">Min Price (₦)</label>
+                              <input
+                                type="number"
+                                value={routeFilters.minPrice || ''}
+                                onChange={(e) => setRouteFilters({...routeFilters, minPrice: e.target.value ? parseFloat(e.target.value) : undefined})}
+                                className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                                placeholder="0"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">Max Price (₦)</label>
+                              <input
+                                type="number"
+                                value={routeFilters.maxPrice || ''}
+                                onChange={(e) => setRouteFilters({...routeFilters, maxPrice: e.target.value ? parseFloat(e.target.value) : undefined})}
+                                className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                                placeholder="100000"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">Max Distance (km)</label>
+                              <input
+                                type="number"
+                                value={routeFilters.maxDistance || ''}
+                                onChange={(e) => setRouteFilters({...routeFilters, maxDistance: e.target.value ? parseFloat(e.target.value) : undefined})}
+                                className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                                placeholder="1000"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">Max Time (hours)</label>
+                              <input
+                                type="number"
+                                value={routeFilters.maxHours || ''}
+                                onChange={(e) => setRouteFilters({...routeFilters, maxHours: e.target.value ? parseFloat(e.target.value) : undefined})}
+                                className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                                placeholder="24"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setRouteFilters({minPrice: undefined, maxPrice: undefined, minDistance: undefined, maxDistance: undefined, maxHours: undefined, vehicleTypes: []})}
+                              className="px-3 py-1.5 text-xs border border-gray-300 rounded hover:bg-gray-50"
+                            >
+                              Clear Filters
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      
                       {/* Popular Routes List */}
                       {selectedCountryForIntercity && (
                         <div className="space-y-2 max-h-96 overflow-y-auto">
-                          {searchIntercityRoutes(selectedCountryForIntercity, intercitySearchTerm).map((route, idx) => {
+                          {sortRoutes(filterRoutes(searchIntercityRoutes(selectedCountryForIntercity, intercitySearchTerm), routeFilters), sortBy).map((route, idx) => {
                             const isSelected = isRouteSelected(route);
                             const routeKey = `${route.from}-${route.to}`;
                             const selectedRoute = selectedRoutes.find(r => `${r.from}-${r.to}` === routeKey);
@@ -1050,9 +1153,95 @@ const Logistics = () => {
                         />
                       </div>
                       
+                      {/* Filter & Sort Controls */}
+                      <div className="mb-4 flex items-center gap-2 flex-wrap">
+                        <button
+                          onClick={() => setShowFilters(!showFilters)}
+                          className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2"
+                        >
+                          🔍 Filters {Object.values(routeFilters).some(v => v !== undefined && (Array.isArray(v) ? v.length > 0 : true)) && '●'}
+                        </button>
+                        <select
+                          value={sortBy}
+                          onChange={(e) => setSortBy(e.target.value)}
+                          className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
+                        >
+                          <option value="price_asc">💰 Price: Low to High</option>
+                          <option value="price_desc">💰 Price: High to Low</option>
+                          <option value="distance_asc">📏 Distance: Short to Long</option>
+                          <option value="distance_desc">📏 Distance: Long to Short</option>
+                          <option value="time_asc">⏱️ Time: Fastest First</option>
+                          <option value="time_desc">⏱️ Time: Slowest First</option>
+                          <option value="alphabetical">🔤 Alphabetical</option>
+                        </select>
+                        <div className="text-xs text-gray-600">
+                          {(() => {
+                            const baseRoutes = searchInternationalRoutes(internationalSearchTerm);
+                            const filtered = filterRoutes(baseRoutes, routeFilters);
+                            return `${filtered.length} of ${baseRoutes.length} routes`;
+                          })()}
+                        </div>
+                      </div>
+                      
+                      {/* Filter Panel - Same as intercity */}
+                      {showFilters && (
+                        <div className="mb-4 p-4 bg-white border border-gray-300 rounded-lg space-y-3">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">Min Price (₦)</label>
+                              <input
+                                type="number"
+                                value={routeFilters.minPrice || ''}
+                                onChange={(e) => setRouteFilters({...routeFilters, minPrice: e.target.value ? parseFloat(e.target.value) : undefined})}
+                                className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                                placeholder="0"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">Max Price (₦)</label>
+                              <input
+                                type="number"
+                                value={routeFilters.maxPrice || ''}
+                                onChange={(e) => setRouteFilters({...routeFilters, maxPrice: e.target.value ? parseFloat(e.target.value) : undefined})}
+                                className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                                placeholder="1000000"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">Max Distance (km)</label>
+                              <input
+                                type="number"
+                                value={routeFilters.maxDistance || ''}
+                                onChange={(e) => setRouteFilters({...routeFilters, maxDistance: e.target.value ? parseFloat(e.target.value) : undefined})}
+                                className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                                placeholder="10000"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">Max Time (days)</label>
+                              <input
+                                type="number"
+                                value={routeFilters.maxHours ? routeFilters.maxHours / 24 : ''}
+                                onChange={(e) => setRouteFilters({...routeFilters, maxHours: e.target.value ? parseFloat(e.target.value) * 24 : undefined})}
+                                className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                                placeholder="14"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setRouteFilters({minPrice: undefined, maxPrice: undefined, minDistance: undefined, maxDistance: undefined, maxHours: undefined, vehicleTypes: []})}
+                              className="px-3 py-1.5 text-xs border border-gray-300 rounded hover:bg-gray-50"
+                            >
+                              Clear Filters
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      
                       {/* Popular Routes List */}
                       <div className="space-y-2 max-h-96 overflow-y-auto">
-                        {searchInternationalRoutes(internationalSearchTerm).map((route, idx) => {
+                        {sortRoutes(filterRoutes(searchInternationalRoutes(internationalSearchTerm), routeFilters), sortBy).map((route, idx) => {
                           const isSelected = isRouteSelected(route);
                           const routeKey = `${route.from}-${route.to}`;
                           const selectedRoute = selectedRoutes.find(r => `${r.from}-${r.to}` === routeKey);

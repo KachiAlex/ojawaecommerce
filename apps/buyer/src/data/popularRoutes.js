@@ -109,6 +109,109 @@ export const searchInternationalRoutes = (searchTerm) => {
   );
 };
 
+// Advanced filtering for routes
+export const filterRoutes = (routes, filters = {}) => {
+  let filtered = [...routes];
+  
+  // Price range filter
+  if (filters.minPrice !== undefined) {
+    filtered = filtered.filter(r => r.suggestedPrice >= filters.minPrice);
+  }
+  if (filters.maxPrice !== undefined) {
+    filtered = filtered.filter(r => r.suggestedPrice <= filters.maxPrice);
+  }
+  
+  // Distance range filter
+  if (filters.minDistance !== undefined) {
+    filtered = filtered.filter(r => r.distance >= filters.minDistance);
+  }
+  if (filters.maxDistance !== undefined) {
+    filtered = filtered.filter(r => r.distance <= filters.maxDistance);
+  }
+  
+  // Vehicle type filter
+  if (filters.vehicleTypes && filters.vehicleTypes.length > 0) {
+    filtered = filtered.filter(r => {
+      if (!r.vehicleTypes) return true; // If no specific types, allow all
+      return filters.vehicleTypes.some(vt => r.vehicleTypes.includes(vt));
+    });
+  }
+  
+  // Time range filter (convert to hours)
+  if (filters.maxHours !== undefined) {
+    filtered = filtered.filter(r => {
+      const timeMatch = r.estimatedTime.match(/(\d+)-?(\d+)?\s*(hour|day)/i);
+      if (!timeMatch) return true;
+      const maxTime = timeMatch[2] ? parseInt(timeMatch[2]) : parseInt(timeMatch[1]);
+      const unit = timeMatch[3].toLowerCase();
+      const hours = unit === 'day' ? maxTime * 24 : maxTime;
+      return hours <= filters.maxHours;
+    });
+  }
+  
+  return filtered;
+};
+
+// Sorting options for routes
+export const sortRoutes = (routes, sortBy = 'price_asc') => {
+  const sorted = [...routes];
+  
+  switch (sortBy) {
+    case 'price_asc':
+      return sorted.sort((a, b) => a.suggestedPrice - b.suggestedPrice);
+    case 'price_desc':
+      return sorted.sort((a, b) => b.suggestedPrice - a.suggestedPrice);
+    case 'distance_asc':
+      return sorted.sort((a, b) => a.distance - b.distance);
+    case 'distance_desc':
+      return sorted.sort((a, b) => b.distance - a.distance);
+    case 'time_asc':
+      return sorted.sort((a, b) => {
+        const aMatch = a.estimatedTime.match(/(\d+)-?(\d+)?\s*(hour|day)/i);
+        const bMatch = b.estimatedTime.match(/(\d+)-?(\d+)?\s*(hour|day)/i);
+        if (!aMatch || !bMatch) return 0;
+        const aTime = (aMatch[2] ? parseInt(aMatch[2]) : parseInt(aMatch[1])) * (aMatch[3].toLowerCase() === 'day' ? 24 : 1);
+        const bTime = (bMatch[2] ? parseInt(bMatch[2]) : parseInt(bMatch[1])) * (bMatch[3].toLowerCase() === 'day' ? 24 : 1);
+        return aTime - bTime;
+      });
+    case 'time_desc':
+      return sorted.sort((a, b) => {
+        const aMatch = a.estimatedTime.match(/(\d+)-?(\d+)?\s*(hour|day)/i);
+        const bMatch = b.estimatedTime.match(/(\d+)-?(\d+)?\s*(hour|day)/i);
+        if (!aMatch || !bMatch) return 0;
+        const aTime = (aMatch[2] ? parseInt(aMatch[2]) : parseInt(aMatch[1])) * (aMatch[3].toLowerCase() === 'day' ? 24 : 1);
+        const bTime = (bMatch[2] ? parseInt(bMatch[2]) : parseInt(bMatch[1])) * (bMatch[3].toLowerCase() === 'day' ? 24 : 1);
+        return bTime - aTime;
+      });
+    case 'alphabetical':
+      return sorted.sort((a, b) => a.from.localeCompare(b.from));
+    default:
+      return sorted;
+  }
+};
+
+// Get filter statistics for a route list
+export const getRouteStats = (routes) => {
+  if (routes.length === 0) return null;
+  
+  const prices = routes.map(r => r.suggestedPrice);
+  const distances = routes.map(r => r.distance);
+  
+  return {
+    count: routes.length,
+    price: {
+      min: Math.min(...prices),
+      max: Math.max(...prices),
+      avg: Math.round(prices.reduce((a, b) => a + b, 0) / prices.length)
+    },
+    distance: {
+      min: Math.min(...distances),
+      max: Math.max(...distances),
+      avg: Math.round(distances.reduce((a, b) => a + b, 0) / distances.length)
+    }
+  };
+};
+
 // Helper to format currency
 export const formatPrice = (price, currency = '₦') => {
   return `${currency} ${price.toLocaleString()}`;
