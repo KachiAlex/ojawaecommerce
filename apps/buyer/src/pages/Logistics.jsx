@@ -368,6 +368,12 @@ const Logistics = () => {
       }
       
       // Add route with calculated or suggested price (can be edited)
+      // Ensure vehicleTypes is always an array
+      const defaultVehicleTypes = ['Van', 'Truck', 'Motorcycle', 'Car'];
+      const routeVehicleTypes = Array.isArray(route.vehicleTypes) && route.vehicleTypes.length > 0
+        ? route.vehicleTypes
+        : defaultVehicleTypes;
+      
       setSelectedRoutes([...selectedRoutes, {
         from: route.from,
         to: route.to,
@@ -375,7 +381,8 @@ const Logistics = () => {
         suggestedPrice: route.suggestedPrice,
         partnerPrice: initialPrice !== route.suggestedPrice ? initialPrice : null,
         estimatedTime: route.estimatedTime,
-        vehicleType: route.vehicleTypes ? route.vehicleTypes[0] : 'Van',
+        vehicleType: routeVehicleTypes[0],
+        vehicleTypes: routeVehicleTypes, // Store available vehicle types
         distance: route.distance || 0
       }]);
     }
@@ -1680,17 +1687,16 @@ const Logistics = () => {
                                               onChange={(e) => updateSelectedRoute(routeKey, 'vehicleType', e.target.value)}
                                               className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
                                             >
-                                              {Array.isArray(route.vehicleTypes) && route.vehicleTypes.length > 0 ? (
-                                                route.vehicleTypes.map(vt => (
-                                                  <option key={vt} value={vt}>{vt}</option>
-                                                ))
-                                              ) : (
-                                                <>
-                                                  <option>Van</option>
-                                                  <option>Truck</option>
-                                                  <option>Flight</option>
-                                                </>
-                                              )}
+                                              {(() => {
+                                                // Get vehicle types from selectedRoute (which we guaranteed to be an array)
+                                                const availableVehicles = Array.isArray(selectedRoute.vehicleTypes) && selectedRoute.vehicleTypes.length > 0
+                                                  ? selectedRoute.vehicleTypes
+                                                  : ['Van', 'Truck', 'Motorcycle', 'Car'];
+                                                
+                                                return availableVehicles.map((vt, idx) => (
+                                                  <option key={`${vt}-${idx}`} value={vt}>{vt}</option>
+                                                ));
+                                              })()}
                                             </select>
                                           </div>
                                         </div>
