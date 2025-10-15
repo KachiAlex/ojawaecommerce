@@ -1202,7 +1202,14 @@ const Logistics = () => {
                             if (showOnlyRecommended && profile?.serviceAreas) {
                               routesToDisplay = filterByServiceAreas(routesToDisplay, profile.serviceAreas);
                             }
-                            return sortRoutes(filterRoutes(routesToDisplay, routeFilters), sortBy).map((route, idx) => {
+                            const filteredRoutes = filterRoutes(routesToDisplay, routeFilters);
+                            const sortedRoutes = sortRoutes(filteredRoutes, sortBy);
+                            // Aggressive safety check: ensure we have an array before mapping
+                            if (!Array.isArray(sortedRoutes)) {
+                              console.error('sortedRoutes is not an array:', sortedRoutes);
+                              return <div className="text-red-600 p-3">Error loading routes. Please refresh the page.</div>;
+                            }
+                            return sortedRoutes.map((route, idx) => {
                             const isSelected = isRouteSelected(route);
                             const routeKey = `${route.from}-${route.to}`;
                             const selectedRoute = selectedRoutes.find(r => `${r.from}-${r.to}` === routeKey);
@@ -1591,7 +1598,16 @@ const Logistics = () => {
                       
                       {/* Popular Routes List */}
                       <div className="space-y-2 max-h-96 overflow-y-auto">
-                        {sortRoutes(filterRoutes(searchInternationalRoutes(internationalSearchTerm), routeFilters), sortBy).map((route, idx) => {
+                        {(() => {
+                          const searchResults = searchInternationalRoutes(internationalSearchTerm);
+                          const filteredRoutes = filterRoutes(searchResults, routeFilters);
+                          const sortedRoutes = sortRoutes(filteredRoutes, sortBy);
+                          // Aggressive safety check: ensure we have an array before mapping
+                          if (!Array.isArray(sortedRoutes)) {
+                            console.error('International sortedRoutes is not an array:', sortedRoutes);
+                            return <div className="text-red-600 p-3">Error loading routes. Please refresh the page.</div>;
+                          }
+                          return sortedRoutes.map((route, idx) => {
                           const isSelected = isRouteSelected(route);
                           const routeKey = `${route.from}-${route.to}`;
                           const selectedRoute = selectedRoutes.find(r => `${r.from}-${r.to}` === routeKey);
@@ -1734,14 +1750,17 @@ const Logistics = () => {
                               </div>
                             </div>
                           );
-                        })}
+                        });
+                        })()}
                       </div>
                       
                       {/* Bulk Selection Actions */}
                       <div className="mt-4 flex items-center gap-2 flex-wrap">
                         <button
                           onClick={() => {
-                            const visibleRoutes = sortRoutes(filterRoutes(searchInternationalRoutes(internationalSearchTerm), routeFilters), sortBy);
+                            const searchResults = searchInternationalRoutes(internationalSearchTerm);
+                            const filteredRoutes = filterRoutes(searchResults, routeFilters);
+                            const visibleRoutes = sortRoutes(filteredRoutes, sortBy);
                             selectAllVisibleRoutes(visibleRoutes);
                           }}
                           className="px-3 py-1.5 text-xs border border-gray-300 rounded hover:bg-gray-50"
