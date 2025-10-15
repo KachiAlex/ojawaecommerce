@@ -9,6 +9,7 @@ import DashboardSwitcher from '../components/DashboardSwitcher';
 import CSVRouteImport from '../components/CSVRouteImport';
 import QuickActionsMenu from '../components/QuickActionsMenu';
 import RouteMapPreview from '../components/RouteMapPreview';
+import RouteSelector from '../components/RouteSelector';
 import { calculateDeliveryPrice, determineRouteCategory, DEFAULT_PLATFORM_PRICING, ROUTE_CATEGORY_INFO, RECOMMENDED_PRICING } from '../data/logisticsPricingModel';
 import { 
   POPULAR_INTERCITY_ROUTES, 
@@ -1649,7 +1650,7 @@ const Logistics = () => {
                                       Distance: ~{route.distance}km | Est. Time: {route.estimatedTime}
                                     </div>
                                     <div className="text-xs text-gray-500 mt-1">
-                                      Available: {route.vehicleTypes?.join(', ') || 'Van, Truck'}
+                                      Available: {Array.isArray(route.vehicleTypes) ? route.vehicleTypes.join(', ') : 'Van, Truck, Flight'}
                                     </div>
                                     
                                     {/* Price comparison when not selected */}
