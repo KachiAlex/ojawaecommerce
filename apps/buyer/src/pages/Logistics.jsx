@@ -87,6 +87,13 @@ const Logistics = () => {
     vehicleTypes: []
   });
   const [sortBy, setSortBy] = useState('price_asc');
+  
+  // Batch actions state
+  const [showBatchActions, setShowBatchActions] = useState(false);
+  const [batchAction, setBatchAction] = useState({
+    type: '', // 'price_adjust', 'vehicle_change', 'price_set'
+    value: ''
+  });
 
   useEffect(() => {
     if (currentUser) {
@@ -390,6 +397,73 @@ const Logistics = () => {
   const isRouteSelected = (route) => {
     const routeKey = `${route.from}-${route.to}`;
     return selectedRoutes.some(r => `${r.from}-${r.to}` === routeKey);
+  };
+  
+  // Batch action functions
+  const applyBatchAction = () => {
+    if (!batchAction.type || selectedRoutes.length === 0) return;
+    
+    const updatedRoutes = selectedRoutes.map(route => {
+      switch (batchAction.type) {
+        case 'price_adjust_percent':
+          const adjustment = parseFloat(batchAction.value) || 0;
+          const newPrice = route.price * (1 + adjustment / 100);
+          return { ...route, price: Math.round(newPrice) };
+        
+        case 'price_adjust_amount':
+          const amount = parseFloat(batchAction.value) || 0;
+          return { ...route, price: Math.max(0, route.price + amount) };
+        
+        case 'price_set':
+          return { ...route, price: parseFloat(batchAction.value) || route.price };
+        
+        case 'vehicle_change':
+          return { ...route, vehicleType: batchAction.value };
+        
+        default:
+          return route;
+      }
+    });
+    
+    setSelectedRoutes(updatedRoutes);
+    setShowBatchActions(false);
+    setBatchAction({ type: '', value: '' });
+  };
+  
+  const selectAllVisibleRoutes = (routesList) => {
+    const newSelections = routesList
+      .filter(route => !isRouteSelected(route))
+      .map(route => {
+        let initialPrice = route.suggestedPrice;
+        
+        if (usePartnerPricing && profile?.pricing?.ratePerKm) {
+          const partnerPricing = calculatePartnerPrice(
+            route.distance,
+            profile.pricing.ratePerKm,
+            profile.pricing?.intracity?.minCharge || 2000,
+            profile.pricing?.intercity?.maxCharge || 100000
+          );
+          initialPrice = partnerPricing.finalPrice;
+        }
+        
+        return {
+          from: route.from,
+          to: route.to,
+          price: initialPrice,
+          suggestedPrice: route.suggestedPrice,
+          partnerPrice: initialPrice !== route.suggestedPrice ? initialPrice : null,
+          estimatedTime: route.estimatedTime,
+          vehicleType: route.vehicleTypes ? route.vehicleTypes[0] : 'Van',
+          distance: route.distance || 0
+        };
+      });
+    
+    setSelectedRoutes([...selectedRoutes, ...newSelections]);
+  };
+  
+  const deselectAllRoutes = () => {
+    setSelectedRoutes([]);
+    setRouteValidations({});
   };
 
   const handleSubmitRoute = async (e) => {
@@ -1101,14 +1175,123 @@ const Logistics = () => {
                         </div>
                       )}
                       
-                      {/* Selected Routes Summary */}
+                      {/* Bulk Selection Actions */}
+                      {selectedCountryForIntercity && (
+                        <div className="mt-4 flex items-center gap-2 flex-wrap">
+                          <button
+                            onClick={() => {
+                              const visibleRoutes = sortRoutes(filterRoutes(searchIntercityRoutes(selectedCountryForIntercity, intercitySearchTerm), routeFilters), sortBy);
+                              selectAllVisibleRoutes(visibleRoutes);
+                            }}
+                            className="px-3 py-1.5 text-xs border border-gray-300 rounded hover:bg-gray-50"
+                          >
+                            ✓ Select All Visible
+                          </button>
+                          {selectedRoutes.length > 0 && (
+                            <button
+                              onClick={deselectAllRoutes}
+                              className="px-3 py-1.5 text-xs border border-gray-300 rounded hover:bg-gray-50"
+                            >
+                              ✗ Deselect All
+                            </button>
+                          )}
+                        </div>
+                      )}
+                      
+                      {/* Selected Routes Summary & Batch Actions */}
                       {selectedRoutes.length > 0 && (
-                        <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
-                          <div className="font-medium text-emerald-900">
-                            ✓ {selectedRoutes.length} route(s) selected
+                        <div className="mt-4 space-y-3">
+                          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                            <div className="font-medium text-emerald-900">
+                              ✓ {selectedRoutes.length} route(s) selected
+                            </div>
+                            <div className="text-sm text-emerald-700">
+                              Total estimated value: ₦{selectedRoutes.reduce((sum, r) => sum + parseFloat(r.price || 0), 0).toLocaleString()}
+                            </div>
                           </div>
-                          <div className="text-sm text-emerald-700">
-                            Total estimated value: ₦{selectedRoutes.reduce((sum, r) => sum + parseFloat(r.price || 0), 0).toLocaleString()}
+                          
+                          {/* Batch Actions Toolbar */}
+                          <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                            <button
+                              onClick={() => setShowBatchActions(!showBatchActions)}
+                              className="text-sm font-medium text-purple-900 hover:text-purple-700 flex items-center gap-2"
+                            >
+                              ⚡ Bulk Actions {showBatchActions ? '▼' : '▶'}
+                            </button>
+                            
+                            {showBatchActions && (
+                              <div className="mt-3 space-y-3">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                  <select
+                                    value={batchAction.type}
+                                    onChange={(e) => setBatchAction({ ...batchAction, type: e.target.value })}
+                                    className="w-full border border-purple-300 rounded px-2 py-1.5 text-sm"
+                                  >
+                                    <option value="">-- Select Action --</option>
+                                    <option value="price_adjust_percent">Adjust Price by %</option>
+                                    <option value="price_adjust_amount">Adjust Price by ₦</option>
+                                    <option value="price_set">Set Same Price</option>
+                                    <option value="vehicle_change">Change Vehicle Type</option>
+                                  </select>
+                                  
+                                  {batchAction.type === 'price_adjust_percent' && (
+                                    <input
+                                      type="number"
+                                      value={batchAction.value}
+                                      onChange={(e) => setBatchAction({ ...batchAction, value: e.target.value })}
+                                      className="w-full border border-purple-300 rounded px-2 py-1.5 text-sm"
+                                      placeholder="e.g., 10 for +10%, -15 for -15%"
+                                    />
+                                  )}
+                                  
+                                  {batchAction.type === 'price_adjust_amount' && (
+                                    <input
+                                      type="number"
+                                      value={batchAction.value}
+                                      onChange={(e) => setBatchAction({ ...batchAction, value: e.target.value })}
+                                      className="w-full border border-purple-300 rounded px-2 py-1.5 text-sm"
+                                      placeholder="e.g., 5000 to add ₦5000"
+                                    />
+                                  )}
+                                  
+                                  {batchAction.type === 'price_set' && (
+                                    <input
+                                      type="number"
+                                      value={batchAction.value}
+                                      onChange={(e) => setBatchAction({ ...batchAction, value: e.target.value })}
+                                      className="w-full border border-purple-300 rounded px-2 py-1.5 text-sm"
+                                      placeholder="e.g., 50000"
+                                    />
+                                  )}
+                                  
+                                  {batchAction.type === 'vehicle_change' && (
+                                    <select
+                                      value={batchAction.value}
+                                      onChange={(e) => setBatchAction({ ...batchAction, value: e.target.value })}
+                                      className="w-full border border-purple-300 rounded px-2 py-1.5 text-sm"
+                                    >
+                                      <option value="">-- Select Vehicle --</option>
+                                      <option>Van</option>
+                                      <option>Truck</option>
+                                      <option>Motorcycle</option>
+                                      <option>Car</option>
+                                    </select>
+                                  )}
+                                  
+                                  <button
+                                    onClick={applyBatchAction}
+                                    disabled={!batchAction.type || !batchAction.value}
+                                    className="px-4 py-1.5 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    Apply to All
+                                  </button>
+                                </div>
+                                
+                                <div className="text-xs text-purple-700">
+                                  💡 Tip: This will apply the change to all {selectedRoutes.length} selected route(s)
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                       )}
@@ -1387,14 +1570,122 @@ const Logistics = () => {
                         })}
                       </div>
                       
-                      {/* Selected Routes Summary */}
+                      {/* Bulk Selection Actions */}
+                      <div className="mt-4 flex items-center gap-2 flex-wrap">
+                        <button
+                          onClick={() => {
+                            const visibleRoutes = sortRoutes(filterRoutes(searchInternationalRoutes(internationalSearchTerm), routeFilters), sortBy);
+                            selectAllVisibleRoutes(visibleRoutes);
+                          }}
+                          className="px-3 py-1.5 text-xs border border-gray-300 rounded hover:bg-gray-50"
+                        >
+                          ✓ Select All Visible
+                        </button>
+                        {selectedRoutes.length > 0 && (
+                          <button
+                            onClick={deselectAllRoutes}
+                            className="px-3 py-1.5 text-xs border border-gray-300 rounded hover:bg-gray-50"
+                          >
+                            ✗ Deselect All
+                          </button>
+                        )}
+                      </div>
+                      
+                      {/* Selected Routes Summary & Batch Actions */}
                       {selectedRoutes.length > 0 && (
-                        <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
-                          <div className="font-medium text-emerald-900">
-                            ✓ {selectedRoutes.length} route(s) selected
+                        <div className="mt-4 space-y-3">
+                          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                            <div className="font-medium text-emerald-900">
+                              ✓ {selectedRoutes.length} route(s) selected
+                            </div>
+                            <div className="text-sm text-emerald-700">
+                              Total estimated value: ₦{selectedRoutes.reduce((sum, r) => sum + parseFloat(r.price || 0), 0).toLocaleString()}
+                            </div>
                           </div>
-                          <div className="text-sm text-emerald-700">
-                            Total estimated value: ₦{selectedRoutes.reduce((sum, r) => sum + parseFloat(r.price || 0), 0).toLocaleString()}
+                          
+                          {/* Batch Actions Toolbar */}
+                          <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                            <button
+                              onClick={() => setShowBatchActions(!showBatchActions)}
+                              className="text-sm font-medium text-purple-900 hover:text-purple-700 flex items-center gap-2"
+                            >
+                              ⚡ Bulk Actions {showBatchActions ? '▼' : '▶'}
+                            </button>
+                            
+                            {showBatchActions && (
+                              <div className="mt-3 space-y-3">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                  <select
+                                    value={batchAction.type}
+                                    onChange={(e) => setBatchAction({ ...batchAction, type: e.target.value })}
+                                    className="w-full border border-purple-300 rounded px-2 py-1.5 text-sm"
+                                  >
+                                    <option value="">-- Select Action --</option>
+                                    <option value="price_adjust_percent">Adjust Price by %</option>
+                                    <option value="price_adjust_amount">Adjust Price by ₦</option>
+                                    <option value="price_set">Set Same Price</option>
+                                    <option value="vehicle_change">Change Vehicle Type</option>
+                                  </select>
+                                  
+                                  {batchAction.type === 'price_adjust_percent' && (
+                                    <input
+                                      type="number"
+                                      value={batchAction.value}
+                                      onChange={(e) => setBatchAction({ ...batchAction, value: e.target.value })}
+                                      className="w-full border border-purple-300 rounded px-2 py-1.5 text-sm"
+                                      placeholder="e.g., 10 for +10%, -15 for -15%"
+                                    />
+                                  )}
+                                  
+                                  {batchAction.type === 'price_adjust_amount' && (
+                                    <input
+                                      type="number"
+                                      value={batchAction.value}
+                                      onChange={(e) => setBatchAction({ ...batchAction, value: e.target.value })}
+                                      className="w-full border border-purple-300 rounded px-2 py-1.5 text-sm"
+                                      placeholder="e.g., 5000 to add ₦5000"
+                                    />
+                                  )}
+                                  
+                                  {batchAction.type === 'price_set' && (
+                                    <input
+                                      type="number"
+                                      value={batchAction.value}
+                                      onChange={(e) => setBatchAction({ ...batchAction, value: e.target.value })}
+                                      className="w-full border border-purple-300 rounded px-2 py-1.5 text-sm"
+                                      placeholder="e.g., 50000"
+                                    />
+                                  )}
+                                  
+                                  {batchAction.type === 'vehicle_change' && (
+                                    <select
+                                      value={batchAction.value}
+                                      onChange={(e) => setBatchAction({ ...batchAction, value: e.target.value })}
+                                      className="w-full border border-purple-300 rounded px-2 py-1.5 text-sm"
+                                    >
+                                      <option value="">-- Select Vehicle --</option>
+                                      <option>Van</option>
+                                      <option>Truck</option>
+                                      <option>Motorcycle</option>
+                                      <option>Car</option>
+                                      <option>Flight</option>
+                                    </select>
+                                  )}
+                                  
+                                  <button
+                                    onClick={applyBatchAction}
+                                    disabled={!batchAction.type || !batchAction.value}
+                                    className="px-4 py-1.5 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    Apply to All
+                                  </button>
+                                </div>
+                                
+                                <div className="text-xs text-purple-700">
+                                  💡 Tip: This will apply the change to all {selectedRoutes.length} selected route(s)
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                       )}
