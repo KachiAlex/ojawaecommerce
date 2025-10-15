@@ -7,6 +7,7 @@ import { LoadingSpinner, ProductListSkeleton } from '../components/LoadingStates
 import ComponentErrorBoundary from '../components/ComponentErrorBoundary'
 import OrderSatisfactionModal from '../components/OrderSatisfactionModal'
 import ReviewModal from '../components/ReviewModal'
+import ConfirmOrderModal from '../components/ConfirmOrderModal'
 import OrderTransactionModal from '../components/OrderTransactionModal'
 import DisputeManagement from '../components/DisputeManagement'
 import DeliveryTrackingModal from '../components/DeliveryTrackingModal'
@@ -40,6 +41,8 @@ const EnhancedBuyer = () => {
   const [selectedOrderForDispute, setSelectedOrderForDispute] = useState(null)
   const [isMessagingOpen, setIsMessagingOpen] = useState(false)
   const [selectedOrderForMessaging, setSelectedOrderForMessaging] = useState(null)
+  const [isConfirmOrderModalOpen, setIsConfirmOrderModalOpen] = useState(false)
+  const [selectedOrderForConfirmation, setSelectedOrderForConfirmation] = useState(null)
 
   const {
     orders,
@@ -270,6 +273,18 @@ const EnhancedBuyer = () => {
   const openMessagingModal = (order) => {
     setSelectedOrderForMessaging(order)
     setIsMessagingOpen(true)
+  }
+
+  const openConfirmOrderModal = (order) => {
+    setSelectedOrderForConfirmation(order)
+    setIsConfirmOrderModalOpen(true)
+  }
+
+  const handleOrderConfirmed = (order) => {
+    // Refresh orders to show updated status
+    refreshOrders()
+    // Show success message
+    console.log('Order confirmed successfully:', order.id)
   }
 
   const handleDisputeCreated = () => {
@@ -800,13 +815,13 @@ const EnhancedBuyer = () => {
                         !selectedOrder.satisfactionConfirmed && (
                         <button
                           onClick={() => {
-                            setSelectedOrderForSatisfaction(selectedOrder)
-                            setIsSatisfactionModalOpen(true)
+                            openConfirmOrderModal(selectedOrder)
                             setSelectedOrder(null)
                           }}
-                          className="bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700 text-sm font-medium"
+                          className="bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700 text-sm font-medium flex items-center gap-2"
                         >
-                          ✓ Confirm Order
+                          <span>✅</span>
+                          <span>Confirm Order</span>
                         </button>
                       )}
                       <button
@@ -896,6 +911,19 @@ const EnhancedBuyer = () => {
             }}
             order={selectedOrderForMessaging}
             otherUserId={selectedOrderForMessaging.vendorId}
+          />
+        )}
+
+        {/* Confirm Order Modal */}
+        {isConfirmOrderModalOpen && selectedOrderForConfirmation && (
+          <ConfirmOrderModal
+            order={selectedOrderForConfirmation}
+            isOpen={isConfirmOrderModalOpen}
+            onOrderConfirmed={handleOrderConfirmed}
+            onClose={() => {
+              setIsConfirmOrderModalOpen(false)
+              setSelectedOrderForConfirmation(null)
+            }}
           />
         )}
 
