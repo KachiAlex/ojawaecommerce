@@ -21,7 +21,9 @@ import {
   comparePrices,
   filterRoutes,
   sortRoutes,
-  getRouteStats
+  getRouteStats,
+  filterByServiceAreas,
+  getRecommendedRoutes
 } from '../data/popularRoutes';
 import { 
   validateRoute, 
@@ -96,6 +98,9 @@ const Logistics = () => {
     type: '', // 'price_adjust', 'vehicle_change', 'price_set'
     value: ''
   });
+  
+  // Smart suggestions state
+  const [showOnlyRecommended, setShowOnlyRecommended] = useState(false);
 
   useEffect(() => {
     if (currentUser) {
@@ -466,6 +471,54 @@ const Logistics = () => {
   const deselectAllRoutes = () => {
     setSelectedRoutes([]);
     setRouteValidations({});
+  };
+  
+  // Save/Load draft functions
+  const saveDraft = () => {
+    const draft = {
+      routeType: routeForm.routeType,
+      selectedRoutes,
+      selectedCountryForIntercity,
+      currency: routeForm.currency,
+      savedAt: new Date().toISOString()
+    };
+    localStorage.setItem(`logistics_route_draft_${profile?.id}`, JSON.stringify(draft));
+    alert(`Draft saved! ${selectedRoutes.length} route(s) saved for later.`);
+  };
+  
+  const loadDraft = () => {
+    const draftJson = localStorage.getItem(`logistics_route_draft_${profile?.id}`);
+    if (!draftJson) {
+      alert('No saved draft found.');
+      return;
+    }
+    
+    try {
+      const draft = JSON.parse(draftJson);
+      const savedDate = new Date(draft.savedAt).toLocaleString();
+      
+      if (confirm(`Load draft from ${savedDate}?\n\n${draft.selectedRoutes.length} route(s) will be restored.`)) {
+        setRouteForm(prev => ({ ...prev, routeType: draft.routeType, currency: draft.currency }));
+        setSelectedRoutes(draft.selectedRoutes);
+        setSelectedCountryForIntercity(draft.selectedCountryForIntercity || '');
+        alert('Draft loaded successfully!');
+      }
+    } catch (error) {
+      console.error('Error loading draft:', error);
+      alert('Error loading draft. The saved data may be corrupted.');
+    }
+  };
+  
+  const clearDraft = () => {
+    if (confirm('Delete saved draft? This cannot be undone.')) {
+      localStorage.removeItem(`logistics_route_draft_${profile?.id}`);
+      alert('Draft deleted.');
+    }
+  };
+  
+  // Check if draft exists
+  const hasDraft = () => {
+    return !!localStorage.getItem(`logistics_route_draft_${profile?.id}`);
   };
 
   const handleSubmitRoute = async (e) => {
@@ -912,6 +965,32 @@ const Logistics = () => {
                         </select>
                       </div>
                       
+                      {/* Smart Recommendations Toggle */}
+                      {profile?.serviceAreas && profile.serviceAreas.length > 0 && selectedCountryForIntercity && (
+                        <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                          <label className="flex items-center space-x-3 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={showOnlyRecommended}
+                              onChange={(e) => setShowOnlyRecommended(e.target.checked)}
+                              className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500 focus:ring-2"
+                            />
+                            <div className="flex-1">
+                              <span className="text-sm font-medium text-green-900">
+                                🎯 Show Only Routes in My Service Areas
+                              </span>
+                              <p className="text-xs text-green-700 mt-1">
+                                {(() => {
+                                  const baseRoutes = searchIntercityRoutes(selectedCountryForIntercity, intercitySearchTerm);
+                                  const recommended = filterByServiceAreas(baseRoutes, profile.serviceAreas);
+                                  return `${recommended.length} of ${baseRoutes.length} routes match your service areas`;
+                                })()}
+                              </p>
+                            </div>
+                          </label>
+                        </div>
+                      )}
+                      
                       {/* Pricing Mode Toggle */}
                       {profile?.pricing?.ratePerKm && (
                         <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
@@ -1038,7 +1117,12 @@ const Logistics = () => {
                       {/* Popular Routes List */}
                       {selectedCountryForIntercity && (
                         <div className="space-y-2 max-h-96 overflow-y-auto">
-                          {sortRoutes(filterRoutes(searchIntercityRoutes(selectedCountryForIntercity, intercitySearchTerm), routeFilters), sortBy).map((route, idx) => {
+                          {(() => {
+                            let routesToDisplay = searchIntercityRoutes(selectedCountryForIntercity, intercitySearchTerm);
+                            if (showOnlyRecommended && profile?.serviceAreas) {
+                              routesToDisplay = filterByServiceAreas(routesToDisplay, profile.serviceAreas);
+                            }
+                            return sortRoutes(filterRoutes(routesToDisplay, routeFilters), sortBy).map((route, idx) => {
                             const isSelected = isRouteSelected(route);
                             const routeKey = `${route.from}-${route.to}`;
                             const selectedRoute = selectedRoutes.find(r => `${r.from}-${r.to}` === routeKey);
@@ -1173,7 +1257,8 @@ const Logistics = () => {
                                 </div>
                               </div>
                             );
-                          })}
+                          })();
+                          })()}
                         </div>
                       )}
                       
@@ -1759,27 +1844,52 @@ const Logistics = () => {
                     </div>
                   )}
                   
-                  <div className="flex justify-end space-x-3 pt-4">
-                    <button 
-                      type="button"
-                      onClick={() => {
-                        setShowAddRouteForm(false);
-                        setSelectedRoutes([]);
-                        setSelectedCountryForIntercity('');
-                        setIntercitySearchTerm('');
-                        setInternationalSearchTerm('');
-                      }}
-                      className="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button 
-                      type="submit"
-                      disabled={submittingRoute}
-                      className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50"
-                    >
-                      {submittingRoute ? 'Adding...' : routeForm.routeType === 'intracity' ? 'Add Route' : `Add ${selectedRoutes.length} Route(s)`}
-                    </button>
+                  <div className="flex justify-between items-center pt-4">
+                    {/* Draft Actions - Left Side */}
+                    {(routeForm.routeType === 'intercity' || routeForm.routeType === 'international') && selectedRoutes.length > 0 && (
+                      <div className="flex gap-2">
+                        <button 
+                          type="button"
+                          onClick={saveDraft}
+                          className="px-3 py-2 text-sm text-blue-700 bg-blue-50 border border-blue-300 rounded-lg hover:bg-blue-100 transition-colors"
+                        >
+                          💾 Save Draft
+                        </button>
+                        {hasDraft() && (
+                          <button 
+                            type="button"
+                            onClick={loadDraft}
+                            className="px-3 py-2 text-sm text-purple-700 bg-purple-50 border border-purple-300 rounded-lg hover:bg-purple-100 transition-colors"
+                          >
+                            📂 Load Draft
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* Main Actions - Right Side */}
+                    <div className="flex space-x-3 ml-auto">
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          setShowAddRouteForm(false);
+                          setSelectedRoutes([]);
+                          setSelectedCountryForIntercity('');
+                          setIntercitySearchTerm('');
+                          setInternationalSearchTerm('');
+                        }}
+                        className="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button 
+                        type="submit"
+                        disabled={submittingRoute}
+                        className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                      >
+                        {submittingRoute ? 'Adding...' : routeForm.routeType === 'intracity' ? 'Add Route' : `Add ${selectedRoutes.length} Route(s)`}
+                      </button>
+                    </div>
                   </div>
                 </form>
               </div>

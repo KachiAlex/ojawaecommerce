@@ -212,6 +212,30 @@ export const getRouteStats = (routes) => {
   };
 };
 
+// Filter routes by service areas (partner's registered coverage)
+export const filterByServiceAreas = (routes, serviceAreas = []) => {
+  if (!serviceAreas || serviceAreas.length === 0) return routes;
+  
+  return routes.filter(route => {
+    // Check if route's from or to location matches any service area
+    return serviceAreas.some(area => {
+      const areaName = area.state || area.country;
+      return route.from.toLowerCase().includes(areaName.toLowerCase()) ||
+             route.to.toLowerCase().includes(areaName.toLowerCase());
+    });
+  });
+};
+
+// Get recommended routes based on service areas
+export const getRecommendedRoutes = (allRoutes, serviceAreas = []) => {
+  const matched = filterByServiceAreas(allRoutes, serviceAreas);
+  return {
+    recommended: matched,
+    other: allRoutes.filter(r => !matched.includes(r)),
+    count: matched.length
+  };
+};
+
 // Helper to format currency
 export const formatPrice = (price, currency = '₦') => {
   return `${currency} ${price.toLocaleString()}`;
