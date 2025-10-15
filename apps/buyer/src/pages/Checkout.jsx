@@ -337,7 +337,16 @@ const Checkout = () => {
     checkSelfPurchase();
     // Prefill buyer and vendor addresses
     prefillAddresses();
+    // Load wallet balance
+    loadWalletBalance();
   }, [currentUser, cartItems, navigate]);
+  
+  // Calculate smart logistics pricing when addresses change
+  useEffect(() => {
+    if (deliveryOption === 'delivery' && buyerAddress && vendorAddress) {
+      calculateSmartLogisticsPrice();
+    }
+  }, [buyerAddress, vendorAddress, deliveryOption]);
 
   const checkSelfPurchase = async () => {
     try {
@@ -618,15 +627,98 @@ const Checkout = () => {
             {deliveryOption === 'delivery' && (
               <div className="mt-6 space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Delivery Address</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Your Delivery Address</label>
                   <textarea 
                     rows="3"
                     value={buyerAddress}
                     onChange={(e) => setBuyerAddress(e.target.value)}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                    placeholder="Enter your full delivery address..."
+                    placeholder="Enter your full delivery address (e.g., 15 Marina Street, Lagos Island, Lagos, Nigeria)"
                   />
                 </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Vendor Address</label>
+                  <textarea 
+                    rows="2"
+                    value={vendorAddress}
+                    readOnly
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-gray-50 text-gray-600"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Automatically fetched from vendor's store</p>
+                </div>
+                
+                {/* Smart Route Detection Display */}
+                {loadingLogistics && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                      <span className="text-blue-900 text-sm font-medium">🗺️ Analyzing route and calculating delivery price...</span>
+                    </div>
+                  </div>
+                )}
+                
+                {routeInfo && routeInfo.success && (
+                  <div className="bg-gradient-to-r from-emerald-50 to-blue-50 border border-emerald-200 rounded-lg p-4">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-2xl">
+                          {routeInfo.category === 'intracity' && '🏙️'}
+                          {routeInfo.category === 'intercity' && '🚛'}
+                          {routeInfo.category === 'international' && '✈️'}
+                        </span>
+                        <div>
+                          <h4 className="font-semibold text-gray-900 capitalize">{routeInfo.category} Delivery</h4>
+                          <p className="text-sm text-gray-600">{routeInfo.from} → {routeInfo.to}</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setShowRouteDetails(!showRouteDetails)}
+                        className="text-xs text-emerald-600 hover:text-emerald-700 font-medium"
+                      >
+                        {showRouteDetails ? 'Hide Details' : 'Show Details'}
+                      </button>
+                    </div>
+                    
+                    <div className="grid grid-cols-3 gap-3 mb-3">
+                      <div className="text-center p-2 bg-white rounded">
+                        <div className="text-lg font-bold text-emerald-600">₦{routeInfo.price.toLocaleString()}</div>
+                        <div className="text-xs text-gray-600">Delivery Fee</div>
+                      </div>
+                      <div className="text-center p-2 bg-white rounded">
+                        <div className="text-lg font-bold text-blue-600">{routeInfo.distance}km</div>
+                        <div className="text-xs text-gray-600">Distance</div>
+                      </div>
+                      <div className="text-center p-2 bg-white rounded">
+                        <div className="text-lg font-bold text-purple-600">
+                          {routeInfo.availablePartners?.length || 0}
+                        </div>
+                        <div className="text-xs text-gray-600">Partners</div>
+                      </div>
+                    </div>
+                    
+                    {showRouteDetails && (
+                      <div className="mt-3 pt-3 border-t border-emerald-200 space-y-2">
+                        {routeInfo.usingPlatformDefault ? (
+                          <div className="text-xs text-gray-700 bg-yellow-50 p-2 rounded">
+                            <span className="font-medium">ℹ️ Platform Default Pricing:</span> No logistics partners currently service this route. Using standard platform rates.
+                          </div>
+                        ) : (
+                          <div className="text-xs text-gray-700 bg-green-50 p-2 rounded">
+                            <span className="font-medium">✓ Partner Available:</span> {routeInfo.selectedPartner?.company?.name || 'Logistics Partner'} selected (cheapest option)
+                          </div>
+                        )}
+                        
+                        {routeInfo.breakdown && (
+                          <div className="text-xs text-gray-600 space-y-1">
+                            <p>• {routeInfo.breakdown.baseCalculation}</p>
+                            <p>• {routeInfo.breakdown.appliedRule}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
                 
                 <EnhancedLogisticsSelector 
                   onLogisticsSelect={(logisticsData) => {
