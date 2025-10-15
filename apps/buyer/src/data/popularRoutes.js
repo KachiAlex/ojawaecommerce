@@ -140,10 +140,11 @@ export const filterRoutes = (routes, filters = {}) => {
   // Time range filter (convert to hours)
   if (filters.maxHours !== undefined) {
     filtered = filtered.filter(r => {
+      if (!r.estimatedTime) return true;
       const timeMatch = r.estimatedTime.match(/(\d+)-?(\d+)?\s*(hour|day)/i);
       if (!timeMatch) return true;
       const maxTime = timeMatch[2] ? parseInt(timeMatch[2]) : parseInt(timeMatch[1]);
-      const unit = timeMatch[3].toLowerCase();
+      const unit = (timeMatch[3] || 'hour').toLowerCase();
       const hours = unit === 'day' ? maxTime * 24 : maxTime;
       return hours <= filters.maxHours;
     });
@@ -167,24 +168,26 @@ export const sortRoutes = (routes, sortBy = 'price_asc') => {
       return sorted.sort((a, b) => b.distance - a.distance);
     case 'time_asc':
       return sorted.sort((a, b) => {
+        if (!a.estimatedTime || !b.estimatedTime) return 0;
         const aMatch = a.estimatedTime.match(/(\d+)-?(\d+)?\s*(hour|day)/i);
         const bMatch = b.estimatedTime.match(/(\d+)-?(\d+)?\s*(hour|day)/i);
         if (!aMatch || !bMatch) return 0;
-        const aTime = (aMatch[2] ? parseInt(aMatch[2]) : parseInt(aMatch[1])) * (aMatch[3].toLowerCase() === 'day' ? 24 : 1);
-        const bTime = (bMatch[2] ? parseInt(bMatch[2]) : parseInt(bMatch[1])) * (bMatch[3].toLowerCase() === 'day' ? 24 : 1);
+        const aTime = (aMatch[2] ? parseInt(aMatch[2]) : parseInt(aMatch[1])) * ((aMatch[3] || 'hour').toLowerCase() === 'day' ? 24 : 1);
+        const bTime = (bMatch[2] ? parseInt(bMatch[2]) : parseInt(bMatch[1])) * ((bMatch[3] || 'hour').toLowerCase() === 'day' ? 24 : 1);
         return aTime - bTime;
       });
     case 'time_desc':
       return sorted.sort((a, b) => {
+        if (!a.estimatedTime || !b.estimatedTime) return 0;
         const aMatch = a.estimatedTime.match(/(\d+)-?(\d+)?\s*(hour|day)/i);
         const bMatch = b.estimatedTime.match(/(\d+)-?(\d+)?\s*(hour|day)/i);
         if (!aMatch || !bMatch) return 0;
-        const aTime = (aMatch[2] ? parseInt(aMatch[2]) : parseInt(aMatch[1])) * (aMatch[3].toLowerCase() === 'day' ? 24 : 1);
-        const bTime = (bMatch[2] ? parseInt(bMatch[2]) : parseInt(bMatch[1])) * (bMatch[3].toLowerCase() === 'day' ? 24 : 1);
+        const aTime = (aMatch[2] ? parseInt(aMatch[2]) : parseInt(aMatch[1])) * ((aMatch[3] || 'hour').toLowerCase() === 'day' ? 24 : 1);
+        const bTime = (bMatch[2] ? parseInt(bMatch[2]) : parseInt(bMatch[1])) * ((bMatch[3] || 'hour').toLowerCase() === 'day' ? 24 : 1);
         return bTime - aTime;
       });
     case 'alphabetical':
-      return sorted.sort((a, b) => a.from.localeCompare(b.from));
+      return sorted.sort((a, b) => (a.from || '').localeCompare(b.from || ''));
     default:
       return sorted;
   }
@@ -219,9 +222,10 @@ export const filterByServiceAreas = (routes, serviceAreas = []) => {
   return routes.filter(route => {
     // Check if route's from or to location matches any service area
     return serviceAreas.some(area => {
-      const areaName = area.state || area.country;
-      return route.from.toLowerCase().includes(areaName.toLowerCase()) ||
-             route.to.toLowerCase().includes(areaName.toLowerCase());
+      const areaName = (area?.state || area?.country || '').toLowerCase();
+      const routeFrom = (route.from || '').toLowerCase();
+      const routeTo = (route.to || '').toLowerCase();
+      return routeFrom.includes(areaName) || routeTo.includes(areaName);
     });
   });
 };
