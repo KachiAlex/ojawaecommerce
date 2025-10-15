@@ -19,6 +19,13 @@ import {
   calculatePartnerPrice,
   comparePrices
 } from '../data/popularRoutes';
+import { 
+  validateRoute, 
+  formatValidationMessage,
+  checkDuplicateRoute,
+  validatePricing,
+  validateEstimatedTime 
+} from '../utils/routeValidation';
 
 const Logistics = () => {
   const { currentUser } = useAuth();
@@ -64,6 +71,7 @@ const Logistics = () => {
   const [internationalSearchTerm, setInternationalSearchTerm] = useState('');
   const [selectedRoutes, setSelectedRoutes] = useState([]); // Array of {from, to, price, estimatedTime, vehicleType}
   const [usePartnerPricing, setUsePartnerPricing] = useState(true); // Use partner's rate for auto-calculation
+  const [routeValidations, setRouteValidations] = useState({}); // Store validation results per route
 
   useEffect(() => {
     if (currentUser) {
@@ -334,9 +342,33 @@ const Logistics = () => {
   const updateSelectedRoute = (routeKey, field, value) => {
     setSelectedRoutes(selectedRoutes.map(route => {
       if (`${route.from}-${route.to}` === routeKey) {
-        return { ...route, [field]: value };
+        const updatedRoute = { ...route, [field]: value };
+        
+        // Trigger validation for price or time changes
+        if (field === 'price' || field === 'estimatedTime') {
+          setTimeout(() => validateSelectedRoute(routeKey, updatedRoute), 300);
+        }
+        
+        return updatedRoute;
       }
       return route;
+    }));
+  };
+  
+  // Validate a specific selected route
+  const validateSelectedRoute = (routeKey, route) => {
+    const validation = validateRoute(
+      {
+        ...route,
+        routeType: routeForm.routeType
+      },
+      routes,
+      {}
+    );
+    
+    setRouteValidations(prev => ({
+      ...prev,
+      [routeKey]: validation
     }));
   };
   
@@ -400,6 +432,43 @@ const Logistics = () => {
           return;
         }
         
+        // Check for validation warnings
+        const routesWithErrors = selectedRoutes.filter(route => {
+          const routeKey = `${route.from}-${route.to}`;
+          const validation = routeValidations[routeKey];
+          return validation?.warnings?.some(w => w.severity === 'error');
+        });
+        
+        const routesWithWarnings = selectedRoutes.filter(route => {
+          const routeKey = `${route.from}-${route.to}`;
+          const validation = routeValidations[routeKey];
+          return validation?.warnings?.some(w => w.severity === 'warning') && 
+                 !validation?.warnings?.some(w => w.severity === 'error');
+        });
+        
+        // If there are errors, ask for confirmation
+        if (routesWithErrors.length > 0) {
+          const proceed = confirm(
+            `⚠️ ${routesWithErrors.length} route(s) have critical warnings.\n\n` +
+            `These routes may have pricing or timing issues that could affect your business.\n\n` +
+            `Do you want to proceed anyway?`
+          );
+          if (!proceed) {
+            setSubmittingRoute(false);
+            return;
+          }
+        } else if (routesWithWarnings.length > 0) {
+          const proceed = confirm(
+            `💡 ${routesWithWarnings.length} route(s) have recommendations.\n\n` +
+            `You can review and adjust these before adding, or proceed now.\n\n` +
+            `Continue with route creation?`
+          );
+          if (!proceed) {
+            setSubmittingRoute(false);
+            return;
+          }
+        }
+        
         // Add all selected routes
         const addPromises = selectedRoutes.map(route => {
           const routeData = {
@@ -425,6 +494,7 @@ const Logistics = () => {
         await Promise.all(addPromises);
         alert(`Successfully added ${selectedRoutes.length} ${routeForm.routeType} route(s)!`);
         setSelectedRoutes([]);
+        setRouteValidations({}); // Clear validations
       }
       
       // Reset form
@@ -866,8 +936,37 @@ const Logistics = () => {
                                               </select>
                                             </div>
                                           </div>
+                                          
+                                          {/* Show validation warnings */}
+                                          {routeValidations[routeKey] && routeValidations[routeKey].warnings.length > 0 && (
+                                            <div className="space-y-1">
+                                              {routeValidations[routeKey].warnings.filter(w => w.severity === 'error').map((warning, idx) => (
+                                                <div key={idx} className="text-xs bg-red-50 border border-red-200 text-red-800 p-2 rounded flex items-start gap-2">
+                                                  <span className="text-red-600 flex-shrink-0">⚠️</span>
+                                                  <div>
+                                                    <div className="font-medium">{warning.message}</div>
+                                                    {warning.recommendation && (
+                                                      <div className="text-red-700 mt-1">{warning.recommendation}</div>
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              ))}
+                                              {routeValidations[routeKey].warnings.filter(w => w.severity === 'warning').map((warning, idx) => (
+                                                <div key={idx} className="text-xs bg-yellow-50 border border-yellow-200 text-yellow-800 p-2 rounded flex items-start gap-2">
+                                                  <span className="text-yellow-600 flex-shrink-0">💡</span>
+                                                  <div>
+                                                    <div className="font-medium">{warning.message}</div>
+                                                    {warning.recommendation && (
+                                                      <div className="text-yellow-700 mt-1">{warning.recommendation}</div>
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          )}
+                                          
                                           {/* Show comparison in selected route */}
-                                          {selectedRoute.suggestedPrice !== selectedRoute.price && (
+                                          {selectedRoute.suggestedPrice !== selectedRoute.price && !routeValidations[routeKey]?.warnings.some(w => w.type.includes('pricing')) && (
                                             <div className="text-xs text-gray-600 bg-blue-50 p-2 rounded">
                                               Market suggestion: ₦{selectedRoute.suggestedPrice.toLocaleString()}
                                               {(() => {
@@ -1038,8 +1137,37 @@ const Logistics = () => {
                                             </select>
                                           </div>
                                         </div>
+                                        
+                                        {/* Show validation warnings */}
+                                        {routeValidations[routeKey] && routeValidations[routeKey].warnings.length > 0 && (
+                                          <div className="space-y-1">
+                                            {routeValidations[routeKey].warnings.filter(w => w.severity === 'error').map((warning, idx) => (
+                                              <div key={idx} className="text-xs bg-red-50 border border-red-200 text-red-800 p-2 rounded flex items-start gap-2">
+                                                <span className="text-red-600 flex-shrink-0">⚠️</span>
+                                                <div>
+                                                  <div className="font-medium">{warning.message}</div>
+                                                  {warning.recommendation && (
+                                                    <div className="text-red-700 mt-1">{warning.recommendation}</div>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            ))}
+                                            {routeValidations[routeKey].warnings.filter(w => w.severity === 'warning').map((warning, idx) => (
+                                              <div key={idx} className="text-xs bg-yellow-50 border border-yellow-200 text-yellow-800 p-2 rounded flex items-start gap-2">
+                                                <span className="text-yellow-600 flex-shrink-0">💡</span>
+                                                <div>
+                                                  <div className="font-medium">{warning.message}</div>
+                                                  {warning.recommendation && (
+                                                    <div className="text-yellow-700 mt-1">{warning.recommendation}</div>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
+                                        
                                         {/* Show comparison in selected route */}
-                                        {selectedRoute.suggestedPrice !== selectedRoute.price && (
+                                        {selectedRoute.suggestedPrice !== selectedRoute.price && !routeValidations[routeKey]?.warnings.some(w => w.type.includes('pricing')) && (
                                           <div className="text-xs text-gray-600 bg-blue-50 p-2 rounded">
                                             Market suggestion: ₦{selectedRoute.suggestedPrice.toLocaleString()}
                                             {(() => {
