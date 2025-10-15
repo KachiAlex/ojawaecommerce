@@ -7,6 +7,7 @@ import OsoahiaWidget from '../components/OsoahiaWidget';
 import RecentOrdersFlow from '../components/RecentOrdersFlow';
 import RealTimeStockMonitor from '../components/RealTimeStockMonitor';
 import ComponentErrorBoundary from '../components/ComponentErrorBoundary';
+import ProductQuickView from '../components/ProductQuickView';
 import { ProductListSkeleton, PageLoadingSkeleton } from '../components/LoadingStates';
 import { useAuth } from '../contexts/AuthContext';
 import { useRealTimeProducts } from '../hooks/useRealTimeProducts';
@@ -139,6 +140,8 @@ const getProductDisplayProps = (product, index) => {
 const Home = () => {
   const { currentUser, userProfile } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [showQuickView, setShowQuickView] = useState(false);
   
   // Get real-time featured products (limit to 8 for display)
   const { products: realTimeProducts, loading: productsLoading } = useRealTimeProducts({
@@ -147,6 +150,11 @@ const Home = () => {
   
   // Take first 8 products for featured display
   const featuredProducts = realTimeProducts.slice(0, 8);
+
+  const handleProductClick = (product) => {
+    setSelectedProduct(product);
+    setShowQuickView(true);
+  };
 
   useEffect(() => {
     // Simulate loading time for demo
@@ -250,7 +258,7 @@ const Home = () => {
               };
               
               return (
-                <Link key={product.id} to={`/products/${product.id}`} className="block overflow-hidden rounded-xl border bg-white group hover:shadow-lg transition-shadow">
+                <div key={product.id} onClick={() => handleProductClick(product)} className="block overflow-hidden rounded-xl border bg-white group hover:shadow-lg transition-shadow cursor-pointer">
                   <div className={`relative aspect-square w-full overflow-hidden ${productImage ? 'bg-white' : displayProps.bgColor}`}>
                     {productImage ? (
                       <img
@@ -298,7 +306,7 @@ const Home = () => {
                       </span>
                     </div>
                   </div>
-                </Link>
+                </div>
               );
             })
           ) : (
@@ -434,6 +442,16 @@ const Home = () => {
       </div>
 
       <Footer />
+
+      {/* Product Quick View Modal */}
+      <ProductQuickView
+        product={selectedProduct}
+        isOpen={showQuickView}
+        onClose={() => {
+          setShowQuickView(false);
+          setSelectedProduct(null);
+        }}
+      />
     </div>
   );
 };
