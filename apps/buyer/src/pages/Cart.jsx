@@ -376,7 +376,7 @@ const Cart = () => {
                     {/* Delivery Options */}
                     <div className="bg-blue-50 p-2 rounded">
                       <p className="text-xs text-blue-700">
-                        <strong>💡 Tip:</strong> You can change delivery options or logistics partner during checkout.
+                        <strong>💡 Tip:</strong> These delivery details will be confirmed at checkout.
                       </p>
                     </div>
                   </div>

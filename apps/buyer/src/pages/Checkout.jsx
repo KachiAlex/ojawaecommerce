@@ -546,105 +546,25 @@ const Checkout = ({ location }) => {
             </div>
           </div>
 
-          {/* Delivery Options */}
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Delivery Options</h2>
-            
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <input 
-                  type="radio" 
-                  id="pickup" 
-                  name="delivery" 
-                  value="pickup"
-                  checked={deliveryOption === 'pickup'}
-                  onChange={(e) => setDeliveryOption(e.target.value)}
-                  className="text-emerald-600"
-                />
-                <label htmlFor="pickup" className="flex items-center gap-2">
-                  <span>🏪</span>
-                  <div>
-                    <p className="font-medium">Pickup from Vendor</p>
-                    <p className="text-sm text-gray-600">Collect directly from vendor location (Free)</p>
-                  </div>
-                </label>
-              </div>
-              
-              <div className="flex items-center gap-3">
-                <input 
-                  type="radio" 
-                  id="delivery" 
-                  name="delivery" 
-                  value="delivery"
-                  checked={deliveryOption === 'delivery'}
-                  onChange={(e) => setDeliveryOption(e.target.value)}
-                  className="text-emerald-600"
-                />
-                <label htmlFor="delivery" className="flex items-center gap-2">
-                  <span>🚚</span>
-                  <div>
-                    <p className="font-medium">Home Delivery</p>
-                    <p className="text-sm text-gray-600">Get it delivered to your doorstep</p>
-                  </div>
-                </label>
-              </div>
-            </div>
-
-            {/* Delivery Confirmation - Read-only display from cart */}
-            {deliveryOption === 'delivery' && routeInfo && (
-              <div className="mt-6 space-y-4">
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="text-green-600 text-xl">✅</span>
-                    <h4 className="font-medium text-green-900">Delivery Details Confirmed</h4>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <p className="text-gray-600">Your Address:</p>
-                      <p className="font-medium">{buyerAddress || 'Not specified'}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-600">Vendor Address:</p>
-                      <p className="font-medium">{vendorAddress || 'Not specified'}</p>
-                    </div>
-                  </div>
-                  
-                  <div className="mt-3 p-3 bg-white rounded border">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-lg">
-                          {routeInfo.category === 'intracity' && '🏙️'}
-                          {routeInfo.category === 'intercity' && '🚛'}
-                          {routeInfo.category === 'international' && '✈️'}
-                        </span>
-                        <div>
-                          <p className="font-medium">{routeInfo.category} Delivery</p>
-                          <p className="text-xs text-gray-500">{routeInfo.from} → {routeInfo.to}</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-bold text-emerald-600">₦{routeInfo.price.toLocaleString()}</p>
-                        <p className="text-xs text-gray-500">{routeInfo.distance}km</p>
-                      </div>
-                    </div>
-                    
-                    {selectedLogistics && (
-                      <div className="mt-2 pt-2 border-t border-gray-200">
-                        <p className="text-xs text-gray-600">
-                          Partner: {selectedLogistics.company?.name || 'Platform Default'}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="mt-3 text-xs text-green-700 bg-green-100 p-2 rounded">
-                    💡 To modify delivery options, please go back to your cart and update your selections.
-                  </div>
+          {/* Order Summary from Cart */}
+          {deliveryOption === 'delivery' && routeInfo && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-lg">
+                  {routeInfo.category === 'intracity' && '🏙️'}
+                  {routeInfo.category === 'intercity' && '🚛'}
+                  {routeInfo.category === 'international' && '✈️'}
+                </span>
+                <div>
+                  <p className="font-medium text-gray-900">{routeInfo.category} Delivery</p>
+                  <p className="text-xs text-gray-600">{routeInfo.from} → {routeInfo.to} • {routeInfo.distance}km • ₦{routeInfo.price.toLocaleString()}</p>
                 </div>
               </div>
-            )}
-          </div>
+              <p className="text-sm text-blue-700">
+                📦 Delivery details configured in cart. <a href="/cart" className="underline font-medium hover:text-blue-800">Modify in cart</a> if needed.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Wallet Balance Check */}
