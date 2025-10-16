@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 import { pricingService } from '../services/pricingService';
 
@@ -29,7 +29,7 @@ export const CartProvider = ({ children }) => {
   }, []);
 
   // Save intended destination for post-authentication redirect
-  const saveIntendedDestination = (path, productId = null) => {
+  const saveIntendedDestination = useCallback((path, productId = null) => {
     const destination = {
       path,
       productId,
@@ -37,10 +37,10 @@ export const CartProvider = ({ children }) => {
       cartItems: cartItems.length
     };
     localStorage.setItem('intendedDestination', JSON.stringify(destination));
-  };
+  }, [cartItems.length]);
 
   // Get and clear intended destination
-  const getIntendedDestination = () => {
+  const getIntendedDestination = useCallback(() => {
     const saved = localStorage.getItem('intendedDestination');
     if (saved) {
       try {
@@ -55,14 +55,14 @@ export const CartProvider = ({ children }) => {
       }
     }
     return null;
-  };
+  }, []);
 
   // Save cart to localStorage whenever it changes
   useEffect(() => {
     localStorage.setItem('cart', JSON.stringify(cartItems));
   }, [cartItems]);
 
-  const addToCart = (product, quantity = 1) => {
+  const addToCart = useCallback((product, quantity = 1) => {
     // Stock validation
     const isOutOfStock = product.inStock === false || (product.stock || product.stockQuantity || 0) <= 0;
     if (isOutOfStock) {
@@ -71,15 +71,14 @@ export const CartProvider = ({ children }) => {
 
     // Check if adding this quantity would exceed available stock
     const availableStock = product.stock || product.stockQuantity || 0;
-    const existingItem = cartItems.find(item => item.id === product.id);
-    const currentQuantity = existingItem ? existingItem.quantity : 0;
     
-    if (currentQuantity + quantity > availableStock) {
-      throw new Error(`Only ${availableStock} items available in stock. You already have ${currentQuantity} in your cart.`);
-    }
-
     setCartItems(prevItems => {
       const existingItem = prevItems.find(item => item.id === product.id);
+      const currentQuantity = existingItem ? existingItem.quantity : 0;
+      
+      if (currentQuantity + quantity > availableStock) {
+        throw new Error(`Only ${availableStock} items available in stock. You already have ${currentQuantity} in your cart.`);
+      }
       
       if (existingItem) {
         return prevItems.map(item =>
@@ -91,41 +90,40 @@ export const CartProvider = ({ children }) => {
         return [...prevItems, { ...product, quantity }];
       }
     });
-  };
+  }, []);
 
-  const removeFromCart = (productId) => {
+  const removeFromCart = useCallback((productId) => {
     setCartItems(prevItems => prevItems.filter(item => item.id !== productId));
-  };
+  }, []);
 
-  const updateQuantity = (productId, quantity) => {
+  const updateQuantity = useCallback((productId, quantity) => {
     if (quantity <= 0) {
-      removeFromCart(productId);
+      setCartItems(prevItems => prevItems.filter(item => item.id !== productId));
       return;
     }
 
-    // Find the product to check stock
-    const product = cartItems.find(item => item.id === productId);
-    if (product) {
-      const availableStock = product.stock || product.stockQuantity || 0;
-      if (quantity > availableStock) {
-        throw new Error(`Only ${availableStock} items available in stock.`);
+    setCartItems(prevItems => {
+      const product = prevItems.find(item => item.id === productId);
+      if (product) {
+        const availableStock = product.stock || product.stockQuantity || 0;
+        if (quantity > availableStock) {
+          throw new Error(`Only ${availableStock} items available in stock.`);
+        }
       }
-    }
-
-    setCartItems(prevItems =>
-      prevItems.map(item =>
+      
+      return prevItems.map(item =>
         item.id === productId ? { ...item, quantity } : item
-      )
-    );
-  };
+      );
+    });
+  }, []);
 
-  const clearCart = () => {
+  const clearCart = useCallback(() => {
     setCartItems([]);
-  };
+  }, []);
 
-  const getCartTotal = () => {
+  const getCartTotal = useCallback(() => {
     return cartItems.reduce((total, item) => total + (item.price * item.quantity), 0);
-  };
+  }, [cartItems]);
 
   // Get comprehensive pricing breakdown including VAT, service fee, and logistics
   const getPricingBreakdown = async (deliveryOption = 'pickup', selectedLogistics = null) => {
@@ -185,7 +183,7 @@ export const CartProvider = ({ children }) => {
     });
   };
 
-  const value = {
+  const value = useMemo(() => ({
     cartItems,
     addToCart,
     removeFromCart,
@@ -199,7 +197,16 @@ export const CartProvider = ({ children }) => {
     hasOutOfStockItems,
     saveIntendedDestination,
     getIntendedDestination
-  };
+  }), [
+    cartItems,
+    addToCart,
+    removeFromCart,
+    updateQuantity,
+    clearCart,
+    getCartTotal,
+    saveIntendedDestination,
+    getIntendedDestination
+  ]);
 
   return (
     <CartContext.Provider value={value}>

@@ -10,6 +10,7 @@ export const ORDER_STATUS = {
   
   // Processing states
   CONFIRMED: 'confirmed',
+  ESCROW_FUNDED: 'escrow_funded',
   PROCESSING: 'processing',
   READY_FOR_SHIPMENT: 'ready_for_shipment',
   

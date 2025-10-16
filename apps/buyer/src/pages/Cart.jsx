@@ -33,6 +33,7 @@ const Cart = () => {
   const [buyerAddress, setBuyerAddress] = useState('');
   const [routeInfo, setRouteInfo] = useState(null);
   const [loadingRoute, setLoadingRoute] = useState(false);
+  const [showRouteDetails, setShowRouteDetails] = useState(false);
 
   // Calculate pricing breakdown whenever cart items or delivery options change
   useEffect(() => {
@@ -289,21 +290,30 @@ const Cart = () => {
               </div>
             )}
             
+            {/* Enhanced Delivery Logistics Section */}
             {routeInfo && routeInfo.success && deliveryOption === 'delivery' && (
               <div className="p-4 bg-gradient-to-r from-emerald-50 to-blue-50 border border-emerald-200 rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-2xl">
-                    {routeInfo.category === 'intracity' && '🏙️'}
-                    {routeInfo.category === 'intercity' && '🚛'}
-                    {routeInfo.category === 'international' && '✈️'}
-                  </span>
-                  <div>
-                    <h4 className="font-semibold text-gray-900 capitalize text-sm">{routeInfo.category} Delivery Detected</h4>
-                    <p className="text-xs text-gray-600">{routeInfo.from} → {routeInfo.to}</p>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">
+                      {routeInfo.category === 'intracity' && '🏙️'}
+                      {routeInfo.category === 'intercity' && '🚛'}
+                      {routeInfo.category === 'international' && '✈️'}
+                    </span>
+                    <div>
+                      <h4 className="font-semibold text-gray-900 capitalize text-sm">{routeInfo.category} Delivery</h4>
+                      <p className="text-xs text-gray-600">{routeInfo.from} → {routeInfo.to}</p>
+                    </div>
                   </div>
+                  <button
+                    onClick={() => setShowRouteDetails(!showRouteDetails)}
+                    className="text-xs text-emerald-600 hover:text-emerald-700 font-medium"
+                  >
+                    {showRouteDetails ? 'Hide Details' : 'Show Details'}
+                  </button>
                 </div>
                 
-                <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="grid grid-cols-3 gap-2 text-center mb-3">
                   <div className="bg-white p-2 rounded">
                     <div className="text-sm font-bold text-emerald-600">₦{routeInfo.price.toLocaleString()}</div>
                     <div className="text-xs text-gray-600">Delivery Fee</div>
@@ -320,9 +330,55 @@ const Cart = () => {
                   </div>
                 </div>
                 
-                {routeInfo.usingPlatformDefault && (
-                  <div className="mt-2 text-xs text-gray-600 bg-yellow-50 p-2 rounded">
-                    ℹ️ Using platform default pricing (no logistics partners for this route)
+                {showRouteDetails && (
+                  <div className="mt-3 pt-3 border-t border-emerald-200 space-y-3">
+                    {/* Available Logistics Partners */}
+                    {routeInfo.availablePartners && routeInfo.availablePartners.length > 0 ? (
+                      <div>
+                        <h5 className="text-sm font-medium text-gray-900 mb-2">Available Delivery Partners:</h5>
+                        <div className="space-y-2">
+                          {routeInfo.availablePartners.map((partner, index) => (
+                            <div key={index} className="flex items-center justify-between p-2 bg-white rounded border">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm">🚚</span>
+                                <div>
+                                  <p className="text-sm font-medium">{partner.company?.name || 'Logistics Partner'}</p>
+                                  <p className="text-xs text-gray-500">
+                                    {partner.vehicleType || 'Standard'} • {partner.estimatedDays || '2-3'} days
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-sm font-medium">₦{partner.price?.toLocaleString() || routeInfo.price.toLocaleString()}</p>
+                                {partner === routeInfo.selectedPartner && (
+                                  <span className="text-xs text-emerald-600 font-medium">✓ Selected</span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-gray-600 bg-yellow-50 p-2 rounded">
+                        ℹ️ Using platform default pricing (no logistics partners for this route)
+                      </div>
+                    )}
+                    
+                    {/* Route Breakdown */}
+                    {routeInfo.breakdown && (
+                      <div className="text-xs text-gray-600 space-y-1">
+                        <p><strong>Pricing Breakdown:</strong></p>
+                        <p>• {routeInfo.breakdown.baseCalculation}</p>
+                        <p>• {routeInfo.breakdown.appliedRule}</p>
+                      </div>
+                    )}
+                    
+                    {/* Delivery Options */}
+                    <div className="bg-blue-50 p-2 rounded">
+                      <p className="text-xs text-blue-700">
+                        <strong>💡 Tip:</strong> You can change delivery options or logistics partner during checkout.
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>
@@ -466,40 +522,49 @@ const Cart = () => {
               )}
             </div>
 
-            {/* Pricing Breakdown */}
+            {/* Enhanced Pricing Breakdown */}
             {loading ? (
               <div className="text-center py-4">
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
                 <p className="text-gray-600 mt-2">Calculating...</p>
               </div>
-            ) : pricingBreakdown ? (
-              <div className="space-y-2 mb-4">
-                {Object.entries(pricingBreakdown.breakdown).map(([key, item]) => {
-                  if (!item || key === 'total') return null;
-                  
-                  return (
-                    <div key={key} className="flex justify-between text-sm">
-                      <div>
-                        <span className="text-gray-600">{item.label}</span>
-                        {item.description && (
-                          <p className="text-xs text-gray-500">{item.description}</p>
-                        )}
-                        {item.rate && (
-                          <p className="text-xs text-gray-500">({item.rate}%)</p>
-                        )}
-                      </div>
-                      <span className="font-semibold">
-                        {pricingService.formatCurrency(item.amount)}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
             ) : (
               <div className="space-y-2 mb-4">
+                {/* Subtotal */}
                 <div className="flex justify-between">
                   <span className="text-gray-600">Subtotal</span>
-                  <span className="font-semibold">{pricingService.formatCurrency(getCartTotal())}</span>
+                  <span className="font-semibold">{formatCurrency(getCartTotal(), cartItems[0]?.currency)}</span>
+                </div>
+                
+                {/* Delivery Fee */}
+                {deliveryOption === 'delivery' && routeInfo && (
+                  <div className="flex justify-between">
+                    <div>
+                      <span className="text-gray-600">Delivery Fee</span>
+                      <p className="text-xs text-gray-500">
+                        {routeInfo.category} • {routeInfo.distance}km • {routeInfo.selectedPartner?.company?.name || 'Platform Default'}
+                      </p>
+                    </div>
+                    <span className="font-semibold text-emerald-600">₦{routeInfo.price.toLocaleString()}</span>
+                  </div>
+                )}
+                
+                {/* Service Fee */}
+                <div className="flex justify-between">
+                  <div>
+                    <span className="text-gray-600">Service Fee</span>
+                    <p className="text-xs text-gray-500">Ojawa platform fee (5%)</p>
+                  </div>
+                  <span className="font-semibold">₦{(getCartTotal() * 0.05).toLocaleString()}</span>
+                </div>
+                
+                {/* VAT */}
+                <div className="flex justify-between">
+                  <div>
+                    <span className="text-gray-600">VAT</span>
+                    <p className="text-xs text-gray-500">Value Added Tax (7.5%)</p>
+                  </div>
+                  <span className="font-semibold">₦{((getCartTotal() + (deliveryOption === 'delivery' && routeInfo ? routeInfo.price : 0)) * 0.075).toLocaleString()}</span>
                 </div>
               </div>
             )}
@@ -509,13 +574,30 @@ const Cart = () => {
               <div className="flex justify-between text-lg font-bold">
                 <span>Total</span>
                 <span>
-                  {pricingBreakdown 
-                    ? pricingService.formatCurrency(pricingBreakdown.total)
-                    : pricingService.formatCurrency(getCartTotal())
-                  }
+                  {(() => {
+                    const subtotal = getCartTotal();
+                    const deliveryFee = deliveryOption === 'delivery' && routeInfo ? routeInfo.price : 0;
+                    const serviceFee = subtotal * 0.05;
+                    const vat = (subtotal + deliveryFee) * 0.075;
+                    const total = subtotal + deliveryFee + serviceFee + vat;
+                    return formatCurrency(total, cartItems[0]?.currency);
+                  })()}
                 </span>
               </div>
             </div>
+
+            {/* Delivery Summary */}
+            {deliveryOption === 'delivery' && routeInfo && (
+              <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+                <div className="text-sm text-blue-800">
+                  <p><strong>📦 Delivery Summary:</strong></p>
+                  <p>• Route: {routeInfo.from} → {routeInfo.to}</p>
+                  <p>• Distance: {routeInfo.distance}km ({routeInfo.category})</p>
+                  <p>• Partner: {routeInfo.selectedPartner?.company?.name || 'Platform Default'}</p>
+                  <p>• Est. Delivery: {routeInfo.selectedPartner?.estimatedDays || '2-3'} days</p>
+                </div>
+              </div>
+            )}
             {!currentUser && (
               <div className="mb-4 p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
                 <div className="flex items-center gap-2 mb-2">
@@ -528,7 +610,17 @@ const Cart = () => {
               </div>
             )}
             <Link
-              to="/checkout"
+              to={{
+                pathname: "/checkout",
+                state: {
+                  deliveryOption,
+                  selectedLogistics: selectedLogistics || routeInfo?.selectedPartner,
+                  routeInfo,
+                  buyerAddress,
+                  vendorAddress: vendorInfo?.address,
+                  calculatedDeliveryFee: routeInfo?.price || 0
+                }
+              }}
               className="w-full bg-emerald-600 text-white py-3 px-4 rounded-lg text-center font-semibold hover:bg-emerald-700 transition-colors block"
             >
               {currentUser ? 'Proceed to Secure Checkout' : 'Sign In to Checkout Securely'}

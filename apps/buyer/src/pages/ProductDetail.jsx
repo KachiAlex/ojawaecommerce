@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
 import firebaseService from '../services/firebaseService';
+import NotificationToast from '../components/NotificationToast';
 
 const ProductDetail = () => {
   const { id } = useParams();
@@ -16,6 +17,13 @@ const ProductDetail = () => {
   const [vendorInfo, setVendorInfo] = useState(null);
   const { addToCart, saveIntendedDestination } = useCart();
   const { currentUser } = useAuth();
+  
+  // Optimistic UI states
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState('success');
+  const addToCartTimeoutRef = useRef(null);
 
   const getCurrencyCode = (currencyValue) => {
     if (!currencyValue) return 'USD'
@@ -112,39 +120,75 @@ const ProductDetail = () => {
     fetchReviews();
   }, [id]);
 
-  const handleAddToCart = () => {
-    if (!product) return;
-    
-    // Check if user is logged in
-    if (!currentUser) {
-      // Save intended destination for post-authentication redirect
-      saveIntendedDestination(`/products/${product.id}`, product.id);
-      // Redirect to login with a specific message
-      window.location.href = `/login?message=${encodeURIComponent('Please sign in to add this product to your cart and complete your purchase.')}`;
-      return;
-    }
-    
-    try {
-      // Check stock availability
-      const isOutOfStock = product.inStock === false || (product.stock || 0) <= 0;
-      if (isOutOfStock) {
-        alert('This product is currently out of stock.');
-        return;
-      }
-
-      // Check if requested quantity exceeds available stock
-      if (quantity > (product.stock || 0)) {
-        alert(`Only ${product.stock} items available in stock.`);
-        return;
-      }
-
-      addToCart(product, quantity);
-      alert(`Added ${quantity} ${quantity === 1 ? 'item' : 'items'} of ${product.name} to cart!`);
-    } catch (error) {
-      console.error('Error adding to cart:', error);
-      alert(error.message || 'Failed to add product to cart.');
-    }
+  const showNotification = (message, type = 'success') => {
+    setToastMessage(message);
+    setToastType(type);
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 3000);
   };
+
+  const handleAddToCart = async () => {
+    if (!product || isAddingToCart) return;
+    
+    // Clear any existing timeout
+    if (addToCartTimeoutRef.current) {
+      clearTimeout(addToCartTimeoutRef.current);
+    }
+    
+    // Debounce: prevent rapid clicks
+    addToCartTimeoutRef.current = setTimeout(async () => {
+      // Check if user is logged in
+      if (!currentUser) {
+        saveIntendedDestination(`/products/${product.id}`, product.id);
+        window.location.href = `/login?message=${encodeURIComponent('Please sign in to add this product to your cart and complete your purchase.')}`;
+        return;
+      }
+      
+      try {
+        setIsAddingToCart(true);
+        
+        // Check stock availability
+        const isOutOfStock = product.inStock === false || (product.stock || 0) <= 0;
+        if (isOutOfStock) {
+          showNotification('This product is currently out of stock.', 'error');
+          return;
+        }
+
+        // Check if requested quantity exceeds available stock
+        if (quantity > (product.stock || 0)) {
+          showNotification(`Only ${product.stock} items available in stock.`, 'error');
+          return;
+        }
+
+        // Optimistic update - add to cart immediately
+        await addToCart(product, quantity);
+        
+        // Show success notification
+        showNotification(
+          `✅ ${quantity} ${quantity === 1 ? 'item' : 'items'} of ${product.name} added to cart!`,
+          'success'
+        );
+        
+        // Reset quantity to 1 after successful add
+        setQuantity(1);
+      } catch (error) {
+        console.error('Error adding to cart:', error);
+        showNotification(error.message || 'Failed to add product to cart.', 'error');
+      } finally {
+        // Short delay to show loading state
+        setTimeout(() => setIsAddingToCart(false), 300);
+      }
+    }, 300); // 300ms debounce
+  };
+  
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (addToCartTimeoutRef.current) {
+        clearTimeout(addToCartTimeoutRef.current);
+      }
+    };
+  }, []);
 
   if (loading) {
     return (
@@ -250,14 +294,28 @@ const ProductDetail = () => {
 
           <button
             onClick={handleAddToCart}
-            disabled={isOutOfStock}
-            className={`w-full py-3 px-6 rounded-lg text-lg font-semibold transition-colors ${
-              isOutOfStock
+            disabled={isOutOfStock || isAddingToCart}
+            className={`w-full py-3 px-6 rounded-lg text-lg font-semibold transition-all flex items-center justify-center gap-2 ${
+              isOutOfStock || isAddingToCart
                 ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                : 'bg-blue-600 text-white hover:bg-blue-700'
+                : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-lg transform hover:scale-[1.02]'
             }`}
           >
-            {isOutOfStock ? 'Out of Stock' : 'Add to Cart'}
+            {isAddingToCart ? (
+              <>
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                <span>Adding...</span>
+              </>
+            ) : isOutOfStock ? (
+              'Out of Stock'
+            ) : (
+              <>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                <span>Add to Cart</span>
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -341,6 +399,15 @@ const ProductDetail = () => {
           </div>
         )}
       </div>
+      
+      {/* Toast Notification */}
+      {showToast && (
+        <NotificationToast
+          message={toastMessage}
+          type={toastType}
+          onClose={() => setShowToast(false)}
+        />
+      )}
     </div>
   );
 };

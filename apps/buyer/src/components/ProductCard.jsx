@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useCart } from '../contexts/CartContext'
 import { useAuth } from '../contexts/AuthContext'
@@ -8,32 +8,54 @@ const ProductCard = ({ product, onAddToCart, onClick }) => {
   const { currentUser } = useAuth()
   const [imageError, setImageError] = useState(false)
   const [isAdding, setIsAdding] = useState(false)
+  const [showSuccessBadge, setShowSuccessBadge] = useState(false)
+  const addToCartTimeoutRef = useRef(null)
 
-  const handleAddToCart = async () => {
+  const handleAddToCart = async (e) => {
+    e.stopPropagation(); // Prevent triggering onClick of parent
+    
+    if (isAdding) return; // Prevent double-clicks
+    
     // Check if user is logged in
     if (!currentUser) {
-      // Save intended destination for post-authentication redirect
       saveIntendedDestination(`/products/${product.id}`, product.id)
-      // Redirect to login with a specific message
       window.location.href = `/login?message=${encodeURIComponent('Please sign in to add this product to your cart and complete your purchase.')}`
       return
     }
 
+    // Clear any existing timeout
+    if (addToCartTimeoutRef.current) {
+      clearTimeout(addToCartTimeoutRef.current)
+    }
+
     setIsAdding(true)
     try {
-      addToCart(product, 1)
+      await addToCart(product, 1)
+      
+      // Show success badge
+      setShowSuccessBadge(true)
+      setTimeout(() => setShowSuccessBadge(false), 2000)
+      
       if (onAddToCart) {
         onAddToCart(product)
       }
-      // Show success message
-      console.log(`${product.name} added to cart successfully`)
     } catch (error) {
       console.error('Error adding to cart:', error)
-      alert(error.message) // Show user-friendly error message
+      // Could show error toast here instead of alert
     } finally {
-      setIsAdding(false)
+      // Short delay to show loading state
+      setTimeout(() => setIsAdding(false), 400)
     }
   }
+  
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (addToCartTimeoutRef.current) {
+        clearTimeout(addToCartTimeoutRef.current)
+      }
+    }
+  }, [])
 
   const getCurrencyCode = (currencyValue) => {
     if (!currencyValue) return 'NGN'
@@ -136,7 +158,14 @@ const ProductCard = ({ product, onAddToCart, onClick }) => {
           
           {/* Stock Status Badge */}
           <div className="absolute top-2 left-2">
-            {isOutOfStock ? (
+            {showSuccessBadge ? (
+              <div className="bg-green-600 text-white text-xs px-2 py-1 rounded-full animate-bounce flex items-center gap-1">
+                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+                Added!
+              </div>
+            ) : isOutOfStock ? (
               <div className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
                 Out of Stock
               </div>

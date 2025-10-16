@@ -809,9 +809,27 @@ const EnhancedBuyer = () => {
                           Fund Wallet for this Order
                         </button>
                       )}
+                      {/* Debug: Show order status */}
+                      {console.log('Order status debug:', selectedOrder?.status, 'satisfactionConfirmed:', selectedOrder?.satisfactionConfirmed)}
+                      
+                      {/* Debug button - always show for testing */}
+                      <button
+                        onClick={() => {
+                          console.log('Order details:', selectedOrder);
+                          openConfirmOrderModal(selectedOrder);
+                          setSelectedOrder(null);
+                        }}
+                        className="bg-yellow-600 text-white px-4 py-2 rounded-md hover:bg-yellow-700 text-sm font-medium"
+                      >
+                        🐛 Debug: Test Confirm Order
+                      </button>
+                      
                       {(selectedOrder?.status === ORDER_STATUS.ESCROW_FUNDED || 
                         selectedOrder?.status === ORDER_STATUS.SHIPPED || 
-                        selectedOrder?.status === ORDER_STATUS.DELIVERED) && 
+                        selectedOrder?.status === ORDER_STATUS.DELIVERED ||
+                        selectedOrder?.status === 'escrow_funded' ||
+                        selectedOrder?.status === 'ready_for_shipment' ||
+                        selectedOrder?.status === 'delivered') && 
                         !selectedOrder.satisfactionConfirmed && (
                         <button
                           onClick={() => {

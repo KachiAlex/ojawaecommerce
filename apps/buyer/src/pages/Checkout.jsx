@@ -283,34 +283,65 @@ const CheckoutForm = ({ total, pricingBreakdown, cartItems, onSuccess, orderDeta
   );
 };
 
-const Checkout = () => {
+const Checkout = ({ location }) => {
   const { cartItems, getCartTotal, getPricingBreakdown, clearCart } = useCart();
   const { currentUser } = useAuth();
   const navigate = useNavigate();
   const [showSuccess, setShowSuccess] = useState(false);
-  const [selectedLogistics, setSelectedLogistics] = useState(null);
-  const [deliveryOption, setDeliveryOption] = useState('pickup'); // 'pickup' or 'delivery'
-  const [buyerAddress, setBuyerAddress] = useState('');
-  const [vendorAddress, setVendorAddress] = useState('');
-  const [availableLogistics, setAvailableLogistics] = useState([]);
-  const [loadingLogistics, setLoadingLogistics] = useState(false);
+  
+  // Get logistics data from cart (passed via navigation state)
+  const cartData = location?.state || {};
+  const [selectedLogistics, setSelectedLogistics] = useState(cartData.selectedLogistics || null);
+  const [deliveryOption, setDeliveryOption] = useState(cartData.deliveryOption || 'pickup');
+  const [buyerAddress, setBuyerAddress] = useState(cartData.buyerAddress || '');
+  const [vendorAddress, setVendorAddress] = useState(cartData.vendorAddress || '');
+  const [routeInfo, setRouteInfo] = useState(cartData.routeInfo || null);
+  const [calculatedDeliveryFee, setCalculatedDeliveryFee] = useState(cartData.calculatedDeliveryFee || 0);
+  
+  // Payment-focused states
   const [walletBalance, setWalletBalance] = useState(0);
   const [pricingBreakdown, setPricingBreakdown] = useState(null);
   const [loadingPricing, setLoadingPricing] = useState(false);
-  const [routeInfo, setRouteInfo] = useState(null);
-  const [calculatedDeliveryFee, setCalculatedDeliveryFee] = useState(0);
-  const [showRouteDetails, setShowRouteDetails] = useState(false);
   const currencyCode = getCurrencyCode(cartItems[0]?.currency || cartItems[0]?.priceCurrency || 'NGN');
   const [canProceed, setCanProceed] = useState(false);
 
-  // Calculate pricing breakdown whenever cart items or delivery options change
+  // Calculate pricing breakdown using cart data
   useEffect(() => {
-    const calculatePricing = async () => {
-      if (cartItems.length === 0) return;
+    const calculatePricing = () => {
+      if (cartItems.length === 0) {
+        setPricingBreakdown(null);
+        return;
+      }
 
       try {
         setLoadingPricing(true);
-        const breakdown = await getPricingBreakdown(deliveryOption, selectedLogistics);
+        
+        // Use pre-calculated delivery fee from cart
+        const subtotal = getCartTotal();
+        const deliveryFee = calculatedDeliveryFee;
+        const serviceFee = subtotal * 0.05;
+        const vat = (subtotal + deliveryFee) * 0.075;
+        const total = subtotal + deliveryFee + serviceFee + vat;
+
+        const breakdown = {
+          subtotal: subtotal,
+          deliveryFee: deliveryFee,
+          serviceFee: serviceFee,
+          vat: vat,
+          total: total,
+          breakdown: {
+            subtotal: { label: 'Subtotal', amount: subtotal },
+            deliveryFee: deliveryFee > 0 ? { 
+              label: 'Delivery Fee', 
+              amount: deliveryFee,
+              description: `${routeInfo?.category} • ${routeInfo?.distance}km`
+            } : null,
+            serviceFee: { label: 'Service Fee (5%)', amount: serviceFee },
+            vat: { label: 'VAT (7.5%)', amount: vat },
+            total: { label: 'Total', amount: total }
+          }
+        };
+        
         setPricingBreakdown(breakdown);
       } catch (error) {
         console.error('Error calculating pricing:', error);
@@ -320,7 +351,7 @@ const Checkout = () => {
     };
 
     calculatePricing();
-  }, [cartItems, deliveryOption, selectedLogistics, getPricingBreakdown]);
+  }, [cartItems, calculatedDeliveryFee, routeInfo, getCartTotal]);
 
   useEffect(() => {
     if (!currentUser) {
@@ -341,12 +372,7 @@ const Checkout = () => {
     loadWalletBalance();
   }, [currentUser, cartItems, navigate]);
   
-  // Calculate smart logistics pricing when addresses change
-  useEffect(() => {
-    if (deliveryOption === 'delivery' && buyerAddress && vendorAddress) {
-      calculateSmartLogisticsPrice();
-    }
-  }, [buyerAddress, vendorAddress, deliveryOption]);
+  // Logistics data is pre-calculated from cart
 
   const checkSelfPurchase = async () => {
     try {
@@ -392,6 +418,18 @@ const Checkout = () => {
     }
   };
 
+  const loadWalletBalance = async () => {
+    try {
+      if (!currentUser) return;
+      
+      const walletData = await firebaseService.wallet.getUserWallet(currentUser.uid);
+      setWalletBalance(walletData?.balance || 0);
+    } catch (error) {
+      console.error('Failed to load wallet balance:', error);
+      setWalletBalance(0);
+    }
+  };
+
   const prefillAddresses = async () => {
     try {
       // Buyer address
@@ -422,43 +460,7 @@ const Checkout = () => {
     }
   };
 
-  const calculateSmartLogisticsPrice = async () => {
-    if (deliveryOption !== 'delivery' || !buyerAddress || !vendorAddress) {
-      setRouteInfo(null);
-      setCalculatedDeliveryFee(0);
-      return;
-    }
-    
-    try {
-      setLoadingLogistics(true);
-      
-      // Calculate delivery price using smart routing
-      const pricing = await logisticsPricingService.calculateDeliveryPrice(
-        vendorAddress,
-        buyerAddress
-      );
-      
-      if (pricing.success) {
-        setRouteInfo(pricing);
-        setCalculatedDeliveryFee(pricing.price);
-        
-        // If we have available partners, set them
-        if (pricing.availablePartners && pricing.availablePartners.length > 0) {
-          setAvailableLogistics(pricing.availablePartners);
-          // Auto-select cheapest partner
-          setSelectedLogistics(pricing.selectedPartner);
-        }
-      } else {
-        // Use default price if calculation fails
-        setCalculatedDeliveryFee(pricing.defaultPrice || 5000);
-      }
-    } catch (error) {
-      console.error('Error calculating logistics price:', error);
-      setCalculatedDeliveryFee(5000); // Default fallback
-    } finally {
-      setLoadingLogistics(false);
-    }
-  };
+  // Simplified - logistics data comes from cart
   
   const fetchAvailableLogistics = async () => {
     if (deliveryOption !== 'delivery' || !buyerAddress) return;
@@ -624,120 +626,58 @@ const Checkout = () => {
               </div>
             </div>
 
-            {deliveryOption === 'delivery' && (
+            {/* Delivery Confirmation - Read-only display from cart */}
+            {deliveryOption === 'delivery' && routeInfo && (
               <div className="mt-6 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Your Delivery Address</label>
-                  <textarea 
-                    rows="3"
-                    value={buyerAddress}
-                    onChange={(e) => setBuyerAddress(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                    placeholder="Enter your full delivery address (e.g., 15 Marina Street, Lagos Island, Lagos, Nigeria)"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Vendor Address</label>
-                  <textarea 
-                    rows="2"
-                    value={vendorAddress}
-                    readOnly
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-gray-50 text-gray-600"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Automatically fetched from vendor's store</p>
-                </div>
-                
-                {/* Smart Route Detection Display */}
-                {loadingLogistics && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-                      <span className="text-blue-900 text-sm font-medium">🗺️ Analyzing route and calculating delivery price...</span>
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-green-600 text-xl">✅</span>
+                    <h4 className="font-medium text-green-900">Delivery Details Confirmed</h4>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-gray-600">Your Address:</p>
+                      <p className="font-medium">{buyerAddress || 'Not specified'}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600">Vendor Address:</p>
+                      <p className="font-medium">{vendorAddress || 'Not specified'}</p>
                     </div>
                   </div>
-                )}
-                
-                {routeInfo && routeInfo.success && (
-                  <div className="bg-gradient-to-r from-emerald-50 to-blue-50 border border-emerald-200 rounded-lg p-4">
-                    <div className="flex items-start justify-between mb-3">
+                  
+                  <div className="mt-3 p-3 bg-white rounded border">
+                    <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="text-2xl">
+                        <span className="text-lg">
                           {routeInfo.category === 'intracity' && '🏙️'}
                           {routeInfo.category === 'intercity' && '🚛'}
                           {routeInfo.category === 'international' && '✈️'}
                         </span>
                         <div>
-                          <h4 className="font-semibold text-gray-900 capitalize">{routeInfo.category} Delivery</h4>
-                          <p className="text-sm text-gray-600">{routeInfo.from} → {routeInfo.to}</p>
+                          <p className="font-medium">{routeInfo.category} Delivery</p>
+                          <p className="text-xs text-gray-500">{routeInfo.from} → {routeInfo.to}</p>
                         </div>
                       </div>
-                      <button
-                        onClick={() => setShowRouteDetails(!showRouteDetails)}
-                        className="text-xs text-emerald-600 hover:text-emerald-700 font-medium"
-                      >
-                        {showRouteDetails ? 'Hide Details' : 'Show Details'}
-                      </button>
-                    </div>
-                    
-                    <div className="grid grid-cols-3 gap-3 mb-3">
-                      <div className="text-center p-2 bg-white rounded">
-                        <div className="text-lg font-bold text-emerald-600">₦{routeInfo.price.toLocaleString()}</div>
-                        <div className="text-xs text-gray-600">Delivery Fee</div>
-                      </div>
-                      <div className="text-center p-2 bg-white rounded">
-                        <div className="text-lg font-bold text-blue-600">{routeInfo.distance}km</div>
-                        <div className="text-xs text-gray-600">Distance</div>
-                      </div>
-                      <div className="text-center p-2 bg-white rounded">
-                        <div className="text-lg font-bold text-purple-600">
-                          {routeInfo.availablePartners?.length || 0}
-                        </div>
-                        <div className="text-xs text-gray-600">Partners</div>
+                      <div className="text-right">
+                        <p className="font-bold text-emerald-600">₦{routeInfo.price.toLocaleString()}</p>
+                        <p className="text-xs text-gray-500">{routeInfo.distance}km</p>
                       </div>
                     </div>
                     
-                    {showRouteDetails && (
-                      <div className="mt-3 pt-3 border-t border-emerald-200 space-y-2">
-                        {routeInfo.usingPlatformDefault ? (
-                          <div className="text-xs text-gray-700 bg-yellow-50 p-2 rounded">
-                            <span className="font-medium">ℹ️ Platform Default Pricing:</span> No logistics partners currently service this route. Using standard platform rates.
-                          </div>
-                        ) : (
-                          <div className="text-xs text-gray-700 bg-green-50 p-2 rounded">
-                            <span className="font-medium">✓ Partner Available:</span> {routeInfo.selectedPartner?.company?.name || 'Logistics Partner'} selected (cheapest option)
-                          </div>
-                        )}
-                        
-                        {routeInfo.breakdown && (
-                          <div className="text-xs text-gray-600 space-y-1">
-                            <p>• {routeInfo.breakdown.baseCalculation}</p>
-                            <p>• {routeInfo.breakdown.appliedRule}</p>
-                          </div>
-                        )}
+                    {selectedLogistics && (
+                      <div className="mt-2 pt-2 border-t border-gray-200">
+                        <p className="text-xs text-gray-600">
+                          Partner: {selectedLogistics.company?.name || 'Platform Default'}
+                        </p>
                       </div>
                     )}
                   </div>
-                )}
-                
-                <EnhancedLogisticsSelector 
-                  onLogisticsSelect={(logisticsData) => {
-                    setSelectedLogistics({
-                      ...logisticsData.partner,
-                      price: `₦${logisticsData.partner.pricing.cost.toLocaleString()}`,
-                      company: logisticsData.partner.name,
-                      estimatedDays: logisticsData.partner.estimatedDelivery
-                    });
-                  }}
-                  deliveryData={{
-                    weight: cartItems.reduce((total, item) => total + (item.weight || 1) * item.quantity, 0),
-                    deliveryType: 'standard',
-                    isFragile: cartItems.some(item => item.isFragile),
-                    requiresSignature: cartItems.some(item => item.requiresSignature),
-                    itemValue: getCartTotal()
-                  }}
-                  showRouteVisualization={true}
-                />
+                  
+                  <div className="mt-3 text-xs text-green-700 bg-green-100 p-2 rounded">
+                    💡 To modify delivery options, please go back to your cart and update your selections.
+                  </div>
+                </div>
               </div>
             )}
           </div>
