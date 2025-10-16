@@ -9,6 +9,7 @@ import {
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
 import firebaseService from '../services/firebaseService';
+import { storeService } from '../services/trackingService';
 
 const AuthContext = createContext();
 
@@ -154,6 +155,31 @@ export const AuthProvider = ({ children }) => {
         await firebaseService.wallet.createWallet(currentUser.uid, 'vendor');
       } catch (walletError) {
         console.error('Error creating vendor wallet:', walletError);
+      }
+
+      // Automatically create a store for the vendor
+      try {
+        const storeData = {
+          name: vendorData.storeName,
+          description: vendorData.storeDescription,
+          category: vendorData.businessType || 'general',
+          contactInfo: {
+            email: currentUser.email,
+            phone: vendorData.businessPhone,
+            address: vendorData.businessAddress
+          },
+          settings: {
+            isPublic: true,
+            allowReviews: true,
+            showContactInfo: true
+          }
+        };
+        
+        const createdStore = await storeService.createStore(currentUser.uid, storeData);
+        console.log('Store created automatically during onboarding:', createdStore);
+      } catch (storeError) {
+        console.error('Error creating store during onboarding:', storeError);
+        // Don't fail the onboarding if store creation fails
       }
 
       return vendorProfile;

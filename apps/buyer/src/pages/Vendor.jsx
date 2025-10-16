@@ -15,6 +15,7 @@ import VendorAnalyticsDashboard from '../components/VendorAnalyticsDashboard';
 import DisputeManagement from '../components/DisputeManagement';
 import NotificationPreferences from '../components/NotificationPreferences';
 import DashboardSwitcher from '../components/DashboardSwitcher';
+import CreateStoreForExistingVendor from '../components/CreateStoreForExistingVendor';
 
 const Vendor = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -574,6 +575,11 @@ const Vendor = () => {
           {/* Tab Content */}
           {activeTab === 'overview' && (
             <>
+              {/* Store Creation Helper for Existing Vendors */}
+              <div className="mb-8">
+                <CreateStoreForExistingVendor />
+              </div>
+              
               {/* Enhanced Analytics Dashboard */}
               <VendorAnalyticsDashboard 
                 vendorId={currentUser.uid}
