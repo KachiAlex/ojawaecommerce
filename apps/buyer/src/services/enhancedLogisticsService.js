@@ -72,14 +72,24 @@ class EnhancedLogisticsService {
    * Determine route category based on addresses
    */
   categorizeRoute(vendorAddress, buyerAddress) {
-    // Normalize for comparison
-    const vendorCity = vendorAddress.city?.toLowerCase().trim();
-    const vendorState = vendorAddress.state?.toLowerCase().trim();
-    const vendorCountry = vendorAddress.country?.toLowerCase().trim();
+    // Validate addresses are objects with required fields
+    if (!vendorAddress || !buyerAddress) {
+      return null;
+    }
+
+    // Normalize for comparison - handle both string and object types
+    const vendorCity = (typeof vendorAddress.city === 'string' ? vendorAddress.city : '')?.toLowerCase().trim();
+    const vendorState = (typeof vendorAddress.state === 'string' ? vendorAddress.state : '')?.toLowerCase().trim();
+    const vendorCountry = (typeof vendorAddress.country === 'string' ? vendorAddress.country : 'nigeria')?.toLowerCase().trim();
     
-    const buyerCity = buyerAddress.city?.toLowerCase().trim();
-    const buyerState = buyerAddress.state?.toLowerCase().trim();
-    const buyerCountry = buyerAddress.country?.toLowerCase().trim();
+    const buyerCity = (typeof buyerAddress.city === 'string' ? buyerAddress.city : '')?.toLowerCase().trim();
+    const buyerState = (typeof buyerAddress.state === 'string' ? buyerAddress.state : '')?.toLowerCase().trim();
+    const buyerCountry = (typeof buyerAddress.country === 'string' ? buyerAddress.country : 'nigeria')?.toLowerCase().trim();
+
+    // Check if we have minimum required data
+    if (!vendorCity || !buyerCity) {
+      return null;
+    }
 
     // International: Different countries
     if (vendorCountry !== buyerCountry) {
@@ -255,8 +265,24 @@ class EnhancedLogisticsService {
    */
   async calculateCompleteDelivery(vendorAddress, buyerAddress) {
     try {
+      // Validate inputs
+      if (!vendorAddress || !buyerAddress || 
+          !vendorAddress.city || !buyerAddress.city) {
+        return {
+          success: false,
+          error: 'Incomplete address information'
+        };
+      }
+
       // Step 1: Categorize route
       const routeCategory = this.categorizeRoute(vendorAddress, buyerAddress);
+      
+      if (!routeCategory) {
+        return {
+          success: false,
+          error: 'Could not categorize route'
+        };
+      }
       
       // Step 2: Calculate distance using Google Maps
       const distanceResult = await this.calculateDistance(vendorAddress, buyerAddress);

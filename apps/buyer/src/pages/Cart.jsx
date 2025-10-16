@@ -301,10 +301,15 @@ const Cart = () => {
               </div>
             )}
             
-            {buyerAddress && (
+            {buyerAddress && buyerAddress.city && (
               <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
                 <div className="text-sm text-green-700">
-                  <span className="font-semibold">🏠 Your Delivery Address:</span> {formatLocation(buyerAddress)}
+                  <span className="font-semibold">🏠 Your Delivery Address:</span>
+                  <div className="ml-4 mt-1 text-xs">
+                    {buyerAddress.street && <>{buyerAddress.street}<br/></>}
+                    {buyerAddress.city}, {buyerAddress.state}<br/>
+                    {buyerAddress.country}
+                  </div>
                 </div>
               </div>
             )}
