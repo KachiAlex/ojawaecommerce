@@ -5,8 +5,10 @@ import { useAuth } from '../contexts/AuthContext';
 import { pricingService } from '../services/pricingService';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
-import logisticsPricingService from '../services/logisticsPricingService';
+import enhancedLogisticsService from '../services/enhancedLogisticsService';
 import { formatLocation } from '../utils/addressUtils';
+import AddressInput from '../components/AddressInput';
+import { formatCurrency as formatCurrencyUtil } from '../utils/currencyUtils';
 
 // Helper function to format currency with amount
 const formatCurrency = (amount, currencyString) => {
@@ -30,7 +32,8 @@ const Cart = () => {
   const [loading, setLoading] = useState(false);
   const [vendorInfo, setVendorInfo] = useState(null);
   const [itemVendors, setItemVendors] = useState({});
-  const [buyerAddress, setBuyerAddress] = useState('');
+  const [buyerAddress, setBuyerAddress] = useState({ street: '', city: '', state: '', country: 'Nigeria' });
+  const [vendorAddress, setVendorAddress] = useState({ street: '', city: '', state: '', country: 'Nigeria' });
   const [routeInfo, setRouteInfo] = useState(null);
   const [loadingRoute, setLoadingRoute] = useState(false);
   const [showRouteDetails, setShowRouteDetails] = useState(false);
@@ -66,8 +69,12 @@ const Cart = () => {
         const buyerDoc = await getDoc(doc(db, 'users', currentUser.uid));
         if (buyerDoc.exists()) {
           const data = buyerDoc.data();
-          if (data.address) {
-            setBuyerAddress(data.address);
+          if (data.structuredAddress) {
+            // Use structured address if available
+            setBuyerAddress(data.structuredAddress);
+          } else if (data.address) {
+            // Parse old string address format
+            setBuyerAddress({ street: data.address, city: '', state: '', country: 'Nigeria' });
           }
         }
       } catch (error) {
@@ -81,8 +88,10 @@ const Cart = () => {
   // Calculate smart logistics pricing when addresses are available
   useEffect(() => {
     const calculateSmartPricing = async () => {
-      // Only calculate if delivery is selected, addresses exist, and buyer address is substantial
-      if (deliveryOption !== 'delivery' || !buyerAddress || buyerAddress.trim().length < 10 || !vendorInfo?.address) {
+      // Only calculate if delivery is selected and addresses are complete
+      if (deliveryOption !== 'delivery' || 
+          !buyerAddress.city || !buyerAddress.state || 
+          !vendorAddress.city || !vendorAddress.state) {
         setRouteInfo(null);
         setLoadingRoute(false);
         return;
@@ -90,8 +99,8 @@ const Cart = () => {
 
       try {
         setLoadingRoute(true);
-        const pricing = await logisticsPricingService.calculateDeliveryPrice(
-          vendorInfo.address,
+        const pricing = await enhancedLogisticsService.calculateCompleteDelivery(
+          vendorAddress,
           buyerAddress
         );
         
@@ -100,9 +109,11 @@ const Cart = () => {
           // Auto-select cheapest partner if available
           if (pricing.selectedPartner) {
             setSelectedLogistics({
-              ...pricing.selectedPartner,
-              price: `₦${pricing.price.toLocaleString()}`,
-              company: pricing.selectedPartner.company?.name || 'Logistics Partner'
+              id: pricing.selectedPartner.id,
+              name: pricing.selectedPartner.companyName || 'Logistics Partner',
+              cost: pricing.price,
+              rating: pricing.selectedPartner.rating || 0,
+              estimatedTime: pricing.duration || '2-3 days'
             });
           }
         }
@@ -114,7 +125,7 @@ const Cart = () => {
     };
 
     calculateSmartPricing();
-  }, [buyerAddress, vendorInfo?.address, deliveryOption]);
+  }, [buyerAddress, vendorAddress, deliveryOption]);
 
   // Fetch vendor info for all cart items
   useEffect(() => {
@@ -155,10 +166,14 @@ const Cart = () => {
                 const userSnap = await getDoc(doc(db, 'users', vendorId));
                 if (userSnap.exists()) {
                   const u = userSnap.data();
+                  const vendorAddr = u.vendorProfile?.structuredAddress || u.structuredAddress;
+                  const addrString = u.vendorProfile?.businessAddress || u.address || 'Not specified';
+                  
                   vendorMap[vendorId] = {
                     id: vendorId,
                     name: u.vendorProfile?.storeName || u.displayName || u.name || 'Vendor',
-                    address: u.vendorProfile?.businessAddress || u.address || 'Not specified'
+                    address: addrString,
+                    structuredAddress: vendorAddr || { street: addrString, city: '', state: '', country: 'Nigeria' }
                   };
                 }
               } catch (err) {
@@ -177,7 +192,12 @@ const Cart = () => {
         // Set primary vendor info (first vendor)
         const firstVendorId = cartItems[0].vendorId || itemToVendorMap[cartItems[0].id];
         if (firstVendorId && vendorMap[firstVendorId]) {
-          setVendorInfo(vendorMap[firstVendorId]);
+          const vendor = vendorMap[firstVendorId];
+          setVendorInfo(vendor);
+          // Set structured vendor address
+          if (vendor.structuredAddress) {
+            setVendorAddress(vendor.structuredAddress);
+          }
         } else {
           setVendorInfo(null);
         }
@@ -269,7 +289,14 @@ const Cart = () => {
                   <span className="font-semibold">🏪 Vendor:</span> {vendorInfo.name}
                 </div>
                 <div className="text-sm text-blue-600">
-                  <span className="font-semibold">📍 Pickup Location:</span> {formatLocation(vendorInfo.address)}
+                  <span className="font-semibold">📍 Pickup Location:</span>
+                  {vendorAddress.street && (
+                    <div className="ml-4 mt-1 text-xs">
+                      {vendorAddress.street}<br/>
+                      {vendorAddress.city}, {vendorAddress.state}<br/>
+                      {vendorAddress.country}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -283,13 +310,15 @@ const Cart = () => {
             )}
             
             {/* Address Required Prompt */}
-            {deliveryOption === 'delivery' && (!buyerAddress || buyerAddress.trim().length < 10) && !loadingRoute && (
+            {deliveryOption === 'delivery' && (!buyerAddress.city || !buyerAddress.state) && !loadingRoute && (
               <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">📍</span>
                   <div>
-                    <p className="text-blue-900 text-sm font-medium">Enter your delivery address</p>
-                    <p className="text-blue-700 text-xs">We'll calculate the delivery route and pricing once you provide your address</p>
+                    <p className="text-blue-900 text-sm font-medium">Complete your delivery address</p>
+                    <p className="text-blue-700 text-xs">
+                      Please provide your Street, City, and State to calculate delivery pricing
+                    </p>
                   </div>
                 </div>
               </div>
@@ -506,18 +535,14 @@ const Cart = () => {
               {/* Delivery Address Input */}
               {deliveryOption === 'delivery' && (
                 <div className="mt-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Your Delivery Address <span className="text-red-500">*</span>
-                  </label>
-                  <textarea
-                    rows="3"
+                  <AddressInput
                     value={buyerAddress}
-                    onChange={(e) => setBuyerAddress(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                    placeholder="Enter your full delivery address (e.g., 15 Marina Street, Lagos Island, Lagos, Nigeria)"
+                    onChange={setBuyerAddress}
+                    label="Your Delivery Address"
+                    required={true}
                   />
-                  <p className="text-xs text-gray-500 mt-1">
-                    This address will be used to calculate delivery routes and pricing
+                  <p className="text-xs text-gray-500 mt-2">
+                    💡 Provide complete address details to get accurate delivery pricing
                   </p>
                 </div>
               )}
