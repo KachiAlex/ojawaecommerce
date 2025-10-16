@@ -579,6 +579,42 @@ const Vendor = () => {
               <div className="mb-8">
                 <CreateStoreForExistingVendor />
               </div>
+
+              {/* Public Store Preview */}
+              <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-6 mb-8">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <div className="text-purple-400 text-3xl mr-4">🌐</div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-purple-800">Your Public Store</h3>
+                      <p className="text-purple-600 text-sm">
+                        Share your store with customers. They can browse and buy your products directly.
+                      </p>
+                      <p className="text-purple-500 text-xs mt-1 font-mono">
+                        {window.location.origin}/vendor/{currentUser.uid}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex space-x-3">
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(`${window.location.origin}/vendor/${currentUser.uid}`);
+                        alert('Store link copied to clipboard!');
+                      }}
+                      className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors text-sm"
+                    >
+                      Copy Link
+                    </button>
+                    <Link
+                      to={`/vendor/${currentUser.uid}`}
+                      target="_blank"
+                      className="bg-white text-purple-600 px-4 py-2 rounded-lg border border-purple-200 hover:bg-purple-50 transition-colors text-sm"
+                    >
+                      Preview Store
+                    </Link>
+                  </div>
+                </div>
+              </div>
               
               {/* Enhanced Analytics Dashboard */}
               <VendorAnalyticsDashboard 

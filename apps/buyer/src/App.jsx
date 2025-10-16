@@ -76,6 +76,7 @@ const StockSyncTest = lazy(() => import('./pages/StockSyncTest'));
 const AuthFlowTest = lazy(() => import('./pages/AuthFlowTest'));
 const ProductStoreAssignment = lazy(() => import('./components/ProductStoreAssignment'));
 const StoreDisplay = lazy(() => import('./components/StoreDisplay'));
+const UnifiedStore = lazy(() => import('./components/UnifiedStore'));
 const TrackingSystemTest = lazy(() => import('./pages/TrackingSystemTest'));
 const LogisticsTrackingTest = lazy(() => import('./pages/LogisticsTrackingTest'));
 const PricingTest = lazy(() => import('./pages/PricingTest'));
@@ -399,9 +400,16 @@ const OnboardingWrapper = () => {
               <TrackingInterface />
             </Suspense>
           } />
+          {/* Legacy store route (keep for backward compatibility) */}
           <Route path="/store/:storeId" element={
             <Suspense fallback={<RouteLoadingSpinner route="default" />}>
               <StoreDisplay />
+            </Suspense>
+          } />
+          {/* New unified store route */}
+          <Route path="/vendor/:vendorId" element={
+            <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+              <UnifiedStore />
             </Suspense>
           } />
           <Route path="/tracking-system-test" element={
