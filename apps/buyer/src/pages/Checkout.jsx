@@ -460,43 +460,7 @@ const Checkout = ({ location }) => {
     }
   };
 
-  // Simplified - logistics data comes from cart
-  
-  const fetchAvailableLogistics = async () => {
-    if (deliveryOption !== 'delivery' || !buyerAddress) return;
-    
-    try {
-      setLoadingLogistics(true);
-      
-      // Calculate estimated weight and distance for the delivery
-      const estimatedWeight = cartItems.reduce((total, item) => total + (item.weight || 1), 0);
-      const estimatedDistance = 50; // Default 50km - in real app, calculate from addresses
-      
-      const deliveryData = {
-        pickupLocation: vendorAddress || 'Vendor Location',
-        deliveryLocation: buyerAddress,
-        weight: estimatedWeight,
-        distance: estimatedDistance
-      };
-      
-      const partners = await firebaseService.logistics.getAvailablePartners(deliveryData);
-      setAvailableLogistics(partners);
-    } catch (error) {
-      console.error('Error fetching logistics partners:', error);
-    } finally {
-      setLoadingLogistics(false);
-    }
-  };
-
-  // Fetch logistics when delivery option changes
-  useEffect(() => {
-    if (deliveryOption === 'delivery' && buyerAddress) {
-      fetchAvailableLogistics();
-    } else {
-      setAvailableLogistics([]);
-      setSelectedLogistics(null);
-    }
-  }, [deliveryOption, buyerAddress]);
+  // Simplified - logistics data comes from cart (no need to fetch here)
 
   const handlePaymentSuccess = (paymentIntent) => {
     setShowSuccess(true);
