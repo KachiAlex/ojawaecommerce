@@ -81,8 +81,10 @@ const Cart = () => {
   // Calculate smart logistics pricing when addresses are available
   useEffect(() => {
     const calculateSmartPricing = async () => {
-      if (deliveryOption !== 'delivery' || !buyerAddress || !vendorInfo?.address) {
+      // Only calculate if delivery is selected, addresses exist, and buyer address is substantial
+      if (deliveryOption !== 'delivery' || !buyerAddress || buyerAddress.trim().length < 10 || !vendorInfo?.address) {
         setRouteInfo(null);
+        setLoadingRoute(false);
         return;
       }
 
@@ -276,6 +278,19 @@ const Cart = () => {
               <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
                 <div className="text-sm text-green-700">
                   <span className="font-semibold">🏠 Your Delivery Address:</span> {formatLocation(buyerAddress)}
+                </div>
+              </div>
+            )}
+            
+            {/* Address Required Prompt */}
+            {deliveryOption === 'delivery' && (!buyerAddress || buyerAddress.trim().length < 10) && !loadingRoute && (
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">📍</span>
+                  <div>
+                    <p className="text-blue-900 text-sm font-medium">Enter your delivery address</p>
+                    <p className="text-blue-700 text-xs">We'll calculate the delivery route and pricing once you provide your address</p>
+                  </div>
                 </div>
               </div>
             )}
@@ -488,36 +503,22 @@ const Cart = () => {
                 </label>
               </div>
 
-              {/* Logistics Selection */}
+              {/* Delivery Address Input */}
               {deliveryOption === 'delivery' && (
                 <div className="mt-4">
-                  <h4 className="text-md font-medium text-gray-800 mb-2">Select Logistics Partner</h4>
-                  <div className="space-y-2 max-h-40 overflow-y-auto">
-                    {availableLogistics.map((company) => (
-                      <label key={company.id} className="flex items-center p-2 border rounded cursor-pointer hover:bg-gray-50">
-                        <input
-                          type="radio"
-                          name="logistics"
-                          value={company.id}
-                          checked={selectedLogistics?.id === company.id}
-                          onChange={() => setSelectedLogistics(company)}
-                          className="mr-2"
-                        />
-                        <div className="flex-1">
-                          <div className="flex justify-between items-center">
-                            <span className="font-medium text-gray-900">{company.name}</span>
-                            <span className="text-sm text-gray-600">
-                              {company.rating ? `⭐ ${company.rating}` : 'No rating'}
-                            </span>
-                          </div>
-                          <div className="flex justify-between items-center text-sm text-gray-600">
-                            <span>Cost: {pricingService.formatCurrency(company.cost || 0)}</span>
-                            <span>Est: {company.estimatedTime || 'N/A'}</span>
-                          </div>
-                        </div>
-                      </label>
-                    ))}
-                  </div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Your Delivery Address <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    rows="3"
+                    value={buyerAddress}
+                    onChange={(e) => setBuyerAddress(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    placeholder="Enter your full delivery address (e.g., 15 Marina Street, Lagos Island, Lagos, Nigeria)"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    This address will be used to calculate delivery routes and pricing
+                  </p>
                 </div>
               )}
             </div>
