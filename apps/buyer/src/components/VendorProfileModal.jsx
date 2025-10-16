@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import AddressInput from './AddressInput';
 import firebaseService from '../services/firebaseService';
 
 const VendorProfileModal = ({ isOpen, onClose, onUpdate }) => {
@@ -11,7 +12,8 @@ const VendorProfileModal = ({ isOpen, onClose, onUpdate }) => {
     storeName: '',
     profilePicture: null,
     website: '',
-    businessAddress: '',
+    businessAddress: '', // Keep for backward compatibility
+    structuredAddress: { street: '', city: '', state: '', country: 'Nigeria' },
     businessPhone: '',
     utilityBill: null
   });
@@ -23,6 +25,7 @@ const VendorProfileModal = ({ isOpen, onClose, onUpdate }) => {
         profilePicture: null,
         website: userProfile.vendorProfile.website || '',
         businessAddress: userProfile.vendorProfile.businessAddress || '',
+        structuredAddress: userProfile.vendorProfile.structuredAddress || { street: '', city: '', state: '', country: 'Nigeria' },
         businessPhone: userProfile.vendorProfile.businessPhone || '',
         utilityBill: null
       });
@@ -70,12 +73,18 @@ const VendorProfileModal = ({ isOpen, onClose, onUpdate }) => {
     setSuccess('');
 
     try {
+      // Build full address string from structured address
+      const fullAddress = formData.structuredAddress.city ? 
+        `${formData.structuredAddress.street}, ${formData.structuredAddress.city}, ${formData.structuredAddress.state}, ${formData.structuredAddress.country}` :
+        formData.businessAddress;
+
       const updates = {
         vendorProfile: {
           ...userProfile.vendorProfile,
           storeName: formData.storeName,
           website: formData.website || null,
-          businessAddress: formData.businessAddress,
+          businessAddress: fullAddress,
+          structuredAddress: formData.structuredAddress,
           businessPhone: formData.businessPhone,
           updatedAt: new Date()
         }
@@ -190,18 +199,15 @@ const VendorProfileModal = ({ isOpen, onClose, onUpdate }) => {
 
           {/* Business Address */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Business Address *
-            </label>
-            <textarea
-              name="businessAddress"
-              value={formData.businessAddress}
-              onChange={handleInputChange}
-              required
-              rows={3}
-              className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-              placeholder="Enter your complete business address"
+            <AddressInput
+              value={formData.structuredAddress}
+              onChange={(address) => setFormData(prev => ({ ...prev, structuredAddress: address }))}
+              label="Business Address"
+              required={true}
             />
+            <p className="text-xs text-gray-500 mt-2">
+              💡 Provide complete address for accurate delivery logistics matching
+            </p>
           </div>
 
           {/* Business Phone */}
