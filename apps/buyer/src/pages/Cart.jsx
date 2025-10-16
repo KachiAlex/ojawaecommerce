@@ -88,24 +88,37 @@ const Cart = () => {
   // Calculate smart logistics pricing when addresses are available
   useEffect(() => {
     const calculateSmartPricing = async () => {
+      console.log('=== LOGISTICS CALCULATION DEBUG ===');
+      console.log('Delivery option:', deliveryOption);
+      console.log('Buyer address:', buyerAddress);
+      console.log('Vendor address:', vendorAddress);
+      
       // Only calculate if delivery is selected and addresses are complete
       if (deliveryOption !== 'delivery' || 
           !buyerAddress.city || !buyerAddress.state || 
           !vendorAddress.city || !vendorAddress.state) {
+        console.log('Skipping calculation - missing required fields');
+        console.log('Buyer city:', buyerAddress.city, 'state:', buyerAddress.state);
+        console.log('Vendor city:', vendorAddress.city, 'state:', vendorAddress.state);
         setRouteInfo(null);
         setLoadingRoute(false);
         return;
       }
 
       try {
+        console.log('Starting logistics calculation...');
         setLoadingRoute(true);
         const pricing = await enhancedLogisticsService.calculateCompleteDelivery(
           vendorAddress,
           buyerAddress
         );
         
+        console.log('Pricing result:', pricing);
+        
         if (pricing.success) {
           setRouteInfo(pricing);
+          console.log('Route info set successfully:', pricing);
+          
           // Auto-select cheapest partner if available
           if (pricing.selectedPartner) {
             setSelectedLogistics({
@@ -115,7 +128,12 @@ const Cart = () => {
               rating: pricing.selectedPartner.rating || 0,
               estimatedTime: pricing.duration || '2-3 days'
             });
+            console.log('Logistics partner selected:', pricing.selectedPartner.companyName);
+          } else {
+            console.log('No logistics partner available, using platform default');
           }
+        } else {
+          console.error('Pricing calculation failed:', pricing.error);
         }
       } catch (error) {
         console.error('Error calculating smart pricing:', error);
@@ -191,15 +209,23 @@ const Cart = () => {
         
         // Set primary vendor info (first vendor)
         const firstVendorId = cartItems[0].vendorId || itemToVendorMap[cartItems[0].id];
+        console.log('First vendor ID:', firstVendorId);
+        console.log('Vendor from map:', vendorMap[firstVendorId]);
+        
         if (firstVendorId && vendorMap[firstVendorId]) {
           const vendor = vendorMap[firstVendorId];
           setVendorInfo(vendor);
+          console.log('Setting vendor info:', vendor);
+          console.log('Vendor structured address:', vendor.structuredAddress);
+          
           // Set structured vendor address
           if (vendor.structuredAddress) {
             setVendorAddress(vendor.structuredAddress);
+            console.log('Vendor address set to:', vendor.structuredAddress);
           }
         } else {
           setVendorInfo(null);
+          console.log('No vendor found for ID:', firstVendorId);
         }
       } catch (e) {
         console.error('Failed to fetch vendor info', e);
@@ -290,11 +316,22 @@ const Cart = () => {
                 </div>
                 <div className="text-sm text-blue-600">
                   <span className="font-semibold">📍 Pickup Location:</span>
-                  {vendorAddress.street && (
+                  {vendorAddress.city && vendorAddress.state ? (
                     <div className="ml-4 mt-1 text-xs">
-                      {vendorAddress.street}<br/>
+                      {vendorAddress.street && <>{vendorAddress.street}<br/></>}
                       {vendorAddress.city}, {vendorAddress.state}<br/>
                       {vendorAddress.country}
+                    </div>
+                  ) : vendorInfo.address ? (
+                    <div className="ml-4 mt-1 text-xs text-gray-600">
+                      {vendorInfo.address}
+                      <div className="mt-1 text-yellow-600">
+                        ⚠️ Vendor needs to update to structured address format
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="ml-4 mt-1 text-xs text-red-600">
+                      ⚠️ Vendor address not set. Please ask vendor to update their business address.
                     </div>
                   )}
                 </div>

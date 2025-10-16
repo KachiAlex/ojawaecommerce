@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import AddressInput from '../components/AddressInput';
 
 const BecomeVendor = () => {
   const [step, setStep] = useState(1);
@@ -12,7 +13,8 @@ const BecomeVendor = () => {
   const [formData, setFormData] = useState({
     nin: '',
     businessName: '',
-    businessAddress: '',
+    businessAddress: '', // Keep for backward compatibility
+    structuredAddress: { street: '', city: '', state: '', country: 'Nigeria' },
     businessPhone: '',
     businessType: 'retail',
     storeName: '',
@@ -43,8 +45,8 @@ const BecomeVendor = () => {
     
     if (step === 1) {
       // Validate NIN and business info
-      if (!formData.nin || !formData.businessName || !formData.businessAddress || !formData.businessPhone) {
-        setError('Please fill in all required fields');
+      if (!formData.nin || !formData.businessName || !formData.structuredAddress.city || !formData.structuredAddress.state || !formData.businessPhone) {
+        setError('Please fill in all required fields including complete business address');
         return;
       }
       if (formData.nin.length !== 11) {
@@ -69,7 +71,18 @@ const BecomeVendor = () => {
       setLoading(true);
       setError('');
       
-      await completeVendorOnboarding(formData);
+      // Build full address string from structured address
+      const fullAddress = formData.structuredAddress.city ? 
+        `${formData.structuredAddress.street}, ${formData.structuredAddress.city}, ${formData.structuredAddress.state}, ${formData.structuredAddress.country}` :
+        formData.businessAddress;
+      
+      const vendorData = {
+        ...formData,
+        businessAddress: fullAddress,
+        structuredAddress: formData.structuredAddress
+      };
+      
+      await completeVendorOnboarding(vendorData);
       
       // Redirect to vendor dashboard
       navigate('/vendor');
@@ -200,17 +213,15 @@ const BecomeVendor = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Business Address *
-                </label>
-                <textarea
-                  name="businessAddress"
-                  value={formData.businessAddress}
-                  onChange={handleChange}
-                  rows="3"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter your complete business address"
+                <AddressInput
+                  value={formData.structuredAddress}
+                  onChange={(address) => setFormData({ ...formData, structuredAddress: address })}
+                  label="Business Address"
+                  required={true}
                 />
+                <p className="text-xs text-gray-500 mt-2">
+                  💡 This address will be used for delivery logistics and customer pickups
+                </p>
               </div>
 
               <div>

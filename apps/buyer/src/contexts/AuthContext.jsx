@@ -130,6 +130,7 @@ export const AuthProvider = ({ children }) => {
         nin: vendorData.nin,
         businessName: vendorData.businessName,
         businessAddress: vendorData.businessAddress,
+        structuredAddress: vendorData.structuredAddress,
         businessPhone: vendorData.businessPhone,
         businessType: vendorData.businessType,
         storeName: vendorData.storeName,
