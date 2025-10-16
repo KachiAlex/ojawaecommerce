@@ -1,8 +1,8 @@
 // Service Worker for Ojawa E-commerce PWA - Optimized
-const CACHE_NAME = 'ojawa-v2.0.1';
-const STATIC_CACHE = 'ojawa-static-v2.0.1';
-const DYNAMIC_CACHE = 'ojawa-dynamic-v2.0.1';
-const IMAGE_CACHE = 'ojawa-images-v2.0.1';
+const CACHE_NAME = 'ojawa-v2.0.2';
+const STATIC_CACHE = 'ojawa-static-v2.0.2';
+const DYNAMIC_CACHE = 'ojawa-dynamic-v2.0.2';
+const IMAGE_CACHE = 'ojawa-images-v2.0.2';
 
 // Critical files to cache immediately
 const STATIC_FILES = [
@@ -103,8 +103,8 @@ self.addEventListener('fetch', (event) => {
   if (url.origin === self.location.origin) {
     // Same-origin requests
     if (url.pathname.startsWith('/assets/')) {
-      // Vite assets - cache first, then network
-      event.respondWith(cacheFirstStrategy(request));
+      // Vite assets - network first to always get latest JS/CSS
+      event.respondWith(networkFirstStrategy(request));
     } else if (isImageRequest(url)) {
       // Images - cache first with fallback
       event.respondWith(imageCacheStrategy(request));
@@ -112,8 +112,8 @@ self.addEventListener('fetch', (event) => {
       // API requests - network first, then cache
       event.respondWith(networkFirstStrategy(request));
     } else {
-      // HTML pages - cache first, then network
-      event.respondWith(cacheFirstStrategy(request));
+      // HTML pages - network first to ensure latest version
+      event.respondWith(networkFirstStrategy(request));
     }
   } else {
     // Cross-origin requests - let network handle them

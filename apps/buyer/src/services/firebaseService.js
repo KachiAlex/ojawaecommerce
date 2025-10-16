@@ -270,6 +270,22 @@ export const productService = {
     }
   },
 
+  // Get all products for a vendor (non-paged)
+  async getByVendor(vendorId) {
+    try {
+      const q = query(
+        collection(db, 'products'),
+        where('vendorId', '==', vendorId),
+        orderBy('createdAt', 'desc')
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      console.error('Error fetching vendor products:', error);
+      throw error;
+    }
+  },
+
   // Get single product
   async getById(productId) {
     try {

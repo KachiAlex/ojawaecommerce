@@ -84,6 +84,8 @@ service cloud.firestore {
     match /users/{userId} {
       allow read, write: if isOwner(userId);
       allow read: if isAdmin(); // Admins can read all user profiles
+      // Allow authenticated users to read vendor profiles (needed for cart/checkout)
+      allow read: if isAuthenticated() && get(/databases/$(database)/documents/users/$(userId)).data.isVendor == true;
     }
     
     // Products collection - anyone can read, vendors can create/update their own

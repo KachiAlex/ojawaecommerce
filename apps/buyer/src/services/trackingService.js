@@ -351,6 +351,12 @@ export const storeService = {
     }
   },
 
+  // Get stores by vendor ID (compat name)
+  async getByVendor(vendorId) {
+    // Backward-compatible alias for getStoresByVendor
+    return this.getStoresByVendor(vendorId);
+  },
+
   // Get store by tracking ID
   async getStoreByTrackingId(storeId) {
     try {

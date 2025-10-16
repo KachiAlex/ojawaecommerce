@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { storeService } from '../services/trackingService';
 
 const CreateStoreForExistingVendor = () => {
   const { currentUser, userProfile } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
@@ -106,14 +108,27 @@ const CreateStoreForExistingVendor = () => {
   if (!userProfile?.vendorProfile) {
     return (
       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
-        <div className="flex items-center">
-          <div className="text-yellow-400 text-2xl mr-3">⚠️</div>
-          <div>
-            <h3 className="text-lg font-semibold text-yellow-800">Vendor Profile Required</h3>
-            <p className="text-yellow-600">
-              You need to complete vendor onboarding first to create a store.
-            </p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center">
+            <div className="text-yellow-400 text-2xl mr-3">⚠️</div>
+            <div>
+              <h3 className="text-lg font-semibold text-yellow-800">Complete Vendor Onboarding</h3>
+              <p className="text-yellow-600">
+                You need to complete vendor onboarding first to create a store and access vendor features.
+              </p>
+              {/* Debug info */}
+              <div className="mt-2 text-xs text-yellow-700">
+                <p>Debug: isVendor = {userProfile?.isVendor ? 'true' : 'false'}</p>
+                <p>Debug: vendorProfile = {userProfile?.vendorProfile ? 'exists' : 'missing'}</p>
+              </div>
+            </div>
           </div>
+          <button
+            onClick={() => navigate('/become-vendor')}
+            className="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 transition-colors"
+          >
+            Complete Onboarding
+          </button>
         </div>
       </div>
     );

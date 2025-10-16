@@ -209,23 +209,42 @@ const Cart = () => {
         
         // Set primary vendor info (first vendor)
         const firstVendorId = cartItems[0].vendorId || itemToVendorMap[cartItems[0].id];
-        console.log('First vendor ID:', firstVendorId);
-        console.log('Vendor from map:', vendorMap[firstVendorId]);
+        console.log('🔍 First vendor ID:', firstVendorId);
+        console.log('🔍 Vendor from map:', vendorMap[firstVendorId]);
         
         if (firstVendorId && vendorMap[firstVendorId]) {
           const vendor = vendorMap[firstVendorId];
           setVendorInfo(vendor);
-          console.log('Setting vendor info:', vendor);
-          console.log('Vendor structured address:', vendor.structuredAddress);
+          console.log('✅ Setting vendor info:', vendor);
+          console.log('📍 Vendor structured address:', vendor.structuredAddress);
           
-          // Set structured vendor address
+          // Set structured vendor address with validation
           if (vendor.structuredAddress) {
-            setVendorAddress(vendor.structuredAddress);
-            console.log('Vendor address set to:', vendor.structuredAddress);
+            const addr = vendor.structuredAddress;
+            console.log('📍 Address components:', {
+              street: addr.street,
+              city: addr.city,
+              state: addr.state,
+              country: addr.country
+            });
+            
+            // Ensure all required fields are present
+            const normalizedAddress = {
+              street: addr.street || '',
+              city: addr.city || '',
+              state: addr.state || '',
+              country: addr.country || 'Nigeria'
+            };
+            
+            setVendorAddress(normalizedAddress);
+            console.log('✅ Vendor address set to:', normalizedAddress);
+          } else {
+            console.warn('⚠️ No structured address found, vendor needs to update profile');
+            // Keep default empty address
           }
         } else {
           setVendorInfo(null);
-          console.log('No vendor found for ID:', firstVendorId);
+          console.log('❌ No vendor found for ID:', firstVendorId);
         }
       } catch (e) {
         console.error('Failed to fetch vendor info', e);
@@ -325,13 +344,19 @@ const Cart = () => {
                   ) : vendorInfo.address ? (
                     <div className="ml-4 mt-1 text-xs text-gray-600">
                       {vendorInfo.address}
-                      <div className="mt-1 text-yellow-600">
-                        ⚠️ Vendor needs to update to structured address format
+                      <div className="mt-2 p-2 bg-yellow-100 border border-yellow-300 rounded text-yellow-800">
+                        ⚠️ <strong>Delivery unavailable:</strong> Vendor needs to update their address to the new structured format.
+                        <br/>
+                        <span className="text-xs">Vendor: Please edit your profile in the Vendor Dashboard to update your address.</span>
                       </div>
                     </div>
                   ) : (
-                    <div className="ml-4 mt-1 text-xs text-red-600">
-                      ⚠️ Vendor address not set. Please ask vendor to update their business address.
+                    <div className="ml-4 mt-1 text-xs">
+                      <div className="p-2 bg-red-100 border border-red-300 rounded text-red-800">
+                        ⚠️ <strong>Delivery unavailable:</strong> Vendor address not set.
+                        <br/>
+                        <span className="text-xs">Vendor: Please update your business address in the Vendor Dashboard.</span>
+                      </div>
                     </div>
                   )}
                 </div>

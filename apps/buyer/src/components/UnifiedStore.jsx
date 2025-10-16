@@ -28,38 +28,86 @@ const UnifiedStore = () => {
 
   useEffect(() => {
     if (vendorId) {
-      fetchStoreData();
+      // Add a small delay to ensure Firestore has time to propagate updates
+      const timeoutId = setTimeout(() => {
+        fetchStoreData();
+      }, 100);
+      
+      return () => clearTimeout(timeoutId);
     }
   }, [vendorId]);
 
-  const fetchStoreData = async () => {
+  const fetchStoreData = async (retryCount = 0) => {
     try {
       setLoading(true);
       setError('');
 
-      // Fetch vendor profile
+      console.log('🔍 Fetching store for vendorId:', vendorId, '(Attempt:', retryCount + 1, ')');
+
+      // Fetch vendor profile with cache bypass
       const vendorProfile = await firebaseService.users.getProfile(vendorId);
+      console.log('👤 Vendor profile fetched:', vendorProfile);
       
       if (!vendorProfile) {
-        setError('Store not found');
+        // Retry logic for newly created vendors
+        if (retryCount < 2) {
+          console.warn('⚠️ Vendor profile not found, retrying in 1 second...');
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          return fetchStoreData(retryCount + 1);
+        }
+        console.error('❌ Vendor profile not found after retries');
+        setError('Store not found. If you just completed onboarding, please wait a moment and refresh.');
         return;
       }
 
-      if (!vendorProfile.isVendor || !vendorProfile.vendorProfile) {
-        setError('This user is not a vendor');
+      if (!vendorProfile.isVendor) {
+        console.error('❌ User is not marked as vendor. isVendor:', vendorProfile.isVendor);
+        
+        // Retry for newly onboarded vendors
+        if (retryCount < 2) {
+          console.warn('⚠️ Vendor flag not set, retrying in 1 second...');
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          return fetchStoreData(retryCount + 1);
+        }
+        setError('This user is not a vendor. If you just completed onboarding, please refresh the page.');
         return;
       }
 
+      if (!vendorProfile.vendorProfile) {
+        console.error('❌ Vendor profile data missing');
+        
+        // Retry for newly onboarded vendors
+        if (retryCount < 2) {
+          console.warn('⚠️ Vendor profile data missing, retrying in 1 second...');
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          return fetchStoreData(retryCount + 1);
+        }
+        setError('Vendor profile incomplete. Please complete vendor onboarding or refresh the page.');
+        return;
+      }
+
+      console.log('✅ Vendor profile valid');
       setVendor(vendorProfile);
 
       // Fetch vendor's products
+      console.log('📦 Fetching products for vendor:', vendorId);
       const vendorProducts = await firebaseService.products.getByVendor(vendorId);
+      console.log('📦 Products fetched:', vendorProducts.length, 'products');
+      
       setProducts(vendorProducts);
       setFilteredProducts(vendorProducts);
+      setLoading(false);
     } catch (error) {
-      console.error('Error fetching store data:', error);
-      setError('Error loading store. Please try again.');
-    } finally {
+      console.error('❌ Error fetching store data:', error);
+      
+      // Retry on error
+      if (retryCount < 2) {
+        console.warn('⚠️ Error occurred, retrying in 1 second...');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return fetchStoreData(retryCount + 1);
+      }
+      
+      setError('Error loading store. Please refresh the page or try again later.');
       setLoading(false);
     }
   };
@@ -127,6 +175,7 @@ const UnifiedStore = () => {
         <div className="text-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
           <p className="text-gray-600 mt-4">Loading store...</p>
+          <p className="text-gray-400 text-sm mt-2">This may take a moment for newly created stores</p>
         </div>
       </div>
     );
@@ -139,12 +188,20 @@ const UnifiedStore = () => {
           <div className="text-red-400 text-6xl mb-4">🏪</div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Store Not Found</h2>
           <p className="text-gray-600 mb-6">{error}</p>
-          <Link
-            to="/"
-            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Go to Homepage
-          </Link>
+          <div className="flex gap-3 justify-center">
+            <button
+              onClick={() => window.location.reload()}
+              className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors"
+            >
+              🔄 Refresh Page
+            </button>
+            <Link
+              to="/"
+              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Go to Homepage
+            </Link>
+          </div>
         </div>
       </div>
     );
