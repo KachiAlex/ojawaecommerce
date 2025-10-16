@@ -2809,6 +2809,11 @@ export const userService = {
     }
   },
 
+  // Alias for updateProfile for backward compatibility
+  async update(userId, updates) {
+    return this.updateProfile(userId, updates);
+  },
+
   // Get vendors that user has purchased from
   async getPurchasedVendors(buyerId) {
     try {

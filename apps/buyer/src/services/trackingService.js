@@ -344,7 +344,7 @@ export const storeService = {
       }
 
       const docRef = await addDoc(collection(db, 'stores'), storePayload);
-      return { id: docRef.id, storeId, shareableLink, ...storePayload };
+      return { id: docRef.id, storeId, shareableLink: storeLink, ...storePayload };
     } catch (error) {
       console.error('Error creating store:', error);
       throw error;
