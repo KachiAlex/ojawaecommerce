@@ -1,3 +1,6 @@
+serviceAccountKey.json
+*.secret.json
+*.env
 # Dependencies
 node_modules/
 */node_modules/

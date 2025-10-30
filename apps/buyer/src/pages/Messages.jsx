@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import { useMessaging } from '../contexts/MessagingContext';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../firebase/config';
 
 const Messages = () => {
   const { currentUser } = useAuth();
@@ -19,6 +21,7 @@ const Messages = () => {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const bottomRef = useRef(null);
+  const [otherParticipantName, setOtherParticipantName] = useState('');
 
   useEffect(() => {
     if (activeConversation) {
@@ -47,6 +50,30 @@ const Messages = () => {
     if (!activeConversation || !currentUser) return null;
     return (activeConversation.participants || []).find((p) => p !== currentUser.uid) || null;
   }, [activeConversation, currentUser?.uid]);
+
+  // Resolve other participant's display name (vendor or user)
+  useEffect(() => {
+    const fetchName = async () => {
+      try {
+        if (!otherParticipantId) {
+          setOtherParticipantName('');
+          return;
+        }
+        const userRef = doc(db, 'users', otherParticipantId);
+        const snap = await getDoc(userRef);
+        if (snap.exists()) {
+          const data = snap.data();
+          const vendorName = data.vendorProfile?.businessName || data.storeName || data.displayName || data.name || data.email;
+          setOtherParticipantName(vendorName || otherParticipantId);
+        } else {
+          setOtherParticipantName(otherParticipantId);
+        }
+      } catch (_) {
+        setOtherParticipantName(otherParticipantId || '');
+      }
+    };
+    fetchName();
+  }, [otherParticipantId]);
 
   return (
     <motion.div className="min-h-screen bg-gray-50" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
@@ -108,7 +135,7 @@ const Messages = () => {
                   <div>
                     <div className="font-semibold text-gray-900">Chat</div>
                     {otherParticipantId && (
-                      <div className="text-xs text-gray-500">With: {otherParticipantId}</div>
+                      <div className="text-xs text-gray-500">To: {otherParticipantName || otherParticipantId}</div>
                     )}
                   </div>
                 </div>

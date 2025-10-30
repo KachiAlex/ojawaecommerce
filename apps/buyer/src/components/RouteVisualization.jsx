@@ -6,12 +6,18 @@ const RouteVisualization = ({
   deliveryLocation, 
   routeAnalysis = null,
   height = '400px',
-  showDetails = true 
+  showDetails = true,
+  // Optional: intermediate stops for multi-stop routes
+  intermediateStops = [],
+  // Optional: use backend optimization (Google Routes API) for best stop order/ETA
+  useOptimization = false
 }) => {
   const [map, setMap] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const mapRef = useRef(null);
+  const routePolylineRef = useRef(null);
+  const [optimizedInfo, setOptimizedInfo] = useState(null);
 
   // Initialize map
   useEffect(() => {
@@ -33,11 +39,15 @@ const RouteVisualization = ({
 
         setMap(mapInstance);
 
-        // Display route
+        // Display route (with optional waypoints optimization via JS Directions API)
         googleMapsService.displayRoute(
           mapInstance,
           pickupLocation,
-          deliveryLocation
+          deliveryLocation,
+          {
+            waypoints: intermediateStops?.map((loc) => ({ location: loc })),
+            optimizeWaypoints: !useOptimization && intermediateStops?.length > 0
+          }
         );
 
         setIsLoading(false);
@@ -49,7 +59,71 @@ const RouteVisualization = ({
     };
 
     initializeMap();
-  }, [pickupLocation, deliveryLocation]);
+  }, [pickupLocation, deliveryLocation, intermediateStops, useOptimization]);
+
+  // Optional: Use backend Routes API to compute optimized polyline and draw it
+  useEffect(() => {
+    const runOptimization = async () => {
+      if (!useOptimization || !map || !pickupLocation || !deliveryLocation) return;
+      if (!intermediateStops || intermediateStops.length === 0) return;
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        // Ensure geometry library is present
+        await googleMapsService.initialize();
+
+        const { default: routeOptimizationService } = await import('../services/routeOptimizationService');
+        const { routes } = await routeOptimizationService.optimizeRoute({
+          origin: pickupLocation,
+          destination: deliveryLocation,
+          waypoints: intermediateStops,
+          optimize: true
+        });
+
+        if (routes && routes[0]) {
+          const route = routes[0];
+          const encoded = route?.polyline?.encodedPolyline;
+          const path = encoded ? google.maps.geometry.encoding.decodePath(encoded) : null;
+
+          // Clean previous polyline if any
+          if (routePolylineRef.current) {
+            routePolylineRef.current.setMap(null);
+            routePolylineRef.current = null;
+          }
+
+          if (path) {
+            // Draw optimized polyline
+            const polyline = new google.maps.Polyline({
+              path,
+              strokeColor: '#0ea5e9',
+              strokeOpacity: 0.9,
+              strokeWeight: 5
+            });
+            polyline.setMap(map);
+            routePolylineRef.current = polyline;
+
+            // Fit bounds
+            const bounds = new google.maps.LatLngBounds();
+            path.forEach((p) => bounds.extend(p));
+            map.fitBounds(bounds);
+          }
+
+          setOptimizedInfo({
+            distanceMeters: route.distanceMeters,
+            duration: route.duration
+          });
+        }
+      } catch (e) {
+        console.error('Route optimization failed:', e);
+        setError('Failed to optimize route');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    runOptimization();
+  }, [useOptimization, intermediateStops, pickupLocation, deliveryLocation, map]);
 
   // Format distance for display
   const formatDistance = (distance) => {
@@ -117,15 +191,15 @@ const RouteVisualization = ({
       </div>
 
       {/* Route Details */}
-      {showDetails && routeAnalysis && (
+      {showDetails && (routeAnalysis || optimizedInfo) && (
         <div className="bg-white border border-gray-200 rounded-lg p-4">
           <h3 className="text-lg font-semibold text-gray-900 mb-3">Route Information</h3>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Route Type */}
             <div className="text-center">
-              <div className={`inline-flex px-3 py-1 rounded-full text-sm font-medium ${getRouteTypeColor(routeAnalysis.routeType)}`}>
-                {getRouteTypeDisplay(routeAnalysis.routeType)}
+              <div className={`inline-flex px-3 py-1 rounded-full text-sm font-medium ${getRouteTypeColor(routeAnalysis?.routeType)}`}>
+                {routeAnalysis ? getRouteTypeDisplay(routeAnalysis.routeType) : 'Optimized Route'}
               </div>
               <p className="text-xs text-gray-500 mt-1">Route Type</p>
             </div>
@@ -133,7 +207,7 @@ const RouteVisualization = ({
             {/* Distance */}
             <div className="text-center">
               <div className="text-lg font-semibold text-gray-900">
-                {formatDistance(routeAnalysis.distance)}
+                {optimizedInfo?.distanceMeters ? `${(optimizedInfo.distanceMeters/1000).toFixed(1)} km` : formatDistance(routeAnalysis?.distance)}
               </div>
               <p className="text-xs text-gray-500">Distance</p>
             </div>
@@ -141,7 +215,7 @@ const RouteVisualization = ({
             {/* Duration */}
             <div className="text-center">
               <div className="text-lg font-semibold text-gray-900">
-                {formatDuration(routeAnalysis.duration)}
+                {optimizedInfo?.duration ? optimizedInfo.duration.replace('s',' sec') : formatDuration(routeAnalysis?.duration)}
               </div>
               <p className="text-xs text-gray-500">Estimated Time</p>
             </div>

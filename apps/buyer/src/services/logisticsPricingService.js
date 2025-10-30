@@ -97,6 +97,15 @@ class LogisticsPricingService {
       // Get logistics partner
       const logisticsPartner = await this.getLogisticsPartner(partner, zone);
 
+      // If no partner available, instruct buyer to message vendor
+      if (!logisticsPartner) {
+        return {
+          success: false,
+          code: 'NO_LOGISTICS_PARTNER',
+          error: 'No logistics partner available for this route. Please message the vendor to set up logistics.'
+        };
+      }
+
       // Calculate ETA
       const eta = this.calculateETA(distanceData.distance, type, zone);
 
@@ -156,11 +165,7 @@ class LogisticsPricingService {
           totalMultiplier: 1.0
         },
         eta: '2-3 days',
-        partner: {
-          id: 'default',
-          name: 'Standard Delivery',
-          rating: 4.0
-        }
+        partner: null
       };
     }
   }
@@ -375,20 +380,12 @@ class LogisticsPricingService {
         };
       }
 
-      // Fallback to default partner
-      return {
-        id: 'default',
-        name: 'Standard Delivery',
-        rating: 4.0
-      };
+      // No partner available
+      return null;
 
     } catch (error) {
-      console.error('Error getting logistics partner:', error);
-      return {
-        id: 'default',
-        name: 'Standard Delivery',
-        rating: 4.0
-      };
+      console.warn('Error getting logistics partner:', error?.message || error);
+      return null;
     }
   }
 
@@ -439,8 +436,8 @@ class LogisticsPricingService {
         timestamp: calculation.timestamp
       });
     } catch (error) {
-      console.error('Error storing calculation:', error);
-      // Don't throw error as this is not critical
+      // Silently ignore analytics persistence errors (e.g., permission rules on public site)
+      console.warn('Skipping delivery calculation persistence:', error?.message || error);
     }
   }
 

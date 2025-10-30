@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-// import googleMapsService from '../services/googleMapsService'; // Disabled
+import googleMapsService from '../services/googleMapsService';
 
 const AddressInput = ({ value, onChange, label = "Address", required = false, readOnly = false }) => {
   const [address, setAddress] = useState({
@@ -39,9 +39,8 @@ const AddressInput = ({ value, onChange, label = "Address", required = false, re
       console.log('🚀 Starting Google Maps initialization...');
       setIsLoadingMaps(true);
       
-      // Try to initialize the service - DISABLED
-      // const initialized = await googleMapsService.initialize();
-      const initialized = false; // Disabled
+      // Initialize the Google Maps service (loads script and Places library)
+      const initialized = await googleMapsService.initialize();
       console.log('📡 Google Maps service.initialize():', initialized);
       
       // Check if Google Maps is actually loaded (even if service returns false)

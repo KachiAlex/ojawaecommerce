@@ -13,5 +13,14 @@
       "sourceCompatibility": "VERSION_17",
       "targetCompatibility": "VERSION_17"
     }
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1500,
+      "launchAutoHide": true,
+      "backgroundColor": "#FFFFFF",
+      "androidScaleType": "CENTER_CROP",
+      "showSpinner": false
+    }
   }
 }

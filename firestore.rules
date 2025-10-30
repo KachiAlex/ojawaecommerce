@@ -197,12 +197,20 @@ service cloud.firestore {
              allow list: if isAuthenticated(); // Allow aggregation queries (count operations)
            }
 
-           // Logistics profiles collection - logistics partners can read/write their own profiles
+           // Logistics profiles collection - allow public reads for approved profiles; owners/admins can manage
            match /logistics_profiles/{profileId} {
-             allow read, write: if isOwner(resource.data.userId);
+             // Public can read approved profiles; owners and admins can read all
+             allow read: if (
+               resource.data.status == 'approved' ||
+               isOwner(resource.data.userId) ||
+               isAdmin()
+             );
+             // Allow list/query for authenticated users (needed for where queries)
+             allow list: if isAuthenticated();
+             // Create restricted to the profile owner
              allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
-             allow read, write: if isAdmin(); // Admins can read and update all profiles (for approval/rejection)
-             allow list: if isAuthenticated(); // Allow aggregation queries
+             // Update/delete by owner or admin
+             allow update, delete: if isOwner(resource.data.userId) || isAdmin();
            }
 
            // Deliveries collection - buyers can create deliveries for their orders, logistics partners can update

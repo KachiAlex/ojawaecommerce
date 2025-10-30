@@ -186,17 +186,27 @@ const HomeNew = () => {
         console.log('🏠 Featured products after filtering:', products.length);
         console.log('🏠 Featured product names:', products.map(p => p.name));
 
-        if (products.length === 0) {
-          // Fallback: show latest active products if no explicit featured exist
-          const activeProducts = allProducts
-            .filter(p => p.status === 'active' || p.isActive === true || p.isActive === "true")
+        // Always ensure we have 20 items in Featured
+        const MAX_FEATURED = 20;
+        let finalFeatured = [...products];
+
+        if (finalFeatured.length < MAX_FEATURED) {
+          // Top up with latest active products not already included
+          const existingIds = new Set(finalFeatured.map(p => p.id));
+          const topUp = allProducts
+            .filter(p => (p.status === 'active' || p.isActive === true || p.isActive === "true") && !existingIds.has(p.id))
             .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-            .slice(0, 12);
-          console.log('🔄 No featured found. Falling back to latest active products:', activeProducts.length);
-          setFeaturedProducts(activeProducts);
-        } else {
-          setFeaturedProducts(products);
+            .slice(0, MAX_FEATURED - finalFeatured.length);
+          console.log('🔄 Topping up featured with latest active products:', topUp.length);
+          finalFeatured = [...finalFeatured, ...topUp];
         }
+
+        // Trim to exactly MAX_FEATURED if somehow larger
+        if (finalFeatured.length > MAX_FEATURED) {
+          finalFeatured = finalFeatured.slice(0, MAX_FEATURED);
+        }
+
+        setFeaturedProducts(finalFeatured);
       } catch (error) {
         console.error('❌ Error fetching featured products:', error);
         setFeaturedProducts([]);

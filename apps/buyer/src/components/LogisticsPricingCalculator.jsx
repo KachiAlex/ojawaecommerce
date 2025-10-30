@@ -48,6 +48,9 @@ const LogisticsPricingCalculator = ({
         onPriceCalculated?.(calculation);
       } else {
         setError(calculation.error || 'Failed to calculate delivery fee');
+        if (calculation.code === 'NO_LOGISTICS_PARTNER') {
+          // Keep result null and surface actionable prompt in UI
+        }
       }
     } catch (err) {
       setError(err.message || 'An error occurred');

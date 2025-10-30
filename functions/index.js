@@ -6,6 +6,14 @@ admin.initializeApp();
 const db = admin.firestore();
 const messaging = admin.messaging();
 
+// Routes optimization (Gen2 HTTPS onRequest)
+try {
+  const { optimizeRoute } = require('./src/routeOptimization');
+  exports.optimizeRoute = optimizeRoute;
+} catch (e) {
+  console.warn('routeOptimization not loaded:', e?.message);
+}
+
 // Basic notification function
 exports.notifyVendorNewOrder = functions.https.onCall(async (data, context) => {
   try {

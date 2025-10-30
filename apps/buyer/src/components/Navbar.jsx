@@ -3,7 +3,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import { useNotifications } from '../contexts/NotificationContext';
 import { useState, useEffect, useRef } from 'react';
-import { useMessaging } from '../contexts/MessagingContext';
 import AccountSettingsModal from './AccountSettingsModal';
 import NotificationCenter from './NotificationCenter';
 import DashboardSwitcher from './DashboardSwitcher';
@@ -14,7 +13,6 @@ const Navbar = () => {
   const { getCartItemsCount } = useCart();
   const { unreadCount } = useNotifications();
   const navigate = useNavigate();
-  const { unreadCount: unreadMessages } = useMessaging();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -124,17 +122,7 @@ const Navbar = () => {
             >
               How Wallet Works
             </Link>
-            <Link 
-              to="/messages" 
-              className="relative text-gray-600 hover:text-gray-900 font-medium transition-colors"
-            >
-              Messages
-              {unreadMessages > 0 && (
-                <span className="absolute -top-2 -right-3 bg-emerald-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                  {unreadMessages > 9 ? '9+' : unreadMessages}
-                </span>
-              )}
-            </Link>
+            {/* Messages tab removed from public navbar - dashboard only */}
             <Link 
               to="/tracking" 
               className="text-gray-600 hover:text-gray-900 font-medium transition-colors"
@@ -293,18 +281,7 @@ const Navbar = () => {
                   </span>
                 )}
               </Link>
-              <Link 
-                to="/messages" 
-                className="text-gray-700 hover:text-blue-600 block px-3 py-2 rounded-md text-base font-medium relative"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Messages
-                {unreadMessages > 0 && (
-                  <span className="ml-2 bg-emerald-600 text-white text-xs rounded-full h-5 w-5 inline-flex items-center justify-center">
-                    {unreadMessages > 9 ? '9+' : unreadMessages}
-                  </span>
-                )}
-              </Link>
+              {/* Messages tab removed from mobile menu - dashboard only */}
               
               {currentUser ? (
                 <>

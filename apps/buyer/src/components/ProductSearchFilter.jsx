@@ -77,6 +77,21 @@ const ProductSearchFilter = ({ onSearchResults, onLoading, featuredProducts = []
   // Search products with filters - only search within featured products
   const searchProducts = async () => {
     console.log('🔍 ProductSearchFilter: Starting search within featured products...');
+    // Only run search when there are non-default filters; otherwise keep featured
+    const hasActiveFilters = !!(
+      (searchTerm && searchTerm.trim()) ||
+      selectedCategory ||
+      selectedStore ||
+      (priceRange.min !== PRICE_MIN) ||
+      (priceRange.max !== PRICE_MAX) ||
+      sortBy !== 'newest'
+    );
+
+    if (!hasActiveFilters) {
+      onSearchResults(featuredProducts);
+      return;
+    }
+
     if (onLoading) onLoading(true);
     setIsLoading(true);
 
@@ -198,23 +213,28 @@ const ProductSearchFilter = ({ onSearchResults, onLoading, featuredProducts = []
 
   // Auto-search when filters change (only if any filter is active)
   useEffect(() => {
-    // Only search if user has applied any filters
-    const hasActiveFilters = searchTerm || selectedCategory || selectedStore || 
-                           priceRange.min || priceRange.max || sortBy !== 'newest';
-    
+    // Only search if user has applied any non-default filters
+    const hasActiveFilters = !!(
+      (searchTerm && searchTerm.trim()) ||
+      selectedCategory ||
+      selectedStore ||
+      (priceRange.min !== PRICE_MIN) ||
+      (priceRange.max !== PRICE_MAX) ||
+      sortBy !== 'newest'
+    );
+
     if (!hasActiveFilters) {
-      // No filters active, reset to featured products
       console.log('🔍 No active filters, resetting to featured products');
       onSearchResults(featuredProducts);
       return;
     }
-    
+
     const timeoutId = setTimeout(() => {
       searchProducts();
     }, 300); // Debounce search
 
     return () => clearTimeout(timeoutId);
-  }, [searchTerm, selectedCategory, selectedStore, priceRange, sortBy, featuredProducts]);
+  }, [searchTerm, selectedCategory, selectedStore, priceRange.min, priceRange.max, sortBy, featuredProducts]);
 
   // Don't run initial search on mount - let the parent component handle initial display
   // Only search when user actively interacts with filters
