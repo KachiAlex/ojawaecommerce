@@ -12,6 +12,7 @@ import RoleGuard from './components/RoleGuard';
 import { RouteLoadingSpinner, ComponentLoadingSpinner } from './components/OptimizedLoadingSpinner';
 import PerformanceMonitor from './components/PerformanceMonitor';
 import AnimatedPage from './components/AnimatedPage';
+import AnimatedSplash from './components/AnimatedSplash';
 import { setupGlobalErrorHandling } from './utils/errorLogger';
 import { validateEnvironment } from './config/env';
 import networkManager from './utils/networkManager';
@@ -162,6 +163,7 @@ const AdminRoute = ({ children }) => {
 
 const AppContent = () => {
   const { showEscrowEducation, setShowEscrowEducation, newUserType } = useAuth();
+  const [showSplashOverlay, setShowSplashOverlay] = useState(true);
 
   return (
     <CartProvider>
@@ -172,6 +174,9 @@ const AppContent = () => {
               <ScrollToTop />
               <ErrorBoundary componentName="Router">
                 <div className="min-h-screen">
+                  {showSplashOverlay && (
+                    <AnimatedSplash onDone={() => setShowSplashOverlay(false)} />
+                  )}
                   <Suspense fallback={<ComponentLoadingSpinner />}>
                     <Navbar />
                   </Suspense>

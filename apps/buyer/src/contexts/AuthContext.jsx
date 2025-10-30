@@ -191,6 +191,17 @@ export const AuthProvider = ({ children }) => {
   // Sign out function
   const logout = async () => {
     try {
+      // Clear sensitive encrypted items
+      try {
+        const { default: secureStorage } = await import('../utils/secureStorage');
+        await Promise.all([
+          secureStorage.removeItem('cart'),
+          secureStorage.removeItem('enhanced_cart'),
+          secureStorage.removeItem('payment_records'),
+          secureStorage.removeItem('searchHistory')
+        ]);
+      } catch (_) {}
+
       await signOut(auth);
       setUserProfile(null);
     } catch (error) {

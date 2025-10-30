@@ -1,4 +1,5 @@
 import { errorLogger } from '../utils/errorLogger'
+import secureStorage from '../utils/secureStorage'
 import { ORDER_STATUS } from './orderWorkflow'
 
 // Payment configuration
@@ -375,9 +376,10 @@ export class PaymentRetryManager {
   }
 
   // Store payment record
-  storePaymentRecord(record) {
+  async storePaymentRecord(record) {
     try {
-      const records = JSON.parse(localStorage.getItem('payment_records') || '[]')
+      const raw = await secureStorage.getItem('payment_records')
+      const records = raw ? JSON.parse(raw) : []
       records.push(record)
       
       // Keep only last 50 records
@@ -385,7 +387,7 @@ export class PaymentRetryManager {
         records.splice(0, records.length - 50)
       }
       
-      localStorage.setItem('payment_records', JSON.stringify(records))
+      await secureStorage.setItem('payment_records', JSON.stringify(records))
     } catch (error) {
       errorLogger.error('Failed to store payment record', error)
     }
@@ -408,9 +410,10 @@ export class PaymentRetryManager {
   }
 
   // Get payment history
-  getPaymentHistory() {
+  async getPaymentHistory() {
     try {
-      return JSON.parse(localStorage.getItem('payment_records') || '[]')
+      const raw = await secureStorage.getItem('payment_records')
+      return raw ? JSON.parse(raw) : []
     } catch (error) {
       errorLogger.error('Failed to get payment history', error)
       return []
@@ -418,8 +421,8 @@ export class PaymentRetryManager {
   }
 
   // Get failed payments that can be retried
-  getRetryablePayments() {
-    const history = this.getPaymentHistory()
+  async getRetryablePayments() {
+    const history = await this.getPaymentHistory()
     return history.filter(record => 
       record.status === PAYMENT_STATUS.FAILED && 
       record.attempts < PAYMENT_CONFIG.maxRetries

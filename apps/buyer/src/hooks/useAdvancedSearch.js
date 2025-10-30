@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import secureStorage from '../utils/secureStorage'
 import { useAuth } from '../contexts/AuthContext'
 import advancedSearchService, { SEARCH_ALGORITHMS, SORT_OPTIONS } from '../services/advancedSearchService'
 import recommendationService from '../services/recommendationService'
@@ -19,23 +20,27 @@ export const useAdvancedSearch = () => {
   const searchTimeoutRef = useRef(null)
   const cacheRef = useRef(new Map())
 
-  // Load search history from localStorage
+  // Load search history (encrypted)
   useEffect(() => {
-    const savedHistory = localStorage.getItem('searchHistory')
-    if (savedHistory) {
-      try {
-        setSearchHistory(JSON.parse(savedHistory))
-      } catch (error) {
-        errorLogger.error('Failed to load search history', error)
+    (async () => {
+      const savedHistory = await secureStorage.getItem('searchHistory')
+      if (savedHistory) {
+        try {
+          setSearchHistory(JSON.parse(savedHistory))
+        } catch (error) {
+          errorLogger.error('Failed to load search history', error)
+        }
       }
-    }
+    })()
   }, [])
 
-  // Save search history to localStorage
+  // Save search history (encrypted)
   useEffect(() => {
-    if (searchHistory.length > 0) {
-      localStorage.setItem('searchHistory', JSON.stringify(searchHistory))
-    }
+    (async () => {
+      if (searchHistory.length > 0) {
+        await secureStorage.setItem('searchHistory', JSON.stringify(searchHistory))
+      }
+    })()
   }, [searchHistory])
 
   // Perform advanced search
@@ -171,7 +176,7 @@ export const useAdvancedSearch = () => {
   // Clear search history
   const clearSearchHistory = useCallback(() => {
     setSearchHistory([])
-    localStorage.removeItem('searchHistory')
+    secureStorage.removeItem('searchHistory')
   }, [])
 
   // Clear search results

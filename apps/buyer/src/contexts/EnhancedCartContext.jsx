@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import secureStorage from '../utils/secureStorage'
 import { useAuth } from './AuthContext'
 import inventoryService from '../services/inventoryService'
 import { errorLogger } from '../utils/errorLogger'
@@ -19,28 +20,32 @@ export const EnhancedCartProvider = ({ children }) => {
   const [checkingInventory, setCheckingInventory] = useState(false)
   const { currentUser } = useAuth()
 
-  // Load cart from localStorage on mount
+  // Load cart (encrypted) on mount
   useEffect(() => {
-    const savedCart = localStorage.getItem('enhanced_cart')
-    if (savedCart) {
-      try {
-        const cartData = JSON.parse(savedCart)
-        setCartItems(cartData.items || [])
-        setInventoryChecks(cartData.inventoryChecks || {})
-      } catch (error) {
-        errorLogger.error('Error loading cart from localStorage', error)
+    (async () => {
+      const savedCart = await secureStorage.getItem('enhanced_cart')
+      if (savedCart) {
+        try {
+          const cartData = JSON.parse(savedCart)
+          setCartItems(cartData.items || [])
+          setInventoryChecks(cartData.inventoryChecks || {})
+        } catch (error) {
+          errorLogger.error('Error loading cart from secure storage', error)
+        }
       }
-    }
+    })()
   }, [])
 
-  // Save cart to localStorage whenever it changes
+  // Save cart (encrypted) whenever it changes
   useEffect(() => {
     const cartData = {
       items: cartItems,
       inventoryChecks,
       lastUpdated: new Date().toISOString()
     }
-    localStorage.setItem('enhanced_cart', JSON.stringify(cartData))
+    ;(async () => {
+      await secureStorage.setItem('enhanced_cart', JSON.stringify(cartData))
+    })()
   }, [cartItems, inventoryChecks])
 
   // Check inventory availability for a product
