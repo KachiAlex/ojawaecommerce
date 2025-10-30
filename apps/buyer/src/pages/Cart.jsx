@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useMessaging } from '../contexts/MessagingContext';
@@ -26,10 +26,11 @@ const formatCurrency = (amount, currencyString) => {
 const Cart = () => {
   console.log('🛒 Cart component rendering...');
   
-  const { cartItems, updateQuantity, removeFromCart, getCartTotal, clearCart, validateCartItems, hasOutOfStockItems } = useCart();
+  const { cartItems, updateQuantity, removeFromCart, getCartTotal, clearCart, validateCartItems, hasOutOfStockItems, saveIntendedDestination } = useCart();
   const { currentUser } = useAuth();
   const { startConversation, setActiveConversation } = useMessaging?.() || {};
   const navigate = useNavigate?.() || (() => {});
+  const location = useLocation?.() || { search: '' };
   
   console.log('🛒 Cart - cartItems:', cartItems.length);
   console.log('🛒 Cart - currentUser:', currentUser?.email);
@@ -55,7 +56,20 @@ const Cart = () => {
   // Message vendor function - redirect directly to vendor dialogue
   const messageVendor = async (item) => {
     try {
-      if (!item?.vendorId || !startConversation) return;
+      if (!item?.vendorId) return;
+
+      // If not signed in, prompt and redirect to login, then return here and open chat
+      if (!currentUser) {
+        const proceed = window.confirm('You need to sign in to message a vendor. Continue to sign in?');
+        if (proceed) {
+          const path = `/cart?messageVendorFor=${encodeURIComponent(item.id)}`;
+          saveIntendedDestination(path, item.id);
+          navigate(`/login?message=${encodeURIComponent('Please sign in to message this vendor.')}`);
+        }
+        return;
+      }
+
+      if (!startConversation) return;
       const conv = await startConversation(item.vendorId);
       if (setActiveConversation) setActiveConversation(conv);
       navigate('/messages');
@@ -76,6 +90,24 @@ const Cart = () => {
     setShowMessageModal(true);
     console.log('💬 Modal should be opening now');
   };
+
+  // If redirected back after login with a target item, auto-open chat
+  useEffect(() => {
+    if (!currentUser) return;
+    const params = new URLSearchParams(location.search || '');
+    const targetId = params.get('messageVendorFor');
+    if (!targetId) return;
+    const targetItem = cartItems.find(i => String(i.id) === String(targetId));
+    if (targetItem) {
+      // Open and then clean the URL param to prevent repeat triggers
+      messageVendor(targetItem);
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('messageVendorFor');
+        window.history.replaceState({}, '', url.toString());
+      } catch (_) {}
+    }
+  }, [currentUser, location.search, cartItems]);
 
   // Fetch buyer address
   useEffect(() => {
