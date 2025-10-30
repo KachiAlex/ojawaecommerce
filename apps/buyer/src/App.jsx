@@ -1,155 +1,162 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useEffect, Suspense, lazy } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { useEffect, Suspense, lazy, useState } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { CartProvider } from './contexts/CartContext';
-import { OnboardingProvider, useOnboarding } from './contexts/OnboardingContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { MessagingProvider } from './contexts/MessagingContext';
 import { LanguageProvider } from './contexts/LanguageContext';
+// OnboardingContext removed - causing initialization flow issues
 import ErrorBoundary from './components/ErrorBoundary';
 import ProtectedRoute from './components/ProtectedRoute';
 import RoleGuard from './components/RoleGuard';
 import { RouteLoadingSpinner, ComponentLoadingSpinner } from './components/OptimizedLoadingSpinner';
 import PerformanceMonitor from './components/PerformanceMonitor';
+import AnimatedPage from './components/AnimatedPage';
 import { setupGlobalErrorHandling } from './utils/errorLogger';
 import { validateEnvironment } from './config/env';
+import networkManager from './utils/networkManager';
+import networkMonitor from './utils/networkMonitor';
+import { analyzeBundle } from './utils/bundleAnalyzer';
+// Console protection disabled during testing - will be enabled for production
+// import { setupConsoleProtection } from './utils/consoleProtection';
+// import logger from './utils/logger';
 import './utils/clearFlutterwaveScripts';
 import './App.css';
 
-// Core pages (loaded immediately)
-import Home from './pages/Home';
+// Core pages (loaded immediately for better performance)
+import HomeNew from './pages/HomeNew';
 import DashboardRedirect from './components/DashboardRedirect';
+import LogoUpload from './components/LogoUpload';
 
-// Lazy load components with better chunking
-const Navbar = lazy(() => import('./components/Navbar'));
-const PWAInstallPrompt = lazy(() => import('./components/PWAInstallPrompt'));
-const MobileBottomNavigation = lazy(() => import('./components/MobileBottomNavigation'));
-const OsoahiaButton = lazy(() => import('./components/OsoahiaButton'));
-const NotificationToastContainer = lazy(() => import('./components/NotificationToast').then(m => ({ default: m.NotificationToastContainer })));
-const WalletEducation = lazy(() => import('./components/EscrowEducation'));
-const OnboardingFlow = lazy(() => import('./components/OnboardingFlow'));
+// Performance optimization: Preload critical components
+const preloadCriticalComponents = () => {
+  // Preload critical components after initial render
+          setTimeout(() => {
+    import('./components/Navbar');
+    import('./components/MobileBottomNavigation');
+    import('./pages/Products');
+    import('./pages/Cart');
+  }, 100);
+};
 
-// Customer-facing pages
-const Products = lazy(() => import('./pages/Products'));
-const ProductDetail = lazy(() => import('./pages/ProductDetail'));
-const Cart = lazy(() => import('./pages/Cart'));
-const Checkout = lazy(() => import('./pages/Checkout'));
-const Login = lazy(() => import('./pages/Login'));
-const Register = lazy(() => import('./pages/Register'));
-const Dashboard = lazy(() => import('./pages/Dashboard'));
-const Buyer = lazy(() => import('./pages/Buyer'));
-const EnhancedBuyer = lazy(() => import('./pages/EnhancedBuyer'));
-const ProfileSetup = lazy(() => import('./pages/ProfileSetup'));
-const HowWalletWorks = lazy(() => import('./components/HowWalletWorks'));
-const Categories = lazy(() => import('./pages/Categories'));
-const Wallet = lazy(() => import('./pages/Wallet'));
+// Simplified lazy loading for non-critical components
+const lazyLoad = (componentImport) => {
+  return lazy(componentImport);
+};
+
+// Lazy load non-critical components
+const Navbar = lazyLoad(() => import('./components/Navbar'));
+const PWAInstallPrompt = lazyLoad(() => import('./components/PWAInstallPrompt'));
+const MobileBottomNavigation = lazyLoad(() => import('./components/MobileBottomNavigation'));
+const OsoahiaButton = lazyLoad(() => import('./components/OsoahiaButton'));
+const NotificationToastContainer = lazyLoad(() => import('./components/NotificationToast').then(m => ({ default: m.NotificationToastContainer })));
+const WalletEducation = lazyLoad(() => import('./components/EscrowEducation'));
+const CartToast = lazyLoad(() => import('./components/CartToast'));
+// OnboardingFlow removed - causing routing issues
+const CacheClearButton = lazyLoad(() => import('./components/CacheClearButton'));
+const NetworkStatusIndicator = lazyLoad(() => import('./components/NetworkStatusIndicator'));
+
+// Critical pages - Direct imports for reliable routing
+import Products from './pages/Products';
+import Cart from './pages/Cart';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import ProductDetail from './pages/ProductDetail';
+import Checkout from './pages/Checkout';
+import EnhancedCheckout from './pages/EnhancedCheckout';
+const Dashboard = lazyLoad(() => import('./pages/Dashboard'));
+const Buyer = lazyLoad(() => import('./pages/Buyer'));
+const EnhancedBuyer = lazyLoad(() => import('./pages/EnhancedBuyer'));
+const ProfileSetup = lazyLoad(() => import('./pages/ProfileSetup'));
+const HowWalletWorks = lazyLoad(() => import('./components/HowWalletWorks'));
+const Categories = lazyLoad(() => import('./pages/Categories'));
+const Wallet = lazyLoad(() => import('./pages/Wallet'));
+const Messages = lazyLoad(() => import('./pages/Messages'));
+const LogisticsPricingDemo = lazyLoad(() => import('./pages/LogisticsPricingDemo'));
 
 // Admin pages (separate chunk)
-const Admin = lazy(() => import('./pages/Admin'));
-const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
-const AdminSetup = lazy(() => import('./pages/AdminSetup'));
-const AdminLogin = lazy(() => import('./pages/AdminLogin'));
-const PricingAdminPanel = lazy(() => import('./components/PricingAdminPanel'));
+const Admin = lazyLoad(() => import('./pages/Admin'));
+const AdminDashboard = lazyLoad(() => import('./pages/AdminDashboard'));
+const AdminSetup = lazyLoad(() => import('./pages/AdminSetup'));
+const AdminLogin = lazyLoad(() => import('./pages/AdminLogin'));
+const PricingAdminPanel = lazyLoad(() => import('./components/PricingAdminPanel'));
 
 // Vendor pages (separate chunk)
-const Vendor = lazy(() => import('./pages/Vendor'));
-const BecomeVendor = lazy(() => import('./pages/BecomeVendor'));
-const StoreManager = lazy(() => import('./components/StoreManager'));
+const Vendor = lazyLoad(() => import('./pages/Vendor'));
+const BecomeVendor = lazyLoad(() => import('./pages/BecomeVendor'));
+const StoreManager = lazyLoad(() => import('./components/StoreManager'));
 
 // Logistics pages (separate chunk)
-const Logistics = lazy(() => import('./pages/Logistics'));
-const BecomeLogistics = lazy(() => import('./pages/BecomeLogistics'));
-const LogisticsTrackingManager = lazy(() => import('./components/LogisticsTrackingManager'));
+import Logistics from './pages/Logistics';
+const BecomeLogistics = lazyLoad(() => import('./pages/BecomeLogistics'));
+const LogisticsTrackingManager = lazyLoad(() => import('./components/LogisticsTrackingManager'));
 
 // Tracking pages (separate chunk)
-const Tracking = lazy(() => import('./pages/Tracking'));
-const TrackingInterface = lazy(() => import('./components/TrackingInterface'));
-const EnhancedTrackingStatus = lazy(() => import('./components/EnhancedTrackingStatus'));
+const Tracking = lazyLoad(() => import('./pages/Tracking'));
+const TrackingInterface = lazyLoad(() => import('./components/TrackingInterface'));
+const EnhancedTrackingStatus = lazyLoad(() => import('./components/EnhancedTrackingStatus'));
+
+// Help page
+const Help = lazyLoad(() => import('./pages/Help'));
 
 // Test/Development pages (separate chunk for production builds)
-const FlutterwaveTest = lazy(() => import('./pages/FlutterwaveTest'));
-const FunctionTest = lazy(() => import('./pages/FunctionTest'));
-const CloudTest = lazy(() => import('./pages/CloudTest'));
-const ModalTest = lazy(() => import('./pages/ModalTest'));
-const StockTest = lazy(() => import('./pages/StockTest'));
-const StockSyncTest = lazy(() => import('./pages/StockSyncTest'));
-const AuthFlowTest = lazy(() => import('./pages/AuthFlowTest'));
-const ProductStoreAssignment = lazy(() => import('./components/ProductStoreAssignment'));
-const StoreDisplay = lazy(() => import('./components/StoreDisplay'));
-const UnifiedStore = lazy(() => import('./components/UnifiedStore'));
-const TrackingSystemTest = lazy(() => import('./pages/TrackingSystemTest'));
-const LogisticsTrackingTest = lazy(() => import('./pages/LogisticsTrackingTest'));
-const PricingTest = lazy(() => import('./pages/PricingTest'));
-const ProductDebug = lazy(() => import('./pages/ProductDebug'));
-const GoogleMapsTest = lazy(() => import('./pages/GoogleMapsTest'));
+const FlutterwaveTest = lazyLoad(() => import('./pages/FlutterwaveTest'));
+const FunctionTest = lazyLoad(() => import('./pages/FunctionTest'));
+const CloudTest = lazyLoad(() => import('./pages/CloudTest'));
+const ModalTest = lazyLoad(() => import('./pages/ModalTest'));
+const StockTest = lazyLoad(() => import('./pages/StockTest'));
+const StockSyncTest = lazyLoad(() => import('./pages/StockSyncTest'));
+const AuthFlowTest = lazyLoad(() => import('./pages/AuthFlowTest'));
+const ProductStoreAssignment = lazyLoad(() => import('./components/ProductStoreAssignment'));
+const StoreDisplay = lazyLoad(() => import('./components/StoreDisplay'));
+const UnifiedStore = lazyLoad(() => import('./components/UnifiedStore'));
+const StorePage = lazyLoad(() => import('./components/StorePage'));
+// const UnifiedVendorStore = lazyWithRetry(() => import('./components/UnifiedVendorStore')); // Removed - causing errors
+const TrackingSystemTest = lazyLoad(() => import('./pages/TrackingSystemTest'));
+const LogisticsTrackingTest = lazyLoad(() => import('./pages/LogisticsTrackingTest'));
+const PricingTest = lazyLoad(() => import('./pages/PricingTest'));
+const ProductDebug = lazyLoad(() => import('./pages/ProductDebug'));
+// const GoogleMapsTest = lazyWithRetry(() => import('./pages/GoogleMapsTest')); // Disabled
 
-// Admin Route Protection Component
+// Admin Route Protection Component - Simplified (No Initialization)
 const AdminRoute = ({ children }) => {
-  const { userProfile, loading, currentUser } = useAuth();
+  const { userProfile, currentUser, loading } = useAuth();
   
   // Debug logging
-  console.log('AdminRoute - loading:', loading);
-  console.log('AdminRoute - currentUser:', currentUser);
-  console.log('AdminRoute - userProfile:', userProfile);
-  console.log('AdminRoute - role:', userProfile?.role);
+  console.log('🔍 AdminRoute Debug:', {
+    currentUser: !!currentUser,
+    userProfile: !!userProfile,
+    role: userProfile?.role,
+    loading
+  });
   
+  // Show loading while auth is being checked
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500"></div>
-      </div>
-    );
-  }
-  
-  if (!currentUser) {
-    console.log('AdminRoute - No current user, redirecting to admin login');
-    return <Navigate to="/admin/login" replace />;
-  }
-  
-  if (!userProfile) {
-    console.log('AdminRoute - No user profile, showing loading');
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500"></div>
-      </div>
-    );
-  }
-  
-  if (userProfile.role !== 'admin') {
-    console.log('AdminRoute - User is not admin, showing access denied');
-    return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">Access Denied</h1>
-          <p className="text-gray-600 mb-4">You don't have admin privileges.</p>
-          <p className="text-sm text-gray-500">Current role: {userProfile?.role || 'No role'}</p>
-          <p className="text-sm text-gray-500">User ID: {currentUser?.uid}</p>
-          <div className="space-y-2">
-            <button 
-              onClick={() => window.location.href = '/admin/login'}
-              className="block w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-            >
-              Admin Login
-            </button>
-            <button 
-              onClick={() => window.location.href = '/admin-setup'}
-              className="block w-full bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
-            >
-              Make Me Admin
-            </button>
-            <button 
-              onClick={() => window.location.href = '/'}
-              className="block w-full bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700"
-            >
-              Go to Home
-            </button>
-          </div>
+          <div className="w-16 h-16 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="mt-4 text-gray-600">Verifying admin access...</p>
         </div>
       </div>
     );
   }
   
-  console.log('AdminRoute - User is admin, showing dashboard');
+  // Quick redirect without loading screens
+  if (!currentUser) {
+    console.log('❌ AdminRoute: No current user, redirecting to login');
+    return <Navigate to="/admin/login" replace />;
+  }
+  
+  if (!userProfile || userProfile.role !== 'admin') {
+    console.log('❌ AdminRoute: User not admin, redirecting to login', {
+      hasProfile: !!userProfile,
+      role: userProfile?.role
+    });
+    return <Navigate to="/admin/login" replace />;
+  }
+  
+  console.log('✅ AdminRoute: Access granted');
   return children;
 };
 
@@ -161,9 +168,54 @@ const AppContent = () => {
       <LanguageProvider>
         <MessagingProvider>
           <NotificationProvider>
-            <OnboardingProvider>
-              <OnboardingWrapper />
-            </OnboardingProvider>
+            <Router>
+              <ScrollToTop />
+              <ErrorBoundary componentName="Router">
+                <div className="min-h-screen">
+                  <Suspense fallback={<ComponentLoadingSpinner />}>
+                    <Navbar />
+                  </Suspense>
+                  <Suspense fallback={null}>
+                    <PWAInstallPrompt />
+                  </Suspense>
+                  <main>
+                    <AppRoutes />
+                  </main>
+                  <Suspense fallback={null}>
+                    <MobileBottomNavigation />
+                  </Suspense>
+                  <Suspense fallback={null}>
+                    <NotificationToastContainer />
+                  </Suspense>
+                  <Suspense fallback={null}>
+                    <CartToast />
+                  </Suspense>
+                  
+                  {/* Wallet Education Modal */}
+                  {showEscrowEducation && (
+                    <Suspense fallback={null}>
+                      <WalletEducation 
+                        userType={newUserType}
+                        onComplete={() => setShowEscrowEducation(false)}
+                      />
+                    </Suspense>
+                  )}
+                  
+                  {/* Osoahia AI Assistant */}
+                  <Suspense fallback={null}>
+                    <OsoahiaButton />
+                  </Suspense>
+                  
+                  {/* Network Status Indicator */}
+                  <Suspense fallback={null}>
+                    <NetworkStatusIndicator />
+                  </Suspense>
+                  
+                  {/* Performance Monitor (Development Only) */}
+                  <PerformanceMonitor />
+                </div>
+              </ErrorBoundary>
+            </Router>
           </NotificationProvider>
         </MessagingProvider>
       </LanguageProvider>
@@ -171,326 +223,153 @@ const AppContent = () => {
   );
 };
 
-// Component to handle onboarding flow (disabled by default; always render app routes)
-const OnboardingWrapper = () => {
-  const { currentUser, showEscrowEducation, setShowEscrowEducation, newUserType } = useAuth();
-  // const { isCompleted, isLoading } = useOnboarding();
+// Preload critical routes with performance optimization
+const preloadCriticalRoutes = () => {
+  // Preload commonly visited routes
+  if (typeof window !== 'undefined') {
+    // Use requestIdleCallback for better performance
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(() => {
+        // Preload product pages
+        import('./pages/Products').catch(err => console.warn('Preload failed:', err));
+        import('./pages/Login').catch(err => console.warn('Preload failed:', err));
+      });
+    } else {
+      // Fallback for browsers without requestIdleCallback
+      setTimeout(() => {
+        import('./pages/Products').catch(err => console.warn('Preload failed:', err));
+        import('./pages/Login').catch(err => console.warn('Preload failed:', err));
+      }, 3000);
+    }
+  }
+};
 
+// ScrollToTop component to ensure page scrolls to top on route change
+const ScrollToTop = () => {
+  const { pathname } = useLocation();
+  
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  
+  return null;
+};
+
+
+// Component that wraps Routes (must be inside Router)
+const AppRoutes = () => {
   return (
-    <Router>
-      <div className="min-h-screen">
-        <Suspense fallback={<ComponentLoadingSpinner />}>
-          <Navbar />
-        </Suspense>
-        <Suspense fallback={null}>
-          <PWAInstallPrompt />
-        </Suspense>
-        <main>
+    <AnimatedPage>
+    <Routes>
+        <Route path="/" element={<HomeNew />} />
+      <Route path="/products" element={<Products />} />
+        <Route path="/products/:id" element={<ProductDetail />} />
+        <Route path="/cart" element={<Cart />} />
+        <Route path="/checkout" element={<Checkout />} />
+        <Route path="/enhanced-checkout" element={<EnhancedCheckout />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+      <Route path="/how-wallet-works" element={
         <Suspense fallback={<RouteLoadingSpinner route="default" />}>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/products" element={
-            <Suspense fallback={<RouteLoadingSpinner route="products" />}>
-              <Products />
-            </Suspense>
-          } />
-          <Route path="/how-wallet-works" element={
-            <Suspense fallback={<RouteLoadingSpinner route="default" />}>
-              <HowWalletWorks />
-            </Suspense>
-          } />
-          <Route path="/categories" element={
-            <Suspense fallback={<RouteLoadingSpinner route="categories" />}>
-              <Categories />
-            </Suspense>
-          } />
-          <Route path="/products/:id" element={
-            <Suspense fallback={<RouteLoadingSpinner route="product" />}>
-              <ProductDetail />
-            </Suspense>
-          } />
-          <Route 
-            path="/wallet" 
-            element={
-              <ProtectedRoute>
-                <Suspense fallback={<RouteLoadingSpinner route="wallet" />}>
-                  <Wallet />
-                </Suspense>
-              </ProtectedRoute>
-            } 
-          />
-          <Route path="/cart" element={
-            <Suspense fallback={<RouteLoadingSpinner route="default" />}>
-              <Cart />
-            </Suspense>
-          } />
-          <Route 
-            path="/checkout" 
-            element={
-              <ProtectedRoute requireCompleteProfile={true}>
-                <Suspense fallback={<RouteLoadingSpinner route="checkout" />}>
-                  <Checkout />
-                </Suspense>
-              </ProtectedRoute>
-            } 
-          />
-          <Route path="/login" element={
-            <Suspense fallback={<RouteLoadingSpinner route="default" />}>
-              <Login />
-            </Suspense>
-          } />
-          <Route path="/register" element={
-            <Suspense fallback={<RouteLoadingSpinner route="default" />}>
-              <Register />
-            </Suspense>
-          } />
-          <Route 
-            path="/profile-setup" 
-            element={
-              <ProtectedRoute>
-                <Suspense fallback={<RouteLoadingSpinner route="default" />}>
-                  <ProfileSetup />
-                </Suspense>
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/dashboard" 
-            element={
-              <ProtectedRoute>
-                <Suspense fallback={<RouteLoadingSpinner route="default" />}>
-                  <Dashboard />
-                </Suspense>
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/admin" 
-            element={
-              <AdminRoute>
-                <Suspense fallback={<RouteLoadingSpinner route="admin" />}>
-                  <Admin />
-                </Suspense>
-              </AdminRoute>
-            } 
-          />
-          <Route 
-            path="/admin-dashboard" 
-            element={<Navigate to="/admin" replace />} 
-          />
-          <Route path="/admin-setup" element={
-            <Suspense fallback={<RouteLoadingSpinner route="admin" />}>
-              <AdminSetup />
-            </Suspense>
-          } />
-          <Route path="/admin-test" element={
-            <Suspense fallback={<RouteLoadingSpinner route="admin" />}>
-              <AdminDashboard />
-            </Suspense>
-          } />
-          <Route path="/admin/login" element={
-            <Suspense fallback={<RouteLoadingSpinner route="default" />}>
-              <AdminLogin />
-            </Suspense>
-          } />
-              {/* Smart Dashboard Route - redirects to user's primary dashboard */}
-              <Route path="/dashboard" element={<DashboardRedirect />} />
-              
-              <Route path="/buyer" element={
-                <Suspense fallback={<RouteLoadingSpinner route="default" />}>
-                  <EnhancedBuyer />
-                </Suspense>
-              } />
-              <Route path="/enhanced-buyer" element={
-                <Suspense fallback={<RouteLoadingSpinner route="default" />}>
-                  <EnhancedBuyer />
-                </Suspense>
-              } />
-              <Route path="/vendor" element={
-                <RoleGuard requiredRole="vendor">
-                  <Suspense fallback={<RouteLoadingSpinner route="vendor" />}>
-                    <Vendor />
-                  </Suspense>
-                </RoleGuard>
-              } />
-              <Route path="/logistics" element={
-                <RoleGuard requiredRole="logistics">
-                  <Suspense fallback={<RouteLoadingSpinner route="logistics" />}>
-                    <Logistics />
-                  </Suspense>
-                </RoleGuard>
-              } />
-              <Route path="/tracking" element={
-                <Suspense fallback={<RouteLoadingSpinner route="tracking" />}>
-                  <Tracking />
-                </Suspense>
-              } />
-              <Route 
-                path="/become-vendor" 
-                element={
-                  <ProtectedRoute>
-                    <Suspense fallback={<RouteLoadingSpinner route="default" />}>
-                      <BecomeVendor />
-                    </Suspense>
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/become-logistics" 
-                element={
-                  <ProtectedRoute>
-                    <Suspense fallback={<RouteLoadingSpinner route="default" />}>
-                      <BecomeLogistics />
-                    </Suspense>
-                  </ProtectedRoute>
-                } 
-              />
-              <Route path="/onboarding" element={
-                <Suspense fallback={<RouteLoadingSpinner route="default" />}>
-                  <OnboardingFlow />
-                </Suspense>
-              } />
-          <Route path="/flutterwave-test" element={
-            <Suspense fallback={<RouteLoadingSpinner route="test" />}>
-              <FlutterwaveTest />
-            </Suspense>
-          } />
-          <Route path="/function-test" element={
-            <Suspense fallback={<RouteLoadingSpinner route="test" />}>
-              <FunctionTest />
-            </Suspense>
-          } />
-          <Route path="/cloud-test" element={
-            <Suspense fallback={<RouteLoadingSpinner route="test" />}>
-              <CloudTest />
-            </Suspense>
-          } />
-          <Route path="/modal-test" element={
-            <Suspense fallback={<RouteLoadingSpinner route="test" />}>
-              <ModalTest />
-            </Suspense>
-          } />
-          <Route path="/stock-test" element={
-            <Suspense fallback={<RouteLoadingSpinner route="test" />}>
-              <StockTest />
-            </Suspense>
-          } />
-          <Route path="/stock-sync-test" element={
-            <Suspense fallback={<RouteLoadingSpinner route="test" />}>
-              <StockSyncTest />
-            </Suspense>
-          } />
-          <Route path="/auth-flow-test" element={
-            <Suspense fallback={<RouteLoadingSpinner route="test" />}>
-              <AuthFlowTest />
-            </Suspense>
-          } />
-          <Route path="/store-manager" element={
-            <Suspense fallback={<RouteLoadingSpinner route="default" />}>
-              <StoreManager />
-            </Suspense>
-          } />
-          <Route path="/product-assignment" element={
-            <Suspense fallback={<RouteLoadingSpinner route="default" />}>
-              <ProductStoreAssignment />
-            </Suspense>
-          } />
-          <Route path="/tracking" element={
-            <Suspense fallback={<RouteLoadingSpinner route="tracking" />}>
-              <TrackingInterface />
-            </Suspense>
-          } />
-          {/* Legacy store route (keep for backward compatibility) */}
-          <Route path="/store/:storeId" element={
-            <Suspense fallback={<RouteLoadingSpinner route="default" />}>
-              <StoreDisplay />
-            </Suspense>
-          } />
-          {/* New unified store route */}
-          <Route path="/vendor/:vendorId" element={
-            <Suspense fallback={<RouteLoadingSpinner route="default" />}>
-              <UnifiedStore />
-            </Suspense>
-          } />
-          <Route path="/tracking-system-test" element={
-            <Suspense fallback={<RouteLoadingSpinner route="test" />}>
-              <TrackingSystemTest />
-            </Suspense>
-          } />
-          <Route path="/logistics-tracking" element={
-            <Suspense fallback={<RouteLoadingSpinner route="default" />}>
-              <LogisticsTrackingManager />
-            </Suspense>
-          } />
-          <Route path="/tracking/:orderId" element={
-            <Suspense fallback={<RouteLoadingSpinner route="tracking" />}>
-              <EnhancedTrackingStatus />
-            </Suspense>
-          } />
-          <Route path="/tracking-by-number/:trackingNumber" element={
-            <Suspense fallback={<RouteLoadingSpinner route="tracking" />}>
-              <EnhancedTrackingStatus />
-            </Suspense>
-          } />
-          <Route path="/logistics-tracking-test" element={
-            <Suspense fallback={<RouteLoadingSpinner route="test" />}>
-              <LogisticsTrackingTest />
-            </Suspense>
-          } />
-          <Route path="/pricing-test" element={
-            <Suspense fallback={<RouteLoadingSpinner route="test" />}>
-              <PricingTest />
-            </Suspense>
-          } />
-          <Route path="/product-debug" element={
-            <Suspense fallback={<RouteLoadingSpinner route="test" />}>
-              <ProductDebug />
-            </Suspense>
-          } />
-          <Route path="/google-maps-test" element={
-            <Suspense fallback={<RouteLoadingSpinner route="test" />}>
-              <GoogleMapsTest />
-            </Suspense>
-          } />
-          <Route 
-            path="/admin/pricing" 
-            element={
-              <AdminRoute>
-                <Suspense fallback={<RouteLoadingSpinner route="admin" />}>
-                  <PricingAdminPanel />
-                </Suspense>
-              </AdminRoute>
-            } 
-          />
-        </Routes>
+          <HowWalletWorks />
         </Suspense>
-        </main>
-        <Suspense fallback={null}>
-          <MobileBottomNavigation />
+      } />
+      <Route path="/categories" element={
+        <Suspense fallback={<RouteLoadingSpinner route="categories" />}>
+          <Categories />
         </Suspense>
-        <Suspense fallback={null}>
-          <NotificationToastContainer />
+      } />
+      <Route path="/tracking" element={
+        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+          <Tracking />
         </Suspense>
-        
-        {/* Wallet Education Modal */}
-        {showEscrowEducation && (
-          <WalletEducation 
-            userType={newUserType}
-            onComplete={() => setShowEscrowEducation(false)}
-          />
-        )}
-        
-        {/* Osoahia AI Assistant */}
-        <Suspense fallback={null}>
-          <OsoahiaButton />
+      } />
+      <Route path="/help" element={
+        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+          <Help />
         </Suspense>
-        
-        {/* Performance Monitor (Development Only) */}
-        <PerformanceMonitor />
-      </div>
-    </Router>
+      } />
+      <Route path="/profile" element={
+        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+          <ProfileSetup />
+        </Suspense>
+      } />
+      <Route path="/wallet" element={
+        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+          <Wallet />
+        </Suspense>
+      } />
+      <Route path="/messages" element={
+        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+          <Messages />
+        </Suspense>
+      } />
+      <Route path="/logistics-pricing" element={
+        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+          <LogisticsPricingDemo />
+        </Suspense>
+      } />
+      <Route path="/admin/login" element={
+        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+          <AdminLogin />
+        </Suspense>
+      } />
+      <Route path="/admin" element={
+        <AdminRoute>
+        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+          <Admin />
+        </Suspense>
+        </AdminRoute>
+      } />
+      <Route path="/dashboard" element={<DashboardRedirect />} />
+      <Route path="/vendor" element={
+        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+          <Vendor />
+        </Suspense>
+      } />
+      <Route path="/buyer" element={
+        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+          <Buyer />
+        </Suspense>
+      } />
+      <Route path="/enhanced-buyer" element={
+        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+          <EnhancedBuyer />
+        </Suspense>
+      } />
+      <Route path="/logistics" element={<Logistics />} />
+      <Route path="/store/:storeSlug" element={
+        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+          <StorePage />
+        </Suspense>
+      } />
+      <Route path="/become-vendor" element={
+        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+          <BecomeVendor />
+        </Suspense>
+      } />
+      <Route path="/become-logistics" element={
+        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+          <BecomeLogistics />
+        </Suspense>
+      } />
+      <Route path="/test-auth-flow" element={
+        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+          <AuthFlowTest />
+        </Suspense>
+      } />
+      <Route path="/test-stock" element={
+        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+          <StockTest />
+        </Suspense>
+      } />
+      <Route path="/logo-upload" element={<LogoUpload />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+    </AnimatedPage>
   );
 };
+
 
 function App() {
   useEffect(() => {
@@ -503,6 +382,53 @@ function App() {
 
     // Set up global error handling
     setupGlobalErrorHandling()
+    
+    // Preload critical components for better performance
+    preloadCriticalComponents()
+    
+    // Analyze bundle size
+    analyzeBundle()
+    
+    // Defer network monitoring to improve LCP
+    const initNetworkMonitoring = () => {
+      console.log('🌐 Network monitoring initialized');
+      console.log('📊 Connection status:', networkManager.isOnline ? 'Online' : 'Offline');
+      
+      // Log connection info if available
+      const connectionInfo = networkManager.getConnectionInfo();
+      if (connectionInfo) {
+        console.log('📊 Connection info:', connectionInfo);
+      }
+      
+      // Set up network status listener
+      const removeListener = networkManager.addListener((event, data) => {
+        if (event === 'online') {
+          console.log('✅ Network restored - application fully functional');
+        } else if (event === 'offline') {
+          console.warn('⚠️ Network lost - using cached data');
+        }
+      });
+      
+      return removeListener;
+    };
+
+    // Initialize network monitoring after a delay to improve LCP
+    let removeListener;
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(() => {
+        removeListener = initNetworkMonitoring();
+      });
+    } else {
+      setTimeout(() => {
+        removeListener = initNetworkMonitoring();
+      }, 2000);
+    }
+    
+    return () => {
+      if (removeListener) {
+        removeListener();
+      }
+    };
   }, [])
 
   return (

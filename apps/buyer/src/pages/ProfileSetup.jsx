@@ -12,8 +12,14 @@ const ProfileSetup = () => {
   const [formData, setFormData] = useState({
     displayName: '',
     phone: '',
-    address: ''
+    address: '',
+    nin: '',
+    dateOfBirth: '',
+    gender: ''
   });
+
+  const [ninDocument, setNinDocument] = useState(null);
+  const [ninDocumentPreview, setNinDocumentPreview] = useState(null);
 
   // Get the intended destination from location state
   const intendedDestination = location.state?.from || '/';
@@ -30,8 +36,14 @@ const ProfileSetup = () => {
       setFormData({
         displayName: userProfile.displayName || '',
         phone: userProfile.phone || '',
-        address: userProfile.address || ''
+        address: userProfile.address || '',
+        nin: userProfile.nin || '',
+        dateOfBirth: userProfile.dateOfBirth || '',
+        gender: userProfile.gender || ''
       });
+      if (userProfile.ninDocument) {
+        setNinDocumentPreview(userProfile.ninDocument);
+      }
     }
   }, [userProfile, isProfileComplete, navigate, intendedDestination]);
 
@@ -41,6 +53,18 @@ const ProfileSetup = () => {
       ...prev,
       [name]: value
     }));
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setNinDocument(file);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setNinDocumentPreview(e.target.result);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -63,17 +87,48 @@ const ProfileSetup = () => {
       return;
     }
 
+    if (!formData.nin.trim()) {
+      setError('Please enter your NIN number');
+      return;
+    }
+
+    if (!formData.dateOfBirth) {
+      setError('Please enter your date of birth');
+      return;
+    }
+
+    if (!formData.gender) {
+      setError('Please select your gender');
+      return;
+    }
+
+    if (!ninDocument && !ninDocumentPreview) {
+      setError('Please upload your NIN document');
+      return;
+    }
+
     try {
       setLoading(true);
       
       // Update user profile
-      await updateUserProfile({
+      const profileData = {
         displayName: formData.displayName.trim(),
         phone: formData.phone.trim(),
         address: formData.address.trim(),
+        nin: formData.nin.trim(),
+        dateOfBirth: formData.dateOfBirth,
+        gender: formData.gender,
         profileCompleted: true,
-        profileCompletedAt: new Date()
-      });
+        profileCompletedAt: new Date(),
+        kycComplete: true
+      };
+
+      // If there's a new NIN document, add it to the profile data
+      if (ninDocument) {
+        profileData.ninDocument = ninDocumentPreview;
+      }
+
+      await updateUserProfile(profileData);
 
       // Show success message
       alert('Profile completed successfully! You can now proceed with your purchase.');
@@ -177,6 +232,119 @@ const ProfileSetup = () => {
               </p>
             </div>
 
+            {/* NIN Number */}
+            <div>
+              <label htmlFor="nin" className="block text-sm font-medium text-gray-700 mb-2">
+                NIN Number *
+              </label>
+              <input
+                id="nin"
+                name="nin"
+                type="text"
+                required
+                value={formData.nin}
+                onChange={handleChange}
+                className="appearance-none relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:z-10 sm:text-sm"
+                placeholder="Enter your 11-digit NIN number"
+                maxLength="11"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Your National Identification Number (11 digits)
+              </p>
+            </div>
+
+            {/* Date of Birth */}
+            <div>
+              <label htmlFor="dateOfBirth" className="block text-sm font-medium text-gray-700 mb-2">
+                Date of Birth *
+              </label>
+              <input
+                id="dateOfBirth"
+                name="dateOfBirth"
+                type="date"
+                required
+                value={formData.dateOfBirth}
+                onChange={handleChange}
+                className="appearance-none relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:z-10 sm:text-sm"
+              />
+            </div>
+
+            {/* Gender */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Gender *
+              </label>
+              <div className="grid grid-cols-2 gap-4">
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="gender"
+                    value="male"
+                    checked={formData.gender === 'male'}
+                    onChange={handleChange}
+                    className="h-4 w-4 text-emerald-600 focus:ring-emerald-500 border-gray-300"
+                  />
+                  <span className="ml-2 text-sm text-gray-700">Male</span>
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="gender"
+                    value="female"
+                    checked={formData.gender === 'female'}
+                    onChange={handleChange}
+                    className="h-4 w-4 text-emerald-600 focus:ring-emerald-500 border-gray-300"
+                  />
+                  <span className="ml-2 text-sm text-gray-700">Female</span>
+                </label>
+              </div>
+            </div>
+
+            {/* NIN Document Upload */}
+            <div>
+              <label htmlFor="ninDocument" className="block text-sm font-medium text-gray-700 mb-2">
+                NIN Document *
+              </label>
+              <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg hover:border-gray-400 transition-colors">
+                <div className="space-y-1 text-center">
+                  {ninDocumentPreview ? (
+                    <div>
+                      <img
+                        src={ninDocumentPreview}
+                        alt="NIN Document Preview"
+                        className="mx-auto h-32 w-auto object-contain rounded-lg"
+                      />
+                      <p className="text-sm text-gray-600 mt-2">NIN Document uploaded</p>
+                    </div>
+                  ) : (
+                    <div>
+                      <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                        <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      <div className="flex text-sm text-gray-600">
+                        <label htmlFor="ninDocument" className="relative cursor-pointer bg-white rounded-md font-medium text-emerald-600 hover:text-emerald-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-emerald-500">
+                          <span>Upload NIN document</span>
+                          <input
+                            id="ninDocument"
+                            name="ninDocument"
+                            type="file"
+                            accept="image/*"
+                            onChange={handleFileChange}
+                            className="sr-only"
+                          />
+                        </label>
+                        <p className="pl-1">or drag and drop</p>
+                      </div>
+                      <p className="text-xs text-gray-500">PNG, JPG, PDF up to 10MB</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <p className="mt-1 text-xs text-gray-500">
+                Upload a clear photo of your NIN card or slip
+              </p>
+            </div>
+
             {/* Submit Button */}
             <div className="pt-2">
               <button
@@ -202,7 +370,7 @@ const ProfileSetup = () => {
           {/* Privacy Notice */}
           <div className="mt-6 p-4 bg-gray-50 rounded-lg">
             <p className="text-xs text-gray-600 text-center">
-              🔒 Your information is secure and will only be used for order processing and delivery
+              🔒 Your information is secure and will only be used for order processing, delivery, and KYC verification. NIN is required for dispute resolution and identity verification.
             </p>
           </div>
         </div>

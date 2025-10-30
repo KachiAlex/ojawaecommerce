@@ -11,24 +11,43 @@ const DashboardRedirect = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (loading) return;
+    if (loading) {
+      console.log('🔄 DashboardRedirect: Still loading...');
+      return;
+    }
 
     if (!currentUser) {
+      console.log('❌ DashboardRedirect: No current user, redirecting to login');
       navigate('/login');
       return;
     }
+
+    console.log('👤 DashboardRedirect: User profile:', {
+      uid: currentUser.uid,
+      email: currentUser.email,
+      role: userProfile?.role,
+      isVendor: userProfile?.isVendor,
+      isAdmin: userProfile?.isAdmin,
+      isLogisticsPartner: userProfile?.isLogisticsPartner
+    });
 
     // Determine primary dashboard based on role
     let primaryDashboard = 'buyer'; // Default
 
     if (userProfile?.role === 'admin' || userProfile?.isAdmin) {
       primaryDashboard = 'admin';
+      console.log('🎯 DashboardRedirect: Redirecting to ADMIN dashboard');
     } else if (userProfile?.role === 'vendor' || userProfile?.isVendor) {
       primaryDashboard = 'vendor';
+      console.log('🎯 DashboardRedirect: Redirecting to VENDOR dashboard');
     } else if (userProfile?.role === 'logistics' || userProfile?.isLogisticsPartner) {
       primaryDashboard = 'logistics';
+      console.log('🎯 DashboardRedirect: Redirecting to LOGISTICS dashboard');
+    } else {
+      console.log('🎯 DashboardRedirect: Defaulting to BUYER dashboard');
     }
 
+    console.log('🚀 DashboardRedirect: Navigating to /', primaryDashboard);
     navigate(`/${primaryDashboard}`, { replace: true });
   }, [currentUser, userProfile, loading, navigate]);
 

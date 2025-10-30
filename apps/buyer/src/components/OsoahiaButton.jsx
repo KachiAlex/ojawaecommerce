@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import OsoahiaChat from './OsoahiaChat';
+import MoveableAIAssistant from './MoveableAIAssistant';
 
 const OsoahiaButton = ({ context = null }) => {
   const { currentUser } = useAuth();
@@ -84,8 +84,8 @@ const OsoahiaButton = ({ context = null }) => {
         </div>
       </div>
 
-      {/* Chat Modal */}
-      <OsoahiaChat 
+      {/* Moveable Chat Assistant */}
+      <MoveableAIAssistant 
         isOpen={isOpen} 
         onClose={() => setIsOpen(false)} 
         context={context}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import RoleAuthModal from './RoleAuthModal';
@@ -7,9 +7,9 @@ const DashboardSwitcher = () => {
   const { currentUser, userProfile } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [showRoleAuthModal, setShowRoleAuthModal] = useState(false);
   const [targetRole, setTargetRole] = useState(null);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   // Determine current dashboard
   const getCurrentDashboard = () => {
@@ -53,24 +53,33 @@ const DashboardSwitcher = () => {
 
     // Check if user has access to this dashboard
     if (userRoles.includes(dashboard)) {
-      // User has access, navigate directly
+      // User has access, use window.location for full page reload to avoid routing issues
+      console.log('🔄 Switching to dashboard:', dashboard);
       navigate(`/${dashboard}`);
     } else {
-      // User doesn't have access, show auth modal
+      // User doesn't have access, show role creation modal
+      console.log('🔒 Creating role for dashboard:', dashboard);
       setTargetRole(dashboard);
       setShowRoleAuthModal(true);
     }
   };
 
-  // Handle successful role creation/login
+  // Handle successful role creation
   const handleRoleAuthSuccess = (role) => {
     setShowRoleAuthModal(false);
     setTargetRole(null);
+    // Reload the page to refresh user profile and navigate to new dashboard
     navigate(`/${role}`);
   };
 
   const currentDashboard = getCurrentDashboard();
   const userRoles = getUserRoles();
+  
+  // Debug logging
+  console.log('🔍 Dashboard Switcher Debug:');
+  console.log('Current Dashboard:', currentDashboard);
+  console.log('User Roles:', userRoles);
+  console.log('User Profile:', userProfile);
 
   const dashboards = [
     {
@@ -146,6 +155,9 @@ const DashboardSwitcher = () => {
                 {dashboards.map((dashboard) => {
                   const hasAccess = userRoles.includes(dashboard.id);
                   const isCurrent = dashboard.id === currentDashboard;
+                  
+                  // Debug log for each dashboard
+                  console.log(`Dashboard: ${dashboard.name}, Has Access: ${hasAccess}, Is Current: ${isCurrent}, Show Lock: ${!isCurrent && !hasAccess}`);
 
                   return (
                     <button
@@ -156,7 +168,7 @@ const DashboardSwitcher = () => {
                         w-full flex items-center justify-between px-3 py-2.5 rounded-lg transition-colors
                         ${isCurrent 
                           ? 'bg-gray-100 cursor-default' 
-                          : `hover:bg-${dashboard.color}-50 hover:text-${dashboard.color}-600`
+                          : 'hover:bg-emerald-50 hover:text-emerald-600 cursor-pointer'
                         }
                       `}
                     >

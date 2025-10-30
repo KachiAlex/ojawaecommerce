@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import firebaseService from '../services/firebaseService';
 import { collection, query, where, getDocs, doc, updateDoc, deleteDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/config';
+import FeaturedProductsManager from '../components/FeaturedProductsManager';
 
 const AdminDashboard = () => {
   const { userProfile, currentUser } = useAuth();
@@ -453,6 +454,7 @@ const AdminDashboard = () => {
             { id: 'users', name: 'Users', icon: '👥' },
             { id: 'orders', name: 'Orders', icon: '📦' },
             { id: 'products', name: 'Products', icon: '🛒' },
+            { id: 'featured', name: 'Featured', icon: '⭐' },
             { id: 'disputes', name: 'Disputes', icon: '⚖️' },
             { id: 'escrow', name: 'Escrow', icon: '💰' },
             { id: 'messages', name: 'Messages', icon: '📨' },
@@ -1136,6 +1138,11 @@ const AdminDashboard = () => {
                 </div>
           )}
               </div>
+      )}
+
+      {/* Featured Products Tab */}
+      {activeTab === 'featured' && (
+        <FeaturedProductsManager />
       )}
 
       {/* Disputes Tab */}

@@ -3,6 +3,7 @@ import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
 import firebaseService from '../services/firebaseService';
 import { useNavigate } from 'react-router-dom';
+import MessageVendorModal from './MessageVendorModal';
 
 const ProductQuickView = ({ product, isOpen, onClose }) => {
   const { addToCart } = useCart();
@@ -15,6 +16,7 @@ const ProductQuickView = ({ product, isOpen, onClose }) => {
   const [addedToCart, setAddedToCart] = useState(false);
   const [reviews, setReviews] = useState([]);
   const [loadingReviews, setLoadingReviews] = useState(false);
+  const [showMessageModal, setShowMessageModal] = useState(false);
 
   useEffect(() => {
     if (isOpen && product) {
@@ -72,6 +74,11 @@ const ProductQuickView = ({ product, isOpen, onClose }) => {
       navigate('/cart');
       onClose();
     }, 500);
+  };
+
+  const messageVendor = () => {
+    console.log('💬 Message vendor clicked in ProductQuickView for product:', product);
+    setShowMessageModal(true);
   };
 
   if (!isOpen || !product) return null;
@@ -316,6 +323,15 @@ const ProductQuickView = ({ product, isOpen, onClose }) => {
                       >
                         Buy Now
                       </button>
+                      <button
+                        onClick={messageVendor}
+                        className="w-full py-3 px-6 rounded-lg font-semibold bg-purple-600 text-white hover:bg-purple-700 transition-all transform hover:scale-105 flex items-center justify-center gap-2"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                        </svg>
+                        Message Vendor
+                      </button>
                     </>
                   ) : (
                     <button
@@ -369,6 +385,17 @@ const ProductQuickView = ({ product, isOpen, onClose }) => {
           </div>
         </div>
       </div>
+
+      {/* Message Vendor Modal */}
+      <MessageVendorModal
+        isOpen={showMessageModal}
+        onClose={() => setShowMessageModal(false)}
+        vendor={{
+          id: product?.vendorId || 'vendor-id',
+          name: product?.vendorName || 'Vendor'
+        }}
+        product={product}
+      />
     </div>
   );
 };

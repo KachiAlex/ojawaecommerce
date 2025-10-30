@@ -1,6 +1,12 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, connectAuthEmulator } from 'firebase/auth';
-import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
+import { 
+  getFirestore, 
+  connectFirestoreEmulator,
+  enableIndexedDbPersistence,
+  enableMultiTabIndexedDbPersistence,
+  CACHE_SIZE_UNLIMITED
+} from 'firebase/firestore';
 import { getStorage, connectStorageEmulator } from 'firebase/storage';
 import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
 import { getMessaging } from 'firebase/messaging';
@@ -24,6 +30,36 @@ export const db = getFirestore(app);
 export const storage = getStorage(app);
 export const functions = getFunctions(app);
 
+// Configure auth settings for better reliability
+auth.settings.appVerificationDisabledForTesting = false;
+
+// Enable offline persistence for Firestore with error handling
+if (typeof window !== 'undefined') {
+  enableMultiTabIndexedDbPersistence(db)
+    .then(() => {
+      console.log('✅ Firebase: Offline persistence enabled (multi-tab)');
+    })
+    .catch((err) => {
+      if (err.code === 'failed-precondition') {
+        // Multiple tabs open, persistence can only be enabled in one tab at a time.
+        console.warn('⚠️ Firebase: Persistence failed - multiple tabs open');
+        // Try single-tab persistence as fallback
+        enableIndexedDbPersistence(db)
+          .then(() => {
+            console.log('✅ Firebase: Offline persistence enabled (single-tab)');
+          })
+          .catch((error) => {
+            console.warn('⚠️ Firebase: Single-tab persistence also failed:', error.code);
+          });
+      } else if (err.code === 'unimplemented') {
+        // The current browser doesn't support persistence
+        console.warn('⚠️ Firebase: Persistence not supported in this browser');
+      } else {
+        console.error('❌ Firebase: Persistence error:', err);
+      }
+    });
+}
+
 // Initialize messaging if supported
 let messaging = null;
 try {
@@ -36,7 +72,60 @@ try {
 
 export { messaging };
 
+// Configure network timeout and retry settings
+const NETWORK_TIMEOUT = 10000; // 10 seconds
+const MAX_RETRY_ATTEMPTS = 3;
+
+// Global Firebase error handler
+const setupFirebaseErrorHandling = () => {
+  // Monitor connection state
+  if (typeof window !== 'undefined') {
+    let consecutiveErrors = 0;
+    const maxConsecutiveErrors = 5;
+    
+    window.addEventListener('online', () => {
+      console.log('🌐 Firebase: Network connection restored');
+      consecutiveErrors = 0;
+    });
+    
+    window.addEventListener('offline', () => {
+      console.log('📴 Firebase: Network connection lost - using cached data');
+    });
+    
+    // Intercept fetch for Firebase requests
+    const originalFetch = window.fetch;
+    window.fetch = async (...args) => {
+      const url = args[0];
+      
+      // Check if it's a Firebase request
+      if (typeof url === 'string' && (
+        url.includes('firestore.googleapis.com') ||
+        url.includes('firebase.googleapis.com')
+      )) {
+        try {
+          const response = await originalFetch(...args);
+          consecutiveErrors = 0;
+          return response;
+        } catch (error) {
+          consecutiveErrors++;
+          
+          if (consecutiveErrors >= maxConsecutiveErrors) {
+            console.error('🔥 Firebase: Multiple consecutive network errors detected');
+            consecutiveErrors = 0; // Reset to avoid spam
+          }
+          
+          throw error;
+        }
+      }
+      
+      return originalFetch(...args);
+    };
+  }
+};
+
+setupFirebaseErrorHandling();
+
 // Using cloud-based services only
-console.log('Using Firebase cloud services');
+console.log('✅ Firebase: Cloud services initialized with offline support');
 
 export default app;

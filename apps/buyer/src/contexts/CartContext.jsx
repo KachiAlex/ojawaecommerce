@@ -87,9 +87,20 @@ export const CartProvider = ({ children }) => {
             : item
         );
       } else {
-        return [...prevItems, { ...product, quantity }];
+        // Normalize product snapshot for cart storage to avoid UI flicker
+        const normalized = {
+          ...product,
+          image: product?.image || (Array.isArray(product?.images) ? product.images[0] : undefined) || '/placeholder-product.jpg',
+        };
+        return [...prevItems, { ...normalized, quantity }];
       }
     });
+    // Fire a lightweight global event for UI toasts (no backend write)
+    try {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('cart:add', { detail: { id: product?.id, name: product?.name, quantity } }));
+      }
+    } catch (_) {}
   }, []);
 
   const removeFromCart = useCallback((productId) => {

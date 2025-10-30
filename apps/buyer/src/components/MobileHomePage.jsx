@@ -136,13 +136,6 @@ const MobileHomePage = () => {
         <div className="p-4">
           <h2 className="text-lg font-semibold mb-4">Quick Actions</h2>
           <div className="grid grid-cols-2 gap-4">
-            <Link
-              to="/wallet"
-              className="bg-white rounded-lg p-4 shadow-sm border border-gray-200 text-center"
-            >
-              <div className="text-2xl mb-2">💰</div>
-              <div className="text-sm font-medium text-gray-900">Wallet</div>
-            </Link>
             
             <Link
               to="/enhanced-buyer"

@@ -200,17 +200,36 @@ const OrderTimeline = ({ order, showDetails = true, compact = false }) => {
         </div>
       )}
 
-      {/* Tracking Information */}
-      {order.trackingId && (
+      {/* Tracking Information - Only show when order is shipped */}
+      {order.trackingId && (order.status === 'shipped' || order.status === 'in_transit' || order.status === 'out_for_delivery' || order.status === 'delivered') && (
         <div className="mt-4 p-4 bg-gray-50 rounded-lg">
           <div className="flex items-center justify-between">
             <div>
               <span className="text-sm font-medium text-gray-900">Tracking Number</span>
               <p className="text-sm text-gray-600 font-mono">{order.trackingId}</p>
             </div>
-            <button className="text-sm text-emerald-600 hover:text-emerald-700 font-medium">
+            <button 
+              onClick={() => window.location.href = `/tracking/${order.trackingId}`}
+              className="text-sm text-emerald-600 hover:text-emerald-700 font-medium"
+            >
               Track Package
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Tracking ID exists but not shipped yet */}
+      {order.trackingId && !(order.status === 'shipped' || order.status === 'in_transit' || order.status === 'out_for_delivery' || order.status === 'delivered') && (
+        <div className="mt-4 p-4 bg-yellow-50 rounded-lg">
+          <div className="flex items-center gap-2">
+            <span className="text-yellow-600">📦</span>
+            <div>
+              <span className="text-sm font-medium text-yellow-900">Tracking Number Ready</span>
+              <p className="text-sm text-yellow-700">
+                Your tracking number is {order.trackingId}, but the package hasn't been shipped yet. 
+                You'll be able to track it once the vendor ships your order.
+              </p>
+            </div>
           </div>
         </div>
       )}

@@ -84,8 +84,8 @@ service cloud.firestore {
     match /users/{userId} {
       allow read, write: if isOwner(userId);
       allow read: if isAdmin(); // Admins can read all user profiles
-      // Allow authenticated users to read vendor profiles (needed for cart/checkout)
-      allow read: if isAuthenticated() && get(/databases/$(database)/documents/users/$(userId)).data.isVendor == true;
+      // Allow authenticated users to read any user profile (needed for cart/checkout to fetch vendor addresses)
+      allow read: if isAuthenticated();
     }
     
     // Products collection - anyone can read, vendors can create/update their own
@@ -131,8 +131,13 @@ service cloud.firestore {
       allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
       // Allow create for authenticated users creating their own wallet
       allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
-      // Allow update for wallet owner or admin
-      allow update: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      // Allow update for wallet owner, admin, or when releasing escrow (buyer updating vendor's wallet)
+      allow update: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid || 
+        isAdmin() ||
+        // Allow escrow release: any authenticated user can add to a wallet's balance
+        (request.resource.data.balance > resource.data.balance)
+      );
       // Allow delete for admin only
       allow delete: if isAdmin();
       // Allow list/query for authenticated users (needed for where queries)
@@ -142,7 +147,11 @@ service cloud.firestore {
     // Wallet transactions collection - users can read their own transactions
     match /wallet_transactions/{transactionId} {
       allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      // Allow create for own transactions OR when type is 'escrow_release' (buyer releasing to vendor)
+      allow create: if isAuthenticated() && (
+        request.resource.data.userId == request.auth.uid ||
+        request.resource.data.type == 'escrow_release'
+      );
       allow update, delete: if isAdmin();
       allow list: if isAuthenticated();
     }
@@ -192,16 +201,28 @@ service cloud.firestore {
            match /logistics_profiles/{profileId} {
              allow read, write: if isOwner(resource.data.userId);
              allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
-             allow read: if isAdmin(); // Admins can read all profiles
+             allow read, write: if isAdmin(); // Admins can read and update all profiles (for approval/rejection)
              allow list: if isAuthenticated(); // Allow aggregation queries
            }
 
-           // Deliveries collection - logistics partners can read/write their own deliveries
+           // Deliveries collection - buyers can create deliveries for their orders, logistics partners can update
            match /deliveries/{deliveryId} {
-             allow read, write: if isOwner(resource.data.logisticsPartnerId);
-             allow create: if isAuthenticated() && request.auth.uid == request.resource.data.logisticsPartnerId;
-             allow read: if isOwner(resource.data.buyerId) || isOwner(resource.data.vendorId); // Buyers and vendors can read their deliveries
-             allow read: if isAdmin(); // Admins can read all deliveries
+             // Allow create if authenticated user is the buyer specified in the new document
+             allow create: if isAuthenticated() && request.resource.data.buyerId == request.auth.uid;
+             // Allow read for buyers, vendors, logistics partners, and admins
+             allow read: if isAuthenticated() && (
+               resource.data.buyerId == request.auth.uid || 
+               resource.data.vendorId == request.auth.uid || 
+               resource.data.logisticsPartnerId == request.auth.uid ||
+               isAdmin()
+             );
+             // Allow update for logistics partners (when assigned) or admins
+             allow update: if isAuthenticated() && (
+               resource.data.logisticsPartnerId == request.auth.uid ||
+               isAdmin()
+             );
+             // Allow delete for admins only
+             allow delete: if isAdmin();
              allow list: if isAuthenticated(); // Allow aggregation queries
            }
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { trackingLookupService, walletTrackingService, productTrackingService, storeService, orderTrackingService } from '../services/trackingService';
+import firebaseService from '../services/firebaseService';
 
 const TrackingInterface = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -9,7 +9,7 @@ const TrackingInterface = () => {
 
   const handleSearch = async () => {
     if (!searchTerm.trim()) {
-      setError('Please enter a tracking ID or number');
+      setError('Please enter an Order ID');
       return;
     }
 
@@ -17,16 +17,18 @@ const TrackingInterface = () => {
       setLoading(true);
       setError('');
       
-      const results = await trackingLookupService.searchByTrackingId(searchTerm.trim());
-      setSearchResults(results);
+      // Search for order using Order ID as tracking ID
+      const order = await firebaseService.orders.getByTrackingId(searchTerm.trim());
       
-      // If no results found
-      if (!results.wallet && !results.product && !results.store && !results.order) {
-        setError('No items found with this tracking ID');
+      if (order) {
+        setSearchResults({ order });
+      } else {
+        setError('No order found with this Order ID');
+        setSearchResults(null);
       }
     } catch (error) {
       console.error('Error searching:', error);
-      setError('Error searching for tracking ID. Please try again.');
+      setError('Error searching for Order ID. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -75,9 +77,9 @@ const TrackingInterface = () => {
   return (
     <div className="max-w-4xl mx-auto p-6">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-4">Track Your Items</h1>
+        <h1 className="text-3xl font-bold text-gray-900 mb-4">Track Your Order</h1>
         <p className="text-gray-600">
-          Enter any tracking ID to find wallets, products, stores, or orders
+          Enter your Order ID to track your order status and delivery progress
         </p>
       </div>
 
@@ -90,7 +92,7 @@ const TrackingInterface = () => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="Enter tracking ID (e.g., WLT-2024-ABC123, PRD-2024-XYZ789)"
+              placeholder="Enter your Order ID (e.g., abc123def456)"
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
@@ -118,343 +120,118 @@ const TrackingInterface = () => {
       </div>
 
       {/* Search Results */}
-      {searchResults && (
+      {searchResults && searchResults.order && (
         <div className="space-y-6">
-          {/* Wallet Results */}
-          {searchResults.wallet && (
-            <div className="bg-white rounded-lg shadow-lg p-6">
-              <div className="flex items-center mb-4">
-                <div className="p-2 bg-blue-100 rounded-lg mr-3">
-                  <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
-                  </svg>
-                </div>
-                <h2 className="text-xl font-semibold text-gray-900">Wallet Found</h2>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-3">Wallet Information</h3>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Wallet ID:</span>
-                      <span className="font-mono text-blue-600">{searchResults.wallet.walletId}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">User Type:</span>
-                      <span className="capitalize">{searchResults.wallet.userType}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Balance:</span>
-                      <span className="font-semibold text-green-600">
-                        ₦{searchResults.wallet.balance?.toLocaleString() || 0}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Currency:</span>
-                      <span>{searchResults.wallet.currency}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Status:</span>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(searchResults.wallet.status)}`}>
-                        {searchResults.wallet.status}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-3">Transaction Statistics</h3>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Total Transactions:</span>
-                      <span>{searchResults.wallet.totalTransactions || 0}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Total Credits:</span>
-                      <span className="text-green-600">₦{searchResults.wallet.totalCredits?.toLocaleString() || 0}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Total Debits:</span>
-                      <span className="text-red-600">₦{searchResults.wallet.totalDebits?.toLocaleString() || 0}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Created:</span>
-                      <span className="text-sm">{formatDate(searchResults.wallet.createdAt)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Last Transaction:</span>
-                      <span className="text-sm">{formatDate(searchResults.wallet.lastTransactionAt)}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Product Results */}
-          {searchResults.product && (
-            <div className="bg-white rounded-lg shadow-lg p-6">
-              <div className="flex items-center mb-4">
-                <div className="p-2 bg-green-100 rounded-lg mr-3">
-                  <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                  </svg>
-                </div>
-                <h2 className="text-xl font-semibold text-gray-900">Product Found</h2>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  {searchResults.product.image && (
-                    <img
-                      src={searchResults.product.image}
-                      alt={searchResults.product.name}
-                      className="w-full h-48 object-cover rounded-lg mb-4"
-                    />
-                  )}
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">{searchResults.product.name}</h3>
-                  <p className="text-gray-600 mb-4">{searchResults.product.description}</p>
-                </div>
-                
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-3">Product Information</h3>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Tracking Number:</span>
-                      <span className="font-mono text-green-600">{searchResults.product.trackingNumber}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Price:</span>
-                      <span className="font-semibold">₦{searchResults.product.price?.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Stock:</span>
-                      <span className={searchResults.product.inStock ? 'text-green-600' : 'text-red-600'}>
-                        {searchResults.product.stock || 0} {searchResults.product.inStock ? 'Available' : 'Out of Stock'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Category:</span>
-                      <span className="capitalize">{searchResults.product.category}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Store ID:</span>
-                      <span className="font-mono text-blue-600">{searchResults.product.storeId || 'Not assigned'}</span>
-                    </div>
-                  </div>
-                  
-                  <div className="mt-6">
-                    <h4 className="text-md font-medium text-gray-900 mb-3">Performance Statistics</h4>
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Views:</span>
-                        <span>{searchResults.product.viewCount || 0}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Orders:</span>
-                        <span>{searchResults.product.orderCount || 0}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Revenue:</span>
-                        <span className="text-green-600">₦{searchResults.product.totalRevenue?.toLocaleString() || 0}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Created:</span>
-                        <span className="text-sm">{formatDate(searchResults.product.createdAt)}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Store Results */}
-          {searchResults.store && (
-            <div className="bg-white rounded-lg shadow-lg p-6">
-              <div className="flex items-center mb-4">
-                <div className="p-2 bg-purple-100 rounded-lg mr-3">
-                  <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                  </svg>
-                </div>
-                <h2 className="text-xl font-semibold text-gray-900">Store Found</h2>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  {searchResults.store.banner && (
-                    <img
-                      src={searchResults.store.banner}
-                      alt={`${searchResults.store.name} banner`}
-                      className="w-full h-48 object-cover rounded-lg mb-4"
-                    />
-                  )}
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">{searchResults.store.name}</h3>
-                  <p className="text-gray-600 mb-4">{searchResults.store.description}</p>
-                  <p className="text-sm text-blue-600">
-                    <a href={searchResults.store.shareableLink} target="_blank" rel="noopener noreferrer" className="hover:underline">
-                      Visit Store: {searchResults.store.shareableLink}
-                    </a>
-                  </p>
-                </div>
-                
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-3">Store Information</h3>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Store ID:</span>
-                      <span className="font-mono text-purple-600">{searchResults.store.storeId}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Category:</span>
-                      <span className="capitalize">{searchResults.store.category}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Rating:</span>
-                      <span className="text-yellow-600">{searchResults.store.rating || 0} ⭐</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Review Count:</span>
-                      <span>{searchResults.store.reviewCount || 0}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Status:</span>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(searchResults.store.isActive ? 'active' : 'inactive')}`}>
-                        {searchResults.store.isActive ? 'Active' : 'Inactive'}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  <div className="mt-6">
-                    <h4 className="text-md font-medium text-gray-900 mb-3">Store Statistics</h4>
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Total Products:</span>
-                        <span>{searchResults.store.totalProducts || 0}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Total Orders:</span>
-                        <span>{searchResults.store.totalOrders || 0}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Total Revenue:</span>
-                        <span className="text-green-600">₦{searchResults.store.totalRevenue?.toLocaleString() || 0}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Created:</span>
-                        <span className="text-sm">{formatDate(searchResults.store.createdAt)}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Order Results */}
-          {searchResults.order && (
             <div className="bg-white rounded-lg shadow-lg p-6">
-              <div className="flex items-center mb-4">
-                <div className="p-2 bg-orange-100 rounded-lg mr-3">
-                  <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            <div className="flex items-center mb-6">
+              <div className="p-3 bg-blue-100 rounded-lg mr-4">
+                <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                   </svg>
                 </div>
-                <h2 className="text-xl font-semibold text-gray-900">Order Found</h2>
+              <div>
+                <h2 className="text-2xl font-semibold text-gray-900">Order Found</h2>
+                <p className="text-gray-600">Order ID: {searchResults.order.id}</p>
+              </div>
+            </div>
+            
+            {/* Order Status */}
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium text-gray-900">Order Status</h3>
+                <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(searchResults.order.status)}`}>
+                  {searchResults.order.status?.replace('_', ' ').toUpperCase()}
+                </span>
               </div>
               
+              {/* Order Details */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-3">Order Information</h3>
+                  <h4 className="font-medium text-gray-900 mb-3">Order Information</h4>
                   <div className="space-y-2">
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Tracking Number:</span>
-                      <span className="font-mono text-orange-600">{searchResults.order.trackingNumber}</span>
+                      <span className="text-gray-600">Order ID:</span>
+                      <span className="font-mono text-blue-600">{searchResults.order.id}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Total Amount:</span>
-                      <span className="font-semibold">₦{searchResults.order.totalAmount?.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Order Status:</span>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(searchResults.order.status)}`}>
-                        {searchResults.order.status}
+                      <span className="font-semibold text-green-600">
+                        ₦{searchResults.order.totalAmount?.toLocaleString() || 0}
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Payment Status:</span>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(searchResults.order.paymentStatus)}`}>
-                        {searchResults.order.paymentStatus}
-                      </span>
+                      <span className="capitalize">{searchResults.order.paymentStatus || 'Unknown'}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Shipping Status:</span>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(searchResults.order.shippingStatus)}`}>
-                        {searchResults.order.shippingStatus}
-                      </span>
+                      <span className="text-gray-600">Created:</span>
+                      <span>{formatDate(searchResults.order.createdAt)}</span>
                     </div>
                   </div>
                 </div>
                 
                 <div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-3">Order Details</h3>
+                  <h4 className="font-medium text-gray-900 mb-3">Customer Information</h4>
                   <div className="space-y-2">
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Buyer ID:</span>
-                      <span className="font-mono text-sm">{searchResults.order.buyerId}</span>
+                      <span className="text-gray-600">Customer:</span>
+                      <span>{searchResults.order.buyerName || 'N/A'}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Vendor ID:</span>
-                      <span className="font-mono text-sm">{searchResults.order.vendorId}</span>
+                      <span className="text-gray-600">Email:</span>
+                      <span className="text-sm">{searchResults.order.buyerEmail || 'N/A'}</span>
                     </div>
+                    {searchResults.order.deliveryAddress && (
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Items Count:</span>
-                      <span>{searchResults.order.items?.length || 0}</span>
+                        <span className="text-gray-600">Delivery Address:</span>
+                        <span className="text-sm">{searchResults.order.deliveryAddress}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Created:</span>
-                      <span className="text-sm">{formatDate(searchResults.order.createdAt)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Last Updated:</span>
-                      <span className="text-sm">{formatDate(searchResults.order.updatedAt)}</span>
-                    </div>
+                    )}
                   </div>
                 </div>
               </div>
             </div>
+            
+            {/* Order Items */}
+            {searchResults.order.items && searchResults.order.items.length > 0 && (
+              <div className="mb-6">
+                <h4 className="font-medium text-gray-900 mb-3">Order Items</h4>
+                <div className="space-y-2">
+                  {searchResults.order.items.map((item, index) => (
+                    <div key={index} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                <div>
+                        <span className="font-medium">{item.name}</span>
+                        <span className="text-gray-600 ml-2">x{item.quantity}</span>
+                </div>
+                      <span className="font-semibold">₦{(item.price * item.quantity).toLocaleString()}</span>
+                    </div>
+                  ))}
+              </div>
+            </div>
           )}
-        </div>
-      )}
 
-      {/* Help Section */}
-      <div className="mt-12 bg-gray-50 rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Tracking ID Formats</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-          <div>
-            <p className="font-medium text-gray-700 mb-2">Wallet IDs:</p>
-            <p className="text-gray-600 font-mono">WLT-YYYY-XXXXXX</p>
-            <p className="text-gray-500">Example: WLT-2024-ABC123</p>
-          </div>
-          <div>
-            <p className="font-medium text-gray-700 mb-2">Product Tracking:</p>
-            <p className="text-gray-600 font-mono">PRD-YYYY-XXXXXX</p>
-            <p className="text-gray-500">Example: PRD-2024-XYZ789</p>
-          </div>
-          <div>
-            <p className="font-medium text-gray-700 mb-2">Store IDs:</p>
-            <p className="text-gray-600 font-mono">STO-YYYY-XXXXXX</p>
-            <p className="text-gray-500">Example: STO-2024-DEF456</p>
-          </div>
-          <div>
-            <p className="font-medium text-gray-700 mb-2">Order Tracking:</p>
-            <p className="text-gray-600 font-mono">ORD-YYYY-XXXXXX</p>
-            <p className="text-gray-500">Example: ORD-2024-GHI789</p>
-          </div>
-        </div>
-      </div>
+            {/* Delivery Information */}
+            {searchResults.order.logisticsCompany && (
+              <div className="border-t pt-4">
+                <h4 className="font-medium text-gray-900 mb-3">Delivery Information</h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                    <span className="text-gray-600">Logistics Company:</span>
+                    <span>{searchResults.order.logisticsCompany}</span>
+                    </div>
+                  {searchResults.order.estimatedDelivery && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Estimated Delivery:</span>
+                      <span>{searchResults.order.estimatedDelivery} days</span>
+                    </div>
+                  )}
+              </div>
+            </div>
+          )}
+              </div>
+            </div>
+          )}
     </div>
   );
 };

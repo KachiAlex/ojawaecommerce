@@ -1,10 +1,12 @@
+import SimpleLogo from './SimpleLogo';
+
 const Footer = () => {
   const year = new Date().getFullYear();
   return (
     <footer className="border-t bg-white">
       <div className="max-w-7xl mx-auto px-4 py-8 grid gap-4 md:grid-cols-3 text-sm text-slate-600">
         <div>
-          <p className="font-semibold text-slate-900">Ojawa</p>
+          <SimpleLogo size="small" className="mb-2" />
           <p className="mt-1">Pan-African marketplace with wallet-protected payments.</p>
         </div>
         <div className="flex gap-6">

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useCart } from '../contexts/CartContext'
 import { deviceDetection, mobilePerformance } from '../utils/mobileUtils'
@@ -17,6 +17,7 @@ const MobileNavigation = () => {
   const { currentUser, userProfile, logout } = useAuth()
   const { getCartItemsCount } = useCart()
   const location = useLocation()
+  const navigate = useNavigate()
   const navRef = useRef(null)
   const userMenuRef = useRef(null)
 
@@ -58,8 +59,8 @@ const MobileNavigation = () => {
   const handleSearch = (e) => {
     e.preventDefault()
     if (searchTerm.trim()) {
-      // Navigate to products page with search term
-      window.location.href = `/products?q=${encodeURIComponent(searchTerm.trim())}`
+      // Navigate to products page with search term using React Router
+      navigate(`/products?q=${encodeURIComponent(searchTerm.trim())}`)
       setSearchTerm('')
       setIsSearchOpen(false)
     }

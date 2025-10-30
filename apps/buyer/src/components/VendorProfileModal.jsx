@@ -109,7 +109,9 @@ const VendorProfileModal = ({ isOpen, onClose, onUpdate }) => {
         updates.vendorProfile.addressVerificationStatus = 'pending';
       }
 
+      console.log('💾 VendorProfileModal: Saving updates:', updates);
       await updateUserProfile(updates);
+      console.log('✅ VendorProfileModal: Profile updated successfully');
       setSuccess('Profile updated successfully!');
       
       if (onUpdate) {

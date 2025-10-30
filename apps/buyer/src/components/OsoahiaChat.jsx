@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import osoahiaService from '../services/osoahiaService';
 
 const OsoahiaChat = ({ isOpen, onClose, context = null }) => {
+  const navigate = useNavigate();
   const { currentUser, userProfile } = useAuth();
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
@@ -135,11 +137,11 @@ const OsoahiaChat = ({ isOpen, onClose, context = null }) => {
     switch (action.type) {
       case 'view_all':
         // Navigate to search results
-        window.location.href = `/products?search=${action.data.searchTerm}`;
+        navigate(`/products?search=${action.data.searchTerm}`);
         break;
       case 'view_product':
         // Navigate to product detail
-        window.location.href = `/products/${action.data.productId}`;
+        navigate(`/products/${action.data.productId}`);
         break;
       case 'add_to_cart':
         // Add to cart functionality
@@ -147,11 +149,11 @@ const OsoahiaChat = ({ isOpen, onClose, context = null }) => {
         break;
       case 'view_cart':
         // Navigate to cart
-        window.location.href = '/cart';
+        navigate('/cart');
         break;
       case 'go_to_checkout':
         // Navigate to checkout
-        window.location.href = '/checkout';
+        navigate('/checkout');
         break;
       default:
         console.log('Action:', action);

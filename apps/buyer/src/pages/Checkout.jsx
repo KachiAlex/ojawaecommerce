@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { collection, addDoc, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
-import EnhancedLogisticsSelector from '../components/EnhancedLogisticsSelector';
+// import EnhancedLogisticsSelector from '../components/EnhancedLogisticsSelector'; // Disabled
 import firebaseService from '../services/firebaseService';
 import WalletBalanceCheck from '../components/WalletBalanceCheck';
 import escrowPaymentService from '../services/escrowPaymentService';
@@ -84,29 +84,53 @@ const CheckoutForm = ({ total, pricingBreakdown, cartItems, onSuccess, orderDeta
 
   const createOrderWithEscrow = async () => {
     try {
-      // Resolve vendorId for each product to ensure vendor dashboards see the order
+      // Resolve vendorId and processing time for each product
       const itemsWithVendors = [];
+      let maxProcessingTimeDays = 0; // Track maximum processing time from all products
+      
       for (const item of cartItems) {
         let resolvedVendorId = item.vendorId;
+        let productProcessingTime = 2; // Default 2 days if not set
+        
         if (!resolvedVendorId && item.id) {
           try {
             const prodSnap = await getDoc(doc(db, 'products', item.id));
             if (prodSnap.exists()) {
-              resolvedVendorId = prodSnap.data().vendorId || resolvedVendorId;
+              const productData = prodSnap.data();
+              resolvedVendorId = productData.vendorId || resolvedVendorId;
+              productProcessingTime = productData.processingTimeDays || 2;
             }
           } catch (_) {}
+        } else if (item.processingTimeDays) {
+          // Use processing time from item if available
+          productProcessingTime = item.processingTimeDays;
         }
+        
+        // Use maximum processing time from all items in cart
+        maxProcessingTimeDays = Math.max(maxProcessingTimeDays, productProcessingTime);
+        
         itemsWithVendors.push({
           productId: item.id,
           name: item.name,
           price: item.price,
           quantity: item.quantity,
-          vendorId: resolvedVendorId || 'unknown'
+          vendorId: resolvedVendorId || 'unknown',
+          processingTimeDays: productProcessingTime
         });
       }
 
       // For now we assume single-vendor orders; use first item's vendorId
       const orderVendorId = itemsWithVendors[0]?.vendorId || null;
+      
+      // Calculate total delivery time: vendor processing + logistics shipping
+      const logisticsShippingDays = orderDetails.selectedLogistics?.estimatedDays || 0;
+      const vendorProcessingDays = maxProcessingTimeDays;
+      const totalDeliveryDays = vendorProcessingDays + logisticsShippingDays;
+      
+      // Calculate delivery dates
+      const now = new Date();
+      const estimatedDeliveryDate = new Date(now.getTime() + totalDeliveryDays * 24 * 60 * 60 * 1000);
+      const deliveryDeadline = new Date(now.getTime() + (totalDeliveryDays + 2) * 24 * 60 * 60 * 1000); // +2 day buffer
 
       // Process escrow payment FIRST before creating order
       // This ensures the order is only created if payment succeeds
@@ -138,8 +162,13 @@ const CheckoutForm = ({ total, pricingBreakdown, cartItems, onSuccess, orderDeta
         deliveryAddress: orderDetails.buyerAddress || '',
         logisticsCompany: orderDetails.selectedLogistics?.company || null,
         logisticsCompanyId: orderDetails.selectedLogistics?.id || null,
-        estimatedDelivery: orderDetails.selectedLogistics?.estimatedDays || null,
-        trackingId: orderDetails.deliveryOption === 'delivery' ? `TRK-${Date.now()}` : null,
+        logisticsShippingDays: logisticsShippingDays,
+        vendorProcessingDays: vendorProcessingDays,
+        totalDeliveryDays: totalDeliveryDays,
+        estimatedDelivery: totalDeliveryDays, // Keep for backward compatibility
+        estimatedDeliveryDate: estimatedDeliveryDate,
+        deliveryDeadline: deliveryDeadline,
+        trackingId: null, // Will be set to Order ID after creation
         status: 'escrow_funded', // Order is created with escrow already funded
         createdAt: new Date(),
         updatedAt: new Date()
@@ -283,14 +312,20 @@ const CheckoutForm = ({ total, pricingBreakdown, cartItems, onSuccess, orderDeta
   );
 };
 
-const Checkout = ({ location }) => {
+const Checkout = () => {
   const { cartItems, getCartTotal, getPricingBreakdown, clearCart } = useCart();
   const { currentUser } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [showSuccess, setShowSuccess] = useState(false);
   
   // Get logistics data from cart (passed via navigation state)
   const cartData = location?.state || {};
+  
+  console.log('🛒 Checkout - Cart data received:', cartData);
+  console.log('💰 Checkout - Calculated delivery fee:', cartData.calculatedDeliveryFee);
+  console.log('🚚 Checkout - Route info:', cartData.routeInfo);
+  
   const [selectedLogistics, setSelectedLogistics] = useState(cartData.selectedLogistics || null);
   const [deliveryOption, setDeliveryOption] = useState(cartData.deliveryOption || 'pickup');
   const [buyerAddress, setBuyerAddress] = useState(cartData.buyerAddress || '');
@@ -334,13 +369,17 @@ const Checkout = ({ location }) => {
             deliveryFee: deliveryFee > 0 ? { 
               label: 'Delivery Fee', 
               amount: deliveryFee,
-              description: `${routeInfo?.category} • ${routeInfo?.distance}km`
+              description: `${routeInfo?.category || 'delivery'} • ${routeInfo?.distance || '0'}km`
             } : null,
             serviceFee: { label: 'Service Fee (5%)', amount: serviceFee },
             vat: { label: 'VAT (7.5%)', amount: vat },
             total: { label: 'Total', amount: total }
           }
         };
+        
+        console.log('💰 Checkout - Pricing breakdown calculated:', breakdown);
+        console.log('💰 Checkout - Delivery fee in breakdown:', breakdown.deliveryFee);
+        console.log('💰 Checkout - Total:', breakdown.total);
         
         setPricingBreakdown(breakdown);
       } catch (error) {
@@ -526,42 +565,87 @@ const Checkout = ({ location }) => {
                 <span>Subtotal:</span>
                 <span>{formatAmount(getCartTotal(), currencyCode)}</span>
               </div>
-              {deliveryOption === 'delivery' && selectedLogistics && (
+              {deliveryOption === 'delivery' && (
                 <div className="flex justify-between">
-                  <span>Delivery ({selectedLogistics.company}):</span>
-                  <span>{selectedLogistics.price}</span>
+                  <div className="flex flex-col">
+                    <span>Delivery Fee:</span>
+                    {routeInfo?.category && (
+                      <span className="text-xs text-gray-500">({routeInfo.category} • {routeInfo.distance}km)</span>
+                    )}
+                  </div>
+                  <span className="font-medium text-emerald-600">{formatAmount(calculatedDeliveryFee, currencyCode)}</span>
                 </div>
               )}
               <div className="flex justify-between text-sm text-gray-600">
                 <span>Ojawa Service Fee (5%):</span>
                 <span>{formatAmount((getCartTotal() * 0.05), currencyCode)}</span>
               </div>
-              <div className="flex justify-between text-lg font-semibold border-t pt-2">
-              <span>Total:</span>
-                <span>{formatAmount(pricingBreakdown?.total || getCartTotal(), currencyCode)}</span>
+              <div className="flex justify-between text-sm text-gray-600">
+                <span>VAT (7.5%):</span>
+                <span>{formatAmount(((getCartTotal() + calculatedDeliveryFee) * 0.075), currencyCode)}</span>
+              </div>
+              <div className="flex justify-between text-lg font-semibold border-t pt-2 mt-2">
+                <span>Total:</span>
+                <span className="text-emerald-600">{formatAmount(pricingBreakdown?.total || getCartTotal(), currencyCode)}</span>
               </div>
               <div className="text-xs text-gray-500 mt-2">
                 * Includes wallet protection and dispute resolution
-            </div>
+              </div>
             </div>
           </div>
 
-          {/* Order Summary from Cart */}
-          {deliveryOption === 'delivery' && routeInfo && (
+          {/* Delivery Summary */}
+          {deliveryOption === 'delivery' && calculatedDeliveryFee > 0 && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-lg">
-                  {routeInfo.category === 'intracity' && '🏙️'}
-                  {routeInfo.category === 'intercity' && '🚛'}
-                  {routeInfo.category === 'international' && '✈️'}
-                </span>
+              <h3 className="text-sm font-semibold text-blue-900 mb-3">📦 Delivery Details</h3>
+              
+              {routeInfo ? (
                 <div>
-                  <p className="font-medium text-gray-900">{routeInfo.category} Delivery</p>
-                  <p className="text-xs text-gray-600">{routeInfo.from} → {routeInfo.to} • {routeInfo.distance}km • ₦{routeInfo.price.toLocaleString()}</p>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-lg">
+                      {routeInfo.category === 'intracity' && '🏙️'}
+                      {routeInfo.category === 'intercity' && '🚛'}
+                      {routeInfo.category === 'international' && '✈️'}
+                    </span>
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900 capitalize">{routeInfo.category} Delivery</p>
+                      <p className="text-xs text-gray-600">{routeInfo.from} → {routeInfo.to}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-3 space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Distance:</span>
+                      <span className="text-gray-900 font-medium">{routeInfo.distance}km</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Delivery Fee:</span>
+                      <span className="text-gray-900 font-medium">₦{calculatedDeliveryFee.toLocaleString()}</span>
+                    </div>
+                    {routeInfo.selectedPartner && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Partner:</span>
+                        <span className="text-gray-900 font-medium">{routeInfo.selectedPartner.companyName || 'Selected Partner'}</span>
+                      </div>
+                    )}
+                    {routeInfo.usingPlatformDefault && (
+                      <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
+                        ℹ️ Using platform default pricing (no logistics partner selected)
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-              <p className="text-sm text-blue-700">
-                📦 Delivery details configured in cart. <a href="/cart" className="underline font-medium hover:text-blue-800">Modify in cart</a> if needed.
+              ) : (
+                <div className="text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Delivery Fee:</span>
+                    <span className="text-gray-900 font-medium">₦{calculatedDeliveryFee.toLocaleString()}</span>
+                  </div>
+                </div>
+              )}
+              
+              <p className="text-xs text-blue-700 mt-3 pt-3 border-t border-blue-200">
+                💡 <a href="/cart" className="underline font-medium hover:text-blue-800">Modify delivery options in cart</a> if needed.
               </p>
             </div>
           )}
@@ -592,7 +676,7 @@ const Checkout = ({ location }) => {
               buyerAddress,
               pricingBreakdown,
               subtotal: getCartTotal(),
-              deliveryFee: selectedLogistics ? parseFloat(selectedLogistics.price.replace(/[^\d.]/g, '')) : 0,
+              deliveryFee: calculatedDeliveryFee || 0,
               ojawaCommission: getCartTotal() * 0.05
             }}
             walletBalance={walletBalance}

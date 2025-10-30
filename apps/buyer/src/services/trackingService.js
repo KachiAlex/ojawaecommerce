@@ -128,6 +128,11 @@ export const walletTrackingService = {
   // Get wallet by user ID
   async getWalletByUserId(userId) {
     try {
+      if (!userId || userId === 'unknown') {
+        console.error('Invalid user ID provided:', userId);
+        return null;
+      }
+
       const q = query(
         collection(db, 'wallets'),
         where('userId', '==', userId)
@@ -139,19 +144,13 @@ export const walletTrackingService = {
         return { id: walletDoc.id, ...walletDoc.data() };
       }
       
-      // If no wallet found, try to create one automatically
-      console.log(`No wallet found for user ${userId}, attempting to create one...`);
-      try {
-        const walletId = await this.createWallet(userId, 'buyer');
-        // Return the newly created wallet
-        return await this.getWalletByUserId(userId);
-      } catch (createError) {
-        console.error('Error creating wallet automatically:', createError);
-        return null;
-      }
+      // If no wallet found, return null instead of trying to create one
+      // Wallet creation should be handled explicitly during user registration
+      console.log(`No wallet found for user ${userId}`);
+      return null;
     } catch (error) {
       console.error('Error fetching wallet by user ID:', error);
-      throw error;
+      return null; // Return null instead of throwing
     }
   },
 
@@ -390,6 +389,27 @@ export const storeService = {
       return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     } catch (error) {
       console.error('Error fetching stores by vendor:', error);
+      throw error;
+    }
+  },
+
+  // Get store by slug (store name converted to slug)
+  async getStoreBySlug(storeSlug) {
+    try {
+      const q = query(collection(db, 'stores'));
+      const snapshot = await getDocs(q);
+      
+      for (const doc of snapshot.docs) {
+        const store = { id: doc.id, ...doc.data() };
+        const storeName = store.name || store.storeName || '';
+        const slug = storeName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
+        if (slug === storeSlug) {
+          return store;
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error('Error fetching store by slug:', error);
       throw error;
     }
   },

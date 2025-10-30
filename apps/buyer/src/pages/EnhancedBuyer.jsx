@@ -640,8 +640,9 @@ const EnhancedBuyer = () => {
                                 View Transaction
                               </button>
                               
-                              {/* Track Delivery Button */}
-                              {(order.deliveryOption === 'delivery' || order.trackingId) && (
+                              {/* Track Delivery Button - Only show when order is shipped */}
+                              {(order.deliveryOption === 'delivery' || order.trackingId) && 
+                               (order.status === 'shipped' || order.status === 'in_transit' || order.status === 'out_for_delivery' || order.status === 'delivered') && (
                                 <button
                                   onClick={() => openTrackingModal(order)}
                                   className="bg-purple-100 text-purple-700 px-4 py-2 rounded-md hover:bg-purple-200 text-sm font-medium"

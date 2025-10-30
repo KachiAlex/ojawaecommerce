@@ -4,7 +4,11 @@ import {
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
   signOut,
-  updateProfile
+  updateProfile,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult
 } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
@@ -76,12 +80,110 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Sign in function
+  // Sign in function with improved error handling
   const signin = async (email, password) => {
     try {
+      console.log('🔐 AuthContext: Signing in user:', email);
       const { user } = await signInWithEmailAndPassword(auth, email, password);
+      console.log('✅ AuthContext: Sign in successful, user:', user.uid);
+      
+      // Fetch user profile to check role
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        console.log('👤 AuthContext: User profile:', { 
+          role: userData.role, 
+          email: userData.email,
+          displayName: userData.displayName 
+        });
+        
+        // If user has an unrecognized role, default to 'buyer'
+        if (userData.role && !['buyer', 'vendor', 'logistics', 'admin'].includes(userData.role)) {
+          console.warn('⚠️ AuthContext: Unknown role detected:', userData.role, '- defaulting to buyer');
+        }
+      } else {
+        console.warn('⚠️ AuthContext: User profile not found in Firestore');
+      }
+      
       return user;
     } catch (error) {
+      console.error('❌ AuthContext: Sign in failed:', error);
+      console.error('❌ AuthContext: Error code:', error.code);
+      console.error('❌ AuthContext: Error message:', error.message);
+      throw error;
+    }
+  };
+
+  // Google Sign-In function with improved error handling
+  const signInWithGoogle = async (userType = 'buyer') => {
+    try {
+      console.log('🔐 AuthContext: Starting Google Sign-In as:', userType);
+      const provider = new GoogleAuthProvider();
+      provider.addScope('email');
+      provider.addScope('profile');
+      
+      // Always use popup for consistency
+      const result = await signInWithPopup(auth, provider);
+      
+      const user = result.user;
+      console.log('✅ AuthContext: Google Sign-In successful, user:', user.uid);
+      
+      // Check if user already exists in Firestore
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      
+      if (!userDoc.exists()) {
+        // New user - create profile
+        console.log('👤 AuthContext: New Google user, creating profile');
+        const userProfileData = {
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName || user.email?.split('@')[0],
+          photoURL: user.photoURL || '',
+          phone: user.phoneNumber || '',
+          address: '',
+          createdAt: new Date(),
+          role: userType || 'buyer',
+          isVendor: userType === 'vendor',
+          isLogisticsPartner: userType === 'logistics',
+          isAdmin: false,
+          vendorProfile: null,
+          logisticsProfile: null,
+          suspended: false,
+          signInMethod: 'google'
+        };
+
+        await setDoc(doc(db, 'users', user.uid), userProfileData);
+        setUserProfile(userProfileData);
+        
+        // Create wallet for new user
+        try {
+          await firebaseService.wallet.createWallet(user.uid, userType || 'buyer');
+        } catch (walletError) {
+          console.error('Error creating wallet:', walletError);
+        }
+        
+        // Show wallet education for new users
+        setNewUserType(userType || 'buyer');
+        setShowEscrowEducation(true);
+      } else {
+        // Existing user - just load profile
+        console.log('👤 AuthContext: Existing Google user, loading profile');
+        const userData = userDoc.data();
+        setUserProfile(userData);
+      }
+      
+      return user;
+    } catch (error) {
+      console.error('❌ AuthContext: Google Sign-In failed:', error);
+      
+      // Don't retry on user cancellation or popup blocked
+      if (error.code === 'auth/popup-closed-by-user' || 
+          error.code === 'auth/cancelled-popup-request' ||
+          error.code === 'auth/popup-blocked') {
+        console.log('ℹ️ User cancelled or blocked Google Sign-In');
+        return null;
+      }
+      
       throw error;
     }
   };
@@ -157,30 +259,8 @@ export const AuthProvider = ({ children }) => {
         console.error('Error creating vendor wallet:', walletError);
       }
 
-      // Automatically create a store for the vendor
-      try {
-        const storeData = {
-          name: vendorData.storeName,
-          description: vendorData.storeDescription,
-          category: vendorData.businessType || 'general',
-          contactInfo: {
-            email: currentUser.email,
-            phone: vendorData.businessPhone,
-            address: vendorData.businessAddress
-          },
-          settings: {
-            isPublic: true,
-            allowReviews: true,
-            showContactInfo: true
-          }
-        };
-        
-        const createdStore = await storeService.createStore(currentUser.uid, storeData);
-        console.log('Store created automatically during onboarding:', createdStore);
-      } catch (storeError) {
-        console.error('Error creating store during onboarding:', storeError);
-        // Don't fail the onboarding if store creation fails
-      }
+      // Note: Store creation is now handled by VendorStoreManager component
+      // to prevent duplicate store creation
 
       return vendorProfile;
     } catch (error) {
@@ -189,8 +269,57 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Listen for auth state changes
+  // Listen for auth state changes - Simplified for faster admin access
   useEffect(() => {
+    // Check for redirect result first (for mobile Google Sign-In)
+    getRedirectResult(auth)
+      .then(async (result) => {
+        if (result) {
+          console.log('✅ AuthContext: Redirect result received');
+          const user = result.user;
+          
+          // Check if user profile exists
+          const userDoc = await getDoc(doc(db, 'users', user.uid));
+          
+          if (!userDoc.exists()) {
+            // New user from redirect - create profile
+            const userProfileData = {
+              uid: user.uid,
+              email: user.email,
+              displayName: user.displayName || user.email?.split('@')[0],
+              photoURL: user.photoURL || '',
+              phone: user.phoneNumber || '',
+              address: '',
+              createdAt: new Date(),
+              role: 'buyer', // Default to buyer for redirect
+              isVendor: false,
+              isLogisticsPartner: false,
+              isAdmin: false,
+              vendorProfile: null,
+              logisticsProfile: null,
+              suspended: false,
+              signInMethod: 'google'
+            };
+
+            await setDoc(doc(db, 'users', user.uid), userProfileData);
+            setUserProfile(userProfileData);
+            
+            // Create wallet
+            try {
+              await firebaseService.wallet.createWallet(user.uid, 'buyer');
+            } catch (walletError) {
+              console.error('Error creating wallet:', walletError);
+            }
+            
+            setNewUserType('buyer');
+            setShowEscrowEducation(true);
+          }
+        }
+      })
+      .catch((error) => {
+        console.error('❌ AuthContext: Redirect result error:', error);
+      });
+    
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
       
@@ -208,6 +337,7 @@ export const AuthProvider = ({ children }) => {
         setUserProfile(null);
       }
       
+      // Set loading to false immediately for faster admin access
       setLoading(false);
     });
 
@@ -219,6 +349,7 @@ export const AuthProvider = ({ children }) => {
     userProfile,
     signup,
     signin,
+    signInWithGoogle,
     logout,
     updateUserProfile,
     completeVendorOnboarding,
@@ -231,7 +362,7 @@ export const AuthProvider = ({ children }) => {
 
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
 };

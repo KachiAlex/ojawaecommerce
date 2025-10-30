@@ -26,6 +26,7 @@ export const RouteLoadingSpinner = ({ route }) => {
     tracking: 'Loading Tracking System...',
     wallet: 'Loading Wallet...',
     checkout: 'Loading Checkout...',
+    cart: 'Loading Cart...',
     default: 'Loading...'
   };
 

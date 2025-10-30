@@ -5,6 +5,7 @@ import { useCart } from '../contexts/CartContext';
 import firebaseService from '../services/firebaseService';
 import ProductCard from './ProductCard';
 import VendorProfileModal from './VendorProfileModal';
+// import UnifiedVendorStore from './UnifiedVendorStore'; // Removed - not used and causing errors
 
 const UnifiedStore = () => {
   const { vendorId } = useParams();

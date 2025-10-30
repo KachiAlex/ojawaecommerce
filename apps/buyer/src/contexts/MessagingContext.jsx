@@ -166,19 +166,27 @@ export const MessagingProvider = ({ children }) => {
         if (token) {
           setFcmToken(token);
           console.log('FCM initialized successfully');
+        } else {
+          console.log('FCM not available (disabled or not supported)');
         }
         
         // Update permission status
         setNotificationPermission(fcmService.getPermissionStatus());
       } catch (error) {
-        console.error('Error initializing FCM:', error);
+        // Silently handle FCM errors - not critical for app functionality
+        console.warn('FCM initialization failed (non-critical):', error.code || error.message);
+        
+        // Set permission status even on error
+        setNotificationPermission('denied');
       }
     };
 
-    initFCM();
-
+    // Add a small delay to prevent race conditions
+    const timeoutId = setTimeout(initFCM, 100);
+    
     // Cleanup on logout
     return () => {
+      clearTimeout(timeoutId);
       if (fcmToken && currentUser) {
         fcmService.removeFCMToken(currentUser.uid).catch(console.error);
       }

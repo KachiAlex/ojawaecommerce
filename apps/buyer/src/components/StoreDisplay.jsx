@@ -26,15 +26,29 @@ const StoreDisplay = () => {
       setLoading(true);
       setError('');
 
+      console.log('🔍 StoreDisplay: Fetching store with ID:', storeId);
+
       // Fetch store information
-      const storeData = await storeService.getStoreByTrackingId(storeId);
+      let storeData = await storeService.getStoreByTrackingId(storeId);
+      
+      // If not found by tracking ID, try to find by slug or other identifier
+      if (!storeData) {
+        console.log('🔄 StoreDisplay: Store not found by tracking ID, trying alternative lookup...');
+        // This could be a slug-based lookup - we'll need to implement this
+        // For now, we'll show an error but log the attempt
+        console.log('🔍 StoreDisplay: Attempted lookup for:', storeId);
+      }
+      
+      console.log('📦 StoreDisplay: Store data:', storeData);
       
       if (!storeData) {
+        console.error('❌ StoreDisplay: Store not found for ID:', storeId);
         setError('Store not found');
         return;
       }
 
       if (!storeData.isActive) {
+        console.warn('⚠️ StoreDisplay: Store is inactive');
         setError('This store is currently inactive');
         return;
       }
@@ -43,10 +57,11 @@ const StoreDisplay = () => {
 
       // Fetch store products
       const storeProducts = await storeService.getProductsByStore(storeId);
+      console.log('🛍️ StoreDisplay: Store products:', storeProducts);
       setProducts(storeProducts);
       setFilteredProducts(storeProducts);
     } catch (error) {
-      console.error('Error fetching store data:', error);
+      console.error('❌ StoreDisplay: Error fetching store data:', error);
       setError('Error loading store. Please try again.');
     } finally {
       setLoading(false);

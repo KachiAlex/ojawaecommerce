@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import firebaseService from '../services/firebaseService';
-import googleMapsService from '../services/googleMapsService';
+// import googleMapsService from '../services/googleMapsService'; // Disabled
 import WalletManager from '../components/WalletManager';
 import LogisticsPerformanceDashboard from '../components/LogisticsPerformanceDashboard';
 import DashboardSwitcher from '../components/DashboardSwitcher';
@@ -10,7 +10,9 @@ import CSVRouteImport from '../components/CSVRouteImport';
 import QuickActionsMenu from '../components/QuickActionsMenu';
 import RouteMapPreview from '../components/RouteMapPreview';
 import RouteSelector from '../components/RouteSelector';
+import LogisticsBusinessProfileManager from '../components/LogisticsBusinessProfileManager';
 import { calculateDeliveryPrice, determineRouteCategory, DEFAULT_PLATFORM_PRICING, ROUTE_CATEGORY_INFO, RECOMMENDED_PRICING } from '../data/logisticsPricingModel';
+import logisticsPricingService from '../services/logisticsPricingService';
 import { 
   POPULAR_INTERCITY_ROUTES, 
   POPULAR_INTERNATIONAL_ROUTES, 
@@ -47,6 +49,10 @@ import { getRouteDemandInfo, getSeasonalAdjustment, applySeasonalPricing, getTop
 const Logistics = () => {
   const { currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
+  
+  // Debug logging
+  console.log('🚚 Logistics component rendered!');
+  console.log('🚚 Current user:', currentUser);
   const [showAddRouteForm, setShowAddRouteForm] = useState(false);
   const [showEditRouteForm, setShowEditRouteForm] = useState(false);
   const [editingRoute, setEditingRoute] = useState(null);
@@ -130,10 +136,12 @@ const Logistics = () => {
 
   const loadLogisticsData = async () => {
     try {
+      console.log('🚚 Loading logistics data for user:', currentUser.uid);
       setLoading(true);
       
       // Load logistics profile
       const profileData = await firebaseService.logistics.getProfile(currentUser.uid);
+      console.log('🚚 Profile data loaded:', profileData);
       setProfile(profileData);
       
       // Load deliveries and routes if profile exists
@@ -149,7 +157,8 @@ const Logistics = () => {
       }
       
     } catch (error) {
-      console.error('Error loading logistics data:', error);
+      console.error('🚚 Error loading logistics data:', error);
+      console.error('🚚 Error details:', error.message, error.stack);
       // Clear data on error
       setDeliveries([]);
       setRoutes([]);
@@ -263,18 +272,28 @@ const Logistics = () => {
     try {
       setAnalyzingRoute(true);
       
-      // Use Google Maps service to analyze the route
-      const analysis = await googleMapsService.analyzeRouteType(from, to);
+      // Use Google Maps service to analyze the route - DISABLED
+      // const analysis = await googleMapsService.analyzeRouteType(from, to);
+      const analysis = { distanceKm: 50, durationMinutes: 60, type: 'standard' }; // Fallback
 
       // Only update state if we got valid data
       if (analysis && analysis.distanceKm) {
         setRouteAnalysis(analysis);
         
-        // Calculate pricing using our new model
-        const pricing = calculateDeliveryPrice({
-          distance: analysis.distanceKm,
-          ratePerKm: routeForm.ratePerKm
+        // Calculate pricing using our new logistics pricing service
+        const pricingResult = logisticsPricingService.calculateDelivery({
+          pickup: { address: from },
+          dropoff: { address: to },
+          weight: 1, // Default weight for route analysis
+          deliveryType: routeForm.serviceType?.toLowerCase().includes('express') ? 'express' : 'standard'
         });
+        
+        const pricing = {
+          basePrice: pricingResult.baseFare,
+          distancePrice: pricingResult.distanceFee,
+          finalPrice: pricingResult.totalFee,
+          breakdown: pricingResult.breakdown
+        };
         
         setCalculatedPricing(pricing);
         
@@ -291,12 +310,13 @@ const Logistics = () => {
         setCalculatedPricing(null);
       }
 
-      // Keep Google Maps pricing as fallback (optional)
+      // Keep Google Maps pricing as fallback (optional) - DISABLED
       try {
-        const googlePricing = await googleMapsService.getOptimizedPricing(from, to, {
-          deliveryType: (routeForm.serviceType || 'standard').toLowerCase().replace(' delivery', '').replace(' ', '_'),
-          weight: 1
-        });
+        // const googlePricing = await googleMapsService.getOptimizedPricing(from, to, {
+        //   deliveryType: (routeForm.serviceType || 'standard').toLowerCase().replace(' delivery', '').replace(' ', '_'),
+        //   weight: 1
+        // });
+        const googlePricing = null; // Disabled
         
         if (googlePricing && googlePricing.cost) {
           setSuggestedPricing(googlePricing);
@@ -333,10 +353,20 @@ const Logistics = () => {
   // Recalculate pricing when rate per km changes
   useEffect(() => {
     if (routeAnalysis?.distanceKm && routeForm.ratePerKm) {
-      const pricing = calculateDeliveryPrice({
-        distance: routeAnalysis.distanceKm,
-        ratePerKm: routeForm.ratePerKm
+      // Use new logistics pricing service for recalculation
+      const pricingResult = logisticsPricingService.calculateDelivery({
+        pickup: { address: routeForm.from || 'Origin' },
+        dropoff: { address: routeForm.to || 'Destination' },
+        weight: 1,
+        deliveryType: routeForm.serviceType?.toLowerCase().includes('express') ? 'express' : 'standard'
       });
+      
+      const pricing = {
+        basePrice: pricingResult.baseFare,
+        distancePrice: pricingResult.distanceFee,
+        finalPrice: pricingResult.totalFee,
+        breakdown: pricingResult.breakdown
+      };
       
       setCalculatedPricing(pricing);
       setRouteForm(prev => ({
@@ -634,14 +664,15 @@ const Logistics = () => {
           return;
         }
         
+        const cityName = routeForm.stateAsCity ? routeForm.state : routeForm.city;
         const routeData = {
           routeType: routeForm.routeType,
           country: routeForm.country,
           state: routeForm.state,
-          city: routeForm.stateAsCity ? routeForm.state : routeForm.city,
+          city: cityName,
           stateAsCity: routeForm.stateAsCity,
-          from: '',
-          to: '',
+          from: `${cityName} (Intracity)`,
+          to: `${cityName} (Intracity)`,
           distance: 0,
           price: parseFloat(routeForm.price) || 0,
           currency: routeForm.currency,
@@ -830,6 +861,12 @@ const Logistics = () => {
               className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'wallet' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
             >
               💳 My Wallet
+            </button>
+            <button 
+              onClick={() => setActiveTab('business-profile')}
+              className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'business-profile' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+            >
+              🏢 Business Profile
             </button>
             <button 
               onClick={() => setActiveTab('settings')}
@@ -2148,8 +2185,16 @@ const Logistics = () => {
                         <tr key={route.id} className="hover:bg-gray-50">
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div>
-                              <p className="text-sm font-medium text-gray-900">{route.from}</p>
-                              <p className="text-sm text-gray-500">→ {route.to}</p>
+                              <p className="text-sm font-medium text-gray-900">
+                                {route.routeType === 'intracity' && !route.from.includes('(Intracity)') 
+                                  ? `${route.city || route.from} (Intracity)` 
+                                  : route.from || route.city}
+                              </p>
+                              <p className="text-sm text-gray-500">
+                                {route.routeType === 'intracity' 
+                                  ? 'Within city delivery' 
+                                  : `→ ${route.to}`}
+                              </p>
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{route.distance} km</td>
@@ -2360,11 +2405,18 @@ const Logistics = () => {
             </div>
           )}
 
+          {activeTab === 'business-profile' && (
+            <div className="space-y-6">
+              <h2 className="text-xl font-semibold text-gray-900">Business Profile</h2>
+              <LogisticsBusinessProfileManager />
+            </div>
+          )}
+
           {activeTab === 'settings' && (
             <div className="space-y-6">
               <h2 className="text-xl font-semibold text-gray-900">Settings</h2>
               <div className="bg-white rounded-lg shadow p-6">
-                <p className="text-gray-500">Settings panel coming soon...</p>
+                <p className="text-gray-500">General settings panel coming soon...</p>
               </div>
             </div>
           )}

@@ -10,10 +10,23 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
+        // Force .js extension for all chunks
+        chunkFileNames: (chunkInfo) => {
+          return chunkInfo.name + '.js';
+        },
+        entryFileNames: (chunkInfo) => {
+          return chunkInfo.name + '.js';
+        },
+        assetFileNames: (assetInfo) => {
+          if (assetInfo.name && assetInfo.name.endsWith('.js')) {
+            return assetInfo.name;
+          }
+          return assetInfo.name;
+        },
         manualChunks: (id) => {
-          // Vendor chunks
+          // Keep React and contexts together to avoid createContext issues
           if (id.includes('node_modules')) {
-            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
+            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router') || id.includes('framer-motion')) {
               return 'vendor-react';
             }
             if (id.includes('firebase')) {
@@ -23,6 +36,11 @@ export default defineConfig({
               return 'vendor-payments';
             }
             return 'vendor-misc';
+          }
+          
+          // Keep contexts with main bundle to ensure React is available
+          if (id.includes('src/contexts/')) {
+            return undefined;
           }
           
           // Feature chunks
@@ -49,6 +67,12 @@ export default defineConfig({
     chunkSizeWarningLimit: 1000,
     target: 'es2020',
     minify: 'esbuild',
+    cssCodeSplit: true,
+    sourcemap: false,
+    reportCompressedSize: false,
+    // Performance optimizations
+    assetsInlineLimit: 8192, // Inline more assets for faster loading
+    emptyOutDir: true
   },
   optimizeDeps: {
     include: [

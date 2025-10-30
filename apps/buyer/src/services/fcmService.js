@@ -5,8 +5,8 @@ import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 
 const messaging = getMessaging(app);
 
-// VAPID key for web push (you'll need to generate this in Firebase Console)
-const VAPID_KEY = 'BKmhVJZk_2i7xX9TfJ8rQYwKLvB5pqW3Ri0nCJg8vZxMZrYqT5xNwPaGdLjE9vKf4zRmZ2kUyHg7bFnW3vXtM8Q';
+// VAPID key for web push (optional - FCM will work without it for basic functionality)
+const VAPID_KEY = 'BEl62iUYgUivLOI6SIKpGzlDq5y2p-4jlbVuBHTj-c0'; // Demo VAPID key for testing
 
 /**
  * Request notification permission from user
@@ -18,7 +18,7 @@ export const requestNotificationPermission = async () => {
     
     if (!('Notification' in window)) {
       console.log('This browser does not support notifications');
-      return false;
+      throw new Error('This browser does not support notifications');
     }
 
     if (Notification.permission === 'granted') {
@@ -28,15 +28,27 @@ export const requestNotificationPermission = async () => {
 
     if (Notification.permission === 'denied') {
       console.log('Notification permission denied');
+      // Don't throw error, just return false and let the app continue
+      console.warn('⚠️ Notification permission was previously denied. User needs to enable it manually in browser settings.');
       return false;
     }
 
     const permission = await Notification.requestPermission();
     console.log('Notification permission:', permission);
     
-    return permission === 'granted';
+    if (permission === 'granted') {
+      console.log('✅ Notification permission granted');
+      return true;
+    } else {
+      console.log('❌ Notification permission denied by user');
+      // Don't throw error, just return false and let the app continue
+      console.warn('⚠️ Notification permission was denied. User can enable it manually in browser settings.');
+      return false;
+    }
   } catch (error) {
     console.error('Error requesting notification permission:', error);
+    // Don't throw error for permission issues - just return false
+    console.warn('⚠️ FCM initialization failed (non-critical):', error.message);
     return false;
   }
 };
@@ -48,6 +60,12 @@ export const requestNotificationPermission = async () => {
  */
 export const getFCMToken = async (userId) => {
   try {
+    // Skip FCM if VAPID key is not configured
+    if (!VAPID_KEY) {
+      console.log('FCM disabled - VAPID key not configured');
+      return null;
+    }
+
     console.log('Getting FCM token for user:', userId);
     
     // Check if permission granted
@@ -73,13 +91,19 @@ export const getFCMToken = async (userId) => {
       return null;
     }
   } catch (error) {
-    console.error('Error getting FCM token:', error);
+    // Silently handle FCM token errors (not critical for app functionality)
+    // Only log in development mode
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('FCM token error (non-critical):', error.code || error.message);
+    }
     
-    // Handle specific errors
+    // Handle specific errors silently
     if (error.code === 'messaging/permission-blocked') {
-      console.log('Notification permission blocked by user');
+      // User blocked notifications - this is fine
     } else if (error.code === 'messaging/failed-service-worker-registration') {
-      console.log('Service worker registration failed');
+      // Service worker issue - not critical
+    } else if (error.code === 'messaging/token-subscribe-failed') {
+      // FCM not fully configured - not critical
     }
     
     return null;
@@ -210,6 +234,12 @@ export const getPermissionStatus = () => {
  */
 export const initializeFCM = async (userId) => {
   try {
+    // Skip FCM if VAPID key is not configured
+    if (!VAPID_KEY) {
+      console.log('FCM disabled - VAPID key not configured');
+      return null;
+    }
+
     console.log('Initializing FCM...');
     
     // Check if FCM supported
@@ -231,7 +261,10 @@ export const initializeFCM = async (userId) => {
     
     return token;
   } catch (error) {
-    console.error('Error initializing FCM:', error);
+    // Silently handle FCM initialization errors (not critical)
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('FCM initialization error (non-critical):', error.code || error.message);
+    }
     return null;
   }
 };

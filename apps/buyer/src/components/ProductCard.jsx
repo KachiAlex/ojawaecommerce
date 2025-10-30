@@ -1,311 +1,300 @@
-import { useState, useRef, useEffect } from 'react'
-import { Link } from 'react-router-dom'
-import { useCart } from '../contexts/CartContext'
-import { useAuth } from '../contexts/AuthContext'
+import { useState, useRef, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useCart } from '../contexts/CartContext';
+import { useAuth } from '../contexts/AuthContext';
+import analyticsService from '../services/analyticsService';
+import AnimatedCard from './AnimatedCard';
+import AnimatedButton from './AnimatedButton';
 
 const ProductCard = ({ product, onAddToCart, onClick }) => {
-  const { addToCart, saveIntendedDestination } = useCart()
-  const { currentUser } = useAuth()
-  const [imageError, setImageError] = useState(false)
-  const [isAdding, setIsAdding] = useState(false)
-  const [showSuccessBadge, setShowSuccessBadge] = useState(false)
-  const addToCartTimeoutRef = useRef(null)
+  const { addToCart, saveIntendedDestination } = useCart();
+  const { currentUser } = useAuth();
+  const navigate = useNavigate();
+  const [imageError, setImageError] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
+  const [showSuccessBadge, setShowSuccessBadge] = useState(false);
+  const addToCartTimeoutRef = useRef(null);
 
   const handleAddToCart = async (e) => {
     e.stopPropagation(); // Prevent triggering onClick of parent
     
     if (isAdding) return; // Prevent double-clicks
     
+    // Track add to cart interaction
+    analyticsService.trackProductInteraction(
+      product.id, 
+      product.vendorId, 
+      'add_to_cart',
+      { productName: product.name, price: product.price }
+    );
+    
     // Check if user is logged in
     if (!currentUser) {
-      saveIntendedDestination(`/products/${product.id}`, product.id)
-      window.location.href = `/login?message=${encodeURIComponent('Please sign in to add this product to your cart and complete your purchase.')}`
-      return
+      saveIntendedDestination(`/products/${product.id}`, product.id);
+      navigate(`/login?message=${encodeURIComponent('Please sign in to add this product to your cart and complete your purchase.')}`);
+      return;
     }
 
     // Clear any existing timeout
     if (addToCartTimeoutRef.current) {
-      clearTimeout(addToCartTimeoutRef.current)
+      clearTimeout(addToCartTimeoutRef.current);
     }
 
-    setIsAdding(true)
+    setIsAdding(true);
     try {
-      await addToCart(product, 1)
+      await addToCart(product, 1);
       
       // Show success badge
-      setShowSuccessBadge(true)
-      setTimeout(() => setShowSuccessBadge(false), 2000)
+      setShowSuccessBadge(true);
+      setTimeout(() => setShowSuccessBadge(false), 2000);
       
       if (onAddToCart) {
-        onAddToCart(product)
+        onAddToCart(product);
       }
     } catch (error) {
-      console.error('Error adding to cart:', error)
+      console.error('Error adding to cart:', error);
       // Could show error toast here instead of alert
     } finally {
       // Short delay to show loading state
-      setTimeout(() => setIsAdding(false), 400)
+      setTimeout(() => setIsAdding(false), 400);
     }
-  }
+  };
   
+  // Track product view when component mounts (only for authenticated users)
+  useEffect(() => {
+    if (product.id && product.vendorId && currentUser) {
+      (async () => {
+        try {
+          await analyticsService.trackProductView(product.id, product.vendorId, {
+            productName: product.name,
+            category: product.category,
+            price: product.price
+          });
+        } catch (_) {
+          // Silently ignore analytics errors (e.g., permission issues)
+        }
+      })();
+    }
+  }, [product.id, product.vendorId, product.name, product.category, product.price, currentUser]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (addToCartTimeoutRef.current) {
-        clearTimeout(addToCartTimeoutRef.current)
+        clearTimeout(addToCartTimeoutRef.current);
       }
-    }
-  }, [])
+    };
+  }, []);
 
   const getCurrencyCode = (currencyValue) => {
-    if (!currencyValue) return 'NGN'
-    // Expecting formats like "₦ NGN", "$ USD", "KSh KES", "EUR", "NGN"
-    const parts = String(currencyValue).trim().split(/\s+/)
-    const maybeCode = parts[parts.length - 1]
-    // If last token is a 3-letter code, use it; otherwise if the whole string is a 3-letter code
-    if (/^[A-Za-z]{3}$/.test(maybeCode)) return maybeCode.toUpperCase()
-    if (/^[A-Za-z]{3}$/.test(currencyValue)) return String(currencyValue).toUpperCase()
-    return 'NGN'
-  }
-
-  const formatPrice = (price, currencyValue = product.currency) => {
-    const numPrice = parseFloat(price) || 0
-    const currencyCode = getCurrencyCode(currencyValue)
-    
-    // For Nigerian Naira, use custom formatting
-    if (currencyCode === 'NGN') {
-      return `₦${numPrice.toLocaleString()}`
+    if (!currencyValue) return 'NGN';
+    if (typeof currencyValue === 'string') {
+      const parts = currencyValue.split(' ');
+      return parts[1] || 'NGN';
     }
-    
-    try {
-      return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: currencyCode
-      }).format(numPrice)
-    } catch {
-      // Fallback if currency code not supported
-      const symbol = currencyCode === 'USD' ? '$' : 
-                    currencyCode === 'EUR' ? '€' : 
-                    currencyCode === 'GBP' ? '£' : 
-                    currencyCode === 'KES' ? 'KSh' : 
-                    currencyCode === 'GHS' ? '₵' : currencyCode
-      return `${symbol}${numPrice.toLocaleString()}`
+    return 'NGN';
+  };
+
+  const formatPrice = (price, currency) => {
+    const currencyCode = getCurrencyCode(currency);
+    const symbol = currencyCode === 'NGN' ? '₦' : '$';
+    return `${symbol}${price.toLocaleString()}`;
+  };
+
+  const handleImageError = () => {
+    setImageError(true);
+  };
+
+  const handleCardClick = () => {
+    if (onClick) {
+      onClick(product);
     }
-  }
-
-  const renderStars = (rating) => {
-    const fullStars = Math.floor(rating || 0)
-    const hasHalfStar = (rating || 0) % 1 >= 0.5
-    const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0)
-
-    return (
-      <div className="flex items-center">
-        {[...Array(fullStars)].map((_, i) => (
-          <svg key={i} className="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-          </svg>
-        ))}
-        {hasHalfStar && (
-          <svg className="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-            <defs>
-              <linearGradient id="half-star">
-                <stop offset="50%" stopColor="currentColor" />
-                <stop offset="50%" stopColor="#E5E7EB" />
-              </linearGradient>
-            </defs>
-            <path fill="url(#half-star)" d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-          </svg>
-        )}
-        {[...Array(emptyStars)].map((_, i) => (
-          <svg key={i} className="w-4 h-4 text-gray-300" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-          </svg>
-        ))}
-      </div>
-    )
-  }
-
-  const getImageUrl = () => {
-    if (imageError) return '/placeholder-product.png'
-    
-    if (Array.isArray(product.images) && product.images.length > 0) {
-      return product.images[0]
-    }
-    
-    if (product.image) {
-      return product.image
-    }
-    
-    return '/placeholder-product.png'
-  }
-
-  const availableStock = product.stock || product.stockQuantity || 0
-  const isOutOfStock = product.inStock === false || availableStock <= 0
+  };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-all duration-200 group">
-      <div onClick={onClick} className="block cursor-pointer">
-        <div className="relative aspect-square bg-gray-100">
-          <img
-            src={getImageUrl()}
+    <AnimatedCard 
+      className="overflow-hidden cursor-pointer"
+      hover={true}
+      clickable={true}
+      onClick={handleCardClick}
+      delay={Math.random() * 0.2} // Random stagger for grid layout
+    >
+      {/* Product Image */}
+      <div className="relative aspect-square bg-gray-100 overflow-hidden">
+        {!imageError ? (
+          <motion.img
+            src={product.image || product.images?.[0] || '/placeholder-product.jpg'}
             alt={product.name}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-            onError={() => setImageError(true)}
-            loading="lazy"
-            fetchpriority="low"
-            decoding="async"
+            className="w-full h-full object-cover"
+            onError={handleImageError}
+            whileHover={{ scale: 1.05 }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
           />
-          
-          {/* Stock Status Badge */}
-          <div className="absolute top-2 left-2">
-            {showSuccessBadge ? (
-              <div className="bg-green-600 text-white text-xs px-2 py-1 rounded-full animate-bounce flex items-center gap-1">
-                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                </svg>
-                Added!
-              </div>
-            ) : isOutOfStock ? (
-              <div className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
-                Out of Stock
-              </div>
-            ) : (
-              <div className="bg-green-500 text-white text-xs px-2 py-1 rounded-full">
-                In Stock ({availableStock})
-              </div>
-            )}
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-gray-100">
+            <motion.div 
+              className="text-center text-gray-400"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.2 }}
+            >
+              <div className="text-4xl mb-2">📦</div>
+              <div className="text-sm">No Image</div>
+            </motion.div>
           </div>
-          
-          {/* Sale Badge (if applicable) */}
-          {product.onSale && (
-            <div className="absolute top-2 right-2 bg-emerald-500 text-white text-xs px-2 py-1 rounded-full">
-              Sale
-            </div>
+        )}
+        
+        {/* Success Badge */}
+        <AnimatePresence>
+          {showSuccessBadge && (
+            <motion.div 
+              className="absolute top-2 right-2 bg-green-500 text-white px-2 py-1 rounded-full text-xs font-medium"
+              initial={{ opacity: 0, scale: 0, y: -10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0, y: -10 }}
+              transition={{ type: "spring", stiffness: 200 }}
+            >
+              Added!
+            </motion.div>
           )}
-          
-          {/* Quick View Overlay */}
-          <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 flex items-center justify-center">
-            <button className="opacity-0 group-hover:opacity-100 bg-white text-gray-900 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 hover:bg-gray-100">
-              Quick View
-            </button>
-          </div>
-        </div>
+        </AnimatePresence>
       </div>
 
+      {/* Product Info */}
       <div className="p-4">
-        {/* Category */}
-        {product.category && (
-          <div className="text-xs text-emerald-600 font-medium uppercase tracking-wide mb-1">
-            {product.category}
-          </div>
-        )}
-
-        {/* Product Name */}
-        <div onClick={onClick} className="block cursor-pointer">
-          <h3 className="text-sm font-semibold text-gray-900 mb-2 line-clamp-2 hover:text-emerald-600 transition-colors">
-            {product.name}
-          </h3>
-        </div>
-
-        {/* Brand */}
-        {product.brand && (
-          <p className="text-xs text-gray-500 mb-2">
-            by {product.brand}
-          </p>
-        )}
-
-        {/* Rating */}
-        {(product.rating || product.reviewCount) && (
-          <div className="flex items-center gap-2 mb-2">
-            {renderStars(product.rating)}
-            <span className="text-xs text-gray-500">
-              ({product.reviewCount || 0})
-            </span>
-          </div>
-        )}
+        <motion.h3 
+          className="font-medium text-gray-900 mb-2 line-clamp-2"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+        >
+          {product.name}
+        </motion.h3>
+        
+        <motion.p 
+          className="text-sm text-gray-600 mb-3 line-clamp-2"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+        >
+          {product.description}
+        </motion.p>
 
         {/* Price */}
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
+        <motion.div 
+          className="flex items-center justify-between mb-3"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+        >
+          <div>
             <span className="text-lg font-bold text-gray-900">
               {formatPrice(product.price, product.currency)}
             </span>
-            {product.originalPrice && product.originalPrice > product.price && (
-              <span className="text-sm text-gray-500 line-through">
-                {formatPrice(product.originalPrice, product.currency)}
+            {product.currency && (
+              <span className="ml-1 text-xs text-gray-500">
+                ({getCurrencyCode(product.currency)})
               </span>
             )}
           </div>
           
-          {product.savings && (
-            <span className="text-xs text-emerald-600 font-medium">
-              Save {formatPrice(product.savings, product.currency)}
+          {product.originalPrice && product.originalPrice > product.price && (
+            <span className="text-sm text-gray-500 line-through">
+              {formatPrice(product.originalPrice, product.currency)}
             </span>
           )}
-        </div>
+        </motion.div>
 
-        {/* Features (if available) */}
-        {product.features && product.features.length > 0 && (
-          <div className="mb-3">
-            <div className="flex flex-wrap gap-1">
-              {product.features.slice(0, 2).map((feature, index) => (
-                <span
-                  key={index}
-                  className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded"
-                >
-                  {feature}
-                </span>
-              ))}
-              {product.features.length > 2 && (
-                <span className="text-xs text-gray-500">
-                  +{product.features.length - 2} more
-                </span>
-              )}
-            </div>
-          </div>
+        {/* Vendor Info */}
+        {product.vendorName && (
+          <motion.p 
+            className="text-xs text-gray-500 mb-3"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.25 }}
+          >
+            Sold by: {product.vendorName}
+          </motion.p>
         )}
 
-        {/* Stock count indicator */}
-        <div className="mb-3 text-xs text-gray-500">
-          {isOutOfStock ? 'No units available' : `${availableStock} unit${availableStock === 1 ? '' : 's'} available`}
-        </div>
+        {/* Stock Status */}
+        {product.stock !== undefined && (
+          <motion.div 
+            className="mb-3"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+          >
+            {product.stock > 0 ? (
+              <span className="text-xs text-green-600">
+                {product.stock} in stock
+              </span>
+            ) : (
+              <span className="text-xs text-red-600">
+                Out of stock
+              </span>
+            )}
+          </motion.div>
+        )}
 
         {/* Add to Cart Button */}
-        <button
-          onClick={handleAddToCart}
-          disabled={isOutOfStock || isAdding}
-          className={`w-full py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-            isOutOfStock
-              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-              : isAdding
-              ? 'bg-emerald-300 text-white cursor-wait'
-              : 'bg-emerald-600 text-white hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2'
-          }`}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.35 }}
         >
-          {isAdding ? (
-            <div className="flex items-center justify-center gap-2">
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-              Adding...
-            </div>
-          ) : isOutOfStock ? (
-            'Out of Stock'
-          ) : (
-            'Add to Cart'
+          <AnimatedButton
+            onClick={handleAddToCart}
+            disabled={isAdding || (product.stock !== undefined && product.stock <= 0)}
+            variant={product.stock !== undefined && product.stock <= 0 ? "danger" : "primary"}
+            size="sm"
+            loading={isAdding}
+            className="w-full"
+          >
+            {isAdding ? (
+              "Adding..."
+            ) : product.stock !== undefined && product.stock <= 0 ? (
+              "Out of Stock"
+            ) : (
+              "Add to Cart"
+            )}
+          </AnimatedButton>
+        </motion.div>
+
+        {/* Quick Actions */}
+        <motion.div 
+          className="flex space-x-2 mt-3"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+        >
+          <Link
+            to={`/products/${product.id}`}
+            className="flex-1 text-center py-2 px-3 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-50 transition-all duration-200 hover:border-emerald-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            View Details
+          </Link>
+          
+          {currentUser && (
+            <motion.button
+              className="flex-1 py-2 px-3 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-50 transition-all duration-200 hover:border-emerald-300"
+              onClick={(e) => {
+                e.stopPropagation();
+                // Add to wishlist functionality could go here
+                console.log('Add to wishlist:', product.name);
+              }}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              ♡ Wishlist
+            </motion.button>
           )}
-        </button>
-
-        {/* Wishlist Button */}
-        <button className="w-full mt-2 py-1 px-4 text-sm text-gray-600 hover:text-emerald-600 transition-colors">
-          <div className="flex items-center justify-center gap-1">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-            </svg>
-            Add to Wishlist
-          </div>
-        </button>
+        </motion.div>
       </div>
-    </div>
-  )
-}
+    </AnimatedCard>
+  );
+};
 
-export default ProductCard
+export default ProductCard;

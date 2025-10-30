@@ -1,117 +1,88 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 const OptimizedImage = ({ 
   src, 
   alt, 
   className = '', 
-  placeholder = '/placeholder-image.jpg',
-  loading = 'lazy',
-  sizes = '(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw',
+  placeholder = '/api/placeholder/300/200',
+  lazy = true,
+  priority = false,
+  onLoad,
+  onError,
   ...props 
 }) => {
-  const [imageSrc, setImageSrc] = useState(placeholder);
-  const [imageRef, setImageRef] = useState();
   const [isLoaded, setIsLoaded] = useState(false);
-  const [isInView, setIsInView] = useState(false);
+  const [isInView, setIsInView] = useState(!lazy || priority);
+  const [hasError, setHasError] = useState(false);
+  const imgRef = useRef(null);
 
   useEffect(() => {
-    let observer;
-    const currentImageRef = imageRef;
+    if (!lazy || priority) return;
 
-    if (currentImageRef) {
-      observer = new IntersectionObserver(
-        (entries) => {
-          entries.forEach((entry) => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
             if (entry.isIntersecting) {
               setIsInView(true);
-              observer.unobserve(currentImageRef);
-            }
-          });
-        },
-        { threshold: 0.1, rootMargin: '50px' }
-      );
-      observer.observe(currentImageRef);
-    }
-
-    return () => {
-      if (currentImageRef && observer) {
-        observer.unobserve(currentImageRef);
+          observer.disconnect();
+        }
+      },
+      { 
+        rootMargin: '50px',
+        threshold: 0.1 
       }
-    };
-  }, [imageRef]);
+    );
 
-  useEffect(() => {
-    if (isInView) {
-      const img = new Image();
-      img.onload = () => {
-        setImageSrc(src);
-        setIsLoaded(true);
-      };
-      img.onerror = () => {
-        // Fallback to placeholder if image fails to load
-        setImageSrc(placeholder);
-        setIsLoaded(true);
-      };
-      img.src = src;
+    if (imgRef.current) {
+      observer.observe(imgRef.current);
     }
-  }, [isInView, src, placeholder]);
+
+    return () => observer.disconnect();
+  }, [lazy, priority]);
+
+  const handleLoad = () => {
+        setIsLoaded(true);
+    onLoad?.();
+  };
+
+  const handleError = () => {
+    setHasError(true);
+    onError?.();
+  };
 
   return (
-    <div className={`relative overflow-hidden ${className}`} {...props}>
-      <img
-        ref={setImageRef}
-        src={imageSrc}
+    <div ref={imgRef} className={`relative overflow-hidden ${className}`} {...props}>
+      {!isInView ? (
+        <div className="w-full h-full bg-gray-200 animate-pulse flex items-center justify-center">
+          <div className="text-gray-400 text-sm">Loading...</div>
+        </div>
+      ) : (
+        <>
+          {!isLoaded && (
+            <div className="absolute inset-0 bg-gray-200 animate-pulse flex items-center justify-center">
+              <div className="text-gray-400 text-sm">Loading...</div>
+            </div>
+          )}
+          {hasError ? (
+            <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+              <div className="text-gray-400 text-sm">Image failed to load</div>
+            </div>
+          ) : (
+            <img
+              src={src}
         alt={alt}
-        loading={loading}
-        sizes={sizes}
+              onLoad={handleLoad}
+              onError={handleError}
         className={`transition-opacity duration-300 ${
           isLoaded ? 'opacity-100' : 'opacity-0'
-        } w-full h-full object-cover`}
-        style={{
-          backgroundImage: `url(${placeholder})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundRepeat: 'no-repeat'
-        }}
-      />
-      {!isLoaded && (
-        <div className="absolute inset-0 bg-gray-200 animate-pulse flex items-center justify-center">
-          <div className="w-8 h-8 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
-        </div>
+              }`}
+              loading={priority ? 'eager' : 'lazy'}
+              decoding="async"
+            />
+          )}
+        </>
       )}
     </div>
   );
 };
-
-// Specialized image components for different use cases
-export const ProductImage = ({ src, alt, className, ...props }) => (
-  <OptimizedImage
-    src={src}
-    alt={alt}
-    className={`aspect-square ${className}`}
-    sizes="(max-width: 768px) 50vw, (max-width: 1200px) 25vw, 20vw"
-    {...props}
-  />
-);
-
-export const HeroImage = ({ src, alt, className, ...props }) => (
-  <OptimizedImage
-    src={src}
-    alt={alt}
-    className={`aspect-video ${className}`}
-    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 80vw, 70vw"
-    {...props}
-  />
-);
-
-export const AvatarImage = ({ src, alt, className, ...props }) => (
-  <OptimizedImage
-    src={src}
-    alt={alt}
-    className={`aspect-square rounded-full ${className}`}
-    sizes="(max-width: 768px) 10vw, 5vw"
-    {...props}
-  />
-);
 
 export default OptimizedImage;

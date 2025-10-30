@@ -48,6 +48,55 @@ const VendorOrderDetailsModal = ({ open, order, onClose, onShip }) => {
             </div>
           </div>
 
+          {/* Delivery & Logistics Information */}
+          {order.deliveryOption === 'delivery' && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <span className="text-blue-600 text-xl">🚚</span>
+                <div className="flex-1">
+                  <h4 className="text-sm font-medium text-blue-900 mb-2">Delivery Information</h4>
+                  <div className="space-y-2 text-sm">
+                    {order.logisticsCompany && (
+                      <div className="flex justify-between">
+                        <span className="text-blue-700">Logistics Partner:</span>
+                        <span className="font-medium text-blue-900">{order.logisticsCompany}</span>
+                      </div>
+                    )}
+                    {order.deliveryAddress && (
+                      <div className="flex justify-between">
+                        <span className="text-blue-700">Delivery Address:</span>
+                        <span className="font-medium text-blue-900 text-right ml-4">{order.deliveryAddress}</span>
+                      </div>
+                    )}
+                    {order.trackingId && (
+                      <div className="flex justify-between">
+                        <span className="text-blue-700">Tracking ID:</span>
+                        <span className="font-medium text-blue-900">{order.trackingId}</span>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-xs text-blue-600 mt-3">
+                    💡 The logistics partner will be notified when you mark this order as "Ready for Shipment"
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {order.deliveryOption === 'pickup' && (
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <span className="text-orange-600 text-xl">🏪</span>
+                <div className="flex-1">
+                  <h4 className="text-sm font-medium text-orange-900 mb-1">Customer Pickup</h4>
+                  <p className="text-sm text-orange-700">
+                    The buyer will pick up this order directly from your location.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div>
             <p className="text-sm text-gray-500 mb-2">Items</p>
             <div className="border rounded-lg divide-y">

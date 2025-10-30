@@ -153,8 +153,17 @@ const DeliveryTrackingModal = ({ order, isOpen, onClose }) => {
               )}
               {order.trackingId && (
                 <div>
-                  <p className="text-sm text-gray-600">Tracking ID</p>
+                  <p className="text-sm text-gray-600">Internal Tracking ID</p>
                   <p className="font-medium font-mono">{order.trackingId}</p>
+                </div>
+              )}
+              {order.trackingNumber && (
+                <div>
+                  <p className="text-sm text-gray-600">Carrier Tracking Number</p>
+                  <p className="font-medium font-mono">{order.trackingNumber}</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    📦 Use this number to track on {order.shippingCarrier || 'carrier'} website
+                  </p>
                 </div>
               )}
             </div>

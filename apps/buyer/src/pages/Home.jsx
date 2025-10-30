@@ -140,12 +140,16 @@ const getProductDisplayProps = (product, index) => {
 const Home = () => {
   const { currentUser, userProfile } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Debug logging
+  console.log('🏠 Home component rendered');
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [showQuickView, setShowQuickView] = useState(false);
   
   // Get real-time featured products (limit to 8 for display)
   const { products: realTimeProducts, loading: productsLoading } = useRealTimeProducts({
-    sortBy: 'newest'
+    sortBy: 'newest',
+    limit: 8 // Limit to 8 products to reduce re-renders
   });
   
   // Take first 8 products for featured display
@@ -209,9 +213,6 @@ const Home = () => {
                        Join Ojawa
                      </Link>
                    )}
-                   <Link to="/admin" className="inline-flex items-center justify-center rounded-md bg-blue-600 px-6 py-3 text-white hover:bg-blue-700 font-medium">
-                     🎛️ Admin Dashboard
-                   </Link>
         </div>
         <div className="flex items-center gap-4 pt-2">
           <div className="text-xs text-slate-600">Backed by dispute resolution and identity verification</div>

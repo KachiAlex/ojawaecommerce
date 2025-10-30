@@ -52,21 +52,13 @@ const RoleAuthModal = ({ role, onClose, onSuccess }) => {
       }
 
       await firebaseService.users.update(currentUser.uid, updates);
+      console.log('✅ User profile updated with role:', role);
 
       // Create role-specific profile if needed
       if (role === 'vendor') {
-        // Check if store exists
-        const stores = await firebaseService.stores.getByVendor(currentUser.uid);
-        if (stores.length === 0) {
-          // Create default store
-          await firebaseService.stores.create({
-            vendorId: currentUser.uid,
-            name: `${currentUser.displayName || 'My'} Store`,
-            description: 'Welcome to my store!',
-            isActive: true,
-            createdAt: new Date()
-          });
-        }
+        // Note: Store creation is now handled by VendorStoreManager component
+        // to prevent duplicate store creation
+        console.log('Vendor role assigned - store will be created by VendorStoreManager');
       } else if (role === 'logistics') {
         // Create logistics profile
         await firebaseService.logistics.createProfile({

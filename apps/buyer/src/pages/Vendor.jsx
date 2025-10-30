@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom';
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import firebaseService from '../services/firebaseService';
+import { getVendorDataOptimized } from '../services/optimizedFirebaseService';
 import WalletManager from '../components/WalletManager';
 import VendorOrdersFilterBar from '../components/VendorOrdersFilterBar';
 import VendorOrderDetailsModal from '../components/VendorOrderDetailsModal';
@@ -9,15 +10,21 @@ import ShipOrderModal from '../components/ShipOrderModal';
 import PayoutRequestModal from '../components/PayoutRequestModal';
 import ProductEditorModal from '../components/ProductEditorModal';
 import VendorProfileModal from '../components/VendorProfileModal';
-import LogisticsAssignmentModal from '../components/LogisticsAssignmentModal';
+// LogisticsAssignmentModal removed - logistics partners work independently
 import VendorStoreManager from '../components/VendorStoreManager';
-import VendorAnalyticsDashboard from '../components/VendorAnalyticsDashboard';
 import DisputeManagement from '../components/DisputeManagement';
 import NotificationPreferences from '../components/NotificationPreferences';
 import DashboardSwitcher from '../components/DashboardSwitcher';
-import CreateStoreForExistingVendor from '../components/CreateStoreForExistingVendor';
+import VendorBilling from '../components/VendorBilling';
+import BulkOperations from '../components/BulkOperations';
+// import UnifiedVendorStore from '../components/UnifiedVendorStore'; // Removed - using simple overview instead
+
+// Lazy load heavy components
+const VendorAnalyticsDashboard = lazy(() => import('../components/VendorAnalyticsDashboard'));
+// const VendorProductManager = lazy(() => import('../components/VendorProductManager'));
 
 const Vendor = () => {
+  console.log('🏪 Vendor component loaded');
   const [activeTab, setActiveTab] = useState('overview');
   const [showAddProductForm, setShowAddProductForm] = useState(false);
   const [orders, setOrders] = useState([]);
@@ -59,80 +66,97 @@ const Vendor = () => {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [deletingProductId, setDeletingProductId] = useState(null);
   const [productStatusFilter, setProductStatusFilter] = useState('all');
-  const [isLogisticsModalOpen, setIsLogisticsModalOpen] = useState(false);
-  const [selectedOrderForLogistics, setSelectedOrderForLogistics] = useState(null);
+  // Logistics modal state removed - logistics partners work independently
 
-  // Fetch vendor data function (moved outside useEffect for reusability)
-  const fetchVendorData = useCallback(async () => {
+  // Load only essential data first for fast initial load
+  const fetchInitialData = useCallback(async () => {
     if (!currentUser) return;
     
     try {
       setLoading(true);
       
-      // Fetch vendor orders (paged)
-      const [ordersPage, ordersTotal] = await Promise.all([
-        firebaseService.orders.getByUserPaged({ userId: currentUser.uid, userType: 'vendor', pageSize }),
-        firebaseService.orders.countByUser(currentUser.uid, 'vendor')
-      ]);
-      setOrders(ordersPage.items);
-      setOrdersCursor(ordersPage.nextCursor);
-      setOrdersPages([{ items: ordersPage.items, cursor: ordersPage.nextCursor }]);
-      setOrdersPageIndex(0);
-      setOrdersCount(ordersTotal);
+      // Use optimized service for faster loading
+      const vendorData = await getVendorDataOptimized(currentUser.uid, 'overview');
       
-      // Fetch vendor products (paged)
-      const [productsPage, productsTotal] = await Promise.all([
-        firebaseService.products.getByVendorPaged({ vendorId: currentUser.uid, pageSize }),
-        firebaseService.products.countByVendor(currentUser.uid)
-      ]);
-      setProducts(productsPage.items);
-      setProductsCursor(productsPage.nextCursor);
-      setProductsPages([{ items: productsPage.items, cursor: productsPage.nextCursor }]);
-      setProductsPageIndex(0);
-      setProductsCount(productsTotal);
-      
-      // Fetch vendor analytics
-      const statsData = await firebaseService.analytics.getVendorStats(currentUser.uid);
-      setStats(statsData);
-      
-      // Optional: payouts and disputes
-      // Payouts and disputes paged
-      const [payoutsPage, payoutsTotal] = await Promise.all([
-        firebaseService.payouts.getByVendorPaged({ vendorId: currentUser.uid, pageSize }),
-        firebaseService.payouts.countByVendor(currentUser.uid)
-      ]);
-      setPayouts(payoutsPage.items);
-      setPayoutsCursor(payoutsPage.nextCursor);
-      setPayoutsPages([{ items: payoutsPage.items, cursor: payoutsPage.nextCursor }]);
-      setPayoutsPageIndex(0);
-      setPayoutsCount(payoutsTotal);
-
-      const [disputesPage, disputesTotal] = await Promise.all([
-        firebaseService.disputes.getByVendorPaged({ vendorId: currentUser.uid, pageSize }),
-        firebaseService.disputes.countByVendor(currentUser.uid)
-      ]);
-      setDisputes(disputesPage.items);
-      setDisputesCursor(disputesPage.nextCursor);
-      setDisputesPages([{ items: disputesPage.items, cursor: disputesPage.nextCursor }]);
-      setDisputesPageIndex(0);
-      setDisputesCount(disputesTotal);
+      setOrdersCount(vendorData.ordersCount);
+      setProductsCount(vendorData.productsCount);
+      setStats(vendorData.stats);
       
     } catch (error) {
-      console.error('Error fetching vendor data:', error);
-      // Fallback to mock data
-      setOrders([]);
-      setProducts([]);
+      console.error('Error loading initial vendor data:', error);
       setStats({ totalSales: 0, activeOrders: 0 });
-      setPayouts([]);
-      setDisputes([]);
     } finally {
       setLoading(false);
     }
   }, [currentUser]);
 
+  // Load tab-specific data only when needed with optimized service
+  const loadTabData = useCallback(async (tab) => {
+    if (!currentUser) return;
+
+    try {
+      switch (tab) {
+        case 'orders':
+          if (orders.length === 0) {
+            const ordersData = await getVendorDataOptimized(currentUser.uid, 'orders');
+            setOrders(ordersData.orders);
+            setOrdersCursor(ordersData.lastDoc);
+            setOrdersPages([{ items: ordersData.orders, cursor: ordersData.lastDoc }]);
+      setOrdersPageIndex(0);
+          }
+          break;
+          
+        case 'products':
+          if (products.length === 0) {
+            const productsData = await getVendorDataOptimized(currentUser.uid, 'products');
+            setProducts(productsData.products);
+            setProductsCursor(productsData.lastDoc);
+            setProductsPages([{ items: productsData.products, cursor: productsData.lastDoc }]);
+      setProductsPageIndex(0);
+          }
+          break;
+          
+        case 'payouts':
+          if (payouts.length === 0) {
+            const payoutsPage = await firebaseService.payouts.getByVendorPaged({ 
+              vendorId: currentUser.uid, 
+              pageSize 
+            });
+      setPayouts(payoutsPage.items);
+      setPayoutsCursor(payoutsPage.nextCursor);
+      setPayoutsPages([{ items: payoutsPage.items, cursor: payoutsPage.nextCursor }]);
+      setPayoutsPageIndex(0);
+          }
+          break;
+          
+        case 'disputes':
+          if (disputes.length === 0) {
+            const disputesPage = await firebaseService.disputes.getByVendorPaged({ 
+              vendorId: currentUser.uid, 
+              pageSize 
+            });
+      setDisputes(disputesPage.items);
+      setDisputesCursor(disputesPage.nextCursor);
+      setDisputesPages([{ items: disputesPage.items, cursor: disputesPage.nextCursor }]);
+      setDisputesPageIndex(0);
+          }
+          break;
+      }
+    } catch (error) {
+      console.error(`Error loading ${tab} data:`, error);
+    }
+  }, [currentUser, orders.length, products.length, payouts.length, disputes.length]);
+
   useEffect(() => {
-    fetchVendorData();
-  }, [fetchVendorData]);
+    fetchInitialData();
+  }, [fetchInitialData]);
+
+  // Load tab data when tab changes
+  useEffect(() => {
+    if (activeTab !== 'overview') {
+      loadTabData(activeTab);
+    }
+  }, [activeTab, loadTabData]);
 
   // Derived product filters and counts
   const safeProducts = Array.isArray(products) ? products : [];
@@ -155,57 +179,8 @@ const Vendor = () => {
     return safeProducts.filter(p => (p.status || '').toLowerCase() === productStatusFilter);
   }, [safeProducts, productStatusFilter]);
 
-  // Real-time order status updates
-  useEffect(() => {
-    if (!currentUser) return;
-
-    let unsubscribeOrders;
-
-    const setupRealtimeListeners = async () => {
-      try {
-        const { onSnapshot, collection, query, where, orderBy } = await import('firebase/firestore');
-        const { db } = await import('../firebase/config');
-
-        // Temporary workaround: Remove orderBy while index builds
-        const ordersQuery = query(
-          collection(db, 'orders'),
-          where('vendorId', '==', currentUser.uid)
-          // Removed orderBy temporarily to avoid index requirement
-        );
-
-        unsubscribeOrders = onSnapshot(ordersQuery, (snapshot) => {
-          const updatedOrders = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-          }));
-          
-          // Sort client-side as temporary workaround
-          const sortedOrders = updatedOrders.sort((a, b) => {
-            const aTime = a.updatedAt?.toDate?.() || new Date(a.updatedAt || 0);
-            const bTime = b.updatedAt?.toDate?.() || new Date(b.updatedAt || 0);
-            return bTime - aTime; // Descending order
-          });
-          
-          // Update orders if they're different from current state
-          setOrders(prevOrders => {
-            const hasChanges = JSON.stringify(prevOrders) !== JSON.stringify(sortedOrders);
-            return hasChanges ? sortedOrders : prevOrders;
-          });
-        });
-      } catch (error) {
-        console.error('Error setting up real-time listeners:', error);
-      }
-    };
-
-    setupRealtimeListeners();
-
-    // Cleanup listener on unmount
-    return () => {
-      if (unsubscribeOrders) {
-        unsubscribeOrders();
-      }
-    };
-  }, [currentUser]);
+  // Removed real-time listeners for better performance
+  // Data will be refreshed when user switches tabs or manually refreshes
 
   const handleAddProduct = async (productData) => {
     try {
@@ -254,15 +229,7 @@ const Vendor = () => {
     setIsShipOpen(true);
   };
 
-  const openLogisticsModal = (order) => {
-    setSelectedOrderForLogistics(order);
-    setIsLogisticsModalOpen(true);
-  };
-
-  const handleLogisticsAssignmentComplete = () => {
-    // Refresh orders after logistics assignment
-    fetchVendorData();
-  };
+  // Logistics assignment removed - buyer selects logistics partner during checkout
 
   const confirmShipment = async ({ carrier, trackingNumber, eta, order }) => {
     try {
@@ -504,17 +471,15 @@ const Vendor = () => {
                 📦 Orders
               </button>
               <button 
-                onClick={() => setActiveTab('store')}
+                onClick={() => {
+                  console.log('🏪 My Store tab clicked');
+                  setActiveTab('store');
+                }}
                 className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'store' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
               >
                 🏪 My Store
               </button>
-              <button 
-                onClick={() => setActiveTab('logistics')}
-                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'logistics' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
-              >
-                🚚 Logistics
-              </button>
+              {/* Logistics tab removed - logistics partners work independently */}
               <button 
                 onClick={() => setActiveTab('payouts')}
                 className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'payouts' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
@@ -522,10 +487,22 @@ const Vendor = () => {
                 💰 Payouts
               </button>
               <button 
+                onClick={() => setActiveTab('billing')}
+                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'billing' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+              >
+                💳 Billing & Subscription
+              </button>
+              <button 
                 onClick={() => setActiveTab('disputes')}
                 className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'disputes' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
               >
                 ⚖️ Disputes
+              </button>
+              <button 
+                onClick={() => setActiveTab('analytics')}
+                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'analytics' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+              >
+                📊 Analytics
               </button>
               <button 
                 onClick={() => setActiveTab('settings')}
@@ -548,21 +525,65 @@ const Vendor = () => {
             </div>
           </div>
           
-          <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 bg-white">
-            <Link 
-              to="/" 
-              className="flex items-center justify-center px-4 py-2 text-sm font-medium text-gray-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-            >
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-              Back to Home
-            </Link>
-          </div>
+          {/* Back to Home link removed for cleaner UI */}
         </div>
 
         {/* Main Content */}
         <div className="flex-1 p-8">
+          {/* Address Update Banner - Shows if vendor has incomplete structured address */}
+          {(() => {
+            const hasStructuredAddress = userProfile?.vendorProfile?.structuredAddress;
+            const hasCity = hasStructuredAddress?.city;
+            const hasState = hasStructuredAddress?.state;
+            const shouldShowBanner = !hasCity || !hasState || !hasStructuredAddress;
+            
+            console.log('🔍 Address Banner Debug:', {
+              hasStructuredAddress: !!hasStructuredAddress,
+              hasCity: !!hasCity,
+              hasState: !!hasState,
+              shouldShowBanner,
+              structuredAddress: hasStructuredAddress,
+              businessAddress: userProfile?.vendorProfile?.businessAddress
+            });
+            
+            return shouldShowBanner;
+          })() && (
+            <div className="mb-6 bg-gradient-to-r from-orange-50 to-yellow-50 border-l-4 border-orange-500 rounded-lg p-6 shadow-sm">
+              <div className="flex items-start gap-4">
+                <div className="flex-shrink-0">
+                  <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
+                    <span className="text-2xl">⚠️</span>
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-orange-900 mb-2">
+                    Update Your Business Address
+                  </h3>
+                  <p className="text-sm text-orange-800 mb-3">
+                    Your business address is incomplete or not in the new structured format. This is required for:
+                  </p>
+                  <ul className="text-sm text-orange-700 space-y-1 mb-4 ml-4">
+                    <li>• <strong>Accurate delivery cost calculation</strong> for customer orders</li>
+                    <li>• <strong>Logistics partner matching</strong> for your delivery area</li>
+                    <li>• <strong>Better customer experience</strong> with reliable shipping estimates</li>
+                    <li>• <strong>Higher trust</strong> from buyers seeing complete business info</li>
+                  </ul>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setIsProfileModalOpen(true)}
+                      className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-2.5 rounded-lg font-medium transition-colors shadow-sm"
+                    >
+                      Update Address Now
+                    </button>
+                    <span className="text-xs text-orange-600">
+                      Takes less than 2 minutes
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Add Product Modal */}
           <ProductEditorModal
             open={showAddProductForm}
@@ -574,87 +595,226 @@ const Vendor = () => {
 
           {/* Tab Content */}
           {activeTab === 'overview' && (
-            <>
-              {/* Store Creation Helper for Existing Vendors */}
+            <div className="p-8">
+              {/* Welcome Section */}
               <div className="mb-8">
-                <CreateStoreForExistingVendor />
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                  Welcome back, {currentUser?.displayName || 'Vendor'}!
+                </h1>
+                <p className="text-gray-600">Here's your business dashboard overview.</p>
               </div>
 
-              {/* Public Store Preview */}
-              <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-6 mb-8">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <div className="text-purple-400 text-3xl mr-4">🌐</div>
+              {/* Business Stats */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg shadow-lg p-6 text-white">
+                  <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="text-lg font-semibold text-purple-800">Your Public Store</h3>
-                      <p className="text-purple-600 text-sm">
-                        Share your store with customers. They can browse and buy your products directly.
-                      </p>
-                      <p className="text-purple-500 text-xs mt-1 font-mono">
-                        {window.location.origin}/vendor/{currentUser.uid}
+                      <p className="text-blue-100 text-sm font-medium">Total Products</p>
+                      <p className="text-3xl font-bold">{products.length}</p>
+                    </div>
+                    <div className="text-4xl opacity-80">📦</div>
+                  </div>
+                </div>
+
+                <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-lg shadow-lg p-6 text-white">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-green-100 text-sm font-medium">Total Orders</p>
+                      <p className="text-3xl font-bold">{orders.length}</p>
+                    </div>
+                    <div className="text-4xl opacity-80">📋</div>
+                  </div>
+                </div>
+
+                <div className="bg-gradient-to-r from-yellow-500 to-yellow-600 rounded-lg shadow-lg p-6 text-white">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-yellow-100 text-sm font-medium">Pending Orders</p>
+                      <p className="text-3xl font-bold">
+                        {orders.filter(order => order.status === 'pending').length}
                       </p>
                     </div>
+                    <div className="text-4xl opacity-80">⏳</div>
                   </div>
-                  <div className="flex space-x-3">
+                </div>
+                
+                <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-lg shadow-lg p-6 text-white">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-purple-100 text-sm font-medium">Total Revenue</p>
+                      <p className="text-3xl font-bold">
+                        ₦{orders.reduce((sum, order) => sum + (order.totalAmount || 0), 0).toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="text-4xl opacity-80">💰</div>
+                    </div>
+                  </div>
+                </div>
+                
+              {/* Business Overview Cards */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                {/* Store Information */}
+                <div className="bg-white rounded-lg shadow-sm border p-6">
+                  <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
+                    <span className="text-2xl mr-3">🏪</span>
+                    Store Information
+                  </h2>
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Store Name</span>
+                      <span className="font-medium">{userProfile?.vendorProfile?.storeName || 'Not set'}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Business Type</span>
+                      <span className="font-medium capitalize">{userProfile?.vendorProfile?.businessType || 'Not set'}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Verification Status</span>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        userProfile?.vendorProfile?.verificationStatus === 'verified' 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {userProfile?.vendorProfile?.verificationStatus || 'Pending'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Member Since</span>
+                      <span className="font-medium">
+                        {userProfile?.createdAt ? new Date(userProfile.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Actions */}
+                <div className="bg-white rounded-lg shadow-sm border p-6">
+                  <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
+                    <span className="text-2xl mr-3">⚡</span>
+                    Quick Actions
+                  </h2>
+                  <div className="space-y-3">
                     <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(`${window.location.origin}/vendor/${currentUser.uid}`);
-                        alert('Store link copied to clipboard!');
-                      }}
-                      className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors text-sm"
+                      onClick={() => setActiveTab('store')}
+                      className="w-full p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left flex items-center"
                     >
-                      Copy Link
+                      <span className="text-2xl mr-3">🏪</span>
+                      <div>
+                        <p className="font-medium text-gray-900">Manage Store</p>
+                        <p className="text-sm text-gray-600">Add products and manage your store</p>
+                      </div>
                     </button>
-                    <Link
-                      to={`/vendor/${currentUser.uid}`}
-                      target="_blank"
-                      className="bg-white text-purple-600 px-4 py-2 rounded-lg border border-purple-200 hover:bg-purple-50 transition-colors text-sm"
+
+                    <button
+                      onClick={() => setActiveTab('orders')}
+                      className="w-full p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left flex items-center"
                     >
-                      Preview Store
-                    </Link>
+                      <span className="text-2xl mr-3">📦</span>
+                      <div>
+                        <p className="font-medium text-gray-900">View Orders</p>
+                        <p className="text-sm text-gray-600">Track and manage your orders</p>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => setActiveTab('analytics')}
+                      className="w-full p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left flex items-center"
+                    >
+                      <span className="text-2xl mr-3">📊</span>
+                      <div>
+                        <p className="font-medium text-gray-900">Analytics</p>
+                        <p className="text-sm text-gray-600">View your business insights</p>
+                      </div>
+                    </button>
                   </div>
                 </div>
               </div>
-              
-              {/* Enhanced Analytics Dashboard */}
-              <VendorAnalyticsDashboard 
-                vendorId={currentUser.uid}
-                orders={orders}
+
+              {/* Recent Orders */}
+              <div className="bg-white rounded-lg shadow-sm border p-6">
+                <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
+                  <span className="text-2xl mr-3">📋</span>
+                  Recent Orders
+                </h2>
+                
+                {orders.length > 0 ? (
+                  <div className="space-y-4">
+                    {orders.slice(0, 5).map((order, index) => (
+                      <div key={order.id || index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                        <div className="flex items-center">
+                          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mr-4">
+                            <span className="text-blue-600 font-bold">#{order.id?.slice(-4) || index + 1}</span>
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900">
+                              Order #{order.id?.slice(-6) || 'N/A'}
+                            </p>
+                            <p className="text-sm text-gray-600">
+                              {order.buyerName || 'Customer'} • {order.items?.length || 0} items
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-gray-900">₦{order.totalAmount?.toLocaleString() || '0'}</p>
+                          <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
+                            order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                            order.status === 'shipped' ? 'bg-blue-100 text-blue-800' :
+                            order.status === 'delivered' ? 'bg-green-100 text-green-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {order.status || 'Unknown'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <div className="text-6xl mb-4">📦</div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">No orders yet</h3>
+                    <p className="text-gray-600 mb-4">Start by adding products to your store</p>
+                    <button
+                      onClick={() => setActiveTab('store')}
+                      className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      Add Products
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'store' && (
+            <>
+              {console.log('🏪 Rendering VendorStoreManager, activeTab:', activeTab)}
+              <BulkOperations 
                 products={products}
+                onProductsUpdate={() => loadTabData('products')}
               />
+              <VendorStoreManager 
+                products={products}
+                onEditProduct={openEditProduct}
+                onDeleteProduct={(product) => setConfirmDelete({ open: true, product })}
+                onCreateProduct={openCreateProduct}
+                onRefreshProducts={() => loadTabData('products')}
+              />
+            </>
+          )}
+
+          {activeTab === 'products' && Array.isArray(products) && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-gray-900">Product Management</h2>
+                <button 
+                  onClick={openCreateProduct}
+                  className="bg-emerald-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-emerald-700"
+                >
+                  Add New Product
+                </button>
+              </div>
               
-              {/* Stats Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8 mt-8">
-                <div className="bg-white p-6 rounded-xl border">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Total Sales</p>
-                      <p className="text-2xl font-bold text-gray-900">₦{(stats.totalSales || 0).toLocaleString()}</p>
-                      <p className="text-xs text-green-600 flex items-center mt-1">
-                        <span className="mr-1">▲</span> 12.4%
-                      </p>
-                    </div>
-                    <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                      <span className="text-green-600 text-xl">💰</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="bg-white p-6 rounded-xl border">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Active Orders</p>
-                      <p className="text-2xl font-bold text-gray-900">{stats.activeOrders || 0}</p>
-                      <p className="text-xs text-green-600 flex items-center mt-1">
-                        <span className="mr-1">▲</span> 2.0%
-                      </p>
-                    </div>
-                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <span className="text-blue-600 text-xl">📦</span>
-                    </div>
-                  </div>
-                </div>
-                
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div className="bg-white p-6 rounded-xl border">
                   <div className="flex items-center justify-between">
                     <div>
@@ -862,7 +1022,7 @@ const Vendor = () => {
                   </div>
                 </div>
               </div>
-            </>
+            </div>
           )}
 
           {activeTab === 'orders' && Array.isArray(orders) && (
@@ -873,43 +1033,152 @@ const Vendor = () => {
                   <VendorOrdersFilterBar onChange={setFilters} />
                 </div>
               </div>
+
+              {/* Logistics Info Banner */}
+              <div className="mx-6 mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <span className="text-blue-600 text-xl">📦</span>
+                  <div className="flex-1">
+                    <h4 className="text-sm font-medium text-blue-900 mb-1">About Logistics & Delivery</h4>
+                    <p className="text-sm text-blue-700">
+                      Buyers select their preferred logistics partner during checkout. Once you mark an order as "Ready for Shipment", 
+                      the selected logistics company will be notified automatically to pick up the package. You can view the logistics 
+                      partner in each order's details.
+                    </p>
+                  </div>
+                </div>
+              </div>
               
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order ID</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Buyer</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Buyer Details</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount Details</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Wallet ID</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tracking & Wallet</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {(Array.isArray(filteredOrders) ? filteredOrders : []).map((order) => (
+                    {(Array.isArray(filteredOrders) ? filteredOrders : []).map((order) => {
+                      const orderDate = order.createdAt?.toDate ? order.createdAt.toDate() : (order.date ? new Date(order.date) : new Date());
+                      const formattedDate = orderDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                      const formattedTime = orderDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                      
+                      return (
                       <tr key={order.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{order.id}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{order.item}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          <div>
-                            <p>{order.buyer}</p>
-                            <p className="text-xs text-gray-400">{order.buyerPhone}</p>
+                          {/* Order ID */}
+                          <td className="px-6 py-4 text-sm">
+                            <div className="space-y-1">
+                              <p className="font-mono font-medium text-gray-900">#{order.id?.slice(-8) || 'N/A'}</p>
+                              {order.trackingId && (
+                                <p className="text-xs text-blue-600 font-mono">{order.trackingId}</p>
+                              )}
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${order.statusColor}`}>
+                          
+                          {/* Items List */}
+                          <td className="px-6 py-4 text-sm">
+                            <div className="space-y-1 max-w-xs">
+                              {Array.isArray(order.items) ? (
+                                order.items.map((item, idx) => (
+                                  <div key={idx} className="text-xs">
+                                    <p className="font-medium text-gray-900">{item.name}</p>
+                                    <p className="text-gray-500">Qty: {item.quantity} × ₦{item.price?.toLocaleString()}</p>
+                                  </div>
+                                ))
+                              ) : (
+                                <p className="text-gray-900">{order.item || 'N/A'}</p>
+                              )}
+                            </div>
+                          </td>
+                          
+                          {/* Buyer Details */}
+                          <td className="px-6 py-4 text-sm">
+                            <div className="space-y-1">
+                              <p className="font-medium text-gray-900">{order.buyerName || order.buyer || 'N/A'}</p>
+                              <p className="text-xs text-gray-500">{order.buyerEmail || 'No email'}</p>
+                              {order.buyerPhone && (
+                                <p className="text-xs text-gray-500">{order.buyerPhone}</p>
+                              )}
+                              <p className="text-xs text-blue-600 font-mono">ID: {order.buyerId?.slice(-6) || 'N/A'}</p>
+                            </div>
+                          </td>
+                          
+                          {/* Status */}
+                          <td className="px-6 py-4">
+                            <div className="space-y-1">
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                order.statusColor || 
+                                (order.status === 'completed' ? 'bg-green-100 text-green-800' :
+                                 order.status === 'escrow_funded' ? 'bg-yellow-100 text-yellow-800' :
+                                 order.status === 'shipped' ? 'bg-blue-100 text-blue-800' :
+                                 'bg-gray-100 text-gray-800')
+                              }`}>
                             {order.status}
                           </span>
+                              {order.paymentStatus && (
+                                <p className="text-xs text-gray-500">Pay: {order.paymentStatus}</p>
+                              )}
+                            </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{order.amount}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{order.date}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{order.walletId || 'N/A'}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <div className="flex gap-2">
-                            <button onClick={() => openOrderDetails(order)} className="text-emerald-600 hover:text-emerald-700 font-medium">View</button>
+                          
+                          {/* Amount Details */}
+                          <td className="px-6 py-4 text-sm">
+                            <div className="space-y-1">
+                              <p className="font-semibold text-gray-900">
+                                {order.currency || '₦'}{(order.totalAmount || 0).toLocaleString()}
+                              </p>
+                              {order.subtotal && (
+                                <p className="text-xs text-gray-500">Subtotal: ₦{order.subtotal.toLocaleString()}</p>
+                              )}
+                              {order.deliveryFee && (
+                                <p className="text-xs text-gray-500">Delivery: ₦{order.deliveryFee.toLocaleString()}</p>
+                              )}
+                              {order.escrowAmount && (
+                                <p className="text-xs text-yellow-600">Escrow: ₦{order.escrowAmount.toLocaleString()}</p>
+                              )}
+                            </div>
+                          </td>
+                          
+                          {/* Date */}
+                          <td className="px-6 py-4 text-sm text-gray-500">
+                            <div className="space-y-1">
+                              <p className="font-medium">{formattedDate}</p>
+                              <p className="text-xs">{formattedTime}</p>
+                            </div>
+                          </td>
+                          
+                          {/* Tracking & Wallet Info */}
+                          <td className="px-6 py-4 text-sm">
+                            <div className="space-y-1">
+                              {order.trackingNumber && (
+                                <div>
+                                  <p className="text-xs text-gray-500">Tracking:</p>
+                                  <p className="font-mono text-xs text-gray-900">{order.trackingNumber}</p>
+                                </div>
+                              )}
+                              {order.logisticsCompany && (
+                                <p className="text-xs text-gray-500">🚚 {order.logisticsCompany}</p>
+                              )}
+                              {order.walletId && (
+                                <div>
+                                  <p className="text-xs text-gray-500">Wallet:</p>
+                                  <p className="font-mono text-xs text-purple-600">{order.walletId}</p>
+                                </div>
+                              )}
+                              {!order.walletId && <p className="text-xs text-gray-400">No wallet ID</p>}
+                            </div>
+                          </td>
+                          
+                          {/* Actions */}
+                          <td className="px-6 py-4 text-sm">
+                            <div className="flex flex-col gap-2">
+                              <button onClick={() => openOrderDetails(order)} className="text-emerald-600 hover:text-emerald-700 font-medium text-left">View Details</button>
                             {order.status === 'escrow_funded' && (
                               <button 
                                 onClick={async () => {
@@ -924,14 +1193,14 @@ const Vendor = () => {
                                       orderId: order.id,
                                       read: false
                                     });
-                                    await fetchVendorData();
+                                    await loadTabData('products');
                                     alert('Order moved to Processing');
                                   } catch (err) {
                                     console.error('Failed to update order', err);
                                     alert('Failed to update order status');
                                   }
                                 }}
-                                className="text-blue-600 hover:text-blue-700 font-medium"
+                                  className="text-blue-600 hover:text-blue-700 font-medium text-left"
                               >
                                 Start Processing
                               </button>
@@ -960,28 +1229,25 @@ const Vendor = () => {
                                         read: false
                                       });
                                     }
-                                    await fetchVendorData();
+                                    await loadTabData('products');
                                     alert('Order ready for shipment');
                                   } catch (err) {
                                     console.error('Failed to update order', err);
                                     alert('Failed to update order status');
                                   }
                                 }}
-                                className="text-purple-600 hover:text-purple-700 font-medium"
+                                  className="text-purple-600 hover:text-purple-700 font-medium text-left"
                               >
                                 Mark Ready
                               </button>
                             )}
                             {order.status === 'ready_for_shipment' && (
-                              <>
-                                <button onClick={() => openShipModal(order)} className="text-blue-600 hover:text-blue-700 font-medium">Ship</button>
-                                <button onClick={() => openLogisticsModal(order)} className="text-purple-600 hover:text-purple-700 font-medium">Assign Logistics</button>
-                              </>
+                                <button onClick={() => openShipModal(order)} className="text-blue-600 hover:text-blue-700 font-medium text-left">Ship Order</button>
                             )}
                             {order.status === 'shipped' && (
                               <button 
                                 onClick={() => handleCompleteOrder(order.id)} 
-                                className="text-green-600 hover:text-green-700 font-medium"
+                                  className="text-green-600 hover:text-green-700 font-medium text-left"
                               >
                                 Complete
                               </button>
@@ -992,16 +1258,16 @@ const Vendor = () => {
                                   reason: 'Product not as described',
                                   description: 'Customer complaint about product quality'
                                 })} 
-                                className="text-red-600 hover:text-red-700 font-medium"
+                                  className="text-red-600 hover:text-red-700 font-medium text-left"
                               >
                                 Dispute
                               </button>
                             )}
-                            <button className="text-gray-600 hover:text-gray-700 font-medium">Contact</button>
                           </div>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1045,13 +1311,16 @@ const Vendor = () => {
           )}
 
           {activeTab === 'store' && (
+            <>
+              {console.log('🏪 Rendering VendorStoreManager, activeTab:', activeTab)}
             <VendorStoreManager 
               products={products}
               onEditProduct={openEditProduct}
               onDeleteProduct={(product) => setConfirmDelete({ open: true, product })}
               onCreateProduct={openCreateProduct}
-              onRefreshProducts={fetchVendorData}
+                onRefreshProducts={() => loadTabData('products')}
             />
+            </>
           )}
 
           {activeTab === 'products' && Array.isArray(products) && (
@@ -1287,7 +1556,8 @@ const Vendor = () => {
             </div>
           )}
 
-          {activeTab === 'logistics' && (
+          {/* Logistics tab removed - logistics partners work independently */}
+          {false && activeTab === 'logistics' && (
             <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-gray-900">Logistics Management</h2>
@@ -1605,6 +1875,14 @@ const Vendor = () => {
             </div>
           )}
 
+          {activeTab === 'billing' && (
+            <VendorBilling />
+          )}
+
+          {activeTab === 'analytics' && (
+            <VendorAnalyticsDashboard />
+          )}
+
           {activeTab === 'disputes' && (
             <DisputeManagement userType="vendor" />
           )}
@@ -1751,17 +2029,7 @@ const Vendor = () => {
         }}
       />
 
-      {/* Logistics Assignment Modal */}
-      {isLogisticsModalOpen && selectedOrderForLogistics && (
-      <LogisticsAssignmentModal
-        order={selectedOrderForLogistics}
-        onClose={() => {
-          setIsLogisticsModalOpen(false);
-          setSelectedOrderForLogistics(null);
-        }}
-        onAssignmentComplete={handleLogisticsAssignmentComplete}
-      />
-      )}
+      {/* Logistics Assignment Modal removed - logistics partners work independently */}
     </div>
   );
 };

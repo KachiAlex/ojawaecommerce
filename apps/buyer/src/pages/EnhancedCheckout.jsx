@@ -214,15 +214,17 @@ const EnhancedCheckoutForm = ({ total, cartItems, onSuccess, orderDetails }) => 
         updatedAt: new Date()
       }
 
-      const docRef = await addDoc(collection(db, 'orders'), orderData)
+      // Create order using the service (which will set trackingId = orderId)
+      const orderId = await firebaseService.orders.create(orderData)
       
       errorLogger.info('Order created successfully', {
-        orderId: docRef.id,
+        orderId: orderId,
+        trackingId: orderId, // Order ID is now the tracking ID
         transactionId: txnId,
         totalAmount: total
       })
 
-      return docRef.id
+      return orderId
     } catch (error) {
       errorLogger.error('Failed to create order', error)
       throw error

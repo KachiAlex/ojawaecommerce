@@ -13,6 +13,7 @@ const VendorStoreManager = ({
   onCreateProduct,
   onRefreshProducts 
 }) => {
+  console.log('🏪 VendorStoreManager component loaded');
   const { currentUser, userProfile } = useAuth();
   const [activeStoreTab, setActiveStoreTab] = useState('overview');
   const [store, setStore] = useState(null);
@@ -33,6 +34,9 @@ const VendorStoreManager = ({
   });
 
   useEffect(() => {
+    console.log('🏪 VendorStoreManager useEffect triggered');
+    console.log('  - userProfile:', userProfile);
+    console.log('  - userProfile?.vendorProfile:', userProfile?.vendorProfile);
     if (userProfile?.vendorProfile) {
       const slug = userProfile.vendorProfile.storeSlug || 
                     userProfile.vendorProfile.storeName?.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
@@ -52,18 +56,28 @@ const VendorStoreManager = ({
   }, [userProfile]);
 
   const fetchOrCreateStore = async (slug) => {
-    if (!slug || !currentUser) {
+    if (!currentUser) {
       setLoading(false);
       return;
     }
 
     try {
       setLoading(true);
-      const existingStore = await storeService.getStoreByTrackingId(slug);
       
-      if (existingStore) {
-        setStore(existingStore);
-      } else {
+      // First, check if vendor already has any stores
+      const existingStores = await storeService.getStoresByVendor(currentUser.uid);
+      console.log('🔍 VendorStoreManager fetchOrCreateStore debug:');
+      console.log('  - existingStores:', existingStores);
+      console.log('  - existingStores.length:', existingStores.length);
+      
+      if (existingStores.length > 0) {
+        // Use the first (most recent) store
+        console.log('  - Using existing store:', existingStores[0]);
+        setStore(existingStores[0]);
+        return;
+      }
+      
+      // Only create a new store if vendor has no stores at all
         const newStore = await storeService.createStore(currentUser.uid, {
           name: storeSettings.businessName || 'My Store',
           description: storeSettings.storeDescription || 'Welcome to my store',
@@ -80,7 +94,6 @@ const VendorStoreManager = ({
           }
         });
         setStore(newStore);
-      }
     } catch (error) {
       console.error('Error fetching/creating store:', error);
     } finally {
@@ -120,7 +133,30 @@ const VendorStoreManager = ({
   };
 
   const getStoreLink = () => {
-    return `${window.location.origin}/store/${storeSettings.storeSlug}`;
+    console.log('🔍 VendorStoreManager getStoreLink debug:');
+    console.log('  - store:', store);
+    console.log('  - storeSettings:', storeSettings);
+    console.log('  - storeSettings.businessName:', storeSettings.businessName);
+    console.log('  - currentUser.displayName:', currentUser?.displayName);
+    console.log('  - userProfile?.vendorProfile?.storeName:', userProfile?.vendorProfile?.storeName);
+    
+    // Use business name for consistency with store link format
+    const storeName = storeSettings.businessName || 
+                      userProfile?.vendorProfile?.storeName || 
+                      store?.name || 
+                      store?.storeName || 
+                      currentUser?.displayName || 
+                      'store';
+    const storeSlug = storeName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
+    
+    const link = `${window.location.origin}/store/${storeSlug}`;
+    console.log('  - Generated vendor store link:', link);
+    console.log('  - storeName used:', storeName);
+    console.log('  - storeSlug generated:', storeSlug);
+    console.log('  - store object keys:', store ? Object.keys(store) : 'store is null');
+    console.log('  - store.name value:', store?.name);
+    console.log('  - store.storeName value:', store?.storeName);
+    return link;
   };
 
   // Filter products

@@ -10,6 +10,7 @@ const ProductEditorModal = ({ open, product, onClose, onSave, progress = null })
   const [currency, setCurrency] = useState('₦ NGN');
   const [stock, setStock] = useState('');
   const [condition, setCondition] = useState('new'); // new or used
+  const [processingTimeDays, setProcessingTimeDays] = useState('2'); // Vendor processing time in days
   const [images, setImages] = useState([]); // mixed array of File or URL(string)
   const [videos, setVideos] = useState([]); // video files
   const [dragIndex, setDragIndex] = useState(null);
@@ -23,6 +24,7 @@ const ProductEditorModal = ({ open, product, onClose, onSave, progress = null })
       setCurrency(product.currency || '₦ NGN');
       setStock(product.stock || '');
       setCondition(product.condition || 'new');
+      setProcessingTimeDays(String(product.processingTimeDays || '2'));
       setImages(Array.isArray(product.images) ? product.images : []);
       setVideos(Array.isArray(product.videos) ? product.videos : []);
     } else {
@@ -35,6 +37,7 @@ const ProductEditorModal = ({ open, product, onClose, onSave, progress = null })
       setCurrency('₦ NGN');
       setStock('');
       setCondition('new');
+      setProcessingTimeDays('2');
       setImages([]);
       setVideos([]);
     }
@@ -85,6 +88,7 @@ const ProductEditorModal = ({ open, product, onClose, onSave, progress = null })
       currency, 
       stock: Number(stock), 
       condition,
+      processingTimeDays: Number(processingTimeDays) || 2,
       images,
       videos
     };
@@ -175,6 +179,27 @@ const ProductEditorModal = ({ open, product, onClose, onSave, progress = null })
               <label className="block text-sm font-medium text-gray-700 mb-2">Stock Quantity</label>
               <input type="number" value={stock} onChange={(e) => setStock(e.target.value)} className="w-full border rounded-lg px-3 py-2" placeholder="0" />
             </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Processing Time (Days to Prepare Order)
+              <span className="text-xs text-gray-500 ml-1">• Time needed to prepare/pack before shipping</span>
+            </label>
+            <select 
+              value={processingTimeDays} 
+              onChange={(e) => setProcessingTimeDays(e.target.value)} 
+              className="w-full border rounded-lg px-3 py-2"
+            >
+              <option value="0">Same Day Ready</option>
+              <option value="1">1 Business Day</option>
+              <option value="2">1-2 Business Days</option>
+              <option value="3">2-3 Business Days</option>
+              <option value="5">3-5 Business Days</option>
+              <option value="7">5-7 Business Days</option>
+            </select>
+            <p className="mt-1 text-xs text-gray-500">
+              This is added to shipping time. Buyers will see total delivery time (your processing + shipping).
+            </p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
             <div>

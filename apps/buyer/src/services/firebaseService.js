@@ -2,6 +2,7 @@ import {
   collection, 
   doc, 
   addDoc, 
+  setDoc,
   updateDoc, 
   deleteDoc, 
   getDoc, 
@@ -12,6 +13,7 @@ import {
   serverTimestamp,
   writeBatch,
   limit as fsLimit,
+  increment,
   startAfter,
   onSnapshot
 } from 'firebase/firestore';
@@ -338,12 +340,36 @@ export const orderService = {
       const docRef = await addDoc(collection(db, 'orders'), {
         ...orderData,
         status: orderData.status || 'pending_wallet_funding', // Use provided status or default
+        // Use Order ID as the tracking identifier
+        trackingId: null, // Will be set after creation
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
+      
+      // Set the Order ID as the tracking ID
+      await updateDoc(docRef, {
+        trackingId: docRef.id
+      });
+      
       return docRef.id;
     } catch (error) {
       console.error('Error creating order:', error);
+      throw error;
+    }
+  },
+
+  // Get order by tracking ID (Order ID)
+  async getByTrackingId(trackingId) {
+    try {
+      const orderRef = doc(db, 'orders', trackingId);
+      const orderDoc = await getDoc(orderRef);
+      
+      if (orderDoc.exists()) {
+        return { id: orderDoc.id, ...orderDoc.data() };
+      }
+      return null;
+    } catch (error) {
+      console.error('Error fetching order by tracking ID:', error);
       throw error;
     }
   },
@@ -393,6 +419,11 @@ export const orderService = {
       console.error('Error fetching orders:', error);
       throw error;
     }
+  },
+
+  // Get orders for a vendor (alias for getByUser with vendorId)
+  async getByVendor(vendorId) {
+    return this.getByUser(vendorId, 'vendor');
   },
 
   // Paged orders for a user
@@ -925,7 +956,8 @@ export const walletService = {
       ]);
       
       if (!buyerWallet) {
-        throw new Error('Buyer wallet not found');
+        console.error('Buyer wallet not found for user:', buyerId);
+        throw new Error('Buyer wallet not found. Please ensure the buyer has a wallet.');
       }
       
       const batch = writeBatch(db);
@@ -952,11 +984,14 @@ export const walletService = {
         });
       } else {
         // Create vendor wallet if it doesn't exist
+        console.log('Creating vendor wallet for:', vendorId);
         const vendorWalletRef = doc(collection(db, 'wallets'));
         batch.set(vendorWalletRef, {
           userId: vendorId,
-          type: 'vendor',
+          userType: 'vendor',
           balance: amount,
+          currency: 'NGN',
+          status: 'active',
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });
@@ -968,7 +1003,7 @@ export const walletService = {
         walletId: vendorWallet?.id || 'new_vendor_wallet',
         userId: vendorId,
         orderId,
-        type: 'credit',
+        type: 'escrow_release',
         amount,
         description: `Escrow release for order ${orderId}`,
         status: 'completed',
@@ -977,17 +1012,11 @@ export const walletService = {
         createdAt: serverTimestamp()
       });
       
-      // Update order status
-      const orderRef = doc(db, 'orders', orderId);
-      batch.update(orderRef, {
-        status: 'completed',
-        escrowReleased: true,
-        releaseTransactionId: transactionRef.id,
-        completedAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
+      // Don't update order status here - it's already updated by the caller
+      // This prevents conflicts when multiple operations try to update the same order
       
       await batch.commit();
+      console.log('✅ Escrow released successfully:', transactionRef.id);
       return transactionRef.id;
     } catch (error) {
       console.error('Error releasing escrow funds:', error);
@@ -1021,7 +1050,7 @@ export async function getOrderTransactions(orderId, userId) {
 // LOGISTICS OPERATIONS
 // ===============================
 
-import googleMapsService from './googleMapsService';
+// import googleMapsService from './googleMapsService'; // Disabled
 
 export const logisticsService = {
   // Create logistics company
@@ -1554,24 +1583,10 @@ export const logisticsService = {
         timeOfDay = 'business'
       } = deliveryData;
 
-      // Get optimized pricing using Google Maps
-      const optimizedPricing = await googleMapsService.getOptimizedPricing(
-        pickupLocation,
-        deliveryLocation,
-        {
-          weight,
-          deliveryType,
-          isFragile,
-          requiresSignature,
-          itemValue
-        }
-      );
-
-      // If Maps pricing failed, use fallback
-      if (!optimizedPricing) {
-        console.warn('Maps pricing unavailable, using fallback calculation');
-        return this.calculateCost(partner, deliveryData);
-      }
+      // Get optimized pricing using Google Maps - DISABLED
+      // Use fallback calculation instead
+      console.warn('Maps pricing unavailable, using fallback calculation');
+      return this.calculateCost(partner, deliveryData);
 
       // Apply partner-specific adjustments
       const partnerAdjustment = partner.priceAdjustment || 1.0;
@@ -1942,6 +1957,31 @@ export const logisticsService = {
     }
   },
 
+  // Get all categories
+  async getCategories() {
+    try {
+      const q = query(
+        collection(db, 'products'),
+        where('isActive', '==', true)
+      );
+      
+      const snapshot = await getDocs(q);
+      const categories = new Set();
+      
+      snapshot.docs.forEach(doc => {
+        const data = doc.data();
+        if (data.category) {
+          categories.add(data.category);
+        }
+      });
+      
+      return Array.from(categories).sort();
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      return [];
+    }
+  },
+
   // Get delivery analytics
   async getAnalytics(partnerId, startDate, endDate) {
     try {
@@ -2036,8 +2076,9 @@ export const logisticsService = {
   // Get enhanced logistics partners with route analysis
   async getEnhancedLogisticsPartners(pickupLocation, deliveryLocation, deliveryData = {}) {
     try {
-      // Get nearby logistics partners
-      const nearbyPartners = await googleMapsService.getNearbyLogisticsPartners(pickupLocation);
+      // Get nearby logistics partners - DISABLED
+      // const nearbyPartners = await googleMapsService.getNearbyLogisticsPartners(pickupLocation);
+      const nearbyPartners = []; // Fallback to empty array
       
       // Calculate pricing for each partner
       const partnersWithPricing = await Promise.all(
@@ -2105,8 +2146,9 @@ export const logisticsService = {
         ...otherData
       } = deliveryData;
 
-      // Analyze route
-      const routeAnalysis = await googleMapsService.analyzeRouteType(pickupLocation, deliveryLocation);
+      // Analyze route - DISABLED
+      // const routeAnalysis = await googleMapsService.analyzeRouteType(pickupLocation, deliveryLocation);
+      const routeAnalysis = { type: 'standard', difficulty: 'normal' }; // Fallback
       
       // Create delivery record with route analysis
       const docRef = await addDoc(collection(db, 'deliveries'), {
@@ -2431,7 +2473,73 @@ export const disputeService = {
         updatedAt: serverTimestamp()
       });
 
-      // Create resolution transaction
+      // Handle wallet transactions based on resolution
+      if (refundAmount > 0) {
+        // Refund buyer - create credit transaction for buyer
+        const buyerRefundTransactionRef = doc(collection(db, 'wallet_transactions'));
+        batch.set(buyerRefundTransactionRef, {
+          userId: dispute.buyerId,
+          orderId: dispute.orderId,
+          type: 'dispute_refund',
+          amount: refundAmount,
+          description: `Dispute resolution refund: ${resolution}`,
+          status: 'completed',
+          disputeId,
+          refundId,
+          createdAt: serverTimestamp()
+        });
+
+        // Update buyer wallet balance
+        const buyerWalletRef = doc(db, 'wallets', dispute.buyerId);
+        batch.update(buyerWalletRef, {
+          balance: increment(refundAmount),
+          updatedAt: serverTimestamp()
+        });
+
+        // Debit vendor - create debit transaction for vendor
+        const vendorDebitTransactionRef = doc(collection(db, 'wallet_transactions'));
+        batch.set(vendorDebitTransactionRef, {
+          userId: dispute.vendorId,
+          orderId: dispute.orderId,
+          type: 'dispute_penalty',
+          amount: -refundAmount, // Negative amount for debit
+          description: `Dispute resolution penalty: ${resolution}`,
+          status: 'completed',
+          disputeId,
+          refundId,
+          createdAt: serverTimestamp()
+        });
+
+        // Update vendor wallet balance (debit)
+        const vendorWalletRef = doc(db, 'wallets', dispute.vendorId);
+        batch.update(vendorWalletRef, {
+          balance: increment(-refundAmount),
+          updatedAt: serverTimestamp()
+        });
+      } else {
+        // Favor vendor - release escrow to vendor
+        const releaseAmount = dispute.totalAmount || dispute.disputedAmount || 0;
+        const vendorReleaseTransactionRef = doc(collection(db, 'wallet_transactions'));
+        batch.set(vendorReleaseTransactionRef, {
+          userId: dispute.vendorId,
+          orderId: dispute.orderId,
+          type: 'dispute_release',
+          amount: releaseAmount,
+          description: `Dispute resolution - funds released to vendor: ${resolution}`,
+          status: 'completed',
+          disputeId,
+          createdAt: serverTimestamp()
+        });
+
+        // Update vendor wallet balance (credit)
+        const vendorWalletRef = doc(db, 'wallets', dispute.vendorId);
+        batch.update(vendorWalletRef, {
+          balance: increment(releaseAmount),
+          updatedAt: serverTimestamp()
+        });
+      }
+
+      // Create resolution transaction record
       const resolutionTransactionRef = doc(collection(db, 'wallet_transactions'));
       batch.set(resolutionTransactionRef, {
         orderId: dispute.orderId,
@@ -2450,6 +2558,7 @@ export const disputeService = {
         status: refundAmount > 0 ? 'refunded' : 'completed',
         disputeResolved: true,
         refundId,
+        disputeResolution: resolution,
         updatedAt: serverTimestamp()
       });
 
@@ -2864,6 +2973,21 @@ export const userService = {
       console.error('Error fetching purchased vendors:', error);
       throw error;
     }
+  },
+
+  // Get all admin users
+  async getAdmins() {
+    try {
+      const q = query(
+        collection(db, 'users'),
+        where('role', '==', 'admin')
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
+    } catch (error) {
+      console.error('Error fetching admins:', error);
+      return [];
+    }
   }
 };
 
@@ -3115,6 +3239,156 @@ export const adminService = {
     } catch (error) {
       console.error('Error fetching system logs:', error);
       throw error;
+    }
+  },
+
+  // Commission management functions
+  async getCommissionSettings() {
+    try {
+      const settingsRef = doc(db, 'admin_settings', 'commission_settings');
+      const settingsDoc = await getDoc(settingsRef);
+      
+      if (settingsDoc.exists()) {
+        return settingsDoc.data();
+      } else {
+        // Return default settings without trying to update non-existent document
+        const defaultSettings = {
+          platformCommissionRate: 5.0, // 5% platform commission
+          minCommission: 0.50, // Minimum 50 kobo
+          maxCommission: 1000.00, // Maximum 1000 naira
+          lastUpdated: serverTimestamp()
+        };
+        
+        // Create the document with default settings
+        await setDoc(settingsRef, defaultSettings);
+        return defaultSettings;
+      }
+    } catch (error) {
+      console.error('Error fetching commission settings:', error);
+      // Return default settings on error
+      return {
+        platformCommissionRate: 5.0,
+        minCommission: 0.50,
+        maxCommission: 1000.00,
+        lastUpdated: new Date()
+      };
+    }
+  },
+
+  async updateCommissionSettings(newSettings) {
+    try {
+      const settingsRef = doc(db, 'admin_settings', 'commission_settings');
+      
+      // Check if document exists first
+      const settingsDoc = await getDoc(settingsRef);
+      
+      if (settingsDoc.exists()) {
+        await updateDoc(settingsRef, {
+          ...newSettings,
+          lastUpdated: serverTimestamp()
+        });
+      } else {
+        // Create document if it doesn't exist
+        await setDoc(settingsRef, {
+          ...newSettings,
+          lastUpdated: serverTimestamp()
+        });
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error updating commission settings:', error);
+      throw error;
+    }
+  },
+
+  async getCommissionHistory({ pageSize = 50, cursor = null } = {}) {
+    try {
+      let q = query(
+        collection(db, 'commission_history'),
+        orderBy('createdAt', 'desc'),
+        fsLimit(pageSize)
+      );
+
+      if (cursor) {
+        q = query(q, startAfter(cursor));
+      }
+
+      const snapshot = await getDocs(q);
+      const items = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+
+      const nextCursor = snapshot.docs.length === pageSize 
+        ? snapshot.docs[snapshot.docs.length - 1] 
+        : null;
+
+      return { items, nextCursor };
+    } catch (error) {
+      console.error('Error fetching commission history:', error);
+      throw error;
+    }
+  },
+
+  async recordCommissionTransaction(transactionData) {
+    try {
+      const commissionRef = collection(db, 'commission_history');
+      await addDoc(commissionRef, {
+        ...transactionData,
+        createdAt: serverTimestamp()
+      });
+      return true;
+    } catch (error) {
+      console.error('Error recording commission transaction:', error);
+      throw error;
+    }
+  },
+
+  // Featured product management
+  async setProductFeatured(productId, isFeatured) {
+    try {
+      const productRef = doc(db, 'products', productId);
+      await updateDoc(productRef, {
+        isFeatured: isFeatured,
+        featuredAt: isFeatured ? serverTimestamp() : null,
+        updatedAt: serverTimestamp()
+      });
+      return true;
+    } catch (error) {
+      console.error('Error updating product featured status:', error);
+      throw error;
+    }
+  },
+
+  async getFeaturedProducts() {
+    try {
+      // First get all products that are featured
+      const q = query(
+        collection(db, 'products'),
+        where('isFeatured', '==', true)
+      );
+      
+      const snapshot = await getDocs(q);
+      let products = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      // Filter for active products and sort by featuredAt
+      products = products
+        .filter(product => product.status === 'active')
+        .sort((a, b) => {
+          const aTime = a.featuredAt?.seconds || 0;
+          const bTime = b.featuredAt?.seconds || 0;
+          return bTime - aTime; // Most recent first
+        });
+      
+      return products;
+    } catch (error) {
+      console.error('Error fetching featured products:', error);
+      // Return empty array on error instead of throwing
+      return [];
     }
   }
 };
@@ -3821,6 +4095,74 @@ export const fraudService = {
 };
 
 // ===============================
+// SUBSCRIPTION SERVICE
+// ===============================
+
+export const subscriptionService = {
+  // Create subscription
+  async create(subscriptionData) {
+    try {
+      const docRef = await addDoc(collection(db, 'subscriptions'), {
+        ...subscriptionData,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      return docRef.id;
+    } catch (error) {
+      console.error('Error creating subscription:', error);
+      throw error;
+    }
+  },
+
+  // Get user subscription
+  async getByUser(userId) {
+    try {
+      const q = query(
+        collection(db, 'subscriptions'),
+        where('userId', '==', userId),
+        orderBy('createdAt', 'desc'),
+        fsLimit(1)
+      );
+      const snapshot = await getDocs(q);
+      if (snapshot.empty) return null;
+      return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+    } catch (error) {
+      console.error('Error fetching user subscription:', error);
+      return null;
+    }
+  },
+
+  // Update subscription
+  async update(subscriptionId, updates) {
+    try {
+      const docRef = doc(db, 'subscriptions', subscriptionId);
+      await updateDoc(docRef, {
+        ...updates,
+        updatedAt: serverTimestamp()
+      });
+    } catch (error) {
+      console.error('Error updating subscription:', error);
+      throw error;
+    }
+  },
+
+  // Cancel subscription
+  async cancel(subscriptionId) {
+    try {
+      const docRef = doc(db, 'subscriptions', subscriptionId);
+      await updateDoc(docRef, {
+        status: 'cancelled',
+        cancelledAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+    } catch (error) {
+      console.error('Error cancelling subscription:', error);
+      throw error;
+    }
+  }
+};
+
+// ===============================
 // REVIEWS SERVICE
 // ===============================
 
@@ -3929,5 +4271,6 @@ export default {
   messaging: messagingService,
   auth: authService,
   fraud: fraudService,
-  reviews: reviewsService
+  reviews: reviewsService,
+  subscriptions: subscriptionService
 };

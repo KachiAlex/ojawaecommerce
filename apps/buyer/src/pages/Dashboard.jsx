@@ -13,8 +13,25 @@ const Dashboard = () => {
   // Redirect to appropriate dashboard based on user role
   useEffect(() => {
     if (userProfile && !loading) {
-      // All users start as buyers, so redirect to buyer dashboard
-      navigate('/buyer', { replace: true });
+      // Determine the appropriate dashboard based on role
+      const role = userProfile.role || 'buyer';
+      
+      switch (role) {
+        case 'admin':
+          navigate('/admin', { replace: true });
+          break;
+        case 'vendor':
+          navigate('/vendor', { replace: true });
+          break;
+        case 'logistics':
+          navigate('/logistics', { replace: true });
+          break;
+        case 'buyer':
+        default:
+          // All users (including unrecognized roles) default to buyer dashboard
+          navigate('/buyer', { replace: true });
+          break;
+      }
     }
   }, [userProfile, loading, navigate]);
 

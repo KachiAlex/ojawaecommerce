@@ -3,20 +3,34 @@ import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import { useNotifications } from '../contexts/NotificationContext';
 import { useState, useEffect, useRef } from 'react';
+import { useMessaging } from '../contexts/MessagingContext';
 import AccountSettingsModal from './AccountSettingsModal';
 import NotificationCenter from './NotificationCenter';
+import DashboardSwitcher from './DashboardSwitcher';
+import SimpleLogo from './SimpleLogo';
 
 const Navbar = () => {
   const { currentUser, logout, userProfile } = useAuth();
   const { getCartItemsCount } = useCart();
   const { unreadCount } = useNotifications();
   const navigate = useNavigate();
+  const { unreadCount: unreadMessages } = useMessaging();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const dropdownRef = useRef(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+
+  // Lightweight prefetch on hover for faster first render of key routes
+  const prefetchProducts = () => {
+    try {
+      import('../pages/Products');
+    } catch (_) {}
+  };
+  const prefetchCart = () => {
+    // Cart is now statically imported, no need to prefetch
+  };
 
   const handleLogout = async () => {
     try {
@@ -34,12 +48,6 @@ const Navbar = () => {
       return currentUser.displayName.split(' ')[0];
     }
     return currentUser?.email?.split('@')[0] || 'User';
-  };
-
-  // Handle dashboard navigation - route to /dashboard which auto-redirects
-  const handleDashboardNavigation = () => {
-    setIsUserDropdownOpen(false);
-    navigate('/dashboard');
   };
 
   // Handle search
@@ -72,10 +80,7 @@ const Navbar = () => {
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center">
             <Link to="/" className="flex items-center">
-              <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center mr-3">
-                <span className="text-white font-bold text-lg">O</span>
-              </div>
-              <span className="text-xl font-semibold text-gray-900">Ojawa</span>
+              <SimpleLogo size="default" />
             </Link>
           </div>
 
@@ -120,29 +125,35 @@ const Navbar = () => {
               How Wallet Works
             </Link>
             <Link 
+              to="/messages" 
+              className="relative text-gray-600 hover:text-gray-900 font-medium transition-colors"
+            >
+              Messages
+              {unreadMessages > 0 && (
+                <span className="absolute -top-2 -right-3 bg-emerald-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                  {unreadMessages > 9 ? '9+' : unreadMessages}
+                </span>
+              )}
+            </Link>
+            <Link 
               to="/tracking" 
               className="text-gray-600 hover:text-gray-900 font-medium transition-colors"
             >
               Track Package
             </Link>
-            <Link 
-              to="/wallet" 
-              className="text-gray-600 hover:text-gray-900 font-medium transition-colors"
-            >
-              Wallet
-            </Link>
             
-            {currentUser ? (
-              <div className="flex items-center space-x-4">
-                {/* Cart Icon */}
-                <Link to="/cart" className="relative">
+            {/* Cart Icon - Visible for all users */}
+            <button onClick={() => navigate('/cart')} className="relative">
                   <span className="text-gray-600 hover:text-gray-900 text-xl">🛒</span>
               {getCartItemsCount() > 0 && (
                     <span className="absolute -top-2 -right-2 bg-emerald-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
                   {getCartItemsCount()}
                 </span>
               )}
-            </Link>
+            </button>
+            
+            {currentUser ? (
+              <div className="flex items-center space-x-4">
             
                 {/* Notification Bell */}
                 <button
@@ -185,29 +196,9 @@ const Navbar = () => {
                         <p className="text-sm text-gray-500">{currentUser.email}</p>
                       </div>
 
-                      {/* Dashboard Link */}
+                      {/* Dashboard Switcher */}
                       <div className="py-2">
-                        <button
-                          onClick={handleDashboardNavigation}
-                          className="w-full flex items-center px-4 py-3 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-600 transition-colors"
-                        >
-                          <span className="mr-3 text-lg">📊</span>
-                          <div className="text-left flex-1">
-                            <p className="font-medium">Dashboard</p>
-                            <p className="text-xs text-gray-500">
-                              {userProfile?.role === 'vendor' || userProfile?.isVendor
-                                ? 'Manage your store' 
-                                : userProfile?.role === 'logistics' || userProfile?.isLogisticsPartner
-                                ? 'Manage deliveries'
-                                : userProfile?.role === 'admin' || userProfile?.isAdmin
-                                ? 'Admin panel'
-                                : 'View your orders'}
-                            </p>
-                          </div>
-                          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
-                          </svg>
-                        </button>
+                        <DashboardSwitcher />
                       </div>
 
                       {/* Quick Links */}
@@ -270,6 +261,10 @@ const Navbar = () => {
         {isMenuOpen && (
           <div className="md:hidden">
             <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-white border-t">
+              {/* Mobile Logo */}
+              <div className="flex justify-center py-4 border-b">
+                <SimpleLogo size="small" />
+              </div>
               <Link 
                 to="/" 
                 className="text-gray-700 hover:text-blue-600 block px-3 py-2 rounded-md text-base font-medium"
@@ -279,6 +274,7 @@ const Navbar = () => {
               </Link>
               <Link 
                 to="/products" 
+                onMouseEnter={prefetchProducts}
                 className="text-gray-700 hover:text-blue-600 block px-3 py-2 rounded-md text-base font-medium"
                 onClick={() => setIsMenuOpen(false)}
               >
@@ -286,6 +282,7 @@ const Navbar = () => {
               </Link>
               <Link 
                 to="/cart" 
+                onMouseEnter={prefetchCart}
                 className="text-gray-700 hover:text-blue-600 block px-3 py-2 rounded-md text-base font-medium relative"
                 onClick={() => setIsMenuOpen(false)}
               >
@@ -296,16 +293,24 @@ const Navbar = () => {
                   </span>
                 )}
               </Link>
+              <Link 
+                to="/messages" 
+                className="text-gray-700 hover:text-blue-600 block px-3 py-2 rounded-md text-base font-medium relative"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                Messages
+                {unreadMessages > 0 && (
+                  <span className="ml-2 bg-emerald-600 text-white text-xs rounded-full h-5 w-5 inline-flex items-center justify-center">
+                    {unreadMessages > 9 ? '9+' : unreadMessages}
+                  </span>
+                )}
+              </Link>
               
               {currentUser ? (
                 <>
-                  <Link 
-                    to="/dashboard" 
-                    className="text-gray-700 hover:text-blue-600 block px-3 py-2 rounded-md text-base font-medium"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    Dashboard
-                  </Link>
+                  <div className="px-3 py-2">
+                    <DashboardSwitcher />
+                  </div>
                   {userProfile?.role === 'admin' && (
                     <Link 
                       to="/admin" 

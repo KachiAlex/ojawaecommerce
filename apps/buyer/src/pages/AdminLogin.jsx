@@ -37,6 +37,7 @@ const AdminLogin = () => {
       }
 
       // Admin login successful, redirect to admin dashboard
+      console.log('✅ Admin login successful, redirecting to admin dashboard');
       navigate('/admin', { replace: true });
       
     } catch (error) {

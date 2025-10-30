@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useCart } from '../contexts/CartContext';
@@ -9,6 +9,7 @@ import NotificationToast from '../components/NotificationToast';
 
 const ProductDetail = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
@@ -140,7 +141,7 @@ const ProductDetail = () => {
       // Check if user is logged in
       if (!currentUser) {
         saveIntendedDestination(`/products/${product.id}`, product.id);
-        window.location.href = `/login?message=${encodeURIComponent('Please sign in to add this product to your cart and complete your purchase.')}`;
+        navigate(`/login?message=${encodeURIComponent('Please sign in to add this product to your cart and complete your purchase.')}`);
         return;
       }
       
@@ -244,6 +245,26 @@ const ProductDetail = () => {
           )}
           
           <p className="text-3xl font-bold text-blue-600 mb-4">{formatPrice(product.price, product.currency)}</p>
+          
+          {/* Processing Time Display */}
+          {product.processingTimeDays !== undefined && (
+            <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="flex items-center text-sm text-blue-900">
+                <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="font-medium">Vendor Processing: </span>
+                <span className="ml-1">
+                  {product.processingTimeDays === 0 ? 'Same Day Ready' :
+                   product.processingTimeDays === 1 ? '1 Business Day' :
+                   `${product.processingTimeDays} Business Days`}
+                </span>
+              </div>
+              <p className="text-xs text-blue-700 mt-1">
+                Time needed to prepare/pack your order before shipping
+              </p>
+            </div>
+          )}
           
           <div className="mb-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Description</h3>
