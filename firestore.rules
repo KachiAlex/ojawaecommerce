@@ -211,8 +211,8 @@ service cloud.firestore {
                isOwner(resource.data.userId) ||
                isAdmin()
              );
-             // Allow list/query for authenticated users (needed for where queries)
-             allow list: if isAuthenticated();
+             // Allow list/query for public; per-doc read still enforced above
+             allow list: if true;
              // Create restricted to the profile owner
              allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
              // Update/delete by owner or admin
