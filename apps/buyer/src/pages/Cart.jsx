@@ -213,7 +213,13 @@ const Cart = () => {
                         vendor.storeName ||
                         vendor.email?.split('@')[0] ||
                         'Vendor',
-                  address: vendor.vendorProfile?.businessAddress || vendor.address || 'Address not specified'
+                  address: vendor.vendorProfile?.businessAddress || 
+                           vendor.address || 
+                           vendor.vendorProfile?.address ||
+                           (vendor.structuredAddress ? 
+                             `${vendor.structuredAddress.street || ''}, ${vendor.structuredAddress.city || ''}, ${vendor.structuredAddress.state || ''}, ${vendor.structuredAddress.country || 'Nigeria'}`.replace(/^,\s*|,\s*$/g, '').replace(/,\s*,/g, ',') :
+                             '') ||
+                           'Address not specified'
                 };
               }
             } catch (err) {
@@ -477,48 +483,14 @@ const Cart = () => {
           {/* Address Input for Delivery */}
           {deliveryOption === 'delivery' && (
             <div className="space-y-3 mb-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-                <AddressInput
-                  value={buyerAddress.street}
-                  placeholder="Start typing street address... (e.g., 15 Marina Street)"
-                  onChange={(val) => setBuyerAddress(prev => ({ ...prev, street: val }))}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
-                <AddressInput
-                  value={buyerAddress.city}
-                  placeholder="City (e.g., Lagos Island)"
-                  onChange={(val) => setBuyerAddress(prev => ({ ...prev, city: val }))}
-                />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Select State</label>
-                  <select
-                    className="w-full border border-gray-300 rounded-lg p-2 text-sm"
-                    value={buyerAddress.state}
-                    onChange={(e) => setBuyerAddress(prev => ({ ...prev, state: e.target.value }))}
-                  >
-                    <option value="">Select State</option>
-                    <option value="Lagos">Lagos</option>
-                    <option value="Abuja">Abuja</option>
-                    <option value="Kaduna">Kaduna</option>
-                    <option value="Kano">Kano</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
-                  <select
-                    className="w-full border border-gray-300 rounded-lg p-2 text-sm"
-                    value={buyerAddress.country}
-                    onChange={(e) => setBuyerAddress(prev => ({ ...prev, country: e.target.value }))}
-                  >
-                    <option value="Nigeria">Nigeria</option>
-                  </select>
-                </div>
-              </div>
+              <h4 className="text-sm font-medium text-gray-900 mb-3">Delivery Address</h4>
+              <AddressInput
+                value={buyerAddress}
+                label=""
+                onChange={(updatedAddress) => {
+                  setBuyerAddress(updatedAddress);
+                }}
+              />
             </div>
           )}
 
