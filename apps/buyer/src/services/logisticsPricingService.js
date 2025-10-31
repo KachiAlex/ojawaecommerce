@@ -366,39 +366,47 @@ class LogisticsPricingService {
           collection(db, 'logisticsPartners'),
           where('id', '==', preferredPartner)
         ));
-        
         if (!partnerDoc.empty) {
           const partner = partnerDoc.docs[0].data();
-          return {
-            id: partner.id,
-            name: partner.name,
-            rating: partner.rating || 4.0
-          };
+          return { id: partner.id, name: partner.name, rating: partner.rating || 4.0 };
         }
       }
 
-      // Get available partners for the zone
-      const partnersQuery = query(
-        collection(db, 'logisticsPartners'),
-        where('isActive', '==', true),
-        where('zones', 'array-contains', zone)
-      );
-      
-      const partnersSnapshot = await getDocs(partnersQuery);
-      
-      if (!partnersSnapshot.empty) {
-        const partners = partnersSnapshot.docs.map(doc => doc.data());
-        // Select partner with highest rating
-        const bestPartner = partners.reduce((best, current) => 
-          current.rating > best.rating ? current : best
+      // First try legacy logisticsPartners collection filtered by zone
+      try {
+        const partnersQuery = query(
+          collection(db, 'logisticsPartners'),
+          where('isActive', '==', true),
+          where('zones', 'array-contains', zone)
         );
-        
-        return {
-          id: bestPartner.id,
-          name: bestPartner.name,
-          rating: bestPartner.rating || 4.0
-        };
-      }
+        const partnersSnapshot = await getDocs(partnersQuery);
+        if (!partnersSnapshot.empty) {
+          const partners = partnersSnapshot.docs.map(doc => doc.data());
+          const bestPartner = partners.reduce((best, current) =>
+            (current.rating || 0) > (best.rating || 0) ? current : best
+          );
+          return { id: bestPartner.id, name: bestPartner.name, rating: bestPartner.rating || 4.0 };
+        }
+      } catch (_) {}
+
+      // Fallback: use logistics_companies (status == 'active'), prefer highest rating
+      try {
+        const companiesSnapshot = await getDocs(
+          query(
+            collection(db, 'logistics_companies'),
+            where('status', '==', 'active')
+          )
+        );
+        if (!companiesSnapshot.empty) {
+          const companies = companiesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          // Optionally filter by zone if company defines zones
+          const filtered = companies.filter(c => Array.isArray(c.zones) ? c.zones.includes(zone) : true);
+          const best = (filtered.length ? filtered : companies).reduce((best, current) =>
+            (current.rating || 0) > (best.rating || 0) ? current : best
+          );
+          return { id: best.id, name: best.name || best.companyName || 'Logistics Partner', rating: best.rating || 4.0 };
+        }
+      } catch (_) {}
 
       // No partner available
       return null;
