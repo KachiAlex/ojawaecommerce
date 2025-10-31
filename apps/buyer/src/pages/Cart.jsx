@@ -160,6 +160,12 @@ const Cart = () => {
           return;
         }
         
+        // Only fetch vendor info if user is authenticated (required for Firestore rules)
+        if (!currentUser) {
+          setVendorInfo(null);
+          return;
+        }
+        
         // Calculate maximum processing time from all products
         let maxProcessingDays = 0;
         for (const item of cartItems) {
@@ -217,7 +223,7 @@ const Cart = () => {
     };
 
     fetchVendors();
-  }, [cartItems]);
+  }, [cartItems, currentUser]);
 
   // Delivery cost updates: only after a partner is selected
   useEffect(() => {
