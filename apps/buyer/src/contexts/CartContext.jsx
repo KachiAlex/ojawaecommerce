@@ -31,6 +31,24 @@ export const CartProvider = ({ children }) => {
     })();
   }, []);
 
+  // After auth resolves, attempt a second load (in case initial load used guest key)
+  useEffect(() => {
+    (async () => {
+      if (!currentUser) return;
+      if (cartItems.length > 0) return;
+      const savedCart = await secureStorage.getItem('cart');
+      if (savedCart) {
+        try {
+          setCartItems(JSON.parse(savedCart));
+        } catch (error) {
+          console.error('Error loading cart after auth:', error);
+        }
+      }
+    })();
+    // Only run when currentUser becomes available
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser]);
+
   // Save intended destination for post-authentication redirect
   const saveIntendedDestination = useCallback((path, productId = null) => {
     const destination = {
