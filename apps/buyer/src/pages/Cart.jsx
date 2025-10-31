@@ -224,6 +224,8 @@ const Cart = () => {
           if (result.success) {
             setDeliveryCost(result.price);
             setEstimatedDelivery(result.durationText);
+            // Auto-switch to delivery if a valid price is available
+            setDeliveryOption((prev) => prev === 'delivery' ? prev : 'delivery');
             console.log('✅ Delivery cost calculated:', result);
           } else {
             // Fallback to simple calculation
