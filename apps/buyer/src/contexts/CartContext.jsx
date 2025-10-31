@@ -15,18 +15,21 @@ export const useCart = () => {
 
 export const CartProvider = ({ children }) => {
   const [cartItems, setCartItems] = useState([]);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const { currentUser } = useAuth();
 
   // Load cart (encrypted) on mount
   useEffect(() => {
     (async () => {
-      const savedCart = await secureStorage.getItem('cart');
-      if (savedCart) {
-        try {
+      try {
+        const savedCart = await secureStorage.getItem('cart');
+        if (savedCart) {
           setCartItems(JSON.parse(savedCart));
-        } catch (error) {
-          console.error('Error loading cart from secure storage:', error);
         }
+      } catch (error) {
+        console.error('Error loading cart from secure storage:', error);
+      } finally {
+        setHasLoaded(true);
       }
     })();
   }, []);
@@ -36,18 +39,28 @@ export const CartProvider = ({ children }) => {
     (async () => {
       if (!currentUser) return;
       if (cartItems.length > 0) return;
-      const savedCart = await secureStorage.getItem('cart');
-      if (savedCart) {
-        try {
+      try {
+        const savedCart = await secureStorage.getItem('cart');
+        if (savedCart) {
           setCartItems(JSON.parse(savedCart));
-        } catch (error) {
-          console.error('Error loading cart after auth:', error);
         }
+      } catch (error) {
+        console.error('Error loading cart after auth:', error);
+      } finally {
+        setHasLoaded(true);
       }
     })();
     // Only run when currentUser becomes available
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser]);
+
+  // Save cart (encrypted) whenever it changes, but only after initial load finished
+  useEffect(() => {
+    if (!hasLoaded) return;
+    (async () => {
+      await secureStorage.setItem('cart', JSON.stringify(cartItems));
+    })();
+  }, [cartItems, hasLoaded]);
 
   // Save intended destination for post-authentication redirect
   const saveIntendedDestination = useCallback((path, productId = null) => {
@@ -77,13 +90,6 @@ export const CartProvider = ({ children }) => {
     }
     return null;
   }, []);
-
-  // Save cart (encrypted) whenever it changes
-  useEffect(() => {
-    (async () => {
-      await secureStorage.setItem('cart', JSON.stringify(cartItems));
-    })();
-  }, [cartItems]);
 
   const addToCart = useCallback((product, quantity = 1) => {
     // Stock validation
