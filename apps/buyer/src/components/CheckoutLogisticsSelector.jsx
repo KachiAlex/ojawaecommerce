@@ -17,9 +17,16 @@ const CheckoutLogisticsSelector = ({
   const [selectedOption, setSelectedOption] = useState(null);
   const [vendorLocation, setVendorLocation] = useState('Ikeja, Lagos'); // Default vendor location
 
+  const isAddressValid = (addr) => {
+    if (!addr) return false;
+    const text = String(addr).trim();
+    // Require at least a street and state/city fragment
+    return text.length > 8 && /[a-z]/i.test(text);
+  };
+
   // Calculate delivery options when component mounts or data changes
   useEffect(() => {
-    if (buyerAddress && cartItems.length > 0) {
+    if (isAddressValid(buyerAddress) && cartItems.length > 0) {
       calculateDeliveryOptions({
         pickup: vendorLocation,
         dropoff: buyerAddress,
@@ -48,6 +55,14 @@ const CheckoutLogisticsSelector = ({
     }).format(amount);
   };
 
+  if (!isAddressValid(buyerAddress)) {
+    return (
+      <div className="bg-white rounded-lg border p-6">
+        <p className="text-sm text-gray-600">Enter your delivery address above to see available logistics partners and pricing.</p>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="bg-white rounded-lg border p-6">
@@ -75,7 +90,7 @@ const CheckoutLogisticsSelector = ({
     return (
       <div className="bg-white rounded-lg border p-6">
         <div className="text-center text-gray-500">
-          <p>Unable to calculate delivery options</p>
+          <p>No logistics partners available for this route yet. Try another address or pickup.</p>
         </div>
       </div>
     );
