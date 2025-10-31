@@ -26,7 +26,7 @@ const Cart = () => {
   console.log('🛒 Cart component rendering...');
   
   const { cartItems, updateQuantity, removeFromCart, getCartTotal, clearCart, validateCartItems, hasOutOfStockItems, saveIntendedDestination } = useCart();
-  const { currentUser } = useAuth();
+  const { currentUser, loading: authLoading } = useAuth();
   const { startConversation, setActiveConversation } = useMessaging?.() || {};
   const navigate = useNavigate?.() || (() => {});
   const location = useLocation?.() || { search: '' };
@@ -160,8 +160,16 @@ const Cart = () => {
           return;
         }
         
-        // Only fetch vendor info if user is authenticated (required for Firestore rules)
+        // Only fetch vendor info if auth is fully loaded (required for Firestore rules)
+        // For unauthenticated users, we can't fetch vendor profiles, but they can still view cart
+        if (authLoading) {
+          // Wait for auth to finish loading
+          return;
+        }
+        
+        // If not authenticated, skip vendor info fetch (vendor info not critical for basic cart view)
         if (!currentUser) {
+          // For guests, we could fetch from products instead, but for now just skip
           setVendorInfo(null);
           return;
         }
@@ -223,7 +231,7 @@ const Cart = () => {
     };
 
     fetchVendors();
-  }, [cartItems, currentUser]);
+  }, [cartItems, currentUser, authLoading]);
 
   // Delivery cost updates: only after a partner is selected
   useEffect(() => {

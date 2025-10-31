@@ -88,8 +88,13 @@ service cloud.firestore {
 
     // Users collection - users can read/write their own profile
     match /users/{userId} {
-      // Allow read for: owner, admins, or any authenticated user (needed for cart/checkout to fetch vendor addresses)
-      allow read: if isOwner(userId) || isAdmin() || isAuthenticated();
+      // Allow read for: owner, admins, authenticated users, or public read for vendor profiles (needed for cart/checkout)
+      // For vendor profiles, allow public read of basic info (name, address) for shopping experience
+      allow read: if isOwner(userId) || 
+                    isAdmin() || 
+                    isAuthenticated() ||
+                    // Allow public read for vendor profiles (needed for cart/checkout)
+                    (resource.data.isVendor == true || resource.data.vendorProfile != null);
       // Allow write only for owner or admin
       allow write: if isOwner(userId) || isAdmin();
     }
