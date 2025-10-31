@@ -233,12 +233,21 @@ const Cart = () => {
     fetchVendors();
   }, [cartItems, currentUser, authLoading]);
 
+  // Clear selected partner when switching to pickup
+  useEffect(() => {
+    if (deliveryOption === 'pickup') {
+      setSelectedPartner(null);
+      setDeliveryCost(0);
+      setEstimatedDelivery('Pickup only');
+      setTotalDeliveryTime(null);
+    }
+  }, [deliveryOption]);
+
   // Delivery cost updates: only after a partner is selected
   useEffect(() => {
     if (deliveryOption === 'pickup') {
       setDeliveryCost(0);
       setEstimatedDelivery('Pickup only');
-      setSelectedPartner(null);
       return;
     }
 
@@ -250,6 +259,7 @@ const Cart = () => {
       // No partner yet; do not prefill any delivery amount
       setDeliveryCost(0);
       setEstimatedDelivery('');
+      setTotalDeliveryTime(null);
     }
   }, [deliveryOption, selectedPartner]);
 
@@ -380,6 +390,7 @@ const Cart = () => {
           {deliveryOption === 'delivery' && (
             <div className="mb-6">
               <CheckoutLogisticsSelector
+                key={`${buyerFullAddress}-${vendorAddressText}-${deliveryOption}`}
                 cartItems={cartItems}
                 buyerAddress={buyerFullAddress}
                 vendorAddress={vendorAddressText}

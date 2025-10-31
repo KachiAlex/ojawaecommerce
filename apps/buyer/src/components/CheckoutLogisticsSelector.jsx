@@ -23,11 +23,22 @@ const CheckoutLogisticsSelector = ({
     return parts.length >= 2 && /[a-z]/i.test(parts[0]);
   };
 
+  // Reset selected partner and price calculation when addresses change
+  useEffect(() => {
+    setSelectedPartner(null);
+    setPriceCalculation(null);
+    setPriceError(null);
+  }, [buyerAddress, vendorAddress]);
+
   // Fetch available partners list (without prices) when addresses are valid
   useEffect(() => {
     const fetchPartners = async () => {
       if (!isAddressValid(buyerAddress) || !isAddressValid(vendorAddress) || cartItems.length === 0) {
         setAvailablePartners([]);
+        // Also clear selected partner when addresses become invalid
+        setSelectedPartner(null);
+        setPriceCalculation(null);
+        setPriceError(null);
         return;
       }
 
