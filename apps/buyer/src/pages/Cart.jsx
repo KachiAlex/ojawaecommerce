@@ -233,13 +233,17 @@ const Cart = () => {
     fetchVendors();
   }, [cartItems, currentUser, authLoading]);
 
-  // Clear selected partner when switching to pickup
+  // Clear selected partner and delivery cost when switching delivery options
   useEffect(() => {
+    // Always clear partner selection when delivery option changes
+    // This ensures no stale prices are shown when switching to delivery
+    setSelectedPartner(null);
+    setDeliveryCost(0);
+    setEstimatedDelivery('');
+    setTotalDeliveryTime(null);
+    
     if (deliveryOption === 'pickup') {
-      setSelectedPartner(null);
-      setDeliveryCost(0);
       setEstimatedDelivery('Pickup only');
-      setTotalDeliveryTime(null);
     }
   }, [deliveryOption]);
 
@@ -463,7 +467,7 @@ const Cart = () => {
                 <div className="flex-1 min-w-0">
                   <span className="font-medium text-sm sm:text-base">Home Delivery</span>
                   <p className="text-xs sm:text-sm text-gray-600">
-                    {selectedPartner ? `${formatCurrency(deliveryCost)} - ${estimatedDelivery}` : 'Enter your address and select a partner to calculate'}
+                    {selectedPartner && deliveryCost > 0 ? `${formatCurrency(deliveryCost)} - ${estimatedDelivery}` : 'Enter your address and select a partner to see pricing'}
                   </p>
                 </div>
               </label>
