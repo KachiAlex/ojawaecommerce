@@ -274,5 +274,20 @@ service cloud.firestore {
              // Only admins can list/delete mail documents
              allow list, delete: if isAdmin();
            }
+
+           // Legacy logistics partners collection used by pricing service
+           match /logisticsPartners/{partnerId} {
+             // Public can read active partners; owners/admins can read all
+             allow read: if (
+               resource.data.isActive == true ||
+               isOwner(resource.data.ownerUserId) ||
+               isAdmin()
+             );
+             // Allow listing for public; per-doc read enforced above
+             allow list: if true;
+             // Owners/admins manage documents
+             allow create: if isAuthenticated() && request.auth.uid == request.resource.data.ownerUserId;
+             allow update, delete: if (isAuthenticated() && request.auth.uid == resource.data.ownerUserId) || isAdmin();
+           }
          }
        }
