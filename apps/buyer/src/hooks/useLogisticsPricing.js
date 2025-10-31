@@ -35,25 +35,43 @@ export const useLogisticsPricing = () => {
   }, []);
 
   /**
-   * Calculate multiple delivery options
+   * Calculate multiple delivery options across partners
    */
   const calculateDeliveryOptions = useCallback(async (params) => {
     try {
       setLoading(true);
       setError(null);
-      
-      const [standard, express] = await Promise.all([
-        logisticsPricingService.calculateDeliveryFee({ ...params, type: 'standard' }),
-        logisticsPricingService.calculateDeliveryFee({ ...params, type: 'express' })
-      ]);
-      
-      const options = {
-        standard: standard.success ? standard : null,
-        express: express.success ? express : null
-      };
-      
-      setResult(options);
-      return options;
+
+      // Get partners for this route
+      const partners = await logisticsPricingService.getAvailablePartners(params.pickup, params.dropoff);
+      if (!partners || partners.length === 0) {
+        setResult({ partners: [] });
+        return { partners: [] };
+      }
+
+      // For each partner, compute standard pricing (and express when applicable)
+      const partnerCalcs = await Promise.all(
+        partners.map(async (p) => {
+          const calc = await logisticsPricingService.calculateDeliveryFee({ ...params, partner: p.id, type: params.type || 'standard' });
+          if (calc && calc.success) {
+            return {
+              partner: { id: p.id, name: p.name, rating: p.rating || 0 },
+              deliveryFee: calc.deliveryFee,
+              eta: calc.eta,
+              estimatedDays: calc.eta?.match(/\d+/)?.[0] || '',
+              distance: calc.distance,
+              breakdown: calc.breakdown,
+              type: params.type || 'standard'
+            };
+          }
+          return null;
+        })
+      );
+
+      const options = (partnerCalcs.filter(Boolean)).sort((a, b) => a.deliveryFee - b.deliveryFee);
+      const res = { partners: options };
+      setResult(res);
+      return res;
     } catch (err) {
       setError(err.message);
       return null;
@@ -63,12 +81,11 @@ export const useLogisticsPricing = () => {
   }, []);
 
   /**
-   * Get available logistics partners
+   * Get available logistics partners (raw list)
    */
-  const getLogisticsPartners = useCallback(async (zone) => {
+  const getLogisticsPartners = useCallback(async (pickup, dropoff) => {
     try {
-      const partner = await logisticsPricingService.getLogisticsPartner(null, zone);
-      return [partner];
+      return await logisticsPricingService.getAvailablePartners(pickup, dropoff);
     } catch (err) {
       setError(err.message);
       return [];

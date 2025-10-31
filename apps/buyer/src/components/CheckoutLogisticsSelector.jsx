@@ -20,18 +20,18 @@ const CheckoutLogisticsSelector = ({
   const isAddressValid = (addr) => {
     if (!addr) return false;
     const text = String(addr).trim();
-    // Require at least a street and state/city fragment
     return text.length > 8 && /[a-z]/i.test(text);
   };
 
-  // Calculate delivery options when component mounts or data changes
+  // Calculate partner options when data changes
   useEffect(() => {
     if (isAddressValid(buyerAddress) && cartItems.length > 0) {
       calculateDeliveryOptions({
         pickup: vendorLocation,
         dropoff: buyerAddress,
         weight: calculateTotalWeight(cartItems),
-        timestamp: new Date()
+        timestamp: new Date(),
+        type: 'standard'
       });
     }
   }, [buyerAddress, cartItems, vendorLocation, calculateDeliveryOptions]);
@@ -86,7 +86,9 @@ const CheckoutLogisticsSelector = ({
     );
   }
 
-  if (!result || (!result.standard && !result.express)) {
+  const partnerOptions = result?.partners || [];
+
+  if (partnerOptions.length === 0) {
     return (
       <div className="bg-white rounded-lg border p-6">
         <div className="text-center text-gray-500">
@@ -99,154 +101,70 @@ const CheckoutLogisticsSelector = ({
   return (
     <div className="bg-white rounded-lg border">
       <div className="p-6 border-b border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900">Delivery Options</h3>
-        <p className="text-sm text-gray-600 mt-1">
-          Choose your preferred delivery method
-        </p>
+        <h3 className="text-lg font-semibold text-gray-900">Delivery Partners</h3>
+        <p className="text-sm text-gray-600 mt-1">Select a partner to use for delivery</p>
       </div>
 
       <div className="p-6 space-y-4">
-        {/* Standard Delivery Option */}
-        {result.standard && (
-          <div 
+        {partnerOptions.map((opt) => (
+          <div
+            key={opt.partner.id}
             className={`border rounded-lg p-4 cursor-pointer transition-colors ${
-              selectedOption?.type === 'standard' 
-                ? 'border-emerald-500 bg-emerald-50' 
+              selectedOption?.partner?.id === opt.partner.id
+                ? 'border-emerald-500 bg-emerald-50'
                 : 'border-gray-200 hover:border-gray-300'
             }`}
-            onClick={() => handleOptionSelect({
-              ...result.standard,
-              type: 'standard'
-            })}
+            onClick={() => handleOptionSelect(opt)}
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
                 <div className="w-4 h-4 border-2 rounded-full flex items-center justify-center">
-                  {selectedOption?.type === 'standard' && (
+                  {selectedOption?.partner?.id === opt.partner.id && (
                     <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
                   )}
                 </div>
                 <div>
-                  <h4 className="font-medium text-gray-900">Standard Delivery</h4>
-                  <p className="text-sm text-gray-600">{result.standard.eta}</p>
+                  <h4 className="font-medium text-gray-900">{opt.partner.name}</h4>
+                  <p className="text-xs text-gray-500">{opt.distance} km • ETA {opt.eta}</p>
                 </div>
               </div>
               <div className="text-right">
-                <p className="font-semibold text-gray-900">
-                  {formatCurrency(result.standard.deliveryFee)}
-                </p>
-                <p className="text-xs text-gray-500">
-                  {result.standard.partner.name}
-                </p>
+                <p className="font-semibold text-gray-900">{formatCurrency(opt.deliveryFee)}</p>
+                <p className="text-xs text-gray-500">Rating: {opt.partner.rating?.toFixed ? opt.partner.rating.toFixed(1) : opt.partner.rating}</p>
               </div>
             </div>
           </div>
-        )}
+        ))}
 
-        {/* Express Delivery Option */}
-        {result.express && (
-          <div 
-            className={`border rounded-lg p-4 cursor-pointer transition-colors ${
-              selectedOption?.type === 'express' 
-                ? 'border-emerald-500 bg-emerald-50' 
-                : 'border-gray-200 hover:border-gray-300'
-            }`}
-            onClick={() => handleOptionSelect({
-              ...result.express,
-              type: 'express'
-            })}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="w-4 h-4 border-2 rounded-full flex items-center justify-center">
-                  {selectedOption?.type === 'express' && (
-                    <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
-                  )}
-                </div>
-                <div>
-                  <h4 className="font-medium text-gray-900">Express Delivery</h4>
-                  <p className="text-sm text-gray-600">{result.express.eta}</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="font-semibold text-gray-900">
-                  {formatCurrency(result.express.deliveryFee)}
-                </p>
-                <p className="text-xs text-gray-500">
-                  {result.express.partner.name}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Delivery Details */}
         {selectedOption && (
           <div className="bg-gray-50 rounded-lg p-4">
             <h5 className="font-medium text-gray-900 mb-3">Delivery Details</h5>
             <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span>From:</span>
-                <span>{vendorLocation}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>To:</span>
-                <span>{buyerAddress}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Weight:</span>
-                <span>{calculateTotalWeight(cartItems)}kg</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Distance:</span>
-                <span>{selectedOption.distance}km</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Partner:</span>
-                <span>{selectedOption.partner.name}</span>
-              </div>
-              <div className="flex justify-between font-medium">
-                <span>Total Delivery Fee:</span>
-                <span>{formatCurrency(selectedOption.deliveryFee)}</span>
-              </div>
+              <div className="flex justify-between"><span>From:</span><span>{vendorLocation}</span></div>
+              <div className="flex justify-between"><span>To:</span><span>{buyerAddress}</span></div>
+              <div className="flex justify-between"><span>Weight:</span><span>{calculateTotalWeight(cartItems)}kg</span></div>
+              <div className="flex justify-between"><span>Distance:</span><span>{selectedOption.distance}km</span></div>
+              <div className="flex justify-between"><span>Partner:</span><span>{selectedOption.partner.name}</span></div>
+              <div className="flex justify-between font-medium"><span>Total Delivery Fee:</span><span>{formatCurrency(selectedOption.deliveryFee)}</span></div>
             </div>
           </div>
         )}
 
-        {/* Fee Breakdown */}
         {selectedOption && (
           <div className="bg-blue-50 rounded-lg p-4">
             <h5 className="font-medium text-blue-900 mb-3">Fee Breakdown</h5>
             <div className="space-y-1 text-sm">
-              <div className="flex justify-between">
-                <span>Base Fare:</span>
-                <span>{formatCurrency(selectedOption.breakdown.baseFare)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Distance Fee:</span>
-                <span>{formatCurrency(selectedOption.breakdown.distanceFee)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Weight Fee:</span>
-                <span>{formatCurrency(selectedOption.breakdown.weightFee)}</span>
-              </div>
+              <div className="flex justify-between"><span>Base Fare:</span><span>{formatCurrency(selectedOption.breakdown.baseFare)}</span></div>
+              <div className="flex justify-between"><span>Distance Fee:</span><span>{formatCurrency(selectedOption.breakdown.distanceFee)}</span></div>
+              <div className="flex justify-between"><span>Weight Fee:</span><span>{formatCurrency(selectedOption.breakdown.weightFee)}</span></div>
               {selectedOption.breakdown.deliveryTypeMultiplier > 1 && (
-                <div className="flex justify-between">
-                  <span>Express Multiplier:</span>
-                  <span>{selectedOption.breakdown.deliveryTypeMultiplier}x</span>
-                </div>
+                <div className="flex justify-between"><span>Express Multiplier:</span><span>{selectedOption.breakdown.deliveryTypeMultiplier}x</span></div>
               )}
               {selectedOption.breakdown.timeMultiplier > 1 && (
-                <div className="flex justify-between">
-                  <span>Time Multiplier:</span>
-                  <span>{selectedOption.breakdown.timeMultiplier}x</span>
-                </div>
+                <div className="flex justify-between"><span>Time Multiplier:</span><span>{selectedOption.breakdown.timeMultiplier}x</span></div>
               )}
               {selectedOption.breakdown.zoneMultiplier > 1 && (
-                <div className="flex justify-between">
-                  <span>Zone Multiplier:</span>
-                  <span>{selectedOption.breakdown.zoneMultiplier}x</span>
-                </div>
+                <div className="flex justify-between"><span>Zone Multiplier:</span><span>{selectedOption.breakdown.zoneMultiplier}x</span></div>
               )}
             </div>
           </div>

@@ -418,6 +418,60 @@ class LogisticsPricingService {
   }
 
   /**
+   * Get list of available logistics partners for a route
+   */
+  async getAvailablePartners(pickup, dropoff) {
+    try {
+      const zone = this.determineZone(pickup, dropoff);
+      const partners = [];
+
+      // legacy collection filtered by zone
+      try {
+        const partnersQuery = query(
+          collection(db, 'logisticsPartners'),
+          where('isActive', '==', true),
+          where('zones', 'array-contains', zone)
+        );
+        const snapshot = await getDocs(partnersQuery);
+        snapshot.forEach(docSnap => {
+          const p = docSnap.data();
+          partners.push({ id: p.id, name: p.name, rating: p.rating || 0, zones: p.zones || [] });
+        });
+      } catch (_) {}
+
+      // add from logistics_companies (status active)
+      try {
+        const companiesSnapshot = await getDocs(
+          query(collection(db, 'logistics_companies'), where('status', '==', 'active'))
+        );
+        companiesSnapshot.forEach(docSnap => {
+          const c = { id: docSnap.id, ...docSnap.data() };
+          const inZone = Array.isArray(c.zones) ? c.zones.includes(zone) : true;
+          if (inZone) {
+            partners.push({ id: c.id, name: c.name || c.companyName || 'Logistics Partner', rating: c.rating || 0, zones: c.zones || [] });
+          }
+        });
+      } catch (_) {}
+
+      // Deduplicate by id
+      const dedup = [];
+      const seen = new Set();
+      for (const p of partners) {
+        if (!seen.has(p.id)) {
+          seen.add(p.id);
+          dedup.push(p);
+        }
+      }
+
+      // Sort by rating desc
+      return dedup.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+    } catch (error) {
+      console.warn('Error getting available partners:', error?.message || error);
+      return [];
+    }
+  }
+
+  /**
    * Calculate estimated delivery time
    * @param {number} distance - Distance in km
    * @param {string} type - Delivery type
