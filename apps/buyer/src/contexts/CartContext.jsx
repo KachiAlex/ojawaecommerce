@@ -58,7 +58,16 @@ export const CartProvider = ({ children }) => {
   useEffect(() => {
     if (!hasLoaded) return;
     (async () => {
-      await secureStorage.setItem('cart', JSON.stringify(cartItems));
+      try {
+        const existingEnc = localStorage.getItem('enc_cart');
+        if (cartItems.length === 0 && existingEnc) {
+          // Avoid overwriting an existing stored cart with empty state during startup
+          return;
+        }
+        await secureStorage.setItem('cart', JSON.stringify(cartItems));
+      } catch (e) {
+        console.warn('Cart save skipped/failed:', e?.message || e);
+      }
     })();
   }, [cartItems, hasLoaded]);
 
