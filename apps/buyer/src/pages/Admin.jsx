@@ -646,9 +646,11 @@ const Admin = () => {
     try {
       // Load commission history from Firestore
       const history = await firebaseService.admin.getCommissionHistory();
-      setCommissionHistory(history);
+      // History is already an array (not { items })
+      setCommissionHistory(Array.isArray(history) ? history : history?.items || []);
     } catch (error) {
       console.error('Error loading commission history:', error);
+      setCommissionHistory([]);
     }
   };
 

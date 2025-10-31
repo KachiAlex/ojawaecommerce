@@ -100,6 +100,9 @@ const EnhancedTrackingStatus = lazyLoad(() => import('./components/EnhancedTrack
 // Help page
 const Help = lazyLoad(() => import('./pages/Help'));
 
+// Auth pages
+const ForgotPassword = lazyLoad(() => import('./pages/ForgotPassword'));
+
 // Test/Development pages (separate chunk for production builds)
 const FlutterwaveTest = lazyLoad(() => import('./pages/FlutterwaveTest'));
 const FunctionTest = lazyLoad(() => import('./pages/FunctionTest'));
@@ -274,6 +277,11 @@ const AppRoutes = () => {
         <Route path="/enhanced-checkout" element={<EnhancedCheckout />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={
+          <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+            <ForgotPassword />
+          </Suspense>
+        } />
       <Route path="/how-wallet-works" element={
         <Suspense fallback={<RouteLoadingSpinner route="default" />}>
           <HowWalletWorks />

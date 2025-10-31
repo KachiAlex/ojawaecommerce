@@ -114,16 +114,48 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Google Sign-In function with improved error handling
+  // Google Sign-In function with improved error handling and redirect fallback
   const signInWithGoogle = async (userType = 'buyer') => {
     try {
       console.log('🔐 AuthContext: Starting Google Sign-In as:', userType);
       const provider = new GoogleAuthProvider();
       provider.addScope('email');
       provider.addScope('profile');
+      provider.setCustomParameters({
+        prompt: 'select_account' // Always show account picker
+      });
       
-      // Always use popup for consistency
-      const result = await signInWithPopup(auth, provider);
+      // Store userType for redirect flow
+      if (userType) {
+        sessionStorage.setItem('google_signin_usertype', userType);
+      }
+      
+      // Detect mobile/tablet and use redirect flow
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      
+      if (isMobile) {
+        // Use redirect flow for mobile
+        console.log('📱 Mobile detected, using redirect flow');
+        await signInWithRedirect(auth, provider);
+        return null; // Will complete after redirect
+      }
+      
+      // Use popup for desktop
+      let result;
+      try {
+        result = await signInWithPopup(auth, provider);
+      } catch (popupError) {
+        // If popup fails, try redirect as fallback
+        if (popupError.code === 'auth/popup-blocked' || popupError.code === 'auth/popup-closed-by-user') {
+          console.log('⚠️ Popup blocked/failed, falling back to redirect');
+          await signInWithRedirect(auth, provider);
+          return null; // Will complete after redirect
+        }
+        throw popupError;
+      }
+      
+      // Clear stored userType on successful popup sign-in
+      sessionStorage.removeItem('google_signin_usertype');
       
       const user = result.user;
       console.log('✅ AuthContext: Google Sign-In successful, user:', user.uid);
@@ -138,6 +170,7 @@ export const AuthProvider = ({ children }) => {
           uid: user.uid,
           email: user.email,
           displayName: user.displayName || user.email?.split('@')[0],
+          name: user.displayName || user.email?.split('@')[0],
           photoURL: user.photoURL || '',
           phone: user.phoneNumber || '',
           address: '',
@@ -175,6 +208,12 @@ export const AuthProvider = ({ children }) => {
       return user;
     } catch (error) {
       console.error('❌ AuthContext: Google Sign-In failed:', error);
+      
+      // Handle account exists with different credential
+      if (error.code === 'auth/account-exists-with-different-credential') {
+        const email = error.customData?.email;
+        throw new Error(`An account already exists with ${email}. Please sign in with your email and password, or use the same Google account you used to sign up.`);
+      }
       
       // Don't retry on user cancellation or popup blocked
       if (error.code === 'auth/popup-closed-by-user' || 
@@ -289,6 +328,10 @@ export const AuthProvider = ({ children }) => {
           console.log('✅ AuthContext: Redirect result received');
           const user = result.user;
           
+          // Get stored userType from redirect
+          const storedUserType = sessionStorage.getItem('google_signin_usertype') || 'buyer';
+          sessionStorage.removeItem('google_signin_usertype');
+          
           // Check if user profile exists
           const userDoc = await getDoc(doc(db, 'users', user.uid));
           
@@ -298,13 +341,14 @@ export const AuthProvider = ({ children }) => {
               uid: user.uid,
               email: user.email,
               displayName: user.displayName || user.email?.split('@')[0],
+              name: user.displayName || user.email?.split('@')[0],
               photoURL: user.photoURL || '',
               phone: user.phoneNumber || '',
               address: '',
               createdAt: new Date(),
-              role: 'buyer', // Default to buyer for redirect
-              isVendor: false,
-              isLogisticsPartner: false,
+              role: storedUserType || 'buyer',
+              isVendor: storedUserType === 'vendor',
+              isLogisticsPartner: storedUserType === 'logistics',
               isAdmin: false,
               vendorProfile: null,
               logisticsProfile: null,
@@ -315,15 +359,19 @@ export const AuthProvider = ({ children }) => {
             await setDoc(doc(db, 'users', user.uid), userProfileData);
             setUserProfile(userProfileData);
             
-            // Create wallet
+            // Create wallet with correct userType
             try {
-              await firebaseService.wallet.createWallet(user.uid, 'buyer');
+              await firebaseService.wallet.createWallet(user.uid, storedUserType || 'buyer');
             } catch (walletError) {
               console.error('Error creating wallet:', walletError);
             }
             
-            setNewUserType('buyer');
+            setNewUserType(storedUserType || 'buyer');
             setShowEscrowEducation(true);
+          } else {
+            // Existing user from redirect - load profile
+            const userData = userDoc.data();
+            setUserProfile(userData);
           }
         }
       })

@@ -3315,18 +3315,17 @@ export const adminService = {
       }
 
       const snapshot = await getDocs(q);
-      const items = snapshot.docs.map(doc => ({
+      return snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
-
-      const nextCursor = snapshot.docs.length === pageSize 
-        ? snapshot.docs[snapshot.docs.length - 1] 
-        : null;
-
-      return { items, nextCursor };
     } catch (error) {
       console.error('Error fetching commission history:', error);
+      // Return empty array on permission error instead of throwing
+      if (error.code === 'permission-denied' || error.message?.includes('permissions')) {
+        console.warn('Permission denied - user may not be admin');
+        return [];
+      }
       throw error;
     }
   },

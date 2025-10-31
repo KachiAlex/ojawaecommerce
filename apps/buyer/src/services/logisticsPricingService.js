@@ -178,10 +178,30 @@ class LogisticsPricingService {
    */
   async calculateDistance(pickup, dropoff) {
     try {
-      // For now, use a simplified distance calculation
-      // In production, integrate with Google Maps or Mapbox API
-      const distance = this.estimateDistance(pickup, dropoff);
+      // Try to use Google Maps service if available
+      try {
+        const { default: googleMapsService } = await import('./googleMapsService');
+        await googleMapsService.initialize();
+        
+        if (googleMapsService.isLoaded) {
+          // Use Google Maps Distance Matrix or Directions API
+          const route = await googleMapsService.calculateRoute(pickup, dropoff);
+          if (route && route.distance) {
+            const distanceKm = route.distance.value / 1000; // Convert meters to km
+            return {
+              distance: distanceKm,
+              unit: 'km',
+              method: 'google_maps',
+              duration: route.duration
+            };
+          }
+        }
+      } catch (mapsError) {
+        console.warn('Google Maps unavailable, using fallback:', mapsError);
+      }
       
+      // Fallback to estimated distance
+      const distance = this.estimateDistance(pickup, dropoff);
       return {
         distance: distance,
         unit: 'km',

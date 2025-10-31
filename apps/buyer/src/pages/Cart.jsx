@@ -178,7 +178,12 @@ const Cart = () => {
                 const vendor = userSnap.data();
                 vendorData[vendorId] = {
                   id: vendorId,
-                  name: vendor.displayName || 'Vendor',
+                  name: vendor.displayName || 
+                        vendor.name || 
+                        vendor.businessName || 
+                        vendor.storeName ||
+                        vendor.email?.split('@')[0] ||
+                        'Vendor',
                   address: vendor.vendorProfile?.businessAddress || vendor.address || 'Address not specified'
                 };
               }

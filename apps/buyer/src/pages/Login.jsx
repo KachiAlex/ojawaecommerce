@@ -383,13 +383,12 @@ const Login = () => {
               </p>
               <p className="text-sm text-gray-600">
                 Forgot your password?{' '}
-                <button 
-                  type="button"
-                  onClick={() => setError('Password reset feature coming soon. Please contact support or create a new account.')}
+                <Link
+                  to="/forgot-password"
                   className="text-emerald-600 hover:text-emerald-700 font-medium"
                 >
                   Reset password
-                </button>
+                </Link>
               </p>
             </div>
           )}

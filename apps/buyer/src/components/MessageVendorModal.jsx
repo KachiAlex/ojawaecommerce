@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
 const MessageVendorModal = ({ isOpen, onClose, vendor, product, cartItems = null }) => {
@@ -8,6 +8,35 @@ const MessageVendorModal = ({ isOpen, onClose, vendor, product, cartItems = null
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [vendorName, setVendorName] = useState(vendor?.name || 'Vendor');
+  const [vendorId, setVendorId] = useState(vendor?.id || product?.vendorId || null);
+
+  // Fetch vendor name from Firestore if not provided
+  useEffect(() => {
+    const fetchVendorName = async () => {
+      if (!vendorId || vendor?.name) return; // Skip if vendor name already provided or no vendorId
+      
+      try {
+        const vendorDoc = await getDoc(doc(db, 'users', vendorId));
+        if (vendorDoc.exists()) {
+          const vendorData = vendorDoc.data();
+          const name = vendorData.displayName || 
+                      vendorData.name || 
+                      vendorData.businessName || 
+                      vendorData.storeName ||
+                      vendorData.email?.split('@')[0] ||
+                      'Vendor';
+          setVendorName(name);
+        }
+      } catch (error) {
+        console.error('Error fetching vendor name:', error);
+      }
+    };
+
+    if (isOpen && vendorId) {
+      fetchVendorName();
+    }
+  }, [isOpen, vendorId, vendor]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -27,8 +56,8 @@ const MessageVendorModal = ({ isOpen, onClose, vendor, product, cartItems = null
       const messageData = {
         fromUserId: currentUser.uid,
         fromUserName: currentUser.displayName || currentUser.email,
-        toUserId: vendor?.id || 'vendor-id', // We'll need to get actual vendor ID
-        toUserName: vendor?.name || 'Vendor',
+        toUserId: vendorId || vendor?.id || product?.vendorId || 'vendor-id',
+        toUserName: vendorName || vendor?.name || 'Vendor',
         message: message.trim(),
         productId: product?.id || null,
         productName: product?.name || null,
@@ -88,10 +117,10 @@ const MessageVendorModal = ({ isOpen, onClose, vendor, product, cartItems = null
             </button>
           </div>
 
-          {vendor && (
+          {(vendorId || vendor || product?.vendorId) && (
             <div className="mb-4 p-3 bg-gray-50 rounded-lg">
               <p className="text-sm text-gray-600">
-                <strong>To:</strong> {vendor.name}
+                <strong>To:</strong> {vendorName || vendor?.name || 'Vendor'}
               </p>
               {product && (
                 <p className="text-sm text-gray-600">

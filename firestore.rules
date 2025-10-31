@@ -39,6 +39,12 @@ service cloud.firestore {
       allow list: if isAdmin();
     }
 
+    // Commission history - only admins can read/write/list
+    match /commission_history/{recordId} {
+      allow read, write: if isAdmin();
+      allow list: if isAdmin();
+    }
+
     // Ratings collection - users can create ratings for completed transactions; admins can read all
     match /ratings/{ratingId} {
       allow create: if isAuthenticated() && request.resource.data.raterId == request.auth.uid;

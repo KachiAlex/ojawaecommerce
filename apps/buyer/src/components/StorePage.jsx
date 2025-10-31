@@ -381,7 +381,7 @@ const StorePage = () => {
         }}
         vendor={{
           id: store?.vendorId,
-          name: 'Ojawa Mock Store'
+          name: store?.name || store?.storeName || 'Vendor'
         }}
         product={selectedProduct}
       />
