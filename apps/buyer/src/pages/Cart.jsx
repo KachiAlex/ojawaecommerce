@@ -53,6 +53,14 @@ const Cart = () => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [messageAllVendors, setMessageAllVendors] = useState(false);
 
+  // Compute single-vendor address (current flow supports one vendor per cart for delivery calc)
+  const vendorAddressText = (() => {
+    if (!vendorInfo || cartItems.length === 0) return '';
+    const firstVendorId = cartItems[0]?.vendorId;
+    const v = vendorInfo[firstVendorId];
+    return v?.address || '';
+  })();
+
   // Message vendor function - redirect directly to vendor dialogue
   const messageVendor = async (item) => {
     try {
@@ -399,6 +407,7 @@ const Cart = () => {
               <CheckoutLogisticsSelector
                 cartItems={cartItems}
                 buyerAddress={`${buyerAddress.street}, ${buyerAddress.city}, ${buyerAddress.state}, ${buyerAddress.country}`}
+                vendorAddress={vendorAddressText}
                 onLogisticsSelected={(logistics) => {
                   console.log('🚚 Logistics selected:', logistics);
                   setDeliveryCost(logistics.deliveryFee);

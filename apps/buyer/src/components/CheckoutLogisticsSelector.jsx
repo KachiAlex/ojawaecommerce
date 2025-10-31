@@ -3,7 +3,8 @@ import { useLogisticsPricing } from '../hooks/useLogisticsPricing';
 
 const CheckoutLogisticsSelector = ({ 
   cartItems, 
-  buyerAddress, 
+  buyerAddress,
+  vendorAddress,
   onLogisticsSelected,
   onPriceCalculated 
 }) => {
@@ -15,7 +16,6 @@ const CheckoutLogisticsSelector = ({
   } = useLogisticsPricing();
 
   const [selectedOption, setSelectedOption] = useState(null);
-  const [vendorLocation, setVendorLocation] = useState('Ikeja, Lagos'); // Default vendor location
 
   const isAddressValid = (addr) => {
     if (!addr) return false;
@@ -25,16 +25,16 @@ const CheckoutLogisticsSelector = ({
 
   // Calculate partner options when data changes
   useEffect(() => {
-    if (isAddressValid(buyerAddress) && cartItems.length > 0) {
+    if (isAddressValid(buyerAddress) && isAddressValid(vendorAddress) && cartItems.length > 0) {
       calculateDeliveryOptions({
-        pickup: vendorLocation,
+        pickup: vendorAddress,
         dropoff: buyerAddress,
         weight: calculateTotalWeight(cartItems),
         timestamp: new Date(),
         type: 'standard'
       });
     }
-  }, [buyerAddress, cartItems, vendorLocation, calculateDeliveryOptions]);
+  }, [buyerAddress, vendorAddress, cartItems, calculateDeliveryOptions]);
 
   const calculateTotalWeight = (items) => {
     return items.reduce((total, item) => {
@@ -55,9 +55,20 @@ const CheckoutLogisticsSelector = ({
     }).format(amount);
   };
 
+  if (!isAddressValid(vendorAddress)) {
+    return (
+      <div className="bg-white rounded-lg border p-6">
+        <p className="text-sm text-gray-600">Vendor address is missing. Please contact the vendor or use pickup.</p>
+      </div>
+    );
+  }
+
   if (!isAddressValid(buyerAddress)) {
     return (
       <div className="bg-white rounded-lg border p-6">
+        <div className="mb-3">
+          <p className="text-sm text-gray-600">Vendor: <span className="font-medium text-gray-900">{vendorAddress}</span></p>
+        </div>
         <p className="text-sm text-gray-600">Enter your delivery address above to see available logistics partners and pricing.</p>
       </div>
     );
@@ -88,24 +99,24 @@ const CheckoutLogisticsSelector = ({
 
   const partnerOptions = result?.partners || [];
 
-  if (partnerOptions.length === 0) {
-    return (
-      <div className="bg-white rounded-lg border p-6">
-        <div className="text-center text-gray-500">
-          <p>No logistics partners available for this route yet. Try another address or pickup.</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="bg-white rounded-lg border">
       <div className="p-6 border-b border-gray-200">
         <h3 className="text-lg font-semibold text-gray-900">Delivery Partners</h3>
         <p className="text-sm text-gray-600 mt-1">Select a partner to use for delivery</p>
+        <div className="mt-2 text-xs text-gray-600">
+          <div><span className="font-medium text-gray-800">Vendor:</span> {vendorAddress}</div>
+          <div><span className="font-medium text-gray-800">Buyer:</span> {buyerAddress}</div>
+        </div>
       </div>
 
       <div className="p-6 space-y-4">
+        {partnerOptions.length === 0 && (
+          <div className="text-center text-gray-500">
+            <p>No logistics partners available for this route yet. Try another address or pickup.</p>
+          </div>
+        )}
+
         {partnerOptions.map((opt) => (
           <div
             key={opt.partner.id}
@@ -140,7 +151,7 @@ const CheckoutLogisticsSelector = ({
           <div className="bg-gray-50 rounded-lg p-4">
             <h5 className="font-medium text-gray-900 mb-3">Delivery Details</h5>
             <div className="space-y-2 text-sm">
-              <div className="flex justify-between"><span>From:</span><span>{vendorLocation}</span></div>
+              <div className="flex justify-between"><span>From:</span><span>{vendorAddress}</span></div>
               <div className="flex justify-between"><span>To:</span><span>{buyerAddress}</span></div>
               <div className="flex justify-between"><span>Weight:</span><span>{calculateTotalWeight(cartItems)}kg</span></div>
               <div className="flex justify-between"><span>Distance:</span><span>{selectedOption.distance}km</span></div>
