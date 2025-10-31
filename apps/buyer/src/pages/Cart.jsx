@@ -393,7 +393,7 @@ const Cart = () => {
             ))}
           </div>
 
-          {/* New Logistics Pricing Selector */}
+          {/* Logistics partner selection - shown just below vendor info */}
           {deliveryOption === 'delivery' && (
             <div className="mb-6">
               <CheckoutLogisticsSelector
@@ -403,7 +403,6 @@ const Cart = () => {
                   console.log('🚚 Logistics selected:', logistics);
                   setDeliveryCost(logistics.deliveryFee);
                   setEstimatedDelivery(logistics.eta);
-                  // Calculate total delivery time
                   const logisticsDays = parseInt(logistics.estimatedDays) || 0;
                   const totalDays = vendorProcessingDays + logisticsDays;
                   setTotalDeliveryTime({
@@ -416,7 +415,6 @@ const Cart = () => {
                   console.log('💰 Price calculated:', calculation);
                   setDeliveryCost(calculation.deliveryFee);
                   setEstimatedDelivery(calculation.eta);
-                  // Calculate total delivery time
                   const logisticsDays = parseInt(calculation.estimatedDays) || 0;
                   const totalDays = vendorProcessingDays + logisticsDays;
                   setTotalDeliveryTime({
@@ -426,27 +424,27 @@ const Cart = () => {
                   });
                 }}
               />
-              
-              {/* Display Total Delivery Time Breakdown */}
-              {totalDeliveryTime && deliveryOption === 'delivery' && (
-                <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <h4 className="text-sm font-medium text-blue-900 mb-2">📦 Estimated Delivery Time</h4>
-                  <div className="space-y-1 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-blue-700">Vendor processing:</span>
-                      <span className="font-medium text-blue-900">{totalDeliveryTime.vendorDays} {totalDeliveryTime.vendorDays === 1 ? 'day' : 'days'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-blue-700">Shipping:</span>
-                      <span className="font-medium text-blue-900">{totalDeliveryTime.logisticsDays} {totalDeliveryTime.logisticsDays === 1 ? 'day' : 'days'}</span>
-                    </div>
-                    <div className="border-t border-blue-300 pt-1 mt-1 flex justify-between">
-                      <span className="font-medium text-blue-900">Total delivery:</span>
-                      <span className="font-bold text-blue-900">{totalDeliveryTime.totalDays} {totalDeliveryTime.totalDays === 1 ? 'day' : 'days'}</span>
-                    </div>
-                  </div>
+            </div>
+          )}
+
+          {/* Display Total Delivery Time Breakdown */}
+          {totalDeliveryTime && deliveryOption === 'delivery' && (
+            <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <h4 className="text-sm font-medium text-blue-900 mb-2">📦 Estimated Delivery Time</h4>
+              <div className="space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-blue-700">Vendor processing:</span>
+                  <span className="font-medium text-blue-900">{totalDeliveryTime.vendorDays} {totalDeliveryTime.vendorDays === 1 ? 'day' : 'days'}</span>
                 </div>
-              )}
+                <div className="flex justify-between">
+                  <span className="text-blue-700">Shipping:</span>
+                  <span className="font-medium text-blue-900">{totalDeliveryTime.logisticsDays} {totalDeliveryTime.logisticsDays === 1 ? 'day' : 'days'}</span>
+                </div>
+                <div className="border-t border-blue-300 pt-1 mt-1 flex justify-between">
+                  <span className="font-medium text-blue-900">Total delivery:</span>
+                  <span className="font-bold text-blue-900">{totalDeliveryTime.totalDays} {totalDeliveryTime.totalDays === 1 ? 'day' : 'days'}</span>
+                </div>
+              </div>
             </div>
           )}
 
