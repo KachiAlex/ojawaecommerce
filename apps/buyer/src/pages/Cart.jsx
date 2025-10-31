@@ -6,7 +6,6 @@ import { useMessaging } from '../contexts/MessagingContext';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import AddressInput from '../components/AddressInput';
-import simpleLogisticsService from '../services/simpleLogisticsService';
 import CheckoutLogisticsSelector from '../components/CheckoutLogisticsSelector';
 import { formatCurrency as formatCurrencyUtil } from '../utils/currencyUtils';
 import MessageVendorModal from '../components/MessageVendorModal';
@@ -52,6 +51,7 @@ const Cart = () => {
   const [showMessageModal, setShowMessageModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [messageAllVendors, setMessageAllVendors] = useState(false);
+  const [selectedPartner, setSelectedPartner] = useState(null);
 
   // Compute single-vendor address (current flow supports one vendor per cart for delivery calc)
   const vendorAddressText = (() => {
@@ -219,53 +219,25 @@ const Cart = () => {
     fetchVendors();
   }, [cartItems]);
 
-  // Calculate delivery cost using simple logistics service
+  // Delivery cost updates: only after a partner is selected
   useEffect(() => {
-    const calculateDeliveryCost = async () => {
-      if (deliveryOption === 'pickup') {
-        setDeliveryCost(0);
-        setEstimatedDelivery('Pickup only');
-      } else {
-        try {
-          const cartTotal = getCartTotal();
-          
-          // Use simple logistics service for delivery calculation
-          const result = simpleLogisticsService.calculateCompleteDelivery(
-            { street: 'Vendor Location', city: 'Lagos', state: 'Lagos', country: 'Nigeria' },
-            buyerAddress,
-            cartTotal
-          );
-          
-          if (result.success) {
-            setDeliveryCost(result.price);
-            setEstimatedDelivery(result.durationText);
-            // Removed auto-switch to delivery; selection remains manual via selector
-            console.log('✅ Delivery cost calculated:', result);
-          } else {
-            // Fallback to simple calculation
-            let cost = 500;
-            if (cartTotal > 15000) cost = 200;
-            else if (cartTotal > 5000) cost = 300;
-            
-            setDeliveryCost(cost);
-            setEstimatedDelivery('2-3 days');
-          }
-        } catch (error) {
-          console.error('Error calculating delivery cost:', error);
-          // Fallback to simple calculation
-          const cartTotal = getCartTotal();
-          let cost = 500;
-          if (cartTotal > 15000) cost = 200;
-          else if (cartTotal > 5000) cost = 300;
-          
-          setDeliveryCost(cost);
-          setEstimatedDelivery('2-3 days');
-        }
-      }
-    };
+    if (deliveryOption === 'pickup') {
+      setDeliveryCost(0);
+      setEstimatedDelivery('Pickup only');
+      setSelectedPartner(null);
+      return;
+    }
 
-    calculateDeliveryCost();
-  }, [deliveryOption, cartItems, buyerAddress, getCartTotal]);
+    // For delivery, require selected partner
+    if (selectedPartner) {
+      setDeliveryCost(selectedPartner.deliveryFee || 0);
+      setEstimatedDelivery(selectedPartner.eta || '2-3 days');
+    } else {
+      // No partner yet; do not prefill any delivery amount
+      setDeliveryCost(0);
+      setEstimatedDelivery('');
+    }
+  }, [deliveryOption, selectedPartner]);
 
   // Calculate pricing breakdown
   useEffect(() => {
@@ -278,9 +250,8 @@ const Cart = () => {
       try {
         setLoading(true);
         
-        // Simple pricing calculation without external APIs
         const subtotal = getCartTotal();
-        const delivery = deliveryCost;
+        const delivery = deliveryOption === 'delivery' && selectedPartner ? deliveryCost : 0;
         const total = subtotal + delivery;
         
         const breakdown = {
@@ -288,7 +259,7 @@ const Cart = () => {
           delivery,
           total,
           deliveryOption,
-          estimatedDelivery
+          estimatedDelivery: delivery > 0 ? estimatedDelivery : 'Pickup only'
         };
         
         setPricingBreakdown(breakdown);
@@ -301,7 +272,7 @@ const Cart = () => {
     };
 
     calculatePricing();
-  }, [cartItems, deliveryOption, deliveryCost, getCartTotal]);
+  }, [cartItems, deliveryOption, deliveryCost, selectedPartner, getCartTotal]);
 
   if (cartItems.length === 0) {
     return (
@@ -367,23 +338,6 @@ const Cart = () => {
                   )}
                 </div>
 
-                <div className="flex items-center space-x-2 flex-shrink-0">
-                  <button
-                    onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                    className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-50 disabled:opacity-50"
-                    disabled={item.quantity <= 1}
-                  >
-                    -
-                  </button>
-                  <span className="w-8 text-center text-sm">{item.quantity}</span>
-                  <button
-                    onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                    className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-50"
-                  >
-                    +
-                  </button>
-                </div>
-
                 <div className="text-right flex-shrink-0 w-full sm:w-auto">
                   <p className="font-medium text-sm sm:text-base">
                     {formatCurrency(item.price * item.quantity, item.currency)}
@@ -417,21 +371,10 @@ const Cart = () => {
                 vendorAddress={vendorAddressText}
                 onLogisticsSelected={(logistics) => {
                   console.log('🚚 Logistics selected:', logistics);
+                  setSelectedPartner(logistics);
                   setDeliveryCost(logistics.deliveryFee);
                   setEstimatedDelivery(logistics.eta);
                   const logisticsDays = parseInt(logistics.estimatedDays) || 0;
-                  const totalDays = vendorProcessingDays + logisticsDays;
-                  setTotalDeliveryTime({
-                    vendorDays: vendorProcessingDays,
-                    logisticsDays: logisticsDays,
-                    totalDays: totalDays
-                  });
-                }}
-                onPriceCalculated={(calculation) => {
-                  console.log('💰 Price calculated:', calculation);
-                  setDeliveryCost(calculation.deliveryFee);
-                  setEstimatedDelivery(calculation.eta);
-                  const logisticsDays = parseInt(calculation.estimatedDays) || 0;
                   const totalDays = vendorProcessingDays + logisticsDays;
                   setTotalDeliveryTime({
                     vendorDays: vendorProcessingDays,
@@ -495,7 +438,7 @@ const Cart = () => {
                 <div className="flex-1 min-w-0">
                   <span className="font-medium text-sm sm:text-base">Home Delivery</span>
                   <p className="text-xs sm:text-sm text-gray-600">
-                    {deliveryCost > 0 ? `${formatCurrency(deliveryCost)} - ${estimatedDelivery}` : 'Calculate delivery cost'}
+                    {selectedPartner ? `${formatCurrency(deliveryCost)} - ${estimatedDelivery}` : 'Enter your address and select a partner to calculate'}
                   </p>
                 </div>
               </label>
@@ -504,93 +447,87 @@ const Cart = () => {
 
           {/* Address Input for Delivery */}
           {deliveryOption === 'delivery' && (
-            <div className="mb-4 sm:mb-6">
-              <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4">Delivery Address</h3>
-              <AddressInput
-                address={buyerAddress}
-                onAddressChange={setBuyerAddress}
-                placeholder="Enter your delivery address"
-              />
-            </div>
-          )}
-
-          {/* Pricing Summary */}
-          {pricingBreakdown && (
-            <div className="bg-gray-50 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
-              <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4">Order Summary</h3>
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span>Subtotal</span>
-                  <span>{formatCurrency(pricingBreakdown.subtotal, '₦ NGN')}</span>
+            <div className="space-y-3 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                <AddressInput
+                  value={buyerAddress.street}
+                  placeholder="Start typing street address... (e.g., 15 Marina Street)"
+                  onChange={(val) => setBuyerAddress(prev => ({ ...prev, street: val }))}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+                <AddressInput
+                  value={buyerAddress.city}
+                  placeholder="City (e.g., Lagos Island)"
+                  onChange={(val) => setBuyerAddress(prev => ({ ...prev, city: val }))}
+                />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Select State</label>
+                  <select
+                    className="w-full border border-gray-300 rounded-lg p-2 text-sm"
+                    value={buyerAddress.state}
+                    onChange={(e) => setBuyerAddress(prev => ({ ...prev, state: e.target.value }))}
+                  >
+                    <option value="">Select State</option>
+                    <option value="Lagos">Lagos</option>
+                    <option value="Abuja">Abuja</option>
+                    <option value="Kaduna">Kaduna</option>
+                    <option value="Kano">Kano</option>
+                  </select>
                 </div>
-                <div className="flex justify-between">
-                  <span>Delivery</span>
-                  <span>
-                    {pricingBreakdown.delivery > 0 
-                      ? formatCurrency(pricingBreakdown.delivery, '₦ NGN')
-                      : 'Free'
-                    }
-                  </span>
-                </div>
-                <div className="border-t border-gray-300 pt-2">
-                  <div className="flex justify-between font-medium text-lg">
-                    <span>Total</span>
-                    <span>{formatCurrency(pricingBreakdown.total, '₦ NGN')}</span>
-                  </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+                  <select
+                    className="w-full border border-gray-300 rounded-lg p-2 text-sm"
+                    value={buyerAddress.country}
+                    onChange={(e) => setBuyerAddress(prev => ({ ...prev, country: e.target.value }))}
+                  >
+                    <option value="Nigeria">Nigeria</option>
+                  </select>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
-            <Link
-              to="/products"
-              className="flex-1 bg-gray-200 text-gray-800 px-4 sm:px-6 py-2 sm:py-3 rounded-lg hover:bg-gray-300 transition-colors text-center text-sm sm:text-base"
-            >
-              Continue Shopping
-            </Link>
-            <button
-              onClick={handleMessageAllVendors}
-              className="flex-1 bg-purple-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg hover:bg-purple-700 transition-colors text-center text-sm sm:text-base"
-            >
-              💬 Message Vendors
-            </button>
-            <Link
-              to="/checkout"
-              className="flex-1 bg-blue-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg hover:bg-blue-700 transition-colors text-center text-sm sm:text-base"
-            >
-              Proceed to Checkout
-            </Link>
+          {/* Order Summary */}
+          <div className="border-t pt-4">
+            <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-3">Order Summary</h3>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span>Subtotal</span>
+                <span>{formatCurrency(getCartTotal())}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Delivery</span>
+                <span>{deliveryOption === 'delivery' && selectedPartner ? formatCurrency(deliveryCost) : '₦0.00'}</span>
+              </div>
+              <div className="flex justify-between font-semibold border-t pt-2">
+                <span>Total</span>
+                <span>{formatCurrency((getCartTotal()) + (deliveryOption === 'delivery' && selectedPartner ? deliveryCost : 0))}</span>
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-col sm:flex-row gap-3">
+              <Link to="/products" className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-center">Continue Shopping</Link>
+              <button onClick={() => setShowMessageModal(true)} className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">💬 Message Vendors</button>
+              <Link to="/checkout" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-center">Proceed to Checkout</Link>
+            </div>
           </div>
 
-          {/* Clear Cart Button */}
-          <div className="mt-4 text-center">
-            <button
-              onClick={clearCart}
-              className="text-red-600 hover:text-red-800 text-sm"
-            >
-              Clear Cart
-            </button>
-          </div>
+          {showMessageModal && (
+            <MessageVendorModal
+              isOpen={showMessageModal}
+              onClose={() => setShowMessageModal(false)}
+              vendor={{ id: cartItems[0]?.vendorId, name: vendorInfo?.[cartItems[0]?.vendorId]?.name || 'Vendor' }}
+              product={cartItems[0]}
+            />
+          )}
         </div>
       </div>
-
-      {/* Message Vendor Modal */}
-      <MessageVendorModal
-        isOpen={showMessageModal}
-        onClose={() => {
-          setShowMessageModal(false);
-          setSelectedItem(null);
-          setMessageAllVendors(false);
-        }}
-        vendor={{
-          id: selectedItem?.vendorId || 'vendor-id',
-          name: selectedItem ? (vendorInfo?.[selectedItem.vendorId]?.name || 'Vendor') : 'Vendors'
-        }}
-        product={selectedItem}
-        cartItems={messageAllVendors ? cartItems : null}
-      />
     </div>
   );
 };
