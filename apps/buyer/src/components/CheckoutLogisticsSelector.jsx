@@ -20,7 +20,9 @@ const CheckoutLogisticsSelector = ({
   const isAddressValid = (addr) => {
     if (!addr) return false;
     const text = String(addr).trim();
-    return text.length > 8 && /[a-z]/i.test(text);
+    // Require at least 2 comma-separated components (e.g., street, city/state)
+    const parts = text.split(',').map(p => p.trim()).filter(Boolean);
+    return parts.length >= 2 && /[a-z]/i.test(parts[0]);
   };
 
   // Calculate partner options when data changes

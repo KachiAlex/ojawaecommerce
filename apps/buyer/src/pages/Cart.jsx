@@ -61,6 +61,13 @@ const Cart = () => {
     return v?.address || '';
   })();
 
+  // Build buyer's full address ONLY when sufficient fields exist
+  const buyerFullAddress = (() => {
+    const { street, city, state, country } = buyerAddress || {};
+    if (!street || (!city && !state)) return '';
+    return [street, city, state, country].filter(Boolean).join(', ');
+  })();
+
   // Message vendor function - redirect directly to vendor dialogue
   const messageVendor = async (item) => {
     try {
@@ -406,7 +413,7 @@ const Cart = () => {
             <div className="mb-6">
               <CheckoutLogisticsSelector
                 cartItems={cartItems}
-                buyerAddress={`${buyerAddress.street}, ${buyerAddress.city}, ${buyerAddress.state}, ${buyerAddress.country}`}
+                buyerAddress={buyerFullAddress}
                 vendorAddress={vendorAddressText}
                 onLogisticsSelected={(logistics) => {
                   console.log('🚚 Logistics selected:', logistics);
