@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useLogisticsPricing } from '../hooks/useLogisticsPricing';
+import logisticsPricingService from '../services/logisticsPricingService';
 
 const CheckoutLogisticsSelector = ({ 
   cartItems, 
@@ -8,14 +8,12 @@ const CheckoutLogisticsSelector = ({
   onLogisticsSelected,
   onPriceCalculated 
 }) => {
-  const { 
-    calculateDeliveryOptions, 
-    loading, 
-    error, 
-    result 
-  } = useLogisticsPricing();
-
-  const [selectedOption, setSelectedOption] = useState(null);
+  const [availablePartners, setAvailablePartners] = useState([]);
+  const [fetchingPartners, setFetchingPartners] = useState(false);
+  const [selectedPartner, setSelectedPartner] = useState(null);
+  const [calculatingPrice, setCalculatingPrice] = useState(false);
+  const [priceCalculation, setPriceCalculation] = useState(null);
+  const [priceError, setPriceError] = useState(null);
 
   const isAddressValid = (addr) => {
     if (!addr) return false;
@@ -25,18 +23,28 @@ const CheckoutLogisticsSelector = ({
     return parts.length >= 2 && /[a-z]/i.test(parts[0]);
   };
 
-  // Calculate partner options when data changes
+  // Fetch available partners list (without prices) when addresses are valid
   useEffect(() => {
-    if (isAddressValid(buyerAddress) && isAddressValid(vendorAddress) && cartItems.length > 0) {
-      calculateDeliveryOptions({
-        pickup: vendorAddress,
-        dropoff: buyerAddress,
-        weight: calculateTotalWeight(cartItems),
-        timestamp: new Date(),
-        type: 'standard'
-      });
-    }
-  }, [buyerAddress, vendorAddress, cartItems, calculateDeliveryOptions]);
+    const fetchPartners = async () => {
+      if (!isAddressValid(buyerAddress) || !isAddressValid(vendorAddress) || cartItems.length === 0) {
+        setAvailablePartners([]);
+        return;
+      }
+
+      try {
+        setFetchingPartners(true);
+        const partners = await logisticsPricingService.getAvailablePartners(vendorAddress, buyerAddress);
+        setAvailablePartners(partners || []);
+      } catch (err) {
+        console.error('Error fetching partners:', err);
+        setAvailablePartners([]);
+      } finally {
+        setFetchingPartners(false);
+      }
+    };
+
+    fetchPartners();
+  }, [buyerAddress, vendorAddress, cartItems]);
 
   const calculateTotalWeight = (items) => {
     return items.reduce((total, item) => {
@@ -44,10 +52,54 @@ const CheckoutLogisticsSelector = ({
     }, 0);
   };
 
-  const handleOptionSelect = (option) => {
-    setSelectedOption(option);
-    onLogisticsSelected?.(option);
-    onPriceCalculated?.(option);
+  // Calculate price only when a partner is selected
+  const handlePartnerSelect = async (partner) => {
+    if (!isAddressValid(buyerAddress) || !isAddressValid(vendorAddress)) {
+      return;
+    }
+
+    try {
+      setCalculatingPrice(true);
+      setPriceError(null);
+      setSelectedPartner(partner);
+
+      const calculation = await logisticsPricingService.calculateDeliveryFee({
+        pickup: vendorAddress,
+        dropoff: buyerAddress,
+        weight: calculateTotalWeight(cartItems),
+        partner: partner.id,
+        type: 'standard',
+        timestamp: new Date()
+      });
+
+      if (calculation && calculation.success) {
+        const option = {
+          partner: {
+            id: partner.id,
+            name: partner.name,
+            rating: partner.rating || 0
+          },
+          deliveryFee: calculation.deliveryFee,
+          eta: calculation.eta,
+          estimatedDays: calculation.eta?.match(/\d+/)?.[0] || '',
+          distance: calculation.distance,
+          distanceText: calculation.distanceText || `${calculation.distance} km`,
+          breakdown: calculation.breakdown || {},
+          type: 'standard'
+        };
+
+        setPriceCalculation(option);
+        onLogisticsSelected?.(option);
+        onPriceCalculated?.(option);
+      } else {
+        setPriceError(calculation?.error || 'Failed to calculate delivery price');
+      }
+    } catch (err) {
+      console.error('Error calculating price:', err);
+      setPriceError(err.message || 'Failed to calculate delivery price');
+    } finally {
+      setCalculatingPrice(false);
+    }
   };
 
   const formatCurrency = (amount) => {
@@ -76,7 +128,7 @@ const CheckoutLogisticsSelector = ({
     );
   }
 
-  if (loading) {
+  if (fetchingPartners) {
     return (
       <div className="bg-white rounded-lg border p-6">
         <div className="animate-pulse space-y-4">
@@ -88,24 +140,11 @@ const CheckoutLogisticsSelector = ({
     );
   }
 
-  if (error) {
-    return (
-      <div className="bg-white rounded-lg border p-6">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <h3 className="text-red-800 font-medium">Delivery Calculation Error</h3>
-          <p className="text-red-600 text-sm mt-1">{error}</p>
-        </div>
-      </div>
-    );
-  }
-
-  const partnerOptions = result?.partners || [];
-
   return (
     <div className="bg-white rounded-lg border">
       <div className="p-6 border-b border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900">Delivery Partners</h3>
-        <p className="text-sm text-gray-600 mt-1">Select a partner to use for delivery</p>
+        <h3 className="text-lg font-semibold text-gray-900">Select Delivery Partner</h3>
+        <p className="text-sm text-gray-600 mt-1">Choose a logistics partner to see delivery pricing</p>
         <div className="mt-2 text-xs text-gray-600">
           <div><span className="font-medium text-gray-800">Vendor:</span> {vendorAddress}</div>
           <div><span className="font-medium text-gray-800">Buyer:</span> {buyerAddress}</div>
@@ -113,74 +152,104 @@ const CheckoutLogisticsSelector = ({
       </div>
 
       <div className="p-6 space-y-4">
-        {partnerOptions.length === 0 && (
-          <div className="text-center text-gray-500">
+        {availablePartners.length === 0 && (
+          <div className="text-center text-gray-500 py-4">
             <p>No logistics partners available for this route yet. Try another address or pickup.</p>
           </div>
         )}
 
-        {partnerOptions.map((opt) => (
+        {availablePartners.map((partner) => (
           <div
-            key={opt.partner.id}
+            key={partner.id}
             className={`border rounded-lg p-4 cursor-pointer transition-colors ${
-              selectedOption?.partner?.id === opt.partner.id
+              selectedPartner?.id === partner.id
                 ? 'border-emerald-500 bg-emerald-50'
                 : 'border-gray-200 hover:border-gray-300'
             }`}
-            onClick={() => handleOptionSelect(opt)}
+            onClick={() => handlePartnerSelect(partner)}
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
                 <div className="w-4 h-4 border-2 rounded-full flex items-center justify-center">
-                  {selectedOption?.partner?.id === opt.partner.id && (
+                  {selectedPartner?.id === partner.id && (
                     <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
                   )}
                 </div>
                 <div>
-                  <h4 className="font-medium text-gray-900">{opt.partner.name}</h4>
-                  <p className="text-xs text-gray-500">{opt.distance} km • ETA {opt.eta}</p>
+                  <h4 className="font-medium text-gray-900">{partner.name}</h4>
+                  <p className="text-xs text-gray-500">
+                    Rating: {partner.rating?.toFixed ? partner.rating.toFixed(1) : partner.rating || 'N/A'}
+                    {calculatingPrice && selectedPartner?.id === partner.id && (
+                      <span className="ml-2 text-blue-600">Calculating price...</span>
+                    )}
+                  </p>
                 </div>
               </div>
               <div className="text-right">
-                <p className="font-semibold text-gray-900">{formatCurrency(opt.deliveryFee)}</p>
-                <p className="text-xs text-gray-500">Rating: {opt.partner.rating?.toFixed ? opt.partner.rating.toFixed(1) : opt.partner.rating}</p>
+                {calculatingPrice && selectedPartner?.id === partner.id ? (
+                  <div className="animate-pulse text-gray-400">...</div>
+                ) : priceCalculation && selectedPartner?.id === partner.id ? (
+                  <div>
+                    <p className="font-semibold text-gray-900">{formatCurrency(priceCalculation.deliveryFee)}</p>
+                    <p className="text-xs text-gray-500">{priceCalculation.eta}</p>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="font-semibold text-gray-400">Click to calculate</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
         ))}
 
-        {selectedOption && (
-          <div className="bg-gray-50 rounded-lg p-4">
-            <h5 className="font-medium text-gray-900 mb-3">Delivery Details</h5>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between"><span>From:</span><span>{vendorAddress}</span></div>
-              <div className="flex justify-between"><span>To:</span><span>{buyerAddress}</span></div>
-              <div className="flex justify-between"><span>Weight:</span><span>{calculateTotalWeight(cartItems)}kg</span></div>
-              <div className="flex justify-between"><span>Distance:</span><span>{selectedOption.distance}km</span></div>
-              <div className="flex justify-between"><span>Partner:</span><span>{selectedOption.partner.name}</span></div>
-              <div className="flex justify-between font-medium"><span>Total Delivery Fee:</span><span>{formatCurrency(selectedOption.deliveryFee)}</span></div>
-            </div>
+        {priceError && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <h3 className="text-red-800 font-medium">Price Calculation Error</h3>
+            <p className="text-red-600 text-sm mt-1">{priceError}</p>
           </div>
         )}
 
-        {selectedOption && (
-          <div className="bg-blue-50 rounded-lg p-4">
-            <h5 className="font-medium text-blue-900 mb-3">Fee Breakdown</h5>
-            <div className="space-y-1 text-sm">
-              <div className="flex justify-between"><span>Base Fare:</span><span>{formatCurrency(selectedOption.breakdown.baseFare)}</span></div>
-              <div className="flex justify-between"><span>Distance Fee:</span><span>{formatCurrency(selectedOption.breakdown.distanceFee)}</span></div>
-              <div className="flex justify-between"><span>Weight Fee:</span><span>{formatCurrency(selectedOption.breakdown.weightFee)}</span></div>
-              {selectedOption.breakdown.deliveryTypeMultiplier > 1 && (
-                <div className="flex justify-between"><span>Express Multiplier:</span><span>{selectedOption.breakdown.deliveryTypeMultiplier}x</span></div>
-              )}
-              {selectedOption.breakdown.timeMultiplier > 1 && (
-                <div className="flex justify-between"><span>Time Multiplier:</span><span>{selectedOption.breakdown.timeMultiplier}x</span></div>
-              )}
-              {selectedOption.breakdown.zoneMultiplier > 1 && (
-                <div className="flex justify-between"><span>Zone Multiplier:</span><span>{selectedOption.breakdown.zoneMultiplier}x</span></div>
-              )}
+        {priceCalculation && selectedPartner && (
+          <>
+            <div className="bg-gray-50 rounded-lg p-4">
+              <h5 className="font-medium text-gray-900 mb-3">Delivery Details</h5>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between"><span>From:</span><span>{vendorAddress}</span></div>
+                <div className="flex justify-between"><span>To:</span><span>{buyerAddress}</span></div>
+                <div className="flex justify-between"><span>Weight:</span><span>{calculateTotalWeight(cartItems)}kg</span></div>
+                <div className="flex justify-between"><span>Distance:</span><span>{priceCalculation.distanceText || `${priceCalculation.distance}km`}</span></div>
+                <div className="flex justify-between"><span>Partner:</span><span>{priceCalculation.partner.name}</span></div>
+                <div className="flex justify-between font-medium"><span>Total Delivery Fee:</span><span>{formatCurrency(priceCalculation.deliveryFee)}</span></div>
+              </div>
             </div>
-          </div>
+
+            {priceCalculation.breakdown && Object.keys(priceCalculation.breakdown).length > 0 && (
+              <div className="bg-blue-50 rounded-lg p-4">
+                <h5 className="font-medium text-blue-900 mb-3">Fee Breakdown</h5>
+                <div className="space-y-1 text-sm">
+                  {priceCalculation.breakdown.baseFare !== undefined && (
+                    <div className="flex justify-between"><span>Base Fare:</span><span>{formatCurrency(priceCalculation.breakdown.baseFare)}</span></div>
+                  )}
+                  {priceCalculation.breakdown.distanceFee !== undefined && (
+                    <div className="flex justify-between"><span>Distance Fee:</span><span>{formatCurrency(priceCalculation.breakdown.distanceFee)}</span></div>
+                  )}
+                  {priceCalculation.breakdown.weightFee !== undefined && (
+                    <div className="flex justify-between"><span>Weight Fee:</span><span>{formatCurrency(priceCalculation.breakdown.weightFee)}</span></div>
+                  )}
+                  {priceCalculation.breakdown.deliveryTypeMultiplier > 1 && (
+                    <div className="flex justify-between"><span>Express Multiplier:</span><span>{priceCalculation.breakdown.deliveryTypeMultiplier}x</span></div>
+                  )}
+                  {priceCalculation.breakdown.timeMultiplier > 1 && (
+                    <div className="flex justify-between"><span>Time Multiplier:</span><span>{priceCalculation.breakdown.timeMultiplier}x</span></div>
+                  )}
+                  {priceCalculation.breakdown.zoneMultiplier > 1 && (
+                    <div className="flex justify-between"><span>Zone Multiplier:</span><span>{priceCalculation.breakdown.zoneMultiplier}x</span></div>
+                  )}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
