@@ -81,69 +81,47 @@ const VendorSubscriptionModal = ({ isOpen, onClose, onUpgrade }) => {
       }
 
       // For paid plans, process payment (this will open Flutterwave checkout modal)
-      try {
-        const paymentData = await flutterwaveSubscription.processSubscriptionPayment({
-          plan: selectedPlan,
-          price: plan.price,
-          userEmail: currentUser.email,
-          userName: currentUser.displayName || userProfile?.businessName || 'Vendor',
-          userId: currentUser.uid,
-          planName: plan.name,
-          commissionRate: plan.commission,
-          productLimit: plan.limits.products,
-          analyticsLevel: plan.limits.analytics,
-          supportLevel: plan.limits.support
-        });
-
-        // If payment was successful immediately (shouldn't happen with redirect flow)
-        if (paymentData.success) {
-          // Verify payment
-          const verification = await flutterwaveSubscription.verifyPayment(paymentData.transactionId);
-          
-          if (verification.success) {
-            // Create subscription record
-            const subscriptionId = await flutterwaveSubscription.createSubscriptionRecord(paymentData, {
-              userId: currentUser.uid,
-              plan: selectedPlan,
-              price: plan.price,
-              commissionRate: plan.commission,
-              productLimit: plan.limits.products,
-              analyticsLevel: plan.limits.analytics,
-              supportLevel: plan.limits.support
-            });
-
-            // Update user profile
-            await firebaseService.users.update(currentUser.uid, {
-              subscriptionPlan: selectedPlan,
-              subscriptionStatus: 'active',
-              subscriptionStartDate: new Date(),
-              subscriptionEndDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-              commissionRate: plan.commission,
-              productLimit: plan.limits.products,
-              analyticsLevel: plan.limits.analytics,
-              supportLevel: plan.limits.support
-            });
-
-            onUpgrade(selectedPlan);
-            onClose();
-            return;
-          }
-        }
-        
-        // Payment initiated - Flutterwave will redirect user
-        // Callback handler in Vendor.jsx will process payment verification
-        console.log('💳 Payment initiated, redirecting to Flutterwave...');
-        onClose();
-      } catch (paymentError) {
-        // If payment modal was closed or cancelled
+      console.log('💳 Starting payment process for plan:', selectedPlan, 'Price:', plan.price);
+      
+      // Open Flutterwave payment modal immediately
+      // The modal opens synchronously, and we don't block on the promise
+      flutterwaveSubscription.processSubscriptionPayment({
+        plan: selectedPlan,
+        price: plan.price,
+        userEmail: currentUser.email,
+        userName: currentUser.displayName || userProfile?.businessName || 'Vendor',
+        userId: currentUser.uid,
+        planName: plan.name,
+        commissionRate: plan.commission,
+        productLimit: plan.limits.products,
+        analyticsLevel: plan.limits.analytics,
+        supportLevel: plan.limits.support
+      })
+      .then((paymentData) => {
+        // With redirect_url, this callback may not fire, but handle it if it does
+        console.log('💳 Payment completed (callback fired):', paymentData);
+        // Don't close modal here - redirect will happen
+      })
+      .catch((paymentError) => {
+        // Handle errors (modal closed, payment failed, etc.)
+        // Only show error if modal actually closed (not redirect)
         if (paymentError.message?.includes('cancelled') || paymentError.message?.includes('close')) {
-          console.log('Payment cancelled by user');
-          setError('Payment was cancelled');
+          console.log('💳 Payment cancelled by user');
+          setError('Payment was cancelled. Please try again.');
           setLoading(false);
-          return;
+          // Keep modal open so user can try again
+        } else {
+          console.error('❌ Payment error:', paymentError);
+          setError(`Payment failed: ${paymentError.message}`);
+          setLoading(false);
         }
-        throw paymentError;
-      }
+      });
+      
+      // Close subscription modal immediately - Flutterwave modal should now be open
+      // Clear loading state since modal is opening
+      console.log('💳 Flutterwave checkout modal opening...');
+      setLoading(false);
+      onClose();
     } catch (error) {
       console.error('Error upgrading subscription:', error);
       setError(`Failed to upgrade subscription: ${error.message}`);

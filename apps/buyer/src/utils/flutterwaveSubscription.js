@@ -3,17 +3,68 @@ import { loadScript } from './loadScript';
 
 class FlutterwaveSubscription {
   constructor() {
-    this.publicKey = process.env.REACT_APP_FLUTTERWAVE_PUBLIC_KEY;
+    // Try multiple environment variable names
+    this.publicKey = process.env.REACT_APP_FLUTTERWAVE_PUBLIC_KEY || 
+                     process.env.VITE_FLUTTERWAVE_PUBLIC_KEY ||
+                     import.meta.env.VITE_FLUTTERWAVE_PUBLIC_KEY;
+    this.secretKey = process.env.REACT_APP_FLUTTERWAVE_SECRET_KEY ||
+                     process.env.VITE_FLUTTERWAVE_SECRET_KEY ||
+                     import.meta.env.VITE_FLUTTERWAVE_SECRET_KEY;
     this.baseUrl = 'https://api.flutterwave.com/v3';
+    
+    // Try to get from config dynamically (will be loaded on first use if needed)
+    this.configLoaded = false;
+  }
+  
+  // Get public key with fallback to config
+  async getPublicKey() {
+    if (this.publicKey) {
+      return this.publicKey;
+    }
+    
+    // Try loading from config
+    if (!this.configLoaded) {
+      try {
+        const { config } = await import('../config/env.js');
+        if (config?.payments?.flutterwave?.publicKey) {
+          this.publicKey = config.payments.flutterwave.publicKey;
+          this.secretKey = config.payments.flutterwave.secretKey || this.secretKey;
+        }
+        this.configLoaded = true;
+      } catch (error) {
+        console.warn('Could not load config:', error);
+      }
+    }
+    
+    if (!this.publicKey) {
+      console.warn('⚠️ Flutterwave public key not found. Payment will not work.');
+    } else {
+      console.log('✅ Flutterwave public key loaded:', this.publicKey.substring(0, 20) + '...');
+    }
+    
+    return this.publicKey;
   }
 
   // Initialize Flutterwave
   async initialize() {
     try {
+      // Check if already loaded
+      if (window.FlutterwaveCheckout) {
+        console.log('✅ FlutterwaveCheckout already available');
+        return window.FlutterwaveCheckout;
+      }
+      
+      console.log('📥 Loading Flutterwave script...');
       await loadScript('https://checkout.flutterwave.com/v3.js');
+      
+      if (!window.FlutterwaveCheckout) {
+        throw new Error('FlutterwaveCheckout not available after loading script');
+      }
+      
+      console.log('✅ FlutterwaveCheckout loaded successfully');
       return window.FlutterwaveCheckout;
     } catch (error) {
-      console.error('Error loading Flutterwave:', error);
+      console.error('❌ Error loading Flutterwave:', error);
       throw error;
     }
   }
@@ -21,6 +72,12 @@ class FlutterwaveSubscription {
   // Process subscription payment
   async processSubscriptionPayment(subscriptionData) {
     try {
+      // Get public key (with fallback to config)
+      const publicKey = await this.getPublicKey();
+      if (!publicKey) {
+        throw new Error('Flutterwave public key not configured');
+      }
+      
       const FlutterwaveCheckout = await this.initialize();
       
       const {
@@ -33,7 +90,7 @@ class FlutterwaveSubscription {
       } = subscriptionData;
 
       const paymentData = {
-        public_key: this.publicKey,
+        public_key: publicKey,
         tx_ref: `SUB_${Date.now()}_${userId}`,
         amount: price,
         currency: 'NGN',
@@ -56,26 +113,50 @@ class FlutterwaveSubscription {
       };
 
       return new Promise((resolve, reject) => {
-        FlutterwaveCheckout({
-          ...paymentData,
-          callback: function(response) {
-            if (response.status === 'successful') {
-              resolve({
-                success: true,
-                transactionId: response.transaction_id,
-                txRef: response.tx_ref,
-                amount: response.amount,
-                currency: response.currency,
-                status: response.status
-              });
-            } else {
-              reject(new Error('Payment failed'));
-            }
-          },
-          onclose: function() {
-            reject(new Error('Payment cancelled by user'));
-          }
+        console.log('💳 Opening Flutterwave checkout modal...', {
+          public_key: publicKey ? 'Set' : 'Missing',
+          amount: paymentData.amount,
+          currency: paymentData.currency,
+          redirect_url: paymentData.redirect_url
         });
+        
+        try {
+          // Open Flutterwave checkout modal - this is non-blocking
+          // With redirect_url, Flutterwave will redirect user after payment
+          // The promise resolves when payment is successful (before redirect)
+          // Or rejects if user closes modal
+          FlutterwaveCheckout({
+            ...paymentData,
+            callback: function(response) {
+              console.log('💳 Flutterwave callback received:', response);
+              // This callback fires when payment is successful (before redirect)
+              // But with redirect_url, this may not fire - redirect happens instead
+              if (response.status === 'successful' || response.status === 'completed') {
+                resolve({
+                  success: true,
+                  transactionId: response.transaction_id || response.id,
+                  txRef: response.tx_ref,
+                  amount: response.amount,
+                  currency: response.currency,
+                  status: response.status
+                });
+              } else {
+                reject(new Error(`Payment failed: ${response.message || 'Unknown error'}`));
+              }
+            },
+            onclose: function() {
+              console.log('💳 Flutterwave modal closed by user');
+              reject(new Error('Payment cancelled by user'));
+            }
+          });
+          
+          console.log('✅ Flutterwave checkout modal opened successfully');
+          // Modal is now open - the promise will resolve/reject based on user action
+          // With redirect_url, user will be redirected after payment, so callback may not fire
+        } catch (error) {
+          console.error('❌ Error opening Flutterwave checkout:', error);
+          reject(error);
+        }
       });
     } catch (error) {
       console.error('Error processing subscription payment:', error);
@@ -89,7 +170,7 @@ class FlutterwaveSubscription {
       const response = await fetch(`${this.baseUrl}/transactions/${transactionId}/verify`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${process.env.REACT_APP_FLUTTERWAVE_SECRET_KEY}`,
+          'Authorization': `Bearer ${this.secretKey || process.env.REACT_APP_FLUTTERWAVE_SECRET_KEY || import.meta.env.VITE_FLUTTERWAVE_SECRET_KEY}`,
           'Content-Type': 'application/json'
         }
       });
