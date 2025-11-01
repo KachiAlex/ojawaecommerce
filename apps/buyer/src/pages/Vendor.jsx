@@ -8,7 +8,6 @@ import WalletManager from '../components/WalletManager';
 import VendorOrdersFilterBar from '../components/VendorOrdersFilterBar';
 import VendorOrderDetailsModal from '../components/VendorOrderDetailsModal';
 import ShipOrderModal from '../components/ShipOrderModal';
-import PayoutRequestModal from '../components/PayoutRequestModal';
 import ProductEditorModal from '../components/ProductEditorModal';
 import VendorProfileModal from '../components/VendorProfileModal';
 // LogisticsAssignmentModal removed - logistics partners work independently
@@ -282,20 +281,13 @@ const Vendor = () => {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [isOrderDetailsOpen, setIsOrderDetailsOpen] = useState(false);
   const [isShipOpen, setIsShipOpen] = useState(false);
-  const [isPayoutOpen, setIsPayoutOpen] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
-  const [payouts, setPayouts] = useState([]);
   const [disputes, setDisputes] = useState([]);
-  const [payoutsCursor, setPayoutsCursor] = useState(null);
   const [disputesCursor, setDisputesCursor] = useState(null);
-  const [payoutsPages, setPayoutsPages] = useState([]);
   const [disputesPages, setDisputesPages] = useState([]);
-  const [payoutsPageIndex, setPayoutsPageIndex] = useState(0);
   const [disputesPageIndex, setDisputesPageIndex] = useState(0);
-  const [payoutsCount, setPayoutsCount] = useState(0);
   const [disputesCount, setDisputesCount] = useState(0);
-  const [loadingPayoutsNext, setLoadingPayoutsNext] = useState(false);
   const [loadingDisputesNext, setLoadingDisputesNext] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState({ open: false, product: null });
   const [uploadProgress, setUploadProgress] = useState(null);
@@ -353,19 +345,6 @@ const Vendor = () => {
           }
           break;
           
-        case 'payouts':
-          if (payouts.length === 0) {
-            const payoutsPage = await firebaseService.payouts.getByVendorPaged({ 
-              vendorId: currentUser.uid, 
-              pageSize 
-            });
-      setPayouts(payoutsPage.items);
-      setPayoutsCursor(payoutsPage.nextCursor);
-      setPayoutsPages([{ items: payoutsPage.items, cursor: payoutsPage.nextCursor }]);
-      setPayoutsPageIndex(0);
-          }
-          break;
-          
         case 'disputes':
           if (disputes.length === 0) {
             const disputesPage = await firebaseService.disputes.getByVendorPaged({ 
@@ -382,7 +361,7 @@ const Vendor = () => {
     } catch (error) {
       console.error(`Error loading ${tab} data:`, error);
     }
-  }, [currentUser, orders.length, products.length, payouts.length, disputes.length]);
+  }, [currentUser, orders.length, products.length, disputes.length]);
 
   useEffect(() => {
     fetchInitialData();
@@ -516,54 +495,19 @@ const Vendor = () => {
         completedBy: 'vendor'
       });
 
-      // Auto-create payout request for completed order (optional - vendor can manage manually)
-      try {
-        await firebaseService.payouts.request({
-          vendorId: currentUser.uid,
-          method: 'bank_transfer', // Default method
-          amount: order.totalAmount,
-          account: {
-            type: 'bank',
-            accountNumber: 'AUTO-GENERATED', // Should come from vendor profile
-            accountName: currentUser.displayName || 'Vendor',
-            bankName: 'Default Bank'
-          }
-        });
-      } catch (payoutError) {
-        console.warn('Auto-payout creation failed:', payoutError);
-        // Don't fail the order completion if payout creation fails
-      }
-
-      // Refresh orders and payouts
-      const [refreshedOrders, refreshedPayouts] = await Promise.all([
-        firebaseService.orders.getByUserPaged({ userId: currentUser.uid, userType: 'vendor', pageSize }),
-        firebaseService.payouts.getByVendorPaged({ vendorId: currentUser.uid, pageSize })
-      ]);
+      // Refresh orders
+      const refreshedOrders = await firebaseService.orders.getByUserPaged({ userId: currentUser.uid, userType: 'vendor', pageSize });
       setOrders(refreshedOrders.items);
       setOrdersCursor(refreshedOrders.nextCursor);
-      setPayouts(refreshedPayouts.items);
-      setPayoutsCursor(refreshedPayouts.nextCursor);
       
       // Show success message
-      alert('Order completed successfully! Funds have been released to your wallet and payout request created.');
+      alert('Order completed successfully! Funds have been released to your wallet. You can transfer them to your bank account from the Wallet tab.');
     } catch (error) {
       console.error('Error completing order:', error);
       alert('Failed to complete order. Please try again.');
     }
   };
 
-  const submitPayout = async ({ method, amount, account }) => {
-    try {
-      await firebaseService.payouts.request({ vendorId: currentUser.uid, method, amount, account });
-      const payoutsData = await firebaseService.payouts?.getByVendor?.(currentUser.uid);
-      if (payoutsData) setPayouts(payoutsData);
-      setIsPayoutOpen(false);
-      alert('Payout request submitted.');
-    } catch (e) {
-      console.error('Payout request failed', e);
-      alert('Failed to submit payout request.');
-    }
-  };
 
   const handleCreateDispute = async (orderId, disputeData) => {
     try {
@@ -717,12 +661,6 @@ const Vendor = () => {
                 🏪 My Store
               </button>
               {/* Logistics tab removed - logistics partners work independently */}
-              <button 
-                onClick={() => setActiveTab('payouts')}
-                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'payouts' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
-              >
-                💰 Payouts
-              </button>
               <button 
                 onClick={() => setActiveTab('billing')}
                 className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'billing' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
@@ -1245,10 +1183,10 @@ const Vendor = () => {
                         Manage Orders
                       </button>
                       <button 
-                        onClick={() => setActiveTab('payouts')}
+                        onClick={() => setActiveTab('wallet')}
                         className="w-full border border-gray-300 text-gray-700 px-4 py-3 rounded-lg font-medium hover:bg-gray-50 transition-colors"
                       >
-                        View Payouts
+                        View Wallet
                       </button>
                     </div>
                   </div>
@@ -1724,55 +1662,9 @@ const Vendor = () => {
                       </div>
                     )}
                   </div>
-                <div className="p-4 flex items-center justify-between">
-                  <div className="text-sm text-gray-600">{payouts.length} of {payoutsCount} payouts</div>
-                  <div className="flex gap-2">
-                    <button
-                      disabled={payoutsPageIndex === 0}
-                      onClick={() => {
-                        if (payoutsPageIndex === 0) return;
-                        const prevIndex = payoutsPageIndex - 1;
-                        setPayouts(payoutsPages[prevIndex].items);
-                        setPayoutsCursor(payoutsPages[prevIndex].cursor);
-                        setPayoutsPageIndex(prevIndex);
-                      }}
-                      className={`px-3 py-2 text-sm rounded-lg border ${payoutsPageIndex > 0 ? 'text-gray-700 hover:bg-gray-50' : 'text-gray-400 cursor-not-allowed'}`}
-                    >
-                      Previous
-                    </button>
-                    <button
-                      disabled={!payoutsCursor || loadingPayoutsNext}
-                      onClick={async () => {
-                        if (!payoutsCursor || loadingPayoutsNext) return;
-                        setLoadingPayoutsNext(true);
-                        try {
-                          const next = await firebaseService.payouts.getByVendorPaged({ vendorId: currentUser.uid, pageSize, cursor: payoutsCursor });
-                          setPayouts(next.items);
-                          setPayoutsCursor(next.nextCursor);
-                          setPayoutsPages((prev) => [...prev, { items: next.items, cursor: next.nextCursor }]);
-                          setPayoutsPageIndex((i) => i + 1);
-                        } catch (e) {
-                          console.error('Next payouts failed', e);
-                        } finally {
-                          setLoadingPayoutsNext(false);
-                        }
-                      }}
-                      className={`px-3 py-2 text-sm rounded-lg border flex items-center gap-2 ${payoutsCursor && !loadingPayoutsNext ? 'text-gray-700 hover:bg-gray-50' : 'text-gray-400 cursor-not-allowed'}`}
-                    >
-                      {loadingPayoutsNext ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin"></div>
-                          Loading...
-                        </>
-                      ) : (
-                        'Next'
-                      )}
-                    </button>
-                  </div>
                 </div>
-              </div>
-              <div className="p-4 flex items-center justify-between">
-                <div className="text-sm text-gray-600">{products.length} of {productsCount} products</div>
+                <div className="p-4 flex items-center justify-between">
+                  <div className="text-sm text-gray-600">{products.length} of {productsCount} products</div>
                 <div className="flex gap-2">
                   <button
                     disabled={productsPageIndex === 0}
@@ -2007,128 +1899,6 @@ const Vendor = () => {
             <NotificationPreferences />
           )}
 
-          {activeTab === 'payouts' && Array.isArray(payouts) && (
-            <div className="space-y-6">
-              <div className="bg-white rounded-xl border">
-                <div className="p-6 border-b border-gray-200">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-lg font-semibold text-gray-900">Payout History</h2>
-                    <div className="flex gap-3">
-                      <button className="text-sm text-gray-600 hover:text-gray-900">Export</button>
-                      <button onClick={() => setIsPayoutOpen(true)} className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700">Request Payout</button>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payout ID</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Orders</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Method</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {payouts.map((payout) => (
-                        <tr key={payout.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{payout.id}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{payout.amount}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{payout.orders} orders</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{payout.method}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{payout.date}</td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                              payout.status === 'Completed' ? 'bg-green-100 text-green-800' : 
-                              payout.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' : 
-                              'bg-gray-100 text-gray-800'
-                            }`}>
-                              {payout.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="p-4 flex items-center justify-between">
-                  <div className="text-sm text-gray-600">{disputes.length} of {disputesCount} disputes</div>
-                  <div className="flex gap-2">
-                    <button
-                      disabled={disputesPageIndex === 0}
-                      onClick={() => {
-                        if (disputesPageIndex === 0) return;
-                        const prevIndex = disputesPageIndex - 1;
-                        setDisputes(disputesPages[prevIndex].items);
-                        setDisputesCursor(disputesPages[prevIndex].cursor);
-                        setDisputesPageIndex(prevIndex);
-                      }}
-                      className={`px-3 py-2 text-sm rounded-lg border ${disputesPageIndex > 0 ? 'text-gray-700 hover:bg-gray-50' : 'text-gray-400 cursor-not-allowed'}`}
-                    >
-                      Previous
-                    </button>
-                    <button
-                      disabled={!disputesCursor || loadingDisputesNext}
-                      onClick={async () => {
-                        if (!disputesCursor || loadingDisputesNext) return;
-                        setLoadingDisputesNext(true);
-                        try {
-                          const next = await firebaseService.disputes.getByVendorPaged({ vendorId: currentUser.uid, pageSize, cursor: disputesCursor });
-                          setDisputes(next.items);
-                          setDisputesCursor(next.nextCursor);
-                          setDisputesPages((prev) => [...prev, { items: next.items, cursor: next.nextCursor }]);
-                          setDisputesPageIndex((i) => i + 1);
-                        } catch (e) {
-                          console.error('Next disputes failed', e);
-                        } finally {
-                          setLoadingDisputesNext(false);
-                        }
-                      }}
-                      className={`px-3 py-2 text-sm rounded-lg border flex items-center gap-2 ${disputesCursor && !loadingDisputesNext ? 'text-gray-700 hover:bg-gray-50' : 'text-gray-400 cursor-not-allowed'}`}
-                    >
-                      {loadingDisputesNext ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin"></div>
-                          Loading...
-                        </>
-                      ) : (
-                        'Next'
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-xl border">
-                <div className="p-6 border-b border-gray-200">
-                  <h3 className="text-lg font-semibold text-gray-900">Payout Settings</h3>
-                </div>
-                <div className="p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Payout Method</label>
-                      <select className="w-full border border-gray-300 rounded-lg px-3 py-2">
-                        <option>Bank Transfer</option>
-                        <option>Mobile Money</option>
-                        <option>PayPal</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Minimum Payout</label>
-                      <input type="number" className="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="100.00" />
-                    </div>
-                  </div>
-                  <button className="mt-4 bg-emerald-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-emerald-700">
-                    Update Settings
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
           {activeTab === 'billing' && (
             <VendorBilling />
           )}
@@ -2251,11 +2021,6 @@ const Vendor = () => {
           onConfirm={confirmShipment}
         />
 
-        <PayoutRequestModal
-          open={isPayoutOpen}
-          onClose={() => setIsPayoutOpen(false)}
-          onSubmit={submitPayout}
-        />
 
         <ProductEditorModal
           open={editorOpen}
