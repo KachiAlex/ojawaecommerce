@@ -69,6 +69,8 @@ const VendorBilling = () => {
       });
     } catch (error) {
       console.error('Error loading subscription data:', error);
+      // Set subscription to null on error to prevent rendering issues
+      setSubscription(null);
     } finally {
       setLoading(false);
     }
@@ -171,24 +173,26 @@ const VendorBilling = () => {
         </div>
 
         {/* Subscription Details */}
-        {subscription && (
+        {subscription && typeof subscription === 'object' && (
           <div className="border-t pt-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
               <div>
                 <p className="text-gray-600">Status</p>
                 <p className={`font-medium ${
-                  subscription.status === 'active' ? 'text-green-600' : 'text-red-600'
+                  typeof subscription.status === 'string' && subscription.status === 'active' ? 'text-green-600' : 'text-red-600'
                 }`}>
-                  {subscription.status.charAt(0).toUpperCase() + subscription.status.slice(1)}
+                  {typeof subscription.status === 'string' 
+                    ? subscription.status.charAt(0).toUpperCase() + subscription.status.slice(1)
+                    : 'Unknown'}
                 </p>
               </div>
               <div>
                 <p className="text-gray-600">Start Date</p>
-                <p className="font-medium">{formatDate(subscription.startDate)}</p>
+                <p className="font-medium">{subscription.startDate ? formatDate(subscription.startDate) : 'N/A'}</p>
               </div>
               <div>
                 <p className="text-gray-600">Next Billing</p>
-                <p className="font-medium">{formatDate(subscription.endDate)}</p>
+                <p className="font-medium">{subscription.endDate ? formatDate(subscription.endDate) : 'N/A'}</p>
               </div>
             </div>
           </div>

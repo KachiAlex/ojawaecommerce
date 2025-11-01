@@ -129,6 +129,14 @@ service cloud.firestore {
       allow read, write: if isOwner(userId);
     }
     
+    // Subscriptions collection - users can read/write their own subscriptions
+    match /subscriptions/{subscriptionId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isAuthenticated();
+    }
+    
     // Reviews collection - authenticated users can read, users can write their own reviews
     match /reviews/{reviewId} {
       allow read: if true; // Public read access

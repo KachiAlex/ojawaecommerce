@@ -929,7 +929,13 @@ const Vendor = () => {
                     <div className="flex justify-between items-center">
                       <span className="text-gray-600">Member Since</span>
                       <span className="font-medium">
-                        {userProfile?.createdAt ? new Date(userProfile.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}
+                        {userProfile?.createdAt ? (
+                          typeof userProfile.createdAt === 'object' && userProfile.createdAt.seconds
+                            ? new Date(userProfile.createdAt.seconds * 1000).toLocaleDateString()
+                            : typeof userProfile.createdAt === 'string'
+                            ? new Date(userProfile.createdAt).toLocaleDateString()
+                            : 'N/A'
+                        ) : 'N/A'}
                       </span>
                     </div>
                   </div>
