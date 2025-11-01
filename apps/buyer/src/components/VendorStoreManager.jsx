@@ -261,10 +261,10 @@ const VendorStoreManager = ({
         </div>
       </div>
 
-      {/* Store Tabs */}
+      {/* Store Tabs - Internal navigation for store management */}
       <div className="bg-white rounded-xl border">
         <div className="border-b border-gray-200">
-          <nav className="flex space-x-4 px-6" aria-label="Store Tabs">
+          <nav className="flex space-x-4 px-6" aria-label="Store Management Tabs">
             <button
               onClick={() => setActiveStoreTab('overview')}
               className={`py-4 px-3 text-sm font-medium border-b-2 transition-colors ${
@@ -273,7 +273,7 @@ const VendorStoreManager = ({
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              📊 Overview
+              📊 Store Overview
             </button>
             <button
               onClick={() => setActiveStoreTab('products')}
@@ -283,7 +283,7 @@ const VendorStoreManager = ({
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              🛍️ Products ({products.length})
+              🛍️ Store Products ({products.length})
             </button>
             <button
               onClick={() => setActiveStoreTab('settings')}
@@ -293,7 +293,7 @@ const VendorStoreManager = ({
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              ⚙️ Settings
+              ⚙️ Store Settings
             </button>
           </nav>
         </div>

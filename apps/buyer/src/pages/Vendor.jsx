@@ -369,32 +369,32 @@ const Vendor = () => {
     try {
       switch (tab) {
         case 'store':
-          // Also load products when store tab is clicked, so VendorStoreManager has them
-          if (products.length === 0) {
-            console.log('📦 Store tab clicked, loading ALL products...');
-            try {
-              // Try to get ALL products (non-paged) first
-              const allProducts = await firebaseService.products.getByVendor(currentUser.uid);
-              console.log('📦 Store tab: Loaded all products:', allProducts.length);
-              if (allProducts.length > 0) {
-                setProducts(allProducts);
+          // Always load products when store tab is clicked, so VendorStoreManager has them
+          console.log('📦 Store tab clicked, loading ALL products...');
+          try {
+            // Try to get ALL products (non-paged) first
+            const allProducts = await firebaseService.products.getByVendor(currentUser.uid);
+            console.log('📦 Store tab: Loaded all products:', allProducts.length);
+            if (allProducts.length > 0) {
+              setProducts(allProducts);
+              setProductsCursor(null);
+              setProductsPages([{ items: allProducts, cursor: null }]);
+              setProductsPageIndex(0);
+              setProductsCount(allProducts.length);
+            } else if (currentUser.email) {
+              // Try email fallback
+              const emailProducts = await firebaseService.products.getByVendorEmail(currentUser.email);
+              console.log('📦 Store tab: Loaded products by email:', emailProducts.length);
+              if (emailProducts.length > 0) {
+                setProducts(emailProducts);
                 setProductsCursor(null);
-                setProductsPages([{ items: allProducts, cursor: null }]);
+                setProductsPages([{ items: emailProducts, cursor: null }]);
                 setProductsPageIndex(0);
-              } else if (currentUser.email) {
-                // Try email fallback
-                const emailProducts = await firebaseService.products.getByVendorEmail(currentUser.email);
-                console.log('📦 Store tab: Loaded products by email:', emailProducts.length);
-                if (emailProducts.length > 0) {
-                  setProducts(emailProducts);
-                  setProductsCursor(null);
-                  setProductsPages([{ items: emailProducts, cursor: null }]);
-                  setProductsPageIndex(0);
-                }
+                setProductsCount(emailProducts.length);
               }
-            } catch (error) {
-              console.error('❌ Error loading products for store tab:', error);
             }
+          } catch (error) {
+            console.error('❌ Error loading products for store tab:', error);
           }
           break;
         case 'orders':
@@ -741,6 +741,41 @@ const Vendor = () => {
 
               console.log('✅ Subscription activated successfully!');
               
+              // Refresh all data after successful subscription
+              console.log('🔄 Refreshing products and orders after subscription upgrade...');
+              
+              // Refresh products
+              try {
+                const refreshedProducts = await firebaseService.products.getByVendor(currentUser.uid);
+                console.log('✅ Refreshed products:', refreshedProducts.length);
+                setProducts(refreshedProducts);
+                setProductsCount(refreshedProducts.length);
+              } catch (productError) {
+                console.error('Error refreshing products:', productError);
+                // Try email fallback
+                if (currentUser.email) {
+                  try {
+                    const emailProducts = await firebaseService.products.getByVendorEmail(currentUser.email);
+                    setProducts(emailProducts);
+                    setProductsCount(emailProducts.length);
+                  } catch (emailError) {
+                    console.error('Error refreshing products by email:', emailError);
+                  }
+                }
+              }
+              
+              // Refresh orders
+              try {
+                const ordersData = await getVendorDataOptimized(currentUser.uid, 'orders');
+                if (ordersData?.orders && Array.isArray(ordersData.orders)) {
+                  setOrders(ordersData.orders);
+                  setOrdersCount(ordersData.orders.length);
+                  console.log('✅ Refreshed orders:', ordersData.orders.length);
+                }
+              } catch (orderError) {
+                console.error('Error refreshing orders:', orderError);
+              }
+              
               // Refresh billing data
               if (activeTab === 'billing') {
                 loadTabData('billing');
@@ -749,8 +784,8 @@ const Vendor = () => {
               // Show success message
               alert(`Subscription activated! You can now add up to ${selectedPlan.productLimit === -1 ? 'unlimited' : selectedPlan.productLimit} products.`);
               
-                // Clean up URL
-                window.history.replaceState({}, '', window.location.pathname);
+              // Clean up URL
+              window.history.replaceState({}, '', window.location.pathname);
               } else {
                 console.error('❌ Payment verification failed');
                 alert('Payment verification failed. Please contact support if payment was successful.');
@@ -1997,16 +2032,19 @@ const Vendor = () => {
           )}
 
           {activeTab === 'store' && (
-            <>
-              {console.log('🏪 Rendering VendorStoreManager, activeTab:', activeTab)}
-            <VendorStoreManager 
-              products={products}
-              onEditProduct={openEditProduct}
-              onDeleteProduct={(product) => setConfirmDelete({ open: true, product })}
-              onCreateProduct={openCreateProduct}
-                onRefreshProducts={() => loadTabData('products')}
-            />
-            </>
+            <div>
+              {console.log('🏪 Rendering VendorStoreManager, activeTab:', activeTab, 'products:', products.length)}
+              <VendorStoreManager 
+                products={products}
+                onEditProduct={openEditProduct}
+                onDeleteProduct={(product) => setConfirmDelete({ open: true, product })}
+                onCreateProduct={openCreateProduct}
+                onRefreshProducts={() => {
+                  console.log('🔄 VendorStoreManager: Refreshing products...');
+                  loadTabData('products');
+                }}
+              />
+            </div>
           )}
 
           {activeTab === 'products' && Array.isArray(products) && (
