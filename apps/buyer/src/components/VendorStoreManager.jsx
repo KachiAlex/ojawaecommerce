@@ -90,6 +90,10 @@ const VendorStoreManager = ({
       }
       
       // Only create a new store if vendor has no stores at all
+        const formattedSlug = storeSettings.storeSlug 
+          ? storeSettings.storeSlug.toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-').replace(/^-|-$/g, '')
+          : (storeSettings.businessName || 'my-store').toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+        
         const newStore = await storeService.createStore(currentUser.uid, {
           name: storeSettings.businessName || 'My Store',
           description: storeSettings.storeDescription || 'Welcome to my store',
@@ -103,7 +107,9 @@ const VendorStoreManager = ({
             isPublic: true,
             allowReviews: true,
             showContactInfo: storeSettings.showContactInfo,
-          }
+            storeSlug: formattedSlug, // Ensure slug is saved in store document
+          },
+          storeSlug: formattedSlug, // Also save at root level for easier querying
         });
         setStore(newStore);
     } catch (error) {
@@ -119,15 +125,39 @@ const VendorStoreManager = ({
     try {
       setSaving(true);
       
+      // Ensure slug is properly formatted before saving
+      const formattedSlug = storeSettings.storeSlug 
+        ? storeSettings.storeSlug.toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-').replace(/^-|-$/g, '')
+        : '';
+      
+      // Update user profile with store settings
       const userDocRef = doc(db, 'users', currentUser.uid);
       await updateDoc(userDocRef, {
         'vendorProfile.storeName': storeSettings.businessName,
         'vendorProfile.storeDescription': storeSettings.storeDescription,
-        'vendorProfile.storeSlug': storeSettings.storeSlug,
+        'vendorProfile.storeSlug': formattedSlug,
         'vendorProfile.businessPhone': storeSettings.contactPhone,
         'vendorProfile.businessAddress': storeSettings.contactAddress,
         updatedAt: new Date()
       });
+      
+      // Also update the store document with the slug
+      if (store && formattedSlug) {
+        try {
+          const storeRef = doc(db, 'stores', store.id);
+          await updateDoc(storeRef, {
+            'settings.storeSlug': formattedSlug,
+            'storeSlug': formattedSlug,
+            updatedAt: new Date()
+          });
+          console.log('✅ Updated store document with slug:', formattedSlug);
+        } catch (storeError) {
+          console.warn('⚠️ Could not update store document (non-critical):', storeError);
+        }
+      }
+
+      // Update local state with formatted slug
+      setStoreSettings(prev => ({ ...prev, storeSlug: formattedSlug }));
 
       alert('Store settings updated successfully!');
     } catch (error) {
