@@ -119,38 +119,70 @@ const StorePage = () => {
         const storesSnapshot = await getDocs(storesRef);
         
         console.log('🏪 StorePage: Looking for store with slug:', storeSlug);
-        console.log('🏪 StorePage: Available stores:');
+        console.log('🏪 StorePage: Available stores:', storesSnapshot.docs.length);
         
         let foundStore = null;
+        
+        // First, try to find store by settings.storeSlug (preferred method)
         for (const doc of storesSnapshot.docs) {
           const storeData = { id: doc.id, ...doc.data() };
-          const storeName = storeData.name || storeData.storeName || '';
-          const slug = storeName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
-          console.log(`  - Store: "${storeName}" -> Slug: "${slug}"`);
-          if (slug === storeSlug) {
+          const storeSlugFromSettings = storeData.settings?.storeSlug || storeData.storeSlug;
+          
+          if (storeSlugFromSettings === storeSlug) {
             foundStore = storeData;
-            console.log('🏪 StorePage: ✅ Found matching store!');
+            console.log('🏪 StorePage: ✅ Found matching store by settings.storeSlug:', storeData.name);
             break;
           }
         }
         
-        // If not found by store name, we need to find the store that matches the business name
-        // For "ojawa-mock-store", we need to find the store that belongs to the user with business name "Ojawa Mock Store"
+        // If not found by storeSlug, try matching by store name slug
         if (!foundStore) {
-          console.log('🏪 StorePage: Store not found by name, looking for store with business name "Ojawa Mock Store"...');
-          
-          // Look for a store that might belong to a user with business name "Ojawa Mock Store"
-          // We need to check user profiles to find the right vendor
+          console.log('🏪 StorePage: Not found by storeSlug, trying store name...');
           for (const doc of storesSnapshot.docs) {
             const storeData = { id: doc.id, ...doc.data() };
-            console.log('🏪 StorePage: Checking store:', storeData.name, 'with vendorId:', storeData.vendorId);
+            const storeName = storeData.name || storeData.storeName || storeData.settings?.businessName || '';
+            const slug = storeName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
+            console.log(`  - Store: "${storeName}" -> Slug: "${slug}"`);
             
-            // For now, let's use the first store as a temporary solution
-            // In a real implementation, we'd check the user's business name
-            if (!foundStore) {
+            if (slug === storeSlug) {
               foundStore = storeData;
-              console.log('🏪 StorePage: ✅ Using store for business name:', storeData.name);
+              console.log('🏪 StorePage: ✅ Found matching store by name slug!');
               break;
+            }
+          }
+        }
+        
+        // If still not found, try matching by vendor email (for "ojawa-mock-store" -> "vendor.mock@ojawa.test")
+        if (!foundStore) {
+          console.log('🏪 StorePage: Not found by name slug, trying vendor email...');
+          
+          // Extract potential vendor email from slug (this is a workaround for known stores)
+          let targetVendorId = null;
+          if (storeSlug === 'ojawa-mock-store') {
+            // Find vendor with email "vendor.mock@ojawa.test"
+            try {
+              const usersRef = collection(db, 'users');
+              const usersQuery = query(usersRef, where('email', '==', 'vendor.mock@ojawa.test'));
+              const usersSnapshot = await getDocs(usersQuery);
+              
+              if (!usersSnapshot.empty) {
+                targetVendorId = usersSnapshot.docs[0].id;
+                console.log('🏪 StorePage: Found vendor by email:', targetVendorId);
+              }
+            } catch (emailErr) {
+              console.warn('🏪 StorePage: Error finding vendor by email:', emailErr);
+            }
+          }
+          
+          // Find store by vendorId
+          if (targetVendorId) {
+            for (const doc of storesSnapshot.docs) {
+              const storeData = { id: doc.id, ...doc.data() };
+              if (storeData.vendorId === targetVendorId) {
+                foundStore = storeData;
+                console.log('🏪 StorePage: ✅ Found matching store by vendorId:', storeData.name);
+                break;
+              }
             }
           }
         }
@@ -165,10 +197,19 @@ const StorePage = () => {
         console.log('🏪 StorePage: Found store:', foundStore);
 
         // Fetch products for this store using firebaseService methods with fallback logic
+        console.log('🏪 StorePage: Store details:', {
+          id: foundStore.id,
+          storeId: foundStore.storeId,
+          vendorId: foundStore.vendorId,
+          name: foundStore.name,
+          storeSlug: foundStore.settings?.storeSlug || foundStore.storeSlug
+        });
         console.log('🏪 StorePage: Fetching products for vendorId:', foundStore.vendorId, 'storeId:', foundStore.id || foundStore.storeId);
         
         let allProducts = [];
         const storeId = foundStore.id || foundStore.storeId;
+        
+        console.log('🏪 StorePage: Starting product queries with storeId:', storeId, 'vendorId:', foundStore.vendorId);
         
         // First try: Query by storeId using service method (with fallback)
         if (storeId) {
@@ -249,16 +290,84 @@ const StorePage = () => {
             const allProductsSnapshot = await firebaseService.products.getAll({ showAll: true });
             console.log('🏪 StorePage: Total products in database:', allProductsSnapshot.length);
             
-            // Filter products by vendorId or storeId
+            // Diagnostic: Show all vendorIds and storeIds in products
+            const vendorIds = [...new Set(allProductsSnapshot.map(p => p.vendorId).filter(Boolean))];
+            const storeIds = [...new Set(allProductsSnapshot.map(p => p.storeId).filter(Boolean))];
+            console.log('🏪 StorePage: Diagnostic - Unique vendorIds in products:', vendorIds.slice(0, 10));
+            console.log('🏪 StorePage: Diagnostic - Unique storeIds in products:', storeIds.slice(0, 10));
+            console.log('🏪 StorePage: Diagnostic - Looking for vendorId:', foundStore.vendorId, 'storeId:', storeId);
+            
+            // Get vendor email first (outside filter)
+            let vendorEmail = null;
+            try {
+              const vendorProfile = await firebaseService.users.getProfile(foundStore.vendorId).catch(() => null);
+              vendorEmail = vendorProfile?.email || null;
+              console.log('🏪 StorePage: Vendor email for matching:', vendorEmail);
+            } catch (e) {
+              console.warn('🏪 StorePage: Could not fetch vendor email:', e);
+            }
+            
+            // Filter products by vendorId or storeId (with loose matching)
             allProducts = allProductsSnapshot.filter(product => {
               const matchesVendorId = product.vendorId === foundStore.vendorId;
-              const matchesStoreId = storeId && product.storeId === storeId;
-              return matchesVendorId || matchesStoreId;
+              const matchesStoreId = storeId && (product.storeId === storeId || product.storeId === foundStore.storeId);
+              
+              // Also check vendorEmail if available
+              let matchesVendorEmail = false;
+              if (vendorEmail && product.vendorEmail) {
+                matchesVendorEmail = product.vendorEmail.toLowerCase() === vendorEmail.toLowerCase();
+              }
+              
+              return matchesVendorId || matchesStoreId || matchesVendorEmail;
             });
             
             console.log('🏪 StorePage: Filtered products for vendor/store:', allProducts.length);
+            if (allProducts.length > 0) {
+              console.log('🏪 StorePage: Found products:', allProducts.map(p => ({ 
+                id: p.id, 
+                name: p.name, 
+                vendorId: p.vendorId, 
+                storeId: p.storeId,
+                vendorEmail: p.vendorEmail 
+              })));
+            }
           } catch (ultimateErr) {
             console.error('🏪 StorePage: Ultimate fallback failed:', ultimateErr);
+          }
+        }
+        
+        // If still no products, try one more time with getAll but without status filter
+        if (allProducts.length === 0 && foundStore.vendorId) {
+          console.log('🏪 StorePage: Attempt 6 - Last resort: Fetching ALL products without any filters...');
+          try {
+            const productsRef = collection(db, 'products');
+            const allProductsQuery = query(productsRef);
+            const allProductsSnapshot = await getDocs(allProductsQuery);
+            const allProductsUnfiltered = allProductsSnapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data()
+            }));
+            
+            console.log('🏪 StorePage: Total products (unfiltered):', allProductsUnfiltered.length);
+            
+            // Filter by vendorId or storeId
+            allProducts = allProductsUnfiltered.filter(product => {
+              return product.vendorId === foundStore.vendorId || 
+                     (storeId && product.storeId === storeId) ||
+                     (foundStore.storeId && product.storeId === foundStore.storeId);
+            });
+            
+            console.log('🏪 StorePage: Filtered products (last resort):', allProducts.length);
+            if (allProducts.length > 0) {
+              console.log('🏪 StorePage: Found products (last resort):', allProducts.map(p => ({ 
+                id: p.id, 
+                name: p.name, 
+                vendorId: p.vendorId, 
+                storeId: p.storeId 
+              })));
+            }
+          } catch (lastResortErr) {
+            console.error('🏪 StorePage: Last resort failed:', lastResortErr);
           }
         }
         
