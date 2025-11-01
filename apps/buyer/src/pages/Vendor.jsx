@@ -337,11 +337,12 @@ const Vendor = () => {
           
         case 'products':
           if (products.length === 0) {
-            const productsData = await getVendorDataOptimized(currentUser.uid, 'products');
-            setProducts(productsData.products);
-            setProductsCursor(productsData.lastDoc);
-            setProductsPages([{ items: productsData.products, cursor: productsData.lastDoc }]);
-      setProductsPageIndex(0);
+            // Use direct query instead of optimized service to get all products regardless of status
+            const productsPage = await firebaseService.products.getByVendorPaged({ vendorId: currentUser.uid, pageSize });
+            setProducts(productsPage.items);
+            setProductsCursor(productsPage.nextCursor);
+            setProductsPages([{ items: productsPage.items, cursor: productsPage.nextCursor }]);
+            setProductsPageIndex(0);
           }
           break;
           

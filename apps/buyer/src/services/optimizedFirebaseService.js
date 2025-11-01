@@ -195,10 +195,10 @@ const getOrdersCount = async (vendorId) => {
 };
 
 const getProductsCount = async (vendorId) => {
+  // Count all products for vendor regardless of status (vendor dashboard should show all)
   const q = query(
     collection(db, 'products'),
-    where('vendorId', '==', vendorId),
-    where('status', '==', 'approved')
+    where('vendorId', '==', vendorId)
   );
   const snapshot = await getDocs(q);
   return snapshot.size;
@@ -245,10 +245,10 @@ const getOrdersByVendor = async (vendorId, options = {}) => {
 const getProductsByVendor = async (vendorId, options = {}) => {
   const { pageSize = 10, lastDoc = null } = options;
   
+  // Query all products for vendor regardless of status (vendor dashboard should show all)
   let q = query(
     collection(db, 'products'),
     where('vendorId', '==', vendorId),
-    where('status', '==', 'approved'),
     orderBy('createdAt', 'desc')
   );
   
@@ -258,17 +258,62 @@ const getProductsByVendor = async (vendorId, options = {}) => {
   
   q = query(q, limit(pageSize));
   
-  const snapshot = await getDocs(q);
-  const products = snapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data()
-  }));
-  
-  return {
-    products,
-    lastDoc: snapshot.docs[snapshot.docs.length - 1],
-    hasMore: snapshot.docs.length === pageSize
-  };
+  try {
+    const snapshot = await getDocs(q);
+    const products = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    return {
+      products,
+      lastDoc: snapshot.docs[snapshot.docs.length - 1],
+      hasMore: snapshot.docs.length === pageSize
+    };
+  } catch (error) {
+    console.error('Error fetching vendor products:', error);
+    // If query fails (e.g., missing index), try without orderBy
+    console.warn('Falling back to query without orderBy');
+    let fallbackQ = query(
+      collection(db, 'products'),
+      where('vendorId', '==', vendorId)
+    );
+    if (lastDoc) {
+      // Can't use startAfter without orderBy, so fetch all and paginate client-side
+      const allSnapshot = await getDocs(fallbackQ);
+      const allProducts = allSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })).sort((a, b) => {
+        const aTime = a.createdAt?.seconds || 0;
+        const bTime = b.createdAt?.seconds || 0;
+        return bTime - aTime;
+      });
+      const startIdx = lastDoc ? allProducts.findIndex(p => p.id === lastDoc.id) + 1 : 0;
+      const products = allProducts.slice(startIdx, startIdx + pageSize);
+      return {
+        products,
+        lastDoc: products.length === pageSize ? products[products.length - 1] : null,
+        hasMore: products.length === pageSize
+      };
+    } else {
+      const snapshot = await getDocs(fallbackQ);
+      const allProducts = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })).sort((a, b) => {
+        const aTime = a.createdAt?.seconds || 0;
+        const bTime = b.createdAt?.seconds || 0;
+        return bTime - aTime;
+      });
+      const products = allProducts.slice(0, pageSize);
+      return {
+        products,
+        lastDoc: products.length === pageSize ? products[products.length - 1] : null,
+        hasMore: products.length === pageSize
+      };
+    }
+  }
 };
 
 // Clear cache when needed
