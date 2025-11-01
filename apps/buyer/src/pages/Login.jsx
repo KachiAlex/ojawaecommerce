@@ -35,6 +35,22 @@ const Login = () => {
       await signin(email, password);
       console.log('✅ Login successful');
       
+      // Check for pending vendor message first (highest priority)
+      try {
+        const pendingMessage = sessionStorage.getItem('pendingVendorMessage');
+        if (pendingMessage) {
+          const { vendorId, timestamp } = JSON.parse(pendingMessage);
+          // Only redirect to messages if less than 5 minutes old
+          if (Date.now() - timestamp < 300000 && vendorId) {
+            console.log('📍 Redirecting to messages with vendor:', vendorId);
+            navigate('/messages');
+            return;
+          }
+        }
+      } catch (err) {
+        console.error('Error checking pending vendor message:', err);
+      }
+      
       // Check for intended destination from cart context
       const intendedDestination = getIntendedDestination();
       if (intendedDestination) {
@@ -89,6 +105,22 @@ const Login = () => {
       
       if (user) {
         console.log('✅ Google Sign-In successful');
+        
+        // Check for pending vendor message first (highest priority)
+        try {
+          const pendingMessage = sessionStorage.getItem('pendingVendorMessage');
+          if (pendingMessage) {
+            const { vendorId, timestamp } = JSON.parse(pendingMessage);
+            // Only redirect to messages if less than 5 minutes old
+            if (Date.now() - timestamp < 300000 && vendorId) {
+              console.log('📍 Redirecting to messages with vendor:', vendorId);
+              navigate('/messages');
+              return;
+            }
+          }
+        } catch (err) {
+          console.error('Error checking pending vendor message:', err);
+        }
         
         // Check for intended destination from cart context
         const intendedDestination = getIntendedDestination();

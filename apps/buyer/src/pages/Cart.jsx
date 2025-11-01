@@ -73,17 +73,30 @@ const Cart = () => {
     try {
       if (!item?.vendorId) return;
 
-      // If not signed in, prompt and redirect to login, then return here and open chat
+      // If not signed in, show popup and redirect to login, then open chat with this vendor
       if (!currentUser) {
-        const proceed = window.confirm('You need to sign in to message a vendor. Continue to sign in?');
-        if (proceed) {
+        // Show a proper alert/modal instead of window.confirm
+        const shouldProceed = window.confirm('You need to sign in to send a message to the vendor. Continue to sign in?');
+        
+        if (shouldProceed) {
+          // Store vendor info in sessionStorage for post-login redirect
+          sessionStorage.setItem('pendingVendorMessage', JSON.stringify({
+            vendorId: item.vendorId,
+            itemId: item.id,
+            timestamp: Date.now()
+          }));
+          
+          // Save intended destination (cart page with vendor message param)
           const path = `/cart?messageVendorFor=${encodeURIComponent(item.id)}`;
           saveIntendedDestination(path, item.id);
+          
+          // Navigate to login with message
           navigate(`/login?message=${encodeURIComponent('Please sign in to message this vendor.')}`);
         }
         return;
       }
 
+      // User is signed in - proceed to open conversation
       if (!startConversation) return;
       const conv = await startConversation(item.vendorId);
       if (setActiveConversation) setActiveConversation(conv);
@@ -106,23 +119,64 @@ const Cart = () => {
     console.log('💬 Modal should be opening now');
   };
 
-  // If redirected back after login with a target item, auto-open chat
+  // If redirected back after login with a target item or vendor, auto-open chat
   useEffect(() => {
     if (!currentUser) return;
+    
+    // Check for pending vendor message from sessionStorage
+    try {
+      const pendingMessage = sessionStorage.getItem('pendingVendorMessage');
+      if (pendingMessage) {
+        const { vendorId, timestamp } = JSON.parse(pendingMessage);
+        
+        // Only process if less than 5 minutes old
+        if (Date.now() - timestamp < 300000) {
+          sessionStorage.removeItem('pendingVendorMessage');
+          
+          // Directly open conversation with vendor
+          if (startConversation && vendorId) {
+            startConversation(vendorId).then((conv) => {
+              if (setActiveConversation) setActiveConversation(conv);
+              navigate('/messages');
+            }).catch((err) => {
+              console.error('Failed to start conversation after login:', err);
+            });
+          }
+          return;
+        } else {
+          // Clear stale pending message
+          sessionStorage.removeItem('pendingVendorMessage');
+        }
+      }
+    } catch (err) {
+      console.error('Error checking pending vendor message:', err);
+    }
+    
+    // Fallback: Check URL param for item-based message
     const params = new URLSearchParams(location.search || '');
     const targetId = params.get('messageVendorFor');
-    if (!targetId) return;
-    const targetItem = cartItems.find(i => String(i.id) === String(targetId));
-    if (targetItem) {
-      // Open and then clean the URL param to prevent repeat triggers
-      messageVendor(targetItem);
-      try {
-        const url = new URL(window.location.href);
-        url.searchParams.delete('messageVendorFor');
-        window.history.replaceState({}, '', url.toString());
-      } catch (_) {}
+    if (targetId) {
+      const targetItem = cartItems.find(i => String(i.id) === String(targetId));
+      if (targetItem && targetItem.vendorId) {
+        // Open conversation directly using vendor ID
+        if (startConversation) {
+          startConversation(targetItem.vendorId).then((conv) => {
+            if (setActiveConversation) setActiveConversation(conv);
+            navigate('/messages');
+          }).catch((err) => {
+            console.error('Failed to start conversation:', err);
+          });
+        }
+        
+        // Clean URL param
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.delete('messageVendorFor');
+          window.history.replaceState({}, '', url.toString());
+        } catch (_) {}
+      }
     }
-  }, [currentUser, location.search, cartItems]);
+  }, [currentUser, location.search, cartItems, startConversation, setActiveConversation, navigate]);
 
   // Fetch buyer address
   useEffect(() => {

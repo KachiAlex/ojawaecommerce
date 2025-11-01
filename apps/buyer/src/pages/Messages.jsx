@@ -16,12 +16,54 @@ const Messages = () => {
     markAsRead,
     unreadCount,
     loading,
+    startConversation,
   } = useMessaging();
 
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const bottomRef = useRef(null);
   const [otherParticipantName, setOtherParticipantName] = useState('');
+
+  // Check for pending vendor message from sessionStorage after login
+  useEffect(() => {
+    if (!currentUser || !startConversation) return;
+    
+    // If activeConversation is already set, don't override it
+    if (activeConversation) return;
+    
+    try {
+      const pendingMessage = sessionStorage.getItem('pendingVendorMessage');
+      if (pendingMessage) {
+        const { vendorId, timestamp } = JSON.parse(pendingMessage);
+        
+        // Only process if less than 5 minutes old
+        if (Date.now() - timestamp < 300000) {
+          sessionStorage.removeItem('pendingVendorMessage');
+          
+          // Check if conversation already exists
+          const existingConv = conversations?.find(conv => 
+            conv.participants?.includes(vendorId) && conv.participants?.includes(currentUser.uid)
+          );
+          
+          if (existingConv) {
+            setActiveConversation(existingConv);
+          } else {
+            // Start new conversation with vendor
+            startConversation(vendorId).then((conv) => {
+              setActiveConversation(conv);
+            }).catch((err) => {
+              console.error('Failed to start conversation from Messages page:', err);
+            });
+          }
+        } else {
+          // Clear stale pending message
+          sessionStorage.removeItem('pendingVendorMessage');
+        }
+      }
+    } catch (err) {
+      console.error('Error checking pending vendor message in Messages:', err);
+    }
+  }, [currentUser, startConversation, conversations, activeConversation, setActiveConversation]);
 
   useEffect(() => {
     if (activeConversation) {
