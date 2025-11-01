@@ -42,17 +42,20 @@ const VendorStoreManager = ({
       const slug = userProfile.vendorProfile.storeSlug || 
                     userProfile.vendorProfile.storeName?.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
       
+      // Ensure slug is properly formatted
+      const formattedSlug = slug ? slug.toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-').replace(/^-|-$/g, '') : '';
+      
       setStoreSettings({
         businessName: userProfile.vendorProfile.businessName || userProfile.vendorProfile.storeName || '',
         storeDescription: userProfile.vendorProfile.storeDescription || '',
-        storeSlug: slug || '',
+        storeSlug: formattedSlug || slug || '',
         contactEmail: userProfile.email || '',
         contactPhone: userProfile.vendorProfile.businessPhone || '',
         contactAddress: userProfile.vendorProfile.businessAddress || '',
         showContactInfo: true,
       });
       
-      fetchOrCreateStore(slug);
+      fetchOrCreateStore(formattedSlug || slug);
     }
   }, [userProfile]);
 
@@ -142,29 +145,37 @@ const VendorStoreManager = ({
   };
 
   const getStoreLink = () => {
-    console.log('🔍 VendorStoreManager getStoreLink debug:');
-    console.log('  - store:', store);
-    console.log('  - storeSettings:', storeSettings);
-    console.log('  - storeSettings.businessName:', storeSettings.businessName);
-    console.log('  - currentUser.displayName:', currentUser?.displayName);
-    console.log('  - userProfile?.vendorProfile?.storeName:', userProfile?.vendorProfile?.storeName);
+    // Priority 1: Use storeSettings.storeSlug (most reliable - explicitly set by vendor)
+    // Priority 2: Use store.settings.storeSlug (from Firestore store document)
+    // Priority 3: Generate from business name/store name
     
-    // Use business name for consistency with store link format
-    const storeName = storeSettings.businessName || 
-                      userProfile?.vendorProfile?.storeName || 
-                      store?.name || 
-                      store?.storeName || 
-                      currentUser?.displayName || 
-                      'store';
-    const storeSlug = storeName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
+    let storeSlug = storeSettings.storeSlug || 
+                    store?.settings?.storeSlug || 
+                    store?.storeSlug;
+    
+    // If no slug found, generate one from business name
+    if (!storeSlug || storeSlug.trim() === '') {
+      const storeName = storeSettings.businessName || 
+                        userProfile?.vendorProfile?.storeName || 
+                        store?.name || 
+                        store?.storeName || 
+                        currentUser?.displayName || 
+                        'store';
+      storeSlug = storeName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+    }
+    
+    // Ensure slug is properly formatted
+    storeSlug = storeSlug.toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-').replace(/^-|-$/g, '');
     
     const link = `${window.location.origin}/store/${storeSlug}`;
-    console.log('  - Generated vendor store link:', link);
-    console.log('  - storeName used:', storeName);
-    console.log('  - storeSlug generated:', storeSlug);
-    console.log('  - store object keys:', store ? Object.keys(store) : 'store is null');
-    console.log('  - store.name value:', store?.name);
-    console.log('  - store.storeName value:', store?.storeName);
+    
+    console.log('🔍 VendorStoreManager getStoreLink:');
+    console.log('  - Final storeSlug:', storeSlug);
+    console.log('  - Generated link:', link);
+    console.log('  - storeSettings.storeSlug:', storeSettings.storeSlug);
+    console.log('  - store?.settings?.storeSlug:', store?.settings?.storeSlug);
+    console.log('  - store?.storeSlug:', store?.storeSlug);
+    
     return link;
   };
 
@@ -541,7 +552,8 @@ const VendorStoreManager = ({
                   type="text"
                   value={storeSettings.storeSlug}
                   onChange={(e) => {
-                    const slug = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '');
+                    // Ensure slug is properly formatted (lowercase, alphanumeric and dashes only, no leading/trailing dashes)
+                    const slug = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-').replace(/^-|-$/g, '');
                     setStoreSettings({ ...storeSettings, storeSlug: slug });
                   }}
                   className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"

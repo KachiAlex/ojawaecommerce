@@ -123,12 +123,18 @@ const StorePage = () => {
         
         let foundStore = null;
         
-        // First, try to find store by settings.storeSlug (preferred method)
+        // First, try to find store by settings.storeSlug (preferred method - most reliable)
         for (const doc of storesSnapshot.docs) {
           const storeData = { id: doc.id, ...doc.data() };
-          const storeSlugFromSettings = storeData.settings?.storeSlug || storeData.storeSlug;
+          const storeSlugFromSettings = storeData.settings?.storeSlug || 
+                                        storeData.storeSlug ||
+                                        storeData.vendorProfile?.storeSlug;
           
-          if (storeSlugFromSettings === storeSlug) {
+          // Normalize both slugs for comparison (lowercase, replace non-alphanumeric with dash)
+          const normalizedSettingsSlug = (storeSlugFromSettings || '').toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-').replace(/^-|-$/g, '');
+          const normalizedRequestSlug = storeSlug.toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-').replace(/^-|-$/g, '');
+          
+          if (normalizedSettingsSlug === normalizedRequestSlug && normalizedSettingsSlug !== '') {
             foundStore = storeData;
             console.log('🏪 StorePage: ✅ Found matching store by settings.storeSlug:', storeData.name);
             break;
@@ -140,11 +146,15 @@ const StorePage = () => {
           console.log('🏪 StorePage: Not found by storeSlug, trying store name...');
           for (const doc of storesSnapshot.docs) {
             const storeData = { id: doc.id, ...doc.data() };
-            const storeName = storeData.name || storeData.storeName || storeData.settings?.businessName || '';
-            const slug = storeName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
-            console.log(`  - Store: "${storeName}" -> Slug: "${slug}"`);
+            const storeName = storeData.name || 
+                             storeData.storeName || 
+                             storeData.settings?.businessName ||
+                             storeData.vendorProfile?.storeName || 
+                             '';
+            const slug = storeName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+            const normalizedRequestSlug = storeSlug.toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-').replace(/^-|-$/g, '');
             
-            if (slug === storeSlug) {
+            if (slug === normalizedRequestSlug && slug !== '') {
               foundStore = storeData;
               console.log('🏪 StorePage: ✅ Found matching store by name slug!');
               break;
