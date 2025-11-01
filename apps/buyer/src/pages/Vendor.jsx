@@ -340,79 +340,89 @@ const Vendor = () => {
           console.log('📦 Loading products for vendor:', currentUser.uid);
           console.log('📦 Current user email:', currentUser.email);
           
+          let productsFound = false;
+          
           try {
             // First try querying by vendorId (currentUser.uid)
+            console.log('🔍 Attempt 1: Querying by vendorId:', currentUser.uid);
             const productsPage = await firebaseService.products.getByVendorPaged({ vendorId: currentUser.uid, pageSize });
             console.log('📦 Products loaded by vendorId:', productsPage.items.length, 'items');
-            console.log('📦 Products data:', productsPage.items.map(p => ({ id: p.id, name: p.name, vendorId: p.vendorId, vendorEmail: p.vendorEmail, status: p.status })));
-            
-            // If no products found by vendorId, try querying by vendorEmail
-            if (productsPage.items.length === 0 && currentUser.email) {
-              console.log('🔄 No products found by vendorId, trying vendorEmail query...');
-              try {
-                const emailProducts = await firebaseService.products.getByVendorEmail(currentUser.email);
-                console.log('📦 Products found by vendorEmail:', emailProducts.length, 'products');
-                if (emailProducts.length > 0) {
-                  setProducts(emailProducts.slice(0, pageSize));
-                  setProductsCursor(null);
-                  setProductsPages([{ items: emailProducts.slice(0, pageSize), cursor: null }]);
-                  setProductsPageIndex(0);
-                  break;
-                }
-              } catch (emailError) {
-                console.warn('⚠️ Query by vendorEmail failed:', emailError);
-              }
+            if (productsPage.items.length > 0) {
+              console.log('📦 Products data:', productsPage.items.map(p => ({ id: p.id, name: p.name, vendorId: p.vendorId, vendorEmail: p.vendorEmail, status: p.status })));
             }
             
-            setProducts(productsPage.items);
-            setProductsCursor(productsPage.nextCursor);
-            setProductsPages([{ items: productsPage.items, cursor: productsPage.nextCursor }]);
-            setProductsPageIndex(0);
+            if (productsPage.items.length > 0) {
+              setProducts(productsPage.items);
+              setProductsCursor(productsPage.nextCursor);
+              setProductsPages([{ items: productsPage.items, cursor: productsPage.nextCursor }]);
+              setProductsPageIndex(0);
+              productsFound = true;
+            }
           } catch (error) {
-            console.error('❌ Error loading products:', error);
-            // Try fallback query without pagination
+            console.error('❌ Error loading products by vendorId:', error);
+          }
+          
+          // If no products found by vendorId, try querying by vendorEmail
+          if (!productsFound && currentUser.email) {
+            console.log('🔄 Attempt 2: No products found by vendorId, trying vendorEmail query...', currentUser.email);
             try {
-              console.log('🔄 Attempting fallback query...');
+              const emailProducts = await firebaseService.products.getByVendorEmail(currentUser.email);
+              console.log('📦 Products found by vendorEmail:', emailProducts.length, 'products');
+              if (emailProducts.length > 0) {
+                console.log('📦 Products data (email):', emailProducts.map(p => ({ id: p.id, name: p.name, vendorId: p.vendorId, vendorEmail: p.vendorEmail, status: p.status })));
+                setProducts(emailProducts.slice(0, pageSize));
+                setProductsCursor(null);
+                setProductsPages([{ items: emailProducts.slice(0, pageSize), cursor: null }]);
+                setProductsPageIndex(0);
+                productsFound = true;
+              }
+            } catch (emailError) {
+              console.error('⚠️ Query by vendorEmail failed:', emailError);
+            }
+          }
+          
+          // Fallback: Try non-paged query by vendorId
+          if (!productsFound) {
+            console.log('🔄 Attempt 3: Trying non-paged query by vendorId...');
+            try {
               const allProducts = await firebaseService.products.getByVendor(currentUser.uid);
               console.log('📦 Fallback query returned:', allProducts.length, 'products');
-              
-              // If still no products, try by email
-              if (allProducts.length === 0 && currentUser.email) {
-                console.log('🔄 No products from fallback, trying vendorEmail...');
-                const emailProducts = await firebaseService.products.getByVendorEmail(currentUser.email);
-                console.log('📦 Products found by vendorEmail (fallback):', emailProducts.length, 'products');
-                if (emailProducts.length > 0) {
-                  setProducts(emailProducts);
-                  setProductsCursor(null);
-                  setProductsPages([{ items: emailProducts, cursor: null }]);
-                  setProductsPageIndex(0);
-                  break;
-                }
+              if (allProducts.length > 0) {
+                setProducts(allProducts);
+                setProductsCursor(null);
+                setProductsPages([{ items: allProducts, cursor: null }]);
+                setProductsPageIndex(0);
+                productsFound = true;
               }
-              
-              setProducts(allProducts);
-              setProductsCursor(null);
-              setProductsPages([{ items: allProducts, cursor: null }]);
-              setProductsPageIndex(0);
             } catch (fallbackError) {
               console.error('❌ Fallback query also failed:', fallbackError);
-              // Last resort: try email query
-              if (currentUser.email) {
-                try {
-                  const emailProducts = await firebaseService.products.getByVendorEmail(currentUser.email);
-                  console.log('📦 Last resort: Products found by vendorEmail:', emailProducts.length, 'products');
-                  setProducts(emailProducts);
-                  setProductsCursor(null);
-                  setProductsPages([{ items: emailProducts, cursor: null }]);
-                  setProductsPageIndex(0);
-                } catch (emailError) {
-                  console.error('❌ Email query also failed:', emailError);
-                  setProducts([]);
-                }
-              } else {
-                setProducts([]);
-              }
             }
+          }
+          
+          // Last resort: Try email query again (in case it was a different error)
+          if (!productsFound && currentUser.email) {
+            console.log('🔄 Attempt 4: Last resort - trying vendorEmail query again...');
+            try {
+              const emailProducts = await firebaseService.products.getByVendorEmail(currentUser.email);
+              console.log('📦 Last resort: Products found by vendorEmail:', emailProducts.length, 'products');
+              if (emailProducts.length > 0) {
+                setProducts(emailProducts);
+                setProductsCursor(null);
+                setProductsPages([{ items: emailProducts, cursor: null }]);
+                setProductsPageIndex(0);
+                productsFound = true;
+              }
+            } catch (emailError) {
+              console.error('❌ Email query also failed:', emailError);
+            }
+          }
+          
+          if (!productsFound) {
+            console.error('❌ No products found through any method');
+            setProducts([]);
+            setProductsCursor(null);
+            setProductsPages([]);
+            setProductsPageIndex(0);
           }
           break;
           

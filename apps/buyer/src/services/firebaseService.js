@@ -401,27 +401,56 @@ export const productService = {
       } catch (orderByError) {
         // If orderBy fails (missing index), try without orderBy
         console.warn('⚠️ Query with orderBy failed, trying without orderBy:', orderByError.message);
-        const fallbackQ = query(
-          collection(db, 'products'),
-          where('vendorEmail', '==', vendorEmail)
-        );
-        const snapshot = await getDocs(fallbackQ);
-        let products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        
-        // Sort by createdAt client-side
-        products.sort((a, b) => {
-          const aTime = a.createdAt?.seconds || a.createdAt?.toMillis?.() || 0;
-          const bTime = b.createdAt?.seconds || b.createdAt?.toMillis?.() || 0;
-          if (a.createdAt && typeof a.createdAt === 'object' && 'toDate' in a.createdAt) {
-            const aDate = a.createdAt.toDate();
-            const bDate = b.createdAt.toDate();
-            return bDate - aDate;
-          }
-          return bTime - aTime;
-        });
-        
-        console.log('✅ getByVendorEmail (fallback): Found', products.length, 'products');
-        return products;
+        try {
+          const fallbackQ = query(
+            collection(db, 'products'),
+            where('vendorEmail', '==', vendorEmail)
+          );
+          const snapshot = await getDocs(fallbackQ);
+          let products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          
+          // Sort by createdAt client-side
+          products.sort((a, b) => {
+            const aTime = a.createdAt?.seconds || a.createdAt?.toMillis?.() || 0;
+            const bTime = b.createdAt?.seconds || b.createdAt?.toMillis?.() || 0;
+            if (a.createdAt && typeof a.createdAt === 'object' && 'toDate' in a.createdAt) {
+              const aDate = a.createdAt.toDate();
+              const bDate = b.createdAt.toDate();
+              return bDate - aDate;
+            }
+            return bTime - aTime;
+          });
+          
+          console.log('✅ getByVendorEmail (fallback): Found', products.length, 'products');
+          return products;
+        } catch (whereError) {
+          // If where clause also fails, fetch all products and filter client-side
+          console.warn('⚠️ Query with where clause failed, fetching all products and filtering client-side:', whereError.message);
+          const allProductsQuery = query(collection(db, 'products'));
+          const snapshot = await getDocs(allProductsQuery);
+          let allProducts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          
+          // Filter by vendorEmail client-side
+          const products = allProducts.filter(p => {
+            const email = p.vendorEmail || p.vendor?.email || '';
+            return email.toLowerCase() === vendorEmail.toLowerCase();
+          });
+          
+          // Sort by createdAt client-side
+          products.sort((a, b) => {
+            const aTime = a.createdAt?.seconds || a.createdAt?.toMillis?.() || 0;
+            const bTime = b.createdAt?.seconds || b.createdAt?.toMillis?.() || 0;
+            if (a.createdAt && typeof a.createdAt === 'object' && 'toDate' in a.createdAt) {
+              const aDate = a.createdAt.toDate();
+              const bDate = b.createdAt.toDate();
+              return bDate - aDate;
+            }
+            return bTime - aTime;
+          });
+          
+          console.log('✅ getByVendorEmail (client-side filter): Found', products.length, 'products out of', allProducts.length, 'total');
+          return products;
+        }
       }
     } catch (error) {
       console.error('❌ Error fetching products by vendorEmail:', error);
