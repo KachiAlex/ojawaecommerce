@@ -328,23 +328,29 @@ const Vendor = () => {
         case 'store':
           // Also load products when store tab is clicked, so VendorStoreManager has them
           if (products.length === 0) {
-            console.log('📦 Store tab clicked, loading products...');
-            // Directly load products without recursion
-            const productsPage = await firebaseService.products.getByVendorPaged({ vendorId: currentUser.uid, pageSize });
-            if (productsPage.items.length > 0) {
-              setProducts(productsPage.items);
-              setProductsCursor(productsPage.nextCursor);
-              setProductsPages([{ items: productsPage.items, cursor: productsPage.nextCursor }]);
-              setProductsPageIndex(0);
-            } else if (currentUser.email) {
-              // Try email fallback
-              const emailProducts = await firebaseService.products.getByVendorEmail(currentUser.email);
-              if (emailProducts.length > 0) {
-                setProducts(emailProducts.slice(0, pageSize));
+            console.log('📦 Store tab clicked, loading ALL products...');
+            try {
+              // Try to get ALL products (non-paged) first
+              const allProducts = await firebaseService.products.getByVendor(currentUser.uid);
+              console.log('📦 Store tab: Loaded all products:', allProducts.length);
+              if (allProducts.length > 0) {
+                setProducts(allProducts);
                 setProductsCursor(null);
-                setProductsPages([{ items: emailProducts.slice(0, pageSize), cursor: null }]);
+                setProductsPages([{ items: allProducts, cursor: null }]);
                 setProductsPageIndex(0);
+              } else if (currentUser.email) {
+                // Try email fallback
+                const emailProducts = await firebaseService.products.getByVendorEmail(currentUser.email);
+                console.log('📦 Store tab: Loaded products by email:', emailProducts.length);
+                if (emailProducts.length > 0) {
+                  setProducts(emailProducts);
+                  setProductsCursor(null);
+                  setProductsPages([{ items: emailProducts, cursor: null }]);
+                  setProductsPageIndex(0);
+                }
               }
+            } catch (error) {
+              console.error('❌ Error loading products for store tab:', error);
             }
           }
           break;
@@ -366,23 +372,40 @@ const Vendor = () => {
           let productsFound = false;
           
           try {
-            // First try querying by vendorId (currentUser.uid)
-            console.log('🔍 Attempt 1: Querying by vendorId:', currentUser.uid);
-            const productsPage = await firebaseService.products.getByVendorPaged({ vendorId: currentUser.uid, pageSize });
-            console.log('📦 Products loaded by vendorId:', productsPage.items.length, 'items');
-            if (productsPage.items.length > 0) {
-              console.log('📦 Products data:', productsPage.items.map(p => ({ id: p.id, name: p.name, vendorId: p.vendorId, vendorEmail: p.vendorEmail, status: p.status })));
-            }
-            
-            if (productsPage.items.length > 0) {
-              setProducts(productsPage.items);
-              setProductsCursor(productsPage.nextCursor);
-              setProductsPages([{ items: productsPage.items, cursor: productsPage.nextCursor }]);
+            // First try non-paged query to get ALL products (not just first page)
+            console.log('🔍 Attempt 1: Querying ALL products by vendorId (non-paged):', currentUser.uid);
+            const allProducts = await firebaseService.products.getByVendor(currentUser.uid);
+            console.log('📦 All products loaded by vendorId:', allProducts.length, 'items');
+            if (allProducts.length > 0) {
+              console.log('📦 Products data:', allProducts.map(p => ({ id: p.id, name: p.name, vendorId: p.vendorId, vendorEmail: p.vendorEmail, status: p.status })));
+              
+              // Set all products, but also set up pagination for display
+              setProducts(allProducts);
+              // Set cursor to null since we have all products, but keep pagination structure for UI
+              setProductsCursor(null);
+              setProductsPages([{ items: allProducts, cursor: null }]);
               setProductsPageIndex(0);
               productsFound = true;
             }
           } catch (error) {
-            console.error('❌ Error loading products by vendorId:', error);
+            console.error('❌ Error loading all products by vendorId:', error);
+            
+            // Fallback: Try paged query if non-paged fails
+            try {
+              console.log('🔍 Fallback: Trying paged query by vendorId:', currentUser.uid);
+              const productsPage = await firebaseService.products.getByVendorPaged({ vendorId: currentUser.uid, pageSize });
+              console.log('📦 Products loaded by vendorId (paged):', productsPage.items.length, 'items');
+              if (productsPage.items.length > 0) {
+                console.log('📦 Products data:', productsPage.items.map(p => ({ id: p.id, name: p.name, vendorId: p.vendorId, vendorEmail: p.vendorEmail, status: p.status })));
+                setProducts(productsPage.items);
+                setProductsCursor(productsPage.nextCursor);
+                setProductsPages([{ items: productsPage.items, cursor: productsPage.nextCursor }]);
+                setProductsPageIndex(0);
+                productsFound = true;
+              }
+            } catch (pagedError) {
+              console.error('❌ Paged query also failed:', pagedError);
+            }
           }
           
           // If no products found by vendorId, try querying by vendorEmail
@@ -477,13 +500,13 @@ const Vendor = () => {
                   return bTime - aTime;
                 });
                 
-                const pageProducts = filteredProducts.slice(0, pageSize);
-                setProducts(pageProducts);
+                // Include ALL filtered products (not just first page)
+                setProducts(filteredProducts);
                 setProductsCursor(null);
-                setProductsPages([{ items: pageProducts, cursor: null }]);
+                setProductsPages([{ items: filteredProducts, cursor: null }]);
                 setProductsPageIndex(0);
                 productsFound = true;
-                console.log('✅ Ultimate fallback: Successfully loaded', pageProducts.length, 'products');
+                console.log('✅ Ultimate fallback: Successfully loaded', filteredProducts.length, 'products');
               }
             } catch (ultimateError) {
               console.error('❌ Ultimate fallback also failed:', ultimateError);
@@ -1890,41 +1913,47 @@ const Vendor = () => {
                   </div>
                 </div>
                 <div className="p-4 flex items-center justify-between">
-                  <div className="text-sm text-gray-600">{products.length} of {productsCount} products</div>
-                <div className="flex gap-2">
-                  <button
-                    disabled={productsPageIndex === 0}
-                    onClick={() => {
-                      if (productsPageIndex === 0) return;
-                      const prevIndex = productsPageIndex - 1;
-                      setProducts(productsPages[prevIndex].items);
-                      setProductsCursor(productsPages[prevIndex].cursor);
-                      setProductsPageIndex(prevIndex);
-                    }}
-                    className={`px-3 py-2 text-sm rounded-lg border ${productsPageIndex > 0 ? 'text-gray-700 hover:bg-gray-50' : 'text-gray-400 cursor-not-allowed'}`}
-                  >
-                    Previous
-                  </button>
-                  <button
-                    disabled={!productsCursor}
-                    onClick={async () => {
-                      if (!productsCursor) return;
-                      try {
-                        const next = await firebaseService.products.getByVendorPaged({ vendorId: currentUser.uid, pageSize, cursor: productsCursor });
-                        setProducts(next.items);
-                        setProductsCursor(next.nextCursor);
-                        setProductsPages((prev) => [...prev, { items: next.items, cursor: next.nextCursor }]);
-                        setProductsPageIndex((i) => i + 1);
-                      } catch (e) {
-                        console.error('Next products failed', e);
-                      }
-                    }}
-                    className={`px-3 py-2 text-sm rounded-lg border ${productsCursor ? 'text-gray-700 hover:bg-gray-50' : 'text-gray-400 cursor-not-allowed'}`}
-                  >
-                    Next
-                  </button>
+                  <div className="text-sm text-gray-600">
+                    {products.length} {products.length === 1 ? 'product' : 'products'}
+                    {productsCursor && ` (showing all loaded)`}
+                  </div>
+                  {/* Only show pagination if we're using cursor-based pagination */}
+                  {productsCursor && (
+                    <div className="flex gap-2">
+                      <button
+                        disabled={productsPageIndex === 0}
+                        onClick={() => {
+                          if (productsPageIndex === 0) return;
+                          const prevIndex = productsPageIndex - 1;
+                          setProducts(productsPages[prevIndex].items);
+                          setProductsCursor(productsPages[prevIndex].cursor);
+                          setProductsPageIndex(prevIndex);
+                        }}
+                        className={`px-3 py-2 text-sm rounded-lg border ${productsPageIndex > 0 ? 'text-gray-700 hover:bg-gray-50' : 'text-gray-400 cursor-not-allowed'}`}
+                      >
+                        Previous
+                      </button>
+                      <button
+                        disabled={!productsCursor}
+                        onClick={async () => {
+                          if (!productsCursor) return;
+                          try {
+                            const next = await firebaseService.products.getByVendorPaged({ vendorId: currentUser.uid, pageSize, cursor: productsCursor });
+                            setProducts(next.items);
+                            setProductsCursor(next.nextCursor);
+                            setProductsPages((prev) => [...prev, { items: next.items, cursor: next.nextCursor }]);
+                            setProductsPageIndex((i) => i + 1);
+                          } catch (e) {
+                            console.error('Next products failed', e);
+                          }
+                        }}
+                        className={`px-3 py-2 text-sm rounded-lg border ${productsCursor ? 'text-gray-700 hover:bg-gray-50' : 'text-gray-400 cursor-not-allowed'}`}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  )}
                 </div>
-              </div>
             </div>
           )}
 
