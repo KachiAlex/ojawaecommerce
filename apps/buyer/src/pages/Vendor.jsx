@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
-import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
+import { useState, useEffect, useMemo, useCallback, lazy, Suspense, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useMessaging } from '../contexts/MessagingContext';
 import firebaseService from '../services/firebaseService';
 import { getVendorDataOptimized } from '../services/optimizedFirebaseService';
 import WalletManager from '../components/WalletManager';
@@ -17,14 +18,234 @@ import NotificationPreferences from '../components/NotificationPreferences';
 import DashboardSwitcher from '../components/DashboardSwitcher';
 import VendorBilling from '../components/VendorBilling';
 import BulkOperations from '../components/BulkOperations';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../firebase/config';
 // import UnifiedVendorStore from '../components/UnifiedVendorStore'; // Removed - using simple overview instead
 
 // Lazy load heavy components
 const VendorAnalyticsDashboard = lazy(() => import('../components/VendorAnalyticsDashboard'));
 // const VendorProductManager = lazy(() => import('../components/VendorProductManager'));
 
+// Vendor Messages Tab Component
+const VendorMessagesTabContent = ({
+  currentUser,
+  conversations,
+  activeConversation,
+  setActiveConversation,
+  messages,
+  sendMessage,
+  markAsRead,
+  unreadCount,
+  loading,
+}) => {
+  const [input, setInput] = useState('');
+  const [sending, setSending] = useState(false);
+  const [otherParticipantName, setOtherParticipantName] = useState('');
+  const bottomRef = useRef(null);
+
+  useEffect(() => {
+    if (activeConversation) {
+      markAsRead(activeConversation.id).catch(() => {});
+    }
+  }, [activeConversation, markAsRead]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages.length]);
+
+  const handleSend = async (e) => {
+    e?.preventDefault();
+    const text = input.trim();
+    if (!text || !activeConversation || sending) return;
+    try {
+      setSending(true);
+      await sendMessage(activeConversation.id, text);
+      setInput('');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const otherParticipantId = useMemo(() => {
+    if (!activeConversation || !currentUser) return null;
+    return (activeConversation.participants || []).find((p) => p !== currentUser.uid) || null;
+  }, [activeConversation, currentUser?.uid]);
+
+  useEffect(() => {
+    const fetchName = async () => {
+      try {
+        if (!otherParticipantId) {
+          setOtherParticipantName('');
+          return;
+        }
+        const userRef = doc(db, 'users', otherParticipantId);
+        const snap = await getDoc(userRef);
+        if (snap.exists()) {
+          const data = snap.data();
+          const userName = data.displayName || data.name || data.email || otherParticipantId;
+          setOtherParticipantName(userName);
+        } else {
+          setOtherParticipantName(otherParticipantId);
+        }
+      } catch (_) {
+        setOtherParticipantName(otherParticipantId || '');
+      }
+    };
+    fetchName();
+  }, [otherParticipantId]);
+
+  return (
+    <div className="flex-1 bg-white rounded-xl shadow-sm border overflow-hidden flex flex-col">
+      <div className="p-6 border-b">
+        <h2 className="text-2xl font-bold text-gray-900">Messages</h2>
+        <p className="text-gray-600 text-sm mt-1">Chat with buyers and respond to inquiries</p>
+      </div>
+
+      <div className="flex flex-1 overflow-hidden">
+        {/* Conversations list */}
+        <div className="w-80 border-r bg-gray-50 flex flex-col">
+          <div className="p-4 border-b flex items-center justify-between bg-white">
+            <div className="font-semibold text-gray-900">Conversations</div>
+            {unreadCount > 0 && (
+              <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">
+                {unreadCount} unread
+              </span>
+            )}
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            {loading && conversations.length === 0 && (
+              <div className="p-4 text-gray-500 text-sm">Loading conversations...</div>
+            )}
+            {conversations.length === 0 && !loading && (
+              <div className="p-6 text-center text-gray-500 text-sm">No conversations yet</div>
+            )}
+            <ul>
+              {conversations.map((conv) => (
+                <li key={conv.id}>
+                  <button
+                    onClick={() => setActiveConversation(conv)}
+                    className={`w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-gray-100 transition ${
+                      activeConversation?.id === conv.id ? 'bg-emerald-50 border-l-4 border-emerald-600' : ''
+                    }`}
+                  >
+                    <div className="shrink-0 w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700">
+                      💬
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between">
+                        <div className="font-medium text-gray-900 truncate">Conversation</div>
+                        {conv.updatedAt && (
+                          <div className="text-xs text-gray-500">
+                            {new Date(conv.updatedAt.toDate?.() || conv.updatedAt).toLocaleDateString()}
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-sm text-gray-600 truncate">
+                        {conv.lastMessage?.content || 'Tap to start chatting'}
+                      </div>
+                    </div>
+                    {!!conv.unreadCount && (
+                      <span className="ml-2 bg-emerald-600 text-white text-xs rounded-full h-5 px-2 flex items-center justify-center">
+                        {conv.unreadCount}
+                      </span>
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+
+        {/* Chat pane */}
+        <div className="flex-1 flex flex-col bg-white">
+          {activeConversation ? (
+            <>
+              <div className="p-4 border-b flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700">
+                  👤
+                </div>
+                <div>
+                  <div className="font-semibold text-gray-900">Chat</div>
+                  {otherParticipantId && (
+                    <div className="text-xs text-gray-500">With: {otherParticipantName || otherParticipantId}</div>
+                  )}
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
+                {messages
+                  .slice()
+                  .sort((a, b) => (a.timestamp?.seconds || 0) - (b.timestamp?.seconds || 0))
+                  .map((msg) => {
+                    const mine = msg.senderId === currentUser?.uid;
+                    return (
+                      <div key={msg.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                        <div
+                          className={`${
+                            mine ? 'bg-emerald-600 text-white' : 'bg-white text-gray-900 border'
+                          } px-4 py-2 rounded-2xl max-w-[80%] whitespace-pre-wrap break-words shadow-sm`}
+                        >
+                          {msg.content}
+                        </div>
+                      </div>
+                    );
+                  })}
+                <div ref={bottomRef} />
+              </div>
+              <form onSubmit={handleSend} className="p-4 border-t bg-white">
+                <div className="flex items-end gap-2">
+                  <input
+                    type="text"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    placeholder="Type a message..."
+                    className="flex-1 px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white"
+                  />
+                  <button
+                    type="submit"
+                    disabled={sending || !input.trim()}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                  >
+                    {sending ? 'Sending...' : 'Send'}
+                  </button>
+                </div>
+              </form>
+            </>
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-gray-500 text-sm p-6">
+              Select a conversation to start chatting
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const Vendor = () => {
   console.log('🏪 Vendor component loaded');
+  const { currentUser, userProfile } = useAuth();
+  const {
+    conversations,
+    activeConversation,
+    setActiveConversation,
+    messages,
+    sendMessage,
+    markAsRead,
+    unreadCount,
+    loading: messagesLoading,
+    startConversation,
+  } = useMessaging?.() || {
+    conversations: [],
+    activeConversation: null,
+    setActiveConversation: () => {},
+    messages: [],
+    sendMessage: async () => {},
+    markAsRead: async () => {},
+    unreadCount: 0,
+    loading: false,
+    startConversation: async () => {},
+  };
+  
   const [activeTab, setActiveTab] = useState('overview');
   const [showAddProductForm, setShowAddProductForm] = useState(false);
   const [orders, setOrders] = useState([]);
@@ -40,7 +261,6 @@ const Vendor = () => {
   const pageSize = 10;
   const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(true);
-  const { currentUser, userProfile } = useAuth();
   const [filters, setFilters] = useState({ status: '', buyer: '', from: '', to: '' });
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [isOrderDetailsOpen, setIsOrderDetailsOpen] = useState(false);
@@ -515,6 +735,17 @@ const Vendor = () => {
                 className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'wallet' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
               >
                 💳 My Wallet
+              </button>
+              <button 
+                onClick={() => setActiveTab('messages')}
+                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg relative ${activeTab === 'messages' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+              >
+                💬 Messages
+                {unreadCount > 0 && (
+                  <span className="ml-auto bg-emerald-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
               </button>
               <button 
                 onClick={() => setActiveTab('analytics')}
@@ -1967,6 +2198,20 @@ const Vendor = () => {
 
           {activeTab === 'wallet' && (
             <WalletManager userType="vendor" />
+          )}
+
+          {activeTab === 'messages' && (
+            <VendorMessagesTabContent
+              currentUser={currentUser}
+              conversations={conversations}
+              activeConversation={activeConversation}
+              setActiveConversation={setActiveConversation}
+              messages={messages}
+              sendMessage={sendMessage}
+              markAsRead={markAsRead}
+              unreadCount={unreadCount}
+              loading={messagesLoading}
+            />
           )}
 
         <VendorOrderDetailsModal
