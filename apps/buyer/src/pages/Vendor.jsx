@@ -68,8 +68,13 @@ const VendorMessagesTabContent = ({
 
   const otherParticipantId = useMemo(() => {
     if (!activeConversation || !currentUser) return null;
-    return (activeConversation.participants || []).find((p) => p !== currentUser.uid) || null;
-  }, [activeConversation, currentUser?.uid]);
+    const userId = typeof currentUser.uid === 'string' ? currentUser.uid : String(currentUser.uid || '');
+    const participant = (activeConversation.participants || []).find((p) => {
+      const pId = typeof p === 'string' ? p : String(p || '');
+      return pId !== userId;
+    });
+    return typeof participant === 'string' ? participant : (participant ? String(participant) : null);
+  }, [activeConversation, currentUser]);
 
   useEffect(() => {
     const fetchName = async () => {
@@ -106,26 +111,29 @@ const VendorMessagesTabContent = ({
         <div className="w-80 border-r bg-gray-50 flex flex-col">
           <div className="p-4 border-b flex items-center justify-between bg-white">
             <div className="font-semibold text-gray-900">Conversations</div>
-            {unreadCount > 0 && (
+            {typeof unreadCount === 'number' && unreadCount > 0 && (
               <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">
                 {unreadCount} unread
               </span>
             )}
           </div>
           <div className="flex-1 overflow-y-auto">
-            {loading && conversations.length === 0 && (
+            {loading && (!Array.isArray(conversations) || conversations.length === 0) && (
               <div className="p-4 text-gray-500 text-sm">Loading conversations...</div>
             )}
-            {conversations.length === 0 && !loading && (
+            {(!Array.isArray(conversations) || conversations.length === 0) && !loading && (
               <div className="p-6 text-center text-gray-500 text-sm">No conversations yet</div>
             )}
             <ul>
-              {conversations.map((conv) => (
-                <li key={conv.id}>
+              {Array.isArray(conversations) && conversations.map((conv) => {
+                if (!conv || typeof conv !== 'object') return null;
+                const convId = typeof conv.id === 'string' ? conv.id : String(conv?.id || Math.random());
+                return (
+                <li key={convId}>
                   <button
                     onClick={() => setActiveConversation(conv)}
                     className={`w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-gray-100 transition ${
-                      activeConversation?.id === conv.id ? 'bg-emerald-50 border-l-4 border-emerald-600' : ''
+                      activeConversation?.id === convId ? 'bg-emerald-50 border-l-4 border-emerald-600' : ''
                     }`}
                   >
                     <div className="shrink-0 w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700">
@@ -141,17 +149,18 @@ const VendorMessagesTabContent = ({
                         )}
                       </div>
                       <div className="text-sm text-gray-600 truncate">
-                        {conv.lastMessage?.content || 'Tap to start chatting'}
+                        {typeof conv.lastMessage?.content === 'string' ? conv.lastMessage.content : 'Tap to start chatting'}
                       </div>
                     </div>
-                    {!!conv.unreadCount && (
+                    {typeof conv.unreadCount === 'number' && conv.unreadCount > 0 && (
                       <span className="ml-2 bg-emerald-600 text-white text-xs rounded-full h-5 px-2 flex items-center justify-center">
                         {conv.unreadCount}
                       </span>
                     )}
                   </button>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           </div>
         </div>
@@ -172,19 +181,27 @@ const VendorMessagesTabContent = ({
                 </div>
               </div>
               <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
-                {messages
+                {Array.isArray(messages) && messages
                   .slice()
-                  .sort((a, b) => (a.timestamp?.seconds || 0) - (b.timestamp?.seconds || 0))
+                  .sort((a, b) => {
+                    const aSeconds = typeof a?.timestamp?.seconds === 'number' ? a.timestamp.seconds : (typeof a?.timestamp === 'number' ? a.timestamp : 0);
+                    const bSeconds = typeof b?.timestamp?.seconds === 'number' ? b.timestamp.seconds : (typeof b?.timestamp === 'number' ? b.timestamp : 0);
+                    return aSeconds - bSeconds;
+                  })
                   .map((msg) => {
-                    const mine = msg.senderId === currentUser?.uid;
+                    if (!msg || typeof msg !== 'object') return null;
+                    const senderId = typeof msg.senderId === 'string' ? msg.senderId : String(msg.senderId || '');
+                    const userId = typeof currentUser?.uid === 'string' ? currentUser.uid : String(currentUser?.uid || '');
+                    const mine = senderId === userId;
+                    const messageContent = typeof msg.content === 'string' ? msg.content : String(msg.content || '');
                     return (
-                      <div key={msg.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                      <div key={msg.id || `msg-${Math.random()}`} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
                         <div
                           className={`${
                             mine ? 'bg-emerald-600 text-white' : 'bg-white text-gray-900 border'
                           } px-4 py-2 rounded-2xl max-w-[80%] whitespace-pre-wrap break-words shadow-sm`}
                         >
-                          {msg.content}
+                          {messageContent}
                         </div>
                       </div>
                     );
@@ -741,7 +758,7 @@ const Vendor = () => {
                 className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg relative ${activeTab === 'messages' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
               >
                 💬 Messages
-                {unreadCount > 0 && (
+                {typeof unreadCount === 'number' && unreadCount > 0 && (
                   <span className="ml-auto bg-emerald-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
                     {unreadCount > 9 ? '9+' : unreadCount}
                   </span>
