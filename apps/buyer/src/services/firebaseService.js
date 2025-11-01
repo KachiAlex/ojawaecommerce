@@ -4309,15 +4309,45 @@ export const subscriptionService = {
   // Get user subscription
   async getByUser(userId) {
     try {
-      const q = query(
-        collection(db, 'subscriptions'),
-        where('userId', '==', userId),
-        orderBy('createdAt', 'desc'),
-        fsLimit(1)
-      );
-      const snapshot = await getDocs(q);
-      if (snapshot.empty) return null;
-      return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+      // Try query with orderBy first (requires index)
+      try {
+        const q = query(
+          collection(db, 'subscriptions'),
+          where('userId', '==', userId),
+          orderBy('createdAt', 'desc'),
+          fsLimit(1)
+        );
+        const snapshot = await getDocs(q);
+        if (snapshot.empty) return null;
+        return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+      } catch (orderByError) {
+        // If orderBy fails (missing index), try without orderBy
+        if (orderByError.code === 'failed-precondition' || orderByError.message?.includes('index')) {
+          console.warn('⚠️ Subscription query with orderBy failed (missing index), trying without orderBy:', orderByError.message);
+          const fallbackQ = query(
+            collection(db, 'subscriptions'),
+            where('userId', '==', userId)
+          );
+          const snapshot = await getDocs(fallbackQ);
+          if (snapshot.empty) return null;
+          
+          // Sort client-side and return the most recent
+          const subscriptions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          subscriptions.sort((a, b) => {
+            const aTime = a.createdAt?.seconds || a.createdAt?.toMillis?.() || 0;
+            const bTime = b.createdAt?.seconds || b.createdAt?.toMillis?.() || 0;
+            if (a.createdAt && typeof a.createdAt === 'object' && 'toDate' in a.createdAt) {
+              const aDate = a.createdAt.toDate();
+              const bDate = b.createdAt.toDate();
+              return bDate - aDate;
+            }
+            return bTime - aTime;
+          });
+          
+          return subscriptions[0] || null;
+        }
+        throw orderByError;
+      }
     } catch (error) {
       console.error('Error fetching user subscription:', error);
       return null;
