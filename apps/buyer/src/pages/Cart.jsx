@@ -459,31 +459,6 @@ const Cart = () => {
             ))}
           </div>
 
-          {/* Logistics partner selection - shown just below vendor info */}
-          {deliveryOption === 'delivery' && (
-            <div className="mb-6">
-              <CheckoutLogisticsSelector
-                key={`${buyerFullAddress}-${vendorAddressText}-${deliveryOption}`}
-                cartItems={cartItems}
-                buyerAddress={buyerFullAddress}
-                vendorAddress={vendorAddressText}
-                onLogisticsSelected={(logistics) => {
-                  console.log('🚚 Logistics selected:', logistics);
-                  setSelectedPartner(logistics);
-                  setDeliveryCost(logistics.deliveryFee);
-                  setEstimatedDelivery(logistics.eta);
-                  const logisticsDays = parseInt(logistics.estimatedDays) || 0;
-                  const totalDays = vendorProcessingDays + logisticsDays;
-                  setTotalDeliveryTime({
-                    vendorDays: vendorProcessingDays,
-                    logisticsDays: logisticsDays,
-                    totalDays: totalDays
-                  });
-                }}
-              />
-            </div>
-          )}
-
           {/* Display Total Delivery Time Breakdown */}
           {totalDeliveryTime && deliveryOption === 'delivery' && (
             <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
@@ -552,6 +527,31 @@ const Cart = () => {
                 label=""
                 onChange={(updatedAddress) => {
                   setBuyerAddress(updatedAddress);
+                }}
+              />
+            </div>
+          )}
+
+          {/* Logistics partner selection - shown below address input */}
+          {deliveryOption === 'delivery' && (
+            <div className="mb-6">
+              <CheckoutLogisticsSelector
+                key={`${buyerFullAddress}-${vendorAddressText}-${deliveryOption}`}
+                cartItems={cartItems}
+                buyerAddress={buyerFullAddress}
+                vendorAddress={vendorAddressText}
+                onLogisticsSelected={(logistics) => {
+                  console.log('🚚 Logistics selected:', logistics);
+                  setSelectedPartner(logistics);
+                  setDeliveryCost(logistics.deliveryFee);
+                  setEstimatedDelivery(logistics.eta);
+                  const logisticsDays = parseInt(logistics.estimatedDays) || 0;
+                  const totalDays = vendorProcessingDays + logisticsDays;
+                  setTotalDeliveryTime({
+                    vendorDays: vendorProcessingDays,
+                    logisticsDays: logisticsDays,
+                    totalDays: totalDays
+                  });
                 }}
               />
             </div>
