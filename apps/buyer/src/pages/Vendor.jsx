@@ -311,6 +311,49 @@ const Vendor = () => {
       setProductsCount(vendorData.productsCount);
       setStats(vendorData.stats);
       
+      // Also load products and orders arrays for overview tab to display accurate data
+      // Load in parallel for better performance
+      console.log('📊 Initial load: Fetching products and orders arrays for overview...');
+      try {
+        const [productsData, ordersDataResult] = await Promise.all([
+          firebaseService.products.getByVendor(currentUser.uid).catch(err => {
+            console.warn('⚠️ Error loading products for overview:', err);
+            // Try fallback with email if vendorId query fails
+            if (currentUser.email) {
+              return firebaseService.products.getByVendorEmail(currentUser.email).catch(() => []);
+            }
+            return [];
+          }),
+          getVendorDataOptimized(currentUser.uid, 'orders').catch(err => {
+            console.warn('⚠️ Error loading orders for overview:', err);
+            return { orders: [] };
+          })
+        ]);
+        
+        // Set products (always set, even if empty, so overview displays correct count)
+        if (Array.isArray(productsData)) {
+          setProducts(productsData);
+          setProductsCount(productsData.length);
+          console.log('✅ Initial load: Loaded', productsData.length, 'products');
+        }
+        
+        // Set orders (handle the structure from getVendorDataOptimized)
+        const ordersArray = ordersDataResult?.orders || (Array.isArray(ordersDataResult) ? ordersDataResult : []);
+        if (Array.isArray(ordersArray)) {
+          setOrders(ordersArray);
+          setOrdersCount(ordersArray.length);
+          if (ordersDataResult?.lastDoc) {
+            setOrdersCursor(ordersDataResult.lastDoc);
+          }
+          console.log('✅ Initial load: Loaded', ordersArray.length, 'orders');
+        }
+        
+        console.log('✅ Initial load complete: Products:', productsData?.length || 0, 'Orders:', ordersArray?.length || 0);
+      } catch (loadError) {
+        console.error('❌ Error loading products/orders for overview:', loadError);
+        // Continue with counts from optimized service - arrays remain empty but counts are set
+      }
+      
     } catch (error) {
       console.error('Error loading initial vendor data:', error);
       setStats({ totalSales: 0, activeOrders: 0 });
@@ -591,10 +634,26 @@ const Vendor = () => {
 
   // Load tab data when tab changes
   useEffect(() => {
-    if (activeTab !== 'overview') {
+    if (activeTab === 'overview') {
+      // When overview tab is active, ensure we have products and orders loaded
+      // The initial load should handle this, but if arrays are still empty, reload them
+      const currentProductsLength = products.length;
+      const currentOrdersLength = orders.length;
+      
+      if (currentProductsLength === 0 || currentOrdersLength === 0) {
+        console.log('📊 Overview tab active: Products:', currentProductsLength, 'Orders:', currentOrdersLength, '- Ensuring data is loaded...');
+        // Load products and orders in parallel
+        Promise.all([
+          currentProductsLength === 0 ? loadTabData('products').catch(err => console.warn('Error loading products:', err)) : Promise.resolve(),
+          currentOrdersLength === 0 ? loadTabData('orders').catch(err => console.warn('Error loading orders:', err)) : Promise.resolve()
+        ]).then(() => {
+          console.log('✅ Overview tab: Data refresh complete');
+        });
+      }
+    } else {
       loadTabData(activeTab);
     }
-  }, [activeTab, loadTabData]);
+  }, [activeTab, loadTabData, products.length, orders.length]);
 
   // Derived product filters and counts
   const safeProducts = Array.isArray(products) ? products : [];
