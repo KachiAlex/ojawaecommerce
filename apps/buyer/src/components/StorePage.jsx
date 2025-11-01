@@ -4,6 +4,7 @@ import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAuth } from '../contexts/AuthContext';
 import MessageVendorModal from './MessageVendorModal';
+import firebaseService from '../services/firebaseService';
 
 const StorePage = () => {
   const { storeSlug } = useParams();
@@ -163,17 +164,17 @@ const StorePage = () => {
         setStore(foundStore);
         console.log('🏪 StorePage: Found store:', foundStore);
 
-        // Fetch products for this store
+        // Fetch products for this store using firebaseService methods with fallback logic
         console.log('🏪 StorePage: Fetching products for vendorId:', foundStore.vendorId, 'storeId:', foundStore.id || foundStore.storeId);
-        const productsRef = collection(db, 'products');
         
-        // Try querying by storeId first, then fallback to vendorId
         let allProducts = [];
         const storeId = foundStore.id || foundStore.storeId;
         
+        // First try: Query by storeId using service method (with fallback)
         if (storeId) {
           try {
-            // Query by storeId
+            console.log('🏪 StorePage: Attempt 1 - Querying by storeId:', storeId);
+            const productsRef = collection(db, 'products');
             const storeProductsQuery = query(
               productsRef,
               where('storeId', '==', storeId)
@@ -185,25 +186,79 @@ const StorePage = () => {
             }));
             console.log('🏪 StorePage: Products found by storeId:', allProducts.length);
           } catch (storeQueryErr) {
-            console.warn('🏪 StorePage: Error querying by storeId, falling back to vendorId:', storeQueryErr);
+            console.warn('🏪 StorePage: Error querying by storeId, will try vendorId:', storeQueryErr);
           }
         }
         
-        // If no products found by storeId, or storeId query failed, query by vendorId
+        // Second try: Use firebaseService.getByVendor (has fallback logic)
         if (allProducts.length === 0 && foundStore.vendorId) {
           try {
-            const vendorProductsQuery = query(
-              productsRef,
-              where('vendorId', '==', foundStore.vendorId)
-            );
-            const vendorProductsSnapshot = await getDocs(vendorProductsQuery);
-            allProducts = vendorProductsSnapshot.docs.map(doc => ({
-              id: doc.id,
-              ...doc.data()
-            }));
-            console.log('🏪 StorePage: Products found by vendorId:', allProducts.length);
-          } catch (vendorQueryErr) {
-            console.error('🏪 StorePage: Error querying by vendorId:', vendorQueryErr);
+            console.log('🏪 StorePage: Attempt 2 - Using firebaseService.getByVendor:', foundStore.vendorId);
+            allProducts = await firebaseService.products.getByVendor(foundStore.vendorId);
+            console.log('🏪 StorePage: Products found by firebaseService.getByVendor:', allProducts.length);
+          } catch (vendorServiceErr) {
+            console.warn('🏪 StorePage: firebaseService.getByVendor failed, trying direct query:', vendorServiceErr);
+            
+            // Third try: Direct Firestore query by vendorId
+            try {
+              console.log('🏪 StorePage: Attempt 3 - Direct Firestore query by vendorId:', foundStore.vendorId);
+              const productsRef = collection(db, 'products');
+              const vendorProductsQuery = query(
+                productsRef,
+                where('vendorId', '==', foundStore.vendorId)
+              );
+              const vendorProductsSnapshot = await getDocs(vendorProductsQuery);
+              allProducts = vendorProductsSnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+              }));
+              console.log('🏪 StorePage: Products found by direct vendorId query:', allProducts.length);
+            } catch (vendorQueryErr) {
+              console.error('🏪 StorePage: Direct vendorId query also failed:', vendorQueryErr);
+            }
+          }
+        }
+        
+        // Fourth try: Try vendorEmail if we have it
+        if (allProducts.length === 0 && foundStore.vendorId) {
+          try {
+            // Get vendor email from store or vendor profile
+            let vendorEmail = null;
+            if (foundStore.vendorId) {
+              try {
+                const vendorProfile = await firebaseService.users.getProfile(foundStore.vendorId);
+                vendorEmail = vendorProfile?.email || vendorProfile?.vendorProfile?.contactEmail || null;
+                console.log('🏪 StorePage: Attempt 4 - Trying vendorEmail:', vendorEmail);
+                if (vendorEmail) {
+                  allProducts = await firebaseService.products.getByVendorEmail(vendorEmail);
+                  console.log('🏪 StorePage: Products found by vendorEmail:', allProducts.length);
+                }
+              } catch (emailErr) {
+                console.warn('🏪 StorePage: Could not fetch vendor email:', emailErr);
+              }
+            }
+          } catch (emailQueryErr) {
+            console.error('🏪 StorePage: vendorEmail query failed:', emailQueryErr);
+          }
+        }
+        
+        // Ultimate fallback: Fetch ALL products and filter client-side
+        if (allProducts.length === 0 && foundStore.vendorId) {
+          try {
+            console.log('🏪 StorePage: Attempt 5 - Ultimate fallback: Fetching all products and filtering client-side...');
+            const allProductsSnapshot = await firebaseService.products.getAll({ showAll: true });
+            console.log('🏪 StorePage: Total products in database:', allProductsSnapshot.length);
+            
+            // Filter products by vendorId or storeId
+            allProducts = allProductsSnapshot.filter(product => {
+              const matchesVendorId = product.vendorId === foundStore.vendorId;
+              const matchesStoreId = storeId && product.storeId === storeId;
+              return matchesVendorId || matchesStoreId;
+            });
+            
+            console.log('🏪 StorePage: Filtered products for vendor/store:', allProducts.length);
+          } catch (ultimateErr) {
+            console.error('🏪 StorePage: Ultimate fallback failed:', ultimateErr);
           }
         }
         
