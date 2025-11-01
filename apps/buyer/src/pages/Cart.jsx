@@ -3,7 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useMessaging } from '../contexts/MessagingContext';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, limit, getDocs } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import AddressInput from '../components/AddressInput';
 import CheckoutLogisticsSelector from '../components/CheckoutLogisticsSelector';
@@ -204,6 +204,8 @@ const Cart = () => {
             try {
               // Force fetch from server to get latest vendor data (bypasses cache)
               const userSnap = await getDoc(doc(db, 'users', vendorId));
+              let vendorAddress = '';
+              
               if (userSnap.exists()) {
                 const vendor = userSnap.data();
                 
@@ -217,7 +219,7 @@ const Cart = () => {
                 });
                 
                 // Try multiple possible address fields
-                const vendorAddress = 
+                vendorAddress = 
                   vendor.vendorProfile?.businessAddress || 
                   vendor.vendorProfile?.address ||
                   vendor.address || 
@@ -236,8 +238,31 @@ const Cart = () => {
                       vendor.structuredAddress.state,
                       vendor.structuredAddress.country || 'Nigeria'
                     ].filter(Boolean).join(', ') :
-                    '') ||
-                  'Address not specified';
+                    '');
+                
+                // If still no address, try checking stores collection
+                if (!vendorAddress || vendorAddress === '') {
+                  try {
+                    const storesQuery = query(
+                      collection(db, 'stores'),
+                      where('vendorId', '==', vendorId),
+                      limit(1)
+                    );
+                    const storesSnapshot = await getDocs(storesQuery);
+                    if (!storesSnapshot.empty) {
+                      const store = storesSnapshot.docs[0].data();
+                      vendorAddress = store.contactInfo?.address || store.address || '';
+                      console.log(`🏪 Found address from store:`, vendorAddress);
+                    }
+                  } catch (storeErr) {
+                    console.warn(`⚠️ Could not fetch store address:`, storeErr);
+                  }
+                }
+                
+                // Final fallback
+                if (!vendorAddress || vendorAddress === '') {
+                  vendorAddress = 'Address not specified';
+                }
                 
                 console.log(`📍 Final vendor address for ${vendorId}:`, vendorAddress);
                 
@@ -253,9 +278,19 @@ const Cart = () => {
                 };
               } else {
                 console.warn(`⚠️ Vendor ${vendorId} document does not exist`);
+                vendorData[vendorId] = {
+                  id: vendorId,
+                  name: 'Vendor',
+                  address: 'Address not specified'
+                };
               }
             } catch (err) {
               console.error(`❌ Error fetching vendor ${vendorId}:`, err);
+              vendorData[vendorId] = {
+                id: vendorId,
+                name: 'Vendor',
+                address: 'Address not specified'
+              };
             }
           }
           
