@@ -172,7 +172,43 @@ const Admin = () => {
 
       // Load all products (including pending, active, and rejected for admin review)
       const productsData = await firebaseService.products.getAll({ showAll: true });
-      setProducts(productsData);
+      
+      // Enrich products with vendor information
+      // First, create a map of vendors by ID and email for efficient lookup
+      const vendorsById = new Map();
+      const vendorsByEmail = new Map();
+      usersData.forEach(user => {
+        if (user.uid || user.id) {
+          vendorsById.set(user.uid || user.id, user);
+        }
+        if (user.email) {
+          vendorsByEmail.set(user.email.toLowerCase(), user);
+        }
+      });
+      
+      const enrichedProducts = productsData.map((product) => {
+        let vendor = null;
+        
+        // Try to find vendor by vendorId
+        if (product.vendorId) {
+          vendor = vendorsById.get(product.vendorId);
+        }
+        
+        // Fallback: try to find vendor by vendorEmail
+        if (!vendor && product.vendorEmail) {
+          vendor = vendorsByEmail.get(product.vendorEmail.toLowerCase());
+        }
+        
+        // Return product with vendor information
+        return {
+          ...product,
+          vendorName: vendor?.displayName || vendor?.email || product.vendorEmail || 'Unknown',
+          vendorEmail: vendor?.email || product.vendorEmail || 'N/A',
+          storeName: vendor?.vendorProfile?.storeName || vendor?.storeName || 'N/A'
+        };
+      });
+      
+      setProducts(enrichedProducts);
 
       // Load disputes with pagination
       const disputesResult = await firebaseService.admin.getAllDisputes({ pageSize: 1000 });
