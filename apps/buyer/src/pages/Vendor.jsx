@@ -440,8 +440,103 @@ const Vendor = () => {
             }
           }
           
+          // Ultimate fallback: Fetch ALL products and filter client-side
+          if (!productsFound) {
+            console.log('🔄 Attempt 5: Ultimate fallback - fetching all products and filtering client-side...');
+            try {
+              const allProducts = await firebaseService.products.getAll({ showAll: true });
+              console.log('📦 Ultimate fallback: Fetched all products:', allProducts.length);
+              
+              // Filter products by vendorId or vendorEmail
+              const filteredProducts = allProducts.filter(product => {
+                const matchesVendorId = product.vendorId === currentUser.uid;
+                const matchesVendorEmail = product.vendorEmail && 
+                                           currentUser.email && 
+                                           product.vendorEmail.toLowerCase() === currentUser.email.toLowerCase();
+                return matchesVendorId || matchesVendorEmail;
+              });
+              
+              console.log('📦 Ultimate fallback: Filtered products for vendor:', filteredProducts.length);
+              console.log('📦 Ultimate fallback: Product details:', filteredProducts.map(p => ({ 
+                id: p.id, 
+                name: p.name, 
+                vendorId: p.vendorId, 
+                vendorEmail: p.vendorEmail 
+              })));
+              
+              if (filteredProducts.length > 0) {
+                // Sort by createdAt descending
+                filteredProducts.sort((a, b) => {
+                  const aTime = a.createdAt?.seconds || a.createdAt?.toMillis?.() || 0;
+                  const bTime = b.createdAt?.seconds || b.createdAt?.toMillis?.() || 0;
+                  if (a.createdAt && typeof a.createdAt === 'object' && 'toDate' in a.createdAt) {
+                    const aDate = a.createdAt.toDate();
+                    const bDate = b.createdAt.toDate();
+                    return bDate - aDate;
+                  }
+                  return bTime - aTime;
+                });
+                
+                const pageProducts = filteredProducts.slice(0, pageSize);
+                setProducts(pageProducts);
+                setProductsCursor(null);
+                setProductsPages([{ items: pageProducts, cursor: null }]);
+                setProductsPageIndex(0);
+                productsFound = true;
+                console.log('✅ Ultimate fallback: Successfully loaded', pageProducts.length, 'products');
+              }
+            } catch (ultimateError) {
+              console.error('❌ Ultimate fallback also failed:', ultimateError);
+            }
+          }
+          
           if (!productsFound) {
             console.error('❌ No products found through any method');
+            console.error('🔍 Diagnostic: Current user uid:', currentUser.uid);
+            console.error('🔍 Diagnostic: Current user email:', currentUser.email);
+            
+            // Diagnostic: Query all products to see what vendorIds exist
+            try {
+              console.log('🔍 Diagnostic: Fetching all products to analyze vendor references...');
+              const allProductsSnapshot = await firebaseService.products.getAll({ showAll: true });
+              console.log('🔍 Diagnostic: Total products in database:', allProductsSnapshot.length);
+              
+              // Group products by vendorId and vendorEmail
+              const byVendorId = {};
+              const byVendorEmail = {};
+              
+              allProductsSnapshot.forEach(product => {
+                const vid = product.vendorId || 'NO_VENDOR_ID';
+                const vem = product.vendorEmail || 'NO_VENDOR_EMAIL';
+                
+                if (!byVendorId[vid]) {
+                  byVendorId[vid] = [];
+                }
+                byVendorId[vid].push(product.id);
+                
+                if (!byVendorEmail[vem]) {
+                  byVendorEmail[vem] = [];
+                }
+                byVendorEmail[vem].push(product.id);
+              });
+              
+              console.log('🔍 Diagnostic: Products by vendorId:', Object.keys(byVendorId).map(k => `${k}: ${byVendorId[k].length} products`));
+              console.log('🔍 Diagnostic: Products by vendorEmail:', Object.keys(byVendorEmail).slice(0, 10).map(k => `${k}: ${byVendorEmail[k].length} products`));
+              
+              // Check if current user's uid or email matches any products
+              const matchingById = byVendorId[currentUser.uid] || [];
+              const matchingByEmail = byVendorEmail[currentUser.email?.toLowerCase()] || [];
+              
+              console.log('🔍 Diagnostic: Products matching current user uid:', matchingById.length);
+              console.log('🔍 Diagnostic: Products matching current user email:', matchingByEmail.length);
+              
+              if (matchingById.length > 0 || matchingByEmail.length > 0) {
+                console.warn('⚠️ Products exist but queries failed. This may indicate a query/index issue.');
+              }
+            } catch (diagError) {
+              console.error('🔍 Diagnostic query failed:', diagError);
+            }
+            
             setProducts([]);
             setProductsCursor(null);
             setProductsPages([]);

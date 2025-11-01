@@ -251,6 +251,7 @@ export const productService = {
   // Get all products with optional filtering
   async getAll(filters = {}) {
     try {
+      console.log('🔍 products.getAll: Filters:', filters);
       let q = collection(db, 'products');
       
       if (filters.category && filters.category !== 'all') {
