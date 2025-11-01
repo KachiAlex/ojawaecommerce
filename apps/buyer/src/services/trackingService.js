@@ -193,12 +193,32 @@ export const productTrackingService = {
   // Create product with tracking number
   async createProduct(productData, vendorId, storeId = null) {
     try {
+      if (!vendorId) {
+        throw new Error('vendorId is required to create a product');
+      }
+      
       const trackingNumber = generateProductTrackingNumber();
+      
+      // Fetch vendor email to ensure complete vendor reference
+      let vendorEmail = productData.vendorEmail;
+      try {
+        const vendorDoc = await getDoc(doc(db, 'users', vendorId));
+        if (vendorDoc.exists()) {
+          const vendorData = vendorDoc.data();
+          vendorEmail = vendorEmail || vendorData.email || null;
+        } else {
+          throw new Error(`Vendor with ID ${vendorId} does not exist`);
+        }
+      } catch (vendorError) {
+        console.error('Error fetching vendor email for tracking:', vendorError);
+        throw new Error(`Invalid vendorId: ${vendorId}. Vendor not found in users collection.`);
+      }
       
       const productPayload = {
         ...productData,
         trackingNumber, // Our custom tracking number
-        vendorId,
+        vendorId, // Always required - primary reference
+        vendorEmail: vendorEmail || productData.vendorEmail || null, // Secondary reference for queries
         storeId, // Optional store assignment
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),

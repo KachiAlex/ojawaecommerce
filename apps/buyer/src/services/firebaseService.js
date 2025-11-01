@@ -207,9 +207,30 @@ export const productService = {
   // Create a new product
   async create(productData, vendorId, storeId = null) {
     try {
+      if (!vendorId) {
+        throw new Error('vendorId is required to create a product');
+      }
+      
+      // Fetch vendor info to ensure we have vendorEmail as well for proper referencing
+      let vendorEmail = productData.vendorEmail;
+      try {
+        const vendorDoc = await getDoc(doc(db, 'users', vendorId));
+        if (vendorDoc.exists()) {
+          const vendorData = vendorDoc.data();
+          vendorEmail = vendorEmail || vendorData.email || null;
+        } else {
+          throw new Error(`Vendor with ID ${vendorId} does not exist`);
+        }
+      } catch (vendorError) {
+        console.error('Error fetching vendor info for product creation:', vendorError);
+        // If vendor doesn't exist, we should not create the product
+        throw new Error(`Invalid vendorId: ${vendorId}. Vendor not found in users collection.`);
+      }
+      
       const productPayload = {
         ...productData,
-        vendorId,
+        vendorId, // Primary reference - always required
+        vendorEmail: vendorEmail || productData.vendorEmail || null, // Secondary reference for fallback queries
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         status: 'pending' // Require admin approval
@@ -219,6 +240,7 @@ export const productService = {
         productPayload.storeId = storeId;
       }
       const docRef = await addDoc(collection(db, 'products'), productPayload);
+      console.log('✅ Product created with vendorId:', vendorId, 'vendorEmail:', vendorEmail);
       return docRef.id;
     } catch (error) {
       console.error('Error creating product:', error);
