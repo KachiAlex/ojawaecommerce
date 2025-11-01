@@ -202,9 +202,45 @@ const Cart = () => {
           
           for (const vendorId of vendorIds) {
             try {
+              // Force fetch from server to get latest vendor data (bypasses cache)
               const userSnap = await getDoc(doc(db, 'users', vendorId));
               if (userSnap.exists()) {
                 const vendor = userSnap.data();
+                
+                // Debug: Log vendor data to see what's available
+                console.log(`🔍 Vendor ${vendorId} data:`, {
+                  hasVendorProfile: !!vendor.vendorProfile,
+                  businessAddress: vendor.vendorProfile?.businessAddress,
+                  vendorAddress: vendor.address,
+                  structuredAddress: vendor.vendorProfile?.structuredAddress,
+                  topLevelAddress: vendor.address
+                });
+                
+                // Try multiple possible address fields
+                const vendorAddress = 
+                  vendor.vendorProfile?.businessAddress || 
+                  vendor.vendorProfile?.address ||
+                  vendor.address || 
+                  (vendor.vendorProfile?.structuredAddress ? 
+                    [
+                      vendor.vendorProfile.structuredAddress.street,
+                      vendor.vendorProfile.structuredAddress.city,
+                      vendor.vendorProfile.structuredAddress.state,
+                      vendor.vendorProfile.structuredAddress.country || 'Nigeria'
+                    ].filter(Boolean).join(', ') :
+                    '') ||
+                  (vendor.structuredAddress ? 
+                    [
+                      vendor.structuredAddress.street,
+                      vendor.structuredAddress.city,
+                      vendor.structuredAddress.state,
+                      vendor.structuredAddress.country || 'Nigeria'
+                    ].filter(Boolean).join(', ') :
+                    '') ||
+                  'Address not specified';
+                
+                console.log(`📍 Final vendor address for ${vendorId}:`, vendorAddress);
+                
                 vendorData[vendorId] = {
                   id: vendorId,
                   name: vendor.displayName || 
@@ -213,17 +249,13 @@ const Cart = () => {
                         vendor.storeName ||
                         vendor.email?.split('@')[0] ||
                         'Vendor',
-                  address: vendor.vendorProfile?.businessAddress || 
-                           vendor.address || 
-                           vendor.vendorProfile?.address ||
-                           (vendor.structuredAddress ? 
-                             `${vendor.structuredAddress.street || ''}, ${vendor.structuredAddress.city || ''}, ${vendor.structuredAddress.state || ''}, ${vendor.structuredAddress.country || 'Nigeria'}`.replace(/^,\s*|,\s*$/g, '').replace(/,\s*,/g, ',') :
-                             '') ||
-                           'Address not specified'
+                  address: vendorAddress
                 };
+              } else {
+                console.warn(`⚠️ Vendor ${vendorId} document does not exist`);
               }
             } catch (err) {
-              console.error(`Error fetching vendor ${vendorId}:`, err);
+              console.error(`❌ Error fetching vendor ${vendorId}:`, err);
             }
           }
           
