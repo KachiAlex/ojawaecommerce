@@ -401,11 +401,25 @@ const Vendor = () => {
   const handleAddProduct = async (productData) => {
     try {
       setUploadProgress(0);
+      // Get vendor's store ID to link product to store
+      let storeId = null;
+      try {
+        const { storeService } = await import('../services/trackingService');
+        const vendorStores = await storeService.getStoresByVendor(currentUser.uid);
+        if (vendorStores && vendorStores.length > 0) {
+          storeId = vendorStores[0].id || vendorStores[0].storeId || null;
+          console.log('📦 Linking product to store:', storeId);
+        }
+      } catch (storeErr) {
+        console.warn('Could not fetch store for product:', storeErr);
+      }
+      
       // Use unified helper that uploads any File items and saves URLs
       await firebaseService.products.saveWithUploadsWithProgress(
         productData,
         currentUser.uid,
         null,
+        storeId,
         { onProgress: (p) => setUploadProgress(p) }
       );
       setShowAddProductForm(false);
@@ -554,10 +568,23 @@ const Vendor = () => {
   const saveProduct = async (payload) => {
     try {
       setUploadProgress(0);
+      // Get vendor's store ID to link product to store
+      let storeId = null;
+      try {
+        const { storeService } = await import('../services/trackingService');
+        const vendorStores = await storeService.getStoresByVendor(currentUser.uid);
+        if (vendorStores && vendorStores.length > 0) {
+          storeId = vendorStores[0].id || vendorStores[0].storeId || null;
+          console.log('📦 Linking product to store:', storeId);
+        }
+      } catch (storeErr) {
+        console.warn('Could not fetch store for product:', storeErr);
+      }
+      
       if (editingProduct) {
-        await firebaseService.products.saveWithUploadsWithProgress(payload, currentUser.uid, (editingProduct?.id || null), { onProgress: (p) => setUploadProgress(p) });
+        await firebaseService.products.saveWithUploadsWithProgress(payload, currentUser.uid, (editingProduct?.id || null), storeId, { onProgress: (p) => setUploadProgress(p) });
       } else {
-        await firebaseService.products.saveWithUploadsWithProgress(payload, currentUser.uid, null, { onProgress: (p) => setUploadProgress(p) });
+        await firebaseService.products.saveWithUploadsWithProgress(payload, currentUser.uid, null, storeId, { onProgress: (p) => setUploadProgress(p) });
       }
       const productsPage = await firebaseService.products.getByVendorPaged({ vendorId: currentUser.uid, pageSize });
       setProducts(productsPage.items);

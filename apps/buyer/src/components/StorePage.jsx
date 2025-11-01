@@ -164,23 +164,51 @@ const StorePage = () => {
         console.log('🏪 StorePage: Found store:', foundStore);
 
         // Fetch products for this store
-        console.log('🏪 StorePage: Fetching products for vendorId:', foundStore.vendorId);
+        console.log('🏪 StorePage: Fetching products for vendorId:', foundStore.vendorId, 'storeId:', foundStore.id || foundStore.storeId);
         const productsRef = collection(db, 'products');
         
-        // First, let's check all products for this vendor (without status filter)
-        const allProductsQuery = query(
-          productsRef,
-          where('vendorId', '==', foundStore.vendorId)
-        );
+        // Try querying by storeId first, then fallback to vendorId
+        let allProducts = [];
+        const storeId = foundStore.id || foundStore.storeId;
         
-        const allProductsSnapshot = await getDocs(allProductsQuery);
-        const allProducts = allProductsSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
+        if (storeId) {
+          try {
+            // Query by storeId
+            const storeProductsQuery = query(
+              productsRef,
+              where('storeId', '==', storeId)
+            );
+            const storeProductsSnapshot = await getDocs(storeProductsQuery);
+            allProducts = storeProductsSnapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data()
+            }));
+            console.log('🏪 StorePage: Products found by storeId:', allProducts.length);
+          } catch (storeQueryErr) {
+            console.warn('🏪 StorePage: Error querying by storeId, falling back to vendorId:', storeQueryErr);
+          }
+        }
         
-        console.log('🏪 StorePage: All products for vendor:', allProducts.length);
-        console.log('🏪 StorePage: Product statuses:', allProducts.map(p => ({ name: p.name, status: p.status })));
+        // If no products found by storeId, or storeId query failed, query by vendorId
+        if (allProducts.length === 0 && foundStore.vendorId) {
+          try {
+            const vendorProductsQuery = query(
+              productsRef,
+              where('vendorId', '==', foundStore.vendorId)
+            );
+            const vendorProductsSnapshot = await getDocs(vendorProductsQuery);
+            allProducts = vendorProductsSnapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data()
+            }));
+            console.log('🏪 StorePage: Products found by vendorId:', allProducts.length);
+          } catch (vendorQueryErr) {
+            console.error('🏪 StorePage: Error querying by vendorId:', vendorQueryErr);
+          }
+        }
+        
+        console.log('🏪 StorePage: Total products found:', allProducts.length);
+        console.log('🏪 StorePage: Product statuses:', allProducts.map(p => ({ name: p.name, status: p.status, vendorId: p.vendorId, storeId: p.storeId })));
         
         // Show all products regardless of status for now
         // TODO: Later we can filter by status when products are properly approved

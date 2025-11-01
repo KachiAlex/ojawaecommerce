@@ -84,12 +84,12 @@ export const productService = {
     }
   },
 
-  async saveWithUploads(productData, vendorId, productId = null) {
-    return await productService.saveWithUploadsWithProgress(productData, vendorId, productId);
+  async saveWithUploads(productData, vendorId, productId = null, storeId = null, options = {}) {
+    return await productService.saveWithUploadsWithProgress(productData, vendorId, productId, storeId, options);
   },
 
   // Internal: same as saveWithUploads but exposes a progress callback via options
-  async saveWithUploadsWithProgress(productData, vendorId, productId = null, options = {}) {
+  async saveWithUploadsWithProgress(productData, vendorId, productId = null, storeId = null, options = {}) {
     const { onProgress } = options;
     const items = Array.isArray(productData.images) ? productData.images : [];
     const videoItems = Array.isArray(productData.videos) ? productData.videos : [];
@@ -189,21 +189,36 @@ export const productService = {
       videos: ensureStringArray(resolvedVideos),
     };
     if (productId) {
+      // Update existing product
       await productService.update(productId, payload);
+      // Also update storeId if provided
+      if (storeId) {
+        try {
+          await productService.update(productId, { storeId });
+        } catch (err) {
+          console.warn('Could not update product storeId:', err);
+        }
+      }
       return productId;
     }
-    return await productService.create(payload, vendorId);
+    // Create new product with storeId
+    return await productService.create(payload, vendorId, storeId);
   },
   // Create a new product
-  async create(productData, vendorId) {
+  async create(productData, vendorId, storeId = null) {
     try {
-      const docRef = await addDoc(collection(db, 'products'), {
+      const productPayload = {
         ...productData,
         vendorId,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         status: 'pending' // Require admin approval
-      });
+      };
+      // Include storeId if provided
+      if (storeId) {
+        productPayload.storeId = storeId;
+      }
+      const docRef = await addDoc(collection(db, 'products'), productPayload);
       return docRef.id;
     } catch (error) {
       console.error('Error creating product:', error);
