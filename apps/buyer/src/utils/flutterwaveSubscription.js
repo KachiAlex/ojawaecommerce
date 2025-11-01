@@ -1,47 +1,33 @@
 // Flutterwave Subscription Payment Integration
 import { loadScript } from './loadScript';
+import { config } from '../config/env';
 
 class FlutterwaveSubscription {
   constructor() {
-    // Try multiple environment variable names
-    this.publicKey = process.env.REACT_APP_FLUTTERWAVE_PUBLIC_KEY || 
-                     process.env.VITE_FLUTTERWAVE_PUBLIC_KEY ||
-                     import.meta.env.VITE_FLUTTERWAVE_PUBLIC_KEY;
-    this.secretKey = process.env.REACT_APP_FLUTTERWAVE_SECRET_KEY ||
-                     process.env.VITE_FLUTTERWAVE_SECRET_KEY ||
-                     import.meta.env.VITE_FLUTTERWAVE_SECRET_KEY;
     this.baseUrl = 'https://api.flutterwave.com/v3';
     
-    // Try to get from config dynamically (will be loaded on first use if needed)
-    this.configLoaded = false;
-  }
-  
-  // Get public key with fallback to config
-  async getPublicKey() {
-    if (this.publicKey) {
-      return this.publicKey;
-    }
+    // Try multiple sources for public key (same as flutterwave.js)
+    // Priority: env variables > config file
+    this.publicKey = process.env.REACT_APP_FLUTTERWAVE_PUBLIC_KEY || 
+                     process.env.VITE_FLUTTERWAVE_PUBLIC_KEY ||
+                     import.meta.env.VITE_FLUTTERWAVE_PUBLIC_KEY ||
+                     config?.payments?.flutterwave?.publicKey;
     
-    // Try loading from config
-    if (!this.configLoaded) {
-      try {
-        const { config } = await import('../config/env.js');
-        if (config?.payments?.flutterwave?.publicKey) {
-          this.publicKey = config.payments.flutterwave.publicKey;
-          this.secretKey = config.payments.flutterwave.secretKey || this.secretKey;
-        }
-        this.configLoaded = true;
-      } catch (error) {
-        console.warn('Could not load config:', error);
-      }
-    }
+    this.secretKey = process.env.REACT_APP_FLUTTERWAVE_SECRET_KEY ||
+                     process.env.VITE_FLUTTERWAVE_SECRET_KEY ||
+                     import.meta.env.VITE_FLUTTERWAVE_SECRET_KEY ||
+                     config?.payments?.flutterwave?.secretKey;
     
     if (!this.publicKey) {
       console.warn('⚠️ Flutterwave public key not found. Payment will not work.');
+      console.warn('⚠️ Check environment variables or config file for VITE_FLUTTERWAVE_PUBLIC_KEY');
     } else {
       console.log('✅ Flutterwave public key loaded:', this.publicKey.substring(0, 20) + '...');
     }
-    
+  }
+  
+  // Get public key (always return the configured key)
+  getPublicKey() {
     return this.publicKey;
   }
 
@@ -72,10 +58,13 @@ class FlutterwaveSubscription {
   // Process subscription payment
   async processSubscriptionPayment(subscriptionData) {
     try {
-      // Get public key (with fallback to config)
-      const publicKey = await this.getPublicKey();
+      // Get public key
+      const publicKey = this.getPublicKey();
       if (!publicKey) {
-        throw new Error('Flutterwave public key not configured');
+        console.error('❌ Flutterwave public key not configured');
+        console.error('❌ Config:', config?.payments?.flutterwave);
+        console.error('❌ Env VITE_FLUTTERWAVE_PUBLIC_KEY:', import.meta.env.VITE_FLUTTERWAVE_PUBLIC_KEY);
+        throw new Error('Flutterwave public key not configured. Please set VITE_FLUTTERWAVE_PUBLIC_KEY in your environment variables or config file.');
       }
       
       const FlutterwaveCheckout = await this.initialize();
@@ -167,10 +156,16 @@ class FlutterwaveSubscription {
   // Verify payment
   async verifyPayment(transactionId) {
     try {
+      const secretKey = this.secretKey || config?.payments?.flutterwave?.secretKey || process.env.REACT_APP_FLUTTERWAVE_SECRET_KEY || import.meta.env.VITE_FLUTTERWAVE_SECRET_KEY;
+      
+      if (!secretKey) {
+        throw new Error('Flutterwave secret key not configured for payment verification');
+      }
+      
       const response = await fetch(`${this.baseUrl}/transactions/${transactionId}/verify`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${this.secretKey || process.env.REACT_APP_FLUTTERWAVE_SECRET_KEY || import.meta.env.VITE_FLUTTERWAVE_SECRET_KEY}`,
+          'Authorization': `Bearer ${secretKey}`,
           'Content-Type': 'application/json'
         }
       });
