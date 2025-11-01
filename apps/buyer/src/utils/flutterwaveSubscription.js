@@ -38,7 +38,7 @@ class FlutterwaveSubscription {
         amount: price,
         currency: 'NGN',
         payment_options: 'card,mobilemoney,ussd',
-        redirect_url: `${window.location.origin}/vendor?tab=billing&payment=success`,
+        redirect_url: `${window.location.origin}/vendor?tab=billing&payment=success&plan=${plan}`,
         customer: {
           email: userEmail,
           name: userName,

@@ -620,9 +620,195 @@ const Vendor = () => {
   // Removed real-time listeners for better performance
   // Data will be refreshed when user switches tabs or manually refreshes
 
+  // Check for payment success callback and auto-activate subscription
+  useEffect(() => {
+    const handlePaymentCallback = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const paymentStatus = urlParams.get('payment');
+      const plan = urlParams.get('plan');
+      const tab = urlParams.get('tab');
+      
+      if (paymentStatus === 'success' && plan && tab === 'billing' && currentUser) {
+        try {
+          console.log('✅ Payment successful, verifying and activating subscription for plan:', plan);
+          
+          // Flutterwave redirects with status and tx_ref parameters
+          // Also check hash fragment (some Flutterwave versions use this)
+          const txRef = urlParams.get('tx_ref') || urlParams.get('transaction_id');
+          const status = urlParams.get('status');
+          
+          // Check if payment was successful
+          if (status === 'successful' || status === 'success') {
+            if (txRef) {
+              // Import and verify payment
+              const flutterwaveSubscription = await import('../utils/flutterwaveSubscription').then(m => m.default);
+              const verification = await flutterwaveSubscription.verifyPayment(txRef);
+              
+              if (verification.success) {
+              // Get plan details
+              const planDetails = {
+                basic: { price: 0, commission: 5.0, productLimit: 50, analytics: 'basic', support: 'email' },
+                pro: { price: 5000, commission: 3.0, productLimit: 500, analytics: 'advanced', support: 'priority' },
+                premium: { price: 15000, commission: 2.0, productLimit: -1, analytics: 'premium', support: 'dedicated' }
+              };
+              
+              const selectedPlan = planDetails[plan] || planDetails.basic;
+              
+              // Create subscription record
+              const subscriptionId = await flutterwaveSubscription.createSubscriptionRecord(
+                { transactionId: txRef, txRef: txRef },
+                {
+                  userId: currentUser.uid,
+                  plan: plan,
+                  price: selectedPlan.price,
+                  commissionRate: selectedPlan.commission,
+                  productLimit: selectedPlan.productLimit,
+                  analyticsLevel: selectedPlan.analytics,
+                  supportLevel: selectedPlan.support
+                }
+              );
+
+              // Update user profile
+              await firebaseService.users.update(currentUser.uid, {
+                subscriptionPlan: plan,
+                subscriptionStatus: 'active',
+                subscriptionStartDate: new Date(),
+                subscriptionEndDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+                commissionRate: selectedPlan.commission,
+                productLimit: selectedPlan.productLimit,
+                analyticsLevel: selectedPlan.analytics,
+                supportLevel: selectedPlan.support
+              });
+
+              console.log('✅ Subscription activated successfully!');
+              
+              // Refresh billing data
+              if (activeTab === 'billing') {
+                loadTabData('billing');
+              }
+              
+              // Show success message
+              alert(`Subscription activated! You can now add up to ${selectedPlan.productLimit === -1 ? 'unlimited' : selectedPlan.productLimit} products.`);
+              
+                // Clean up URL
+                window.history.replaceState({}, '', window.location.pathname);
+              } else {
+                console.error('❌ Payment verification failed');
+                alert('Payment verification failed. Please contact support if payment was successful.');
+              }
+            } else {
+              console.warn('⚠️ No transaction ID found in callback URL');
+              alert('Payment redirect received but transaction ID not found. Please contact support if payment was successful.');
+            }
+          } else if (status === 'cancelled') {
+            console.log('Payment was cancelled by user');
+            window.history.replaceState({}, '', window.location.pathname);
+          } else {
+            console.warn('⚠️ Payment status unknown:', status);
+          }
+        } catch (error) {
+          console.error('❌ Error processing payment callback:', error);
+          alert('Error processing payment. Please contact support if payment was successful.');
+        }
+      }
+    };
+    
+    handlePaymentCallback();
+  }, [currentUser, activeTab]);
+
+  // Check subscription limits before product creation
+  const checkProductLimit = async (vendorId) => {
+    try {
+      // Get current subscription (with fallback to basic plan)
+      const subscription = await firebaseService.subscriptions.getByUser(vendorId);
+      
+      // Define plan limits
+      const planLimits = {
+        basic: { productLimit: 50 },
+        pro: { productLimit: 500 },
+        premium: { productLimit: -1 } // unlimited
+      };
+      
+      // Get current plan (default to basic if no subscription)
+      const currentPlan = subscription?.plan || 'basic';
+      const productLimit = subscription?.productLimit || planLimits[currentPlan]?.productLimit || 50;
+      
+      // If unlimited, allow
+      if (productLimit === -1) {
+        return { allowed: true, remaining: -1 };
+      }
+      
+      // Count current products
+      const currentProducts = await firebaseService.products.getByVendor(vendorId);
+      const productCount = currentProducts.length;
+      
+      // Check if limit reached
+      if (productCount >= productLimit) {
+        return {
+          allowed: false,
+          current: productCount,
+          limit: productLimit,
+          plan: currentPlan,
+          subscription: subscription
+        };
+      }
+      
+      return {
+        allowed: true,
+        current: productCount,
+        remaining: productLimit - productCount,
+        limit: productLimit,
+        plan: currentPlan
+      };
+    } catch (error) {
+      console.error('Error checking product limit:', error);
+      // On error, default to basic plan limit
+      const currentProducts = await firebaseService.products.getByVendor(vendorId);
+      const productCount = currentProducts.length;
+      const basicLimit = 50;
+      
+      if (productCount >= basicLimit) {
+        return {
+          allowed: false,
+          current: productCount,
+          limit: basicLimit,
+          plan: 'basic',
+          error: true
+        };
+      }
+      
+      return {
+        allowed: true,
+        current: productCount,
+        remaining: basicLimit - productCount,
+        limit: basicLimit,
+        plan: 'basic',
+        error: true
+      };
+    }
+  };
+
   const handleAddProduct = async (productData) => {
     try {
       setUploadProgress(0);
+      
+      // Check product limit before creating
+      const limitCheck = await checkProductLimit(currentUser.uid);
+      if (!limitCheck.allowed) {
+        const limitMessage = `You have reached your product limit of ${limitCheck.limit} products for the ${limitCheck.plan} plan. Please upgrade your subscription to add more products.`;
+        alert(limitMessage);
+        setUploadProgress(null);
+        
+        // Optionally redirect to billing tab
+        if (limitCheck.plan === 'basic' || limitCheck.plan === 'pro') {
+          const shouldUpgrade = confirm(`${limitMessage}\n\nWould you like to upgrade your subscription now?`);
+          if (shouldUpgrade) {
+            setActiveTab('billing');
+          }
+        }
+        return;
+      }
+      
       // Get vendor's store ID to link product to store
       let storeId = null;
       try {

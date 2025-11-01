@@ -42,6 +42,19 @@ const VendorBilling = () => {
     loadSubscriptionData();
   }, [currentUser]);
 
+  // Listen for payment success and refresh subscription
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const paymentStatus = urlParams.get('payment');
+    
+    if (paymentStatus === 'success') {
+      // Refresh subscription data when payment succeeds
+      setTimeout(() => {
+        loadSubscriptionData();
+      }, 1000);
+    }
+  }, [currentUser]);
+
   const loadSubscriptionData = async () => {
     if (!currentUser) return;
 

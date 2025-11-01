@@ -80,51 +80,69 @@ const VendorSubscriptionModal = ({ isOpen, onClose, onUpgrade }) => {
         return;
       }
 
-      // For paid plans, process payment
-      const paymentData = await flutterwaveSubscription.processSubscriptionPayment({
-        plan: selectedPlan,
-        price: plan.price,
-        userEmail: currentUser.email,
-        userName: currentUser.displayName || userProfile?.businessName || 'Vendor',
-        userId: currentUser.uid,
-        planName: plan.name,
-        commissionRate: plan.commission,
-        productLimit: plan.limits.products,
-        analyticsLevel: plan.limits.analytics,
-        supportLevel: plan.limits.support
-      });
-
-      // Verify payment
-      const verification = await flutterwaveSubscription.verifyPayment(paymentData.transactionId);
-      
-      if (verification.success) {
-        // Create subscription record
-        const subscriptionId = await flutterwaveSubscription.createSubscriptionRecord(paymentData, {
-          userId: currentUser.uid,
+      // For paid plans, process payment (this will open Flutterwave checkout modal)
+      try {
+        const paymentData = await flutterwaveSubscription.processSubscriptionPayment({
           plan: selectedPlan,
           price: plan.price,
+          userEmail: currentUser.email,
+          userName: currentUser.displayName || userProfile?.businessName || 'Vendor',
+          userId: currentUser.uid,
+          planName: plan.name,
           commissionRate: plan.commission,
           productLimit: plan.limits.products,
           analyticsLevel: plan.limits.analytics,
           supportLevel: plan.limits.support
         });
 
-        // Update user profile
-        await firebaseService.users.update(currentUser.uid, {
-          subscriptionPlan: selectedPlan,
-          subscriptionStatus: 'active',
-          subscriptionStartDate: new Date(),
-          subscriptionEndDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-          commissionRate: plan.commission,
-          productLimit: plan.limits.products,
-          analyticsLevel: plan.limits.analytics,
-          supportLevel: plan.limits.support
-        });
+        // If payment was successful immediately (shouldn't happen with redirect flow)
+        if (paymentData.success) {
+          // Verify payment
+          const verification = await flutterwaveSubscription.verifyPayment(paymentData.transactionId);
+          
+          if (verification.success) {
+            // Create subscription record
+            const subscriptionId = await flutterwaveSubscription.createSubscriptionRecord(paymentData, {
+              userId: currentUser.uid,
+              plan: selectedPlan,
+              price: plan.price,
+              commissionRate: plan.commission,
+              productLimit: plan.limits.products,
+              analyticsLevel: plan.limits.analytics,
+              supportLevel: plan.limits.support
+            });
 
-        onUpgrade(selectedPlan);
+            // Update user profile
+            await firebaseService.users.update(currentUser.uid, {
+              subscriptionPlan: selectedPlan,
+              subscriptionStatus: 'active',
+              subscriptionStartDate: new Date(),
+              subscriptionEndDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+              commissionRate: plan.commission,
+              productLimit: plan.limits.products,
+              analyticsLevel: plan.limits.analytics,
+              supportLevel: plan.limits.support
+            });
+
+            onUpgrade(selectedPlan);
+            onClose();
+            return;
+          }
+        }
+        
+        // Payment initiated - Flutterwave will redirect user
+        // Callback handler in Vendor.jsx will process payment verification
+        console.log('💳 Payment initiated, redirecting to Flutterwave...');
         onClose();
-      } else {
-        throw new Error('Payment verification failed');
+      } catch (paymentError) {
+        // If payment modal was closed or cancelled
+        if (paymentError.message?.includes('cancelled') || paymentError.message?.includes('close')) {
+          console.log('Payment cancelled by user');
+          setError('Payment was cancelled');
+          setLoading(false);
+          return;
+        }
+        throw paymentError;
       }
     } catch (error) {
       console.error('Error upgrading subscription:', error);
