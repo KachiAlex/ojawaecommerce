@@ -160,17 +160,10 @@ const Cart = () => {
           return;
         }
         
-        // Only fetch vendor info if auth is fully loaded (required for Firestore rules)
-        // For unauthenticated users, we can't fetch vendor profiles, but they can still view cart
+        // Wait for auth to finish loading, but fetch vendor info even if user is not authenticated
+        // Vendor profiles are publicly readable (needed for cart/checkout)
         if (authLoading) {
           // Wait for auth to finish loading
-          return;
-        }
-        
-        // If not authenticated, skip vendor info fetch (vendor info not critical for basic cart view)
-        if (!currentUser) {
-          // For guests, we could fetch from products instead, but for now just skip
-          setVendorInfo(null);
           return;
         }
         
@@ -196,11 +189,14 @@ const Cart = () => {
 
         // Get unique vendor IDs from cart items
         const vendorIds = [...new Set(cartItems.map(item => item.vendorId).filter(Boolean))];
+        console.log('🛒 Fetching vendor info - vendorIds:', vendorIds);
+        console.log('🛒 Cart items:', cartItems.map(item => ({ id: item.id, vendorId: item.vendorId, name: item.name })));
         
         if (vendorIds.length > 0) {
           const vendorData = {};
           
           for (const vendorId of vendorIds) {
+            console.log(`🛒 Fetching vendor ${vendorId}...`);
             try {
               // Force fetch from server to get latest vendor data (bypasses cache)
               const userSnap = await getDoc(doc(db, 'users', vendorId));
