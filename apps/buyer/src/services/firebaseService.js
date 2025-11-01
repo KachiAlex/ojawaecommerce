@@ -262,27 +262,75 @@ export const productService = {
   // Paged fetch for vendor's products
   async getByVendorPaged({ vendorId, pageSize = 10, cursor = null }) {
     try {
-      let q = query(
-        collection(db, 'products'),
-        where('vendorId', '==', vendorId),
-        orderBy('createdAt', 'desc'),
-        fsLimit(pageSize)
-      );
-      if (cursor) {
-        q = query(
+      console.log('🔍 getByVendorPaged: Querying products for vendorId:', vendorId, 'pageSize:', pageSize, 'cursor:', cursor ? 'exists' : 'null');
+      
+      // Try query with orderBy first
+      let q;
+      try {
+        if (cursor) {
+          q = query(
+            collection(db, 'products'),
+            where('vendorId', '==', vendorId),
+            orderBy('createdAt', 'desc'),
+            startAfter(cursor),
+            fsLimit(pageSize)
+          );
+        } else {
+          q = query(
+            collection(db, 'products'),
+            where('vendorId', '==', vendorId),
+            orderBy('createdAt', 'desc'),
+            fsLimit(pageSize)
+          );
+        }
+        const snapshot = await getDocs(q);
+        const items = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        const nextCursor = snapshot.docs.length === pageSize ? snapshot.docs[snapshot.docs.length - 1] : null;
+        console.log('✅ getByVendorPaged: Found', items.length, 'products');
+        return { items, nextCursor };
+      } catch (orderByError) {
+        // If orderBy fails (missing index), try without orderBy
+        console.warn('⚠️ Query with orderBy failed, trying without orderBy:', orderByError.message);
+        let fallbackQ = query(
           collection(db, 'products'),
           where('vendorId', '==', vendorId),
-          orderBy('createdAt', 'desc'),
-          startAfter(cursor),
-          fsLimit(pageSize)
+          fsLimit(pageSize * 2) // Fetch more to sort client-side
         );
+        
+        const snapshot = await getDocs(fallbackQ);
+        let items = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        
+        // Sort by createdAt client-side
+        items.sort((a, b) => {
+          const aTime = a.createdAt?.seconds || a.createdAt?.toMillis?.() || 0;
+          const bTime = b.createdAt?.seconds || b.createdAt?.toMillis?.() || 0;
+          if (a.createdAt && typeof a.createdAt === 'object' && 'toDate' in a.createdAt) {
+            const aDate = a.createdAt.toDate();
+            const bDate = b.createdAt.toDate();
+            return bDate - aDate;
+          }
+          return bTime - aTime;
+        });
+        
+        // Apply pagination client-side
+        if (cursor) {
+          // Find cursor position
+          const cursorIndex = items.findIndex(item => item.id === cursor.id);
+          if (cursorIndex >= 0) {
+            items = items.slice(cursorIndex + 1, cursorIndex + 1 + pageSize);
+          } else {
+            items = items.slice(0, pageSize);
+          }
+        } else {
+          items = items.slice(0, pageSize);
+        }
+        
+        const nextCursor = items.length === pageSize ? items[items.length - 1] : null;
+        console.log('✅ getByVendorPaged (fallback): Found', items.length, 'products');
+        return { items, nextCursor };
       }
-      const snapshot = await getDocs(q);
-      const items = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      const nextCursor = snapshot.docs.length === pageSize ? snapshot.docs[snapshot.docs.length - 1] : null;
-      return { items, nextCursor };
     } catch (error) {
-      console.error('Error fetching vendor products (paged):', error);
+      console.error('❌ Error fetching vendor products (paged):', error);
       throw error;
     }
   },
@@ -290,15 +338,46 @@ export const productService = {
   // Get all products for a vendor (non-paged)
   async getByVendor(vendorId) {
     try {
-      const q = query(
-        collection(db, 'products'),
-        where('vendorId', '==', vendorId),
-        orderBy('createdAt', 'desc')
-      );
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      console.log('🔍 getByVendor: Querying all products for vendorId:', vendorId);
+      
+      // Try query with orderBy first
+      try {
+        const q = query(
+          collection(db, 'products'),
+          where('vendorId', '==', vendorId),
+          orderBy('createdAt', 'desc')
+        );
+        const snapshot = await getDocs(q);
+        const products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        console.log('✅ getByVendor: Found', products.length, 'products');
+        return products;
+      } catch (orderByError) {
+        // If orderBy fails (missing index), try without orderBy
+        console.warn('⚠️ Query with orderBy failed, trying without orderBy:', orderByError.message);
+        const fallbackQ = query(
+          collection(db, 'products'),
+          where('vendorId', '==', vendorId)
+        );
+        const snapshot = await getDocs(fallbackQ);
+        let products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        // Sort by createdAt client-side
+        products.sort((a, b) => {
+          const aTime = a.createdAt?.seconds || a.createdAt?.toMillis?.() || 0;
+          const bTime = b.createdAt?.seconds || b.createdAt?.toMillis?.() || 0;
+          if (a.createdAt && typeof a.createdAt === 'object' && 'toDate' in a.createdAt) {
+            const aDate = a.createdAt.toDate();
+            const bDate = b.createdAt.toDate();
+            return bDate - aDate;
+          }
+          return bTime - aTime;
+        });
+        
+        console.log('✅ getByVendor (fallback): Found', products.length, 'products');
+        return products;
+      }
     } catch (error) {
-      console.error('Error fetching vendor products:', error);
+      console.error('❌ Error fetching vendor products:', error);
       throw error;
     }
   },

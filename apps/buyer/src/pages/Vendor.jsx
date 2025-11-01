@@ -336,13 +336,32 @@ const Vendor = () => {
           break;
           
         case 'products':
-          if (products.length === 0) {
+          // Always reload products when products tab is accessed to ensure fresh data
+          console.log('📦 Loading products for vendor:', currentUser.uid);
+          try {
             // Use direct query instead of optimized service to get all products regardless of status
             const productsPage = await firebaseService.products.getByVendorPaged({ vendorId: currentUser.uid, pageSize });
+            console.log('📦 Products loaded:', productsPage.items.length, 'items');
+            console.log('📦 Products data:', productsPage.items.map(p => ({ id: p.id, name: p.name, vendorId: p.vendorId, status: p.status })));
             setProducts(productsPage.items);
             setProductsCursor(productsPage.nextCursor);
             setProductsPages([{ items: productsPage.items, cursor: productsPage.nextCursor }]);
             setProductsPageIndex(0);
+          } catch (error) {
+            console.error('❌ Error loading products:', error);
+            // Try fallback query without pagination
+            try {
+              console.log('🔄 Attempting fallback query...');
+              const allProducts = await firebaseService.products.getByVendor(currentUser.uid);
+              console.log('📦 Fallback query returned:', allProducts.length, 'products');
+              setProducts(allProducts);
+              setProductsCursor(null);
+              setProductsPages([{ items: allProducts, cursor: null }]);
+              setProductsPageIndex(0);
+            } catch (fallbackError) {
+              console.error('❌ Fallback query also failed:', fallbackError);
+              setProducts([]);
+            }
           }
           break;
           
