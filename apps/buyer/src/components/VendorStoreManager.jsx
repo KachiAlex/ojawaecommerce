@@ -37,6 +37,7 @@ const VendorStoreManager = ({
     console.log('🏪 VendorStoreManager useEffect triggered');
     console.log('  - userProfile:', userProfile);
     console.log('  - userProfile?.vendorProfile:', userProfile?.vendorProfile);
+    console.log('  - products prop:', products.length, 'products');
     if (userProfile?.vendorProfile) {
       const slug = userProfile.vendorProfile.storeSlug || 
                     userProfile.vendorProfile.storeName?.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
@@ -54,6 +55,14 @@ const VendorStoreManager = ({
       fetchOrCreateStore(slug);
     }
   }, [userProfile]);
+
+  // Load products if not provided or empty
+  useEffect(() => {
+    if ((!products || products.length === 0) && currentUser && onRefreshProducts) {
+      console.log('🔄 VendorStoreManager: Products prop is empty, triggering refresh...');
+      onRefreshProducts();
+    }
+  }, [products, currentUser, onRefreshProducts]);
 
   const fetchOrCreateStore = async (slug) => {
     if (!currentUser) {

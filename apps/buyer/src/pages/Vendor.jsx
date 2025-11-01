@@ -325,6 +325,29 @@ const Vendor = () => {
 
     try {
       switch (tab) {
+        case 'store':
+          // Also load products when store tab is clicked, so VendorStoreManager has them
+          if (products.length === 0) {
+            console.log('📦 Store tab clicked, loading products...');
+            // Directly load products without recursion
+            const productsPage = await firebaseService.products.getByVendorPaged({ vendorId: currentUser.uid, pageSize });
+            if (productsPage.items.length > 0) {
+              setProducts(productsPage.items);
+              setProductsCursor(productsPage.nextCursor);
+              setProductsPages([{ items: productsPage.items, cursor: productsPage.nextCursor }]);
+              setProductsPageIndex(0);
+            } else if (currentUser.email) {
+              // Try email fallback
+              const emailProducts = await firebaseService.products.getByVendorEmail(currentUser.email);
+              if (emailProducts.length > 0) {
+                setProducts(emailProducts.slice(0, pageSize));
+                setProductsCursor(null);
+                setProductsPages([{ items: emailProducts.slice(0, pageSize), cursor: null }]);
+                setProductsPageIndex(0);
+              }
+            }
+          }
+          break;
         case 'orders':
           if (orders.length === 0) {
             const ordersData = await getVendorDataOptimized(currentUser.uid, 'orders');
