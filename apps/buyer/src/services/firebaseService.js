@@ -382,6 +382,53 @@ export const productService = {
     }
   },
 
+  // Get products by vendor email (fallback if vendorId doesn't match)
+  async getByVendorEmail(vendorEmail) {
+    try {
+      console.log('🔍 getByVendorEmail: Querying products for vendorEmail:', vendorEmail);
+      
+      // Try query with orderBy first
+      try {
+        const q = query(
+          collection(db, 'products'),
+          where('vendorEmail', '==', vendorEmail),
+          orderBy('createdAt', 'desc')
+        );
+        const snapshot = await getDocs(q);
+        const products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        console.log('✅ getByVendorEmail: Found', products.length, 'products');
+        return products;
+      } catch (orderByError) {
+        // If orderBy fails (missing index), try without orderBy
+        console.warn('⚠️ Query with orderBy failed, trying without orderBy:', orderByError.message);
+        const fallbackQ = query(
+          collection(db, 'products'),
+          where('vendorEmail', '==', vendorEmail)
+        );
+        const snapshot = await getDocs(fallbackQ);
+        let products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        // Sort by createdAt client-side
+        products.sort((a, b) => {
+          const aTime = a.createdAt?.seconds || a.createdAt?.toMillis?.() || 0;
+          const bTime = b.createdAt?.seconds || b.createdAt?.toMillis?.() || 0;
+          if (a.createdAt && typeof a.createdAt === 'object' && 'toDate' in a.createdAt) {
+            const aDate = a.createdAt.toDate();
+            const bDate = b.createdAt.toDate();
+            return bDate - aDate;
+          }
+          return bTime - aTime;
+        });
+        
+        console.log('✅ getByVendorEmail (fallback): Found', products.length, 'products');
+        return products;
+      }
+    } catch (error) {
+      console.error('❌ Error fetching products by vendorEmail:', error);
+      throw error;
+    }
+  },
+
   // Get single product
   async getById(productId) {
     try {
