@@ -13,7 +13,8 @@ export const config = {
   // Payment configuration
   payments: {
     flutterwave: {
-      publicKey: import.meta.env.VITE_FLUTTERWAVE_PUBLIC_KEY,
+      publicKey: import.meta.env.VITE_FLUTTERWAVE_PUBLIC_KEY || 'FLWPUBK_TEST-04fa9716ef05b43e581444120c688399-X',
+      secretKey: import.meta.env.VITE_FLUTTERWAVE_SECRET_KEY,
     },
     stripe: {
       publicKey: import.meta.env.VITE_STRIPE_PUBLIC_KEY,
