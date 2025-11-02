@@ -316,6 +316,13 @@ const Cart = () => {
                 
                 console.log(`📍 Final vendor address for ${vendorId}:`, vendorAddress);
                 
+                // Get vendor phone number from multiple possible locations
+                const vendorPhone = vendor.vendorProfile?.businessPhone || 
+                                   vendor.phone || 
+                                   vendor.phoneNumber || 
+                                   vendor.contactPhone || 
+                                   '';
+                
                 vendorData[vendorId] = {
                   id: vendorId,
                   name: vendor.displayName || 
@@ -324,14 +331,16 @@ const Cart = () => {
                         vendor.storeName ||
                         vendor.email?.split('@')[0] ||
                         'Vendor',
-                  address: vendorAddress
+                  address: vendorAddress,
+                  phone: vendorPhone
                 };
               } else {
                 console.warn(`⚠️ Vendor ${vendorId} document does not exist`);
                 vendorData[vendorId] = {
                   id: vendorId,
                   name: 'Vendor',
-                  address: 'Address not specified'
+                  address: 'Address not specified',
+                  phone: ''
                 };
               }
             } catch (err) {
@@ -339,7 +348,8 @@ const Cart = () => {
               vendorData[vendorId] = {
                 id: vendorId,
                 name: 'Vendor',
-                address: 'Address not specified'
+                address: 'Address not specified',
+                phone: ''
               };
             }
           }
@@ -485,7 +495,20 @@ const Cart = () => {
                     {item.currency && <span className="ml-1 text-xs text-gray-500">({item.currency.split(' ')[1]})</span>}
                   </p>
                   {vendorInfo && vendorInfo[item.vendorId] && (
-                    <p className="text-xs text-gray-500 truncate">Sold by: {vendorInfo[item.vendorId].name}</p>
+                    <div className="mt-1 space-y-1">
+                      <p className="text-xs text-gray-500 truncate">Sold by: {vendorInfo[item.vendorId].name}</p>
+                      {vendorInfo[item.vendorId].phone && (
+                        <a 
+                          href={`tel:${vendorInfo[item.vendorId].phone}`}
+                          className="inline-flex items-center text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                        >
+                          <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                          </svg>
+                          Call: {vendorInfo[item.vendorId].phone}
+                        </a>
+                      )}
+                    </div>
                   )}
                 </div>
 

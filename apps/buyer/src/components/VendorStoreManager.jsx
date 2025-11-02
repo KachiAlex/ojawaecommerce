@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { storeService } from '../services/trackingService';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -13,7 +13,10 @@ const VendorStoreManager = ({
   onCreateProduct,
   onRefreshProducts 
 }) => {
-  console.log('🏪 VendorStoreManager component loaded');
+  const renderCount = useRef(0);
+  renderCount.current += 1;
+  console.log('🏪 VendorStoreManager component loaded, render #:', renderCount.current);
+  
   const { currentUser, userProfile } = useAuth();
   const [activeStoreTab, setActiveStoreTab] = useState('overview');
   const [store, setStore] = useState(null);
@@ -303,10 +306,11 @@ const VendorStoreManager = ({
       </div>
 
       {/* Store Tabs - Internal navigation for store management */}
-      <div className="bg-white rounded-xl border">
+      <div key="store-tabs-wrapper" className="bg-white rounded-xl border">
         <div className="border-b border-gray-200">
-          <nav className="flex space-x-4 px-6" aria-label="Store Management Tabs">
+          <nav key="store-tabs-nav" className="flex space-x-4 px-6" aria-label="Store Management Tabs">
             <button
+              key="store-overview-tab"
               onClick={() => setActiveStoreTab('overview')}
               className={`py-4 px-3 text-sm font-medium border-b-2 transition-colors ${
                 activeStoreTab === 'overview'
@@ -317,6 +321,7 @@ const VendorStoreManager = ({
               📊 Store Overview
             </button>
             <button
+              key="store-products-tab"
               onClick={() => setActiveStoreTab('products')}
               className={`py-4 px-3 text-sm font-medium border-b-2 transition-colors ${
                 activeStoreTab === 'products'
@@ -327,6 +332,7 @@ const VendorStoreManager = ({
               🛍️ Store Products ({products.length})
             </button>
             <button
+              key="store-settings-tab"
               onClick={() => setActiveStoreTab('settings')}
               className={`py-4 px-3 text-sm font-medium border-b-2 transition-colors ${
                 activeStoreTab === 'settings'

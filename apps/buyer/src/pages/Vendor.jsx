@@ -41,6 +41,7 @@ const VendorMessagesTabContent = ({
   const [sending, setSending] = useState(false);
   const [otherParticipantName, setOtherParticipantName] = useState('');
   const bottomRef = useRef(null);
+  const [senderNames, setSenderNames] = useState({}); // Cache sender names
 
   useEffect(() => {
     if (activeConversation) {
@@ -51,6 +52,60 @@ const VendorMessagesTabContent = ({
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length]);
+  
+  // Fetch sender names for all messages
+  useEffect(() => {
+    if (!messages || messages.length === 0 || !currentUser) return;
+    
+    const fetchSenderNames = async () => {
+      const uniqueSenderIds = [...new Set(messages.map(msg => msg.senderId).filter(Boolean))];
+      
+      // Use functional update to check current state without including in dependencies
+      setSenderNames(prev => {
+        const namesToFetch = uniqueSenderIds.filter(id => !prev[id]);
+        
+        if (namesToFetch.length === 0) return prev;
+        
+        // Fetch names asynchronously and update state
+        (async () => {
+          const namePromises = namesToFetch.map(async (senderId) => {
+            try {
+              const userRef = doc(db, 'users', senderId);
+              const snap = await getDoc(userRef);
+              if (snap.exists()) {
+                const data = snap.data();
+                // Get display name - prioritize vendor/business name, then display name, then email
+                const displayName = data.vendorProfile?.businessName || 
+                                   data.vendorProfile?.storeName ||
+                                   data.displayName || 
+                                   data.name || 
+                                   data.email?.split('@')[0] || 
+                                   senderId;
+                return { senderId, displayName };
+              }
+              return { senderId, displayName: senderId };
+            } catch (error) {
+              console.warn('Error fetching sender name:', error);
+              return { senderId, displayName: senderId };
+            }
+          });
+          
+          const names = await Promise.all(namePromises);
+          setSenderNames(current => {
+            const updated = { ...current };
+            names.forEach(({ senderId, displayName }) => {
+              updated[senderId] = displayName;
+            });
+            return updated;
+          });
+        })();
+        
+        return prev; // Return current state immediately
+      });
+    };
+    
+    fetchSenderNames();
+  }, [messages, currentUser]);
 
   const handleSend = async (e) => {
     e?.preventDefault();
@@ -193,14 +248,38 @@ const VendorMessagesTabContent = ({
                     const userId = typeof currentUser?.uid === 'string' ? currentUser.uid : String(currentUser?.uid || '');
                     const mine = senderId === userId;
                     const messageContent = typeof msg.content === 'string' ? msg.content : String(msg.content || '');
+                    const senderName = senderNames[senderId] || (mine ? 'You' : 'Unknown');
+                    
                     return (
-                      <div key={msg.id || `msg-${Math.random()}`} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                      <div key={msg.id || `msg-${Math.random()}`} className={`flex flex-col ${mine ? 'items-end' : 'items-start'} mb-3`}>
+                        {/* Sender name - only show if not current user */}
+                        {!mine && (
+                          <div className="mb-1 px-2">
+                            <span className="text-xs font-medium text-gray-600">
+                              {senderName}
+                            </span>
+                          </div>
+                        )}
+                        <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
                         <div
                           className={`${
                             mine ? 'bg-emerald-600 text-white' : 'bg-white text-gray-900 border'
                           } px-4 py-2 rounded-2xl max-w-[80%] whitespace-pre-wrap break-words shadow-sm`}
                         >
                           {messageContent}
+                            {/* Timestamp */}
+                            <div className={`text-xs mt-1 ${mine ? 'text-emerald-100' : 'text-gray-500'}`}>
+                              {msg.timestamp?.toDate ? new Date(msg.timestamp.toDate()).toLocaleTimeString('en-US', { 
+                                hour: 'numeric', 
+                                minute: '2-digit',
+                                hour12: true 
+                              }) : msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString('en-US', { 
+                                hour: 'numeric', 
+                                minute: '2-digit',
+                                hour12: true 
+                              }) : ''}
+                            </div>
+                          </div>
                         </div>
                       </div>
                     );
@@ -239,7 +318,7 @@ const VendorMessagesTabContent = ({
 
 const Vendor = () => {
   console.log('🏪 Vendor component loaded');
-  const { currentUser, userProfile } = useAuth();
+  const { currentUser, userProfile, updateUserProfile } = useAuth();
   const {
     conversations,
     activeConversation,
@@ -295,6 +374,8 @@ const Vendor = () => {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [deletingProductId, setDeletingProductId] = useState(null);
   const [productStatusFilter, setProductStatusFilter] = useState('all');
+  const [upgradeSuccessBanner, setUpgradeSuccessBanner] = useState(null);
+  const processingUpgradeRef = useRef(false); // Prevent duplicate upgrade processing
   // Logistics modal state removed - logistics partners work independently
 
   // Load only essential data first for fast initial load
@@ -632,28 +713,83 @@ const Vendor = () => {
     fetchInitialData();
   }, [fetchInitialData]);
 
-  // Load tab data when tab changes
+  // Load tab data when tab changes - ALWAYS REFRESH ON TAB CHANGE
   useEffect(() => {
-    if (activeTab === 'overview') {
-      // When overview tab is active, ensure we have products and orders loaded
-      // The initial load should handle this, but if arrays are still empty, reload them
-      const currentProductsLength = products.length;
-      const currentOrdersLength = orders.length;
-      
-      if (currentProductsLength === 0 || currentOrdersLength === 0) {
-        console.log('📊 Overview tab active: Products:', currentProductsLength, 'Orders:', currentOrdersLength, '- Ensuring data is loaded...');
-        // Load products and orders in parallel
-        Promise.all([
-          currentProductsLength === 0 ? loadTabData('products').catch(err => console.warn('Error loading products:', err)) : Promise.resolve(),
-          currentOrdersLength === 0 ? loadTabData('orders').catch(err => console.warn('Error loading orders:', err)) : Promise.resolve()
-        ]).then(() => {
-          console.log('✅ Overview tab: Data refresh complete');
-        });
-      }
-    } else {
-      loadTabData(activeTab);
+    if (!currentUser || !activeTab) {
+      console.log('⏸️ Tab data loader: Waiting for user or tab...', { currentUser: !!currentUser, activeTab });
+      return;
     }
-  }, [activeTab, loadTabData, products.length, orders.length]);
+    
+    console.log('📊 Tab changed to:', activeTab);
+    
+    if (activeTab === 'overview') {
+      // Overview tab - ALWAYS refresh data when tab becomes active
+      // This ensures data is fresh, especially after upgrade
+      console.log('📊 Overview tab active: Loading all data...');
+      
+      // Load all data in parallel
+      (async () => {
+        try {
+          const [productsData, ordersData, statsData] = await Promise.all([
+            // Load products
+            firebaseService.products.getByVendor(currentUser.uid).catch(err => {
+              console.warn('⚠️ Error loading products for overview:', err);
+              if (currentUser.email) {
+                return firebaseService.products.getByVendorEmail(currentUser.email).catch(() => []);
+              }
+              return [];
+            }),
+            
+            // Load orders
+            getVendorDataOptimized(currentUser.uid, 'orders').catch(err => {
+              console.warn('⚠️ Error loading orders for overview:', err);
+              return { orders: [] };
+            }),
+            
+            // Load stats
+            getVendorDataOptimized(currentUser.uid, 'overview').catch(err => {
+              console.warn('⚠️ Error loading stats for overview:', err);
+              return { stats: {}, ordersCount: 0, productsCount: 0 };
+            })
+          ]);
+          
+          // Set products
+          if (Array.isArray(productsData)) {
+            setProducts(productsData);
+            setProductsCount(productsData.length);
+            console.log('✅ Overview: Loaded', productsData.length, 'products');
+          }
+          
+          // Set orders
+          const ordersArray = ordersData?.orders || [];
+          if (Array.isArray(ordersArray)) {
+            setOrders(ordersArray);
+            setOrdersCount(ordersArray.length);
+            console.log('✅ Overview: Loaded', ordersArray.length, 'orders');
+          }
+          
+          // Set stats
+          if (statsData?.stats) {
+            setStats(statsData.stats);
+            // Also update counts from stats if available
+            if (statsData.ordersCount !== undefined) setOrdersCount(statsData.ordersCount);
+            if (statsData.productsCount !== undefined) setProductsCount(statsData.productsCount);
+            console.log('✅ Overview: Stats refreshed');
+          }
+          
+          console.log('✅ Overview tab: All data loaded successfully');
+        } catch (error) {
+          console.error('❌ Error loading overview data:', error);
+        }
+      })();
+    } else {
+      // Other tabs - use loadTabData
+      console.log('📊 Loading data for tab:', activeTab);
+      loadTabData(activeTab).catch(err => {
+        console.error('Error loading tab data:', err);
+      });
+    }
+  }, [activeTab, currentUser, loadTabData]); // Always refresh when tab changes
 
   // Derived product filters and counts
   const safeProducts = Array.isArray(products) ? products : [];
@@ -679,32 +815,94 @@ const Vendor = () => {
   // Removed real-time listeners for better performance
   // Data will be refreshed when user switches tabs or manually refreshes
 
-  // Check for payment success callback and auto-activate subscription
+  // Initialize activeTab from URL parameters on mount AND when URL changes
   useEffect(() => {
-    const handlePaymentCallback = async () => {
+    const checkUrlAndSetTab = () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const tab = urlParams.get('tab');
+      if (tab && ['overview', 'orders', 'store', 'products', 'billing', 'disputes', 'analytics', 'settings', 'wallet', 'messages'].includes(tab)) {
+        console.log('📍 Setting activeTab from URL:', tab);
+        setActiveTab(tab);
+        return true; // Tab was set from URL
+      }
+      return false; // No tab in URL
+    };
+
+    // Check immediately on mount
+    checkUrlAndSetTab();
+
+    // Also listen for URL changes (popstate for back/forward, but we'll check on any location change)
+    const handleLocationChange = () => {
+      checkUrlAndSetTab();
+    };
+    
+    // Check on popstate (back/forward navigation)
+    window.addEventListener('popstate', handleLocationChange);
+    
+    // Also check periodically in case URL was updated without triggering popstate
+    // This is useful for payment redirects that might happen before React mounts
+    const urlCheckInterval = setInterval(() => {
+      if (checkUrlAndSetTab()) {
+        clearInterval(urlCheckInterval); // Stop checking once we've found and set the tab
+      }
+    }, 100);
+
+    return () => {
+      window.removeEventListener('popstate', handleLocationChange);
+      clearInterval(urlCheckInterval);
+    };
+  }, []);
+
+  // UPGRADE FLOW: Handle payment redirect and process subscription upgrade
+  // This is the MAIN flow that runs on mount and when URL changes
+  useEffect(() => {
+    // Only run if we have a user
+    if (!currentUser) {
+      console.log('⏸️ Upgrade flow: No user yet, waiting...');
+      return;
+    }
+    
       const urlParams = new URLSearchParams(window.location.search);
       const paymentStatus = urlParams.get('payment');
       const plan = urlParams.get('plan');
       const tab = urlParams.get('tab');
       
-      if (paymentStatus === 'success' && plan && tab === 'billing' && currentUser) {
+    console.log('🔍 Upgrade flow check:', { paymentStatus, plan, tab, url: window.location.href });
+    
+    // Only process if we have payment=success and a plan
+    if (paymentStatus === 'success' && plan) {
+      // Prevent duplicate processing
+      if (processingUpgradeRef.current) {
+        console.log('⏳ Upgrade already processing, skipping...');
+        return;
+      }
+      
+      // Check if already upgraded to this plan
+      if (userProfile?.subscriptionPlan === plan && userProfile?.subscriptionStatus === 'active') {
+        console.log('✅ Already upgraded to', plan, '- just refreshing UI...');
+        // Just refresh UI
+        setUpgradeSuccessBanner({
+          plan: plan.toUpperCase(),
+          productLimit: plan === 'pro' ? 500 : plan === 'premium' ? -1 : 50,
+          commissionRate: plan === 'pro' ? 3.0 : plan === 'premium' ? 2.0 : 5.0
+        });
+        // Switch to billing tab if needed
+        if (tab === 'billing') {
+          setActiveTab('billing');
+        }
+        // Refresh data
+        fetchInitialData().catch(err => console.error('Error refreshing data:', err));
+        return;
+      }
+      
+      processingUpgradeRef.current = true;
+      
+      // Process upgrade immediately
+      (async () => {
         try {
-          console.log('✅ Payment successful, verifying and activating subscription for plan:', plan);
+          console.log('🚀 UPGRADE FLOW: Starting subscription upgrade for', plan);
           
-          // Flutterwave redirects with status and tx_ref parameters
-          // Also check hash fragment (some Flutterwave versions use this)
-          const txRef = urlParams.get('tx_ref') || urlParams.get('transaction_id');
-          const status = urlParams.get('status');
-          
-          // Check if payment was successful
-          if (status === 'successful' || status === 'success') {
-            if (txRef) {
-              // Import and verify payment
-              const flutterwaveSubscription = await import('../utils/flutterwaveSubscription').then(m => m.default);
-              const verification = await flutterwaveSubscription.verifyPayment(txRef);
-              
-              if (verification.success) {
-              // Get plan details
+          // Plan configuration
               const planDetails = {
                 basic: { price: 0, commission: 5.0, productLimit: 50, analytics: 'basic', support: 'email' },
                 pro: { price: 5000, commission: 3.0, productLimit: 500, analytics: 'advanced', support: 'priority' },
@@ -713,8 +911,30 @@ const Vendor = () => {
               
               const selectedPlan = planDetails[plan] || planDetails.basic;
               
-              // Create subscription record
-              const subscriptionId = await flutterwaveSubscription.createSubscriptionRecord(
+          // STEP 1: Update user profile FIRST (most important)
+          const profileUpdates = {
+            subscriptionPlan: plan,
+            subscriptionStatus: 'active',
+            subscriptionStartDate: new Date(),
+            subscriptionEndDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+            commissionRate: selectedPlan.commission,
+            productLimit: selectedPlan.productLimit,
+            analyticsLevel: selectedPlan.analytics,
+            supportLevel: selectedPlan.support
+          };
+          
+          console.log('📝 Step 1: Updating user profile...');
+          
+          // Update context (this also updates Firebase)
+          await updateUserProfile(profileUpdates);
+          console.log('✅ Profile updated in Firebase and context');
+          
+          // STEP 2: Try to create subscription record (non-critical)
+          const txRef = urlParams.get('tx_ref') || urlParams.get('transaction_id') || urlParams.get('flw_ref');
+          if (txRef) {
+            try {
+              const flutterwaveSubscription = await import('../utils/flutterwaveSubscription').then(m => m.default);
+              await flutterwaveSubscription.createSubscriptionRecord(
                 { transactionId: txRef, txRef: txRef },
                 {
                   userId: currentUser.uid,
@@ -726,89 +946,138 @@ const Vendor = () => {
                   supportLevel: selectedPlan.support
                 }
               );
-
-              // Update user profile
-              await firebaseService.users.update(currentUser.uid, {
-                subscriptionPlan: plan,
-                subscriptionStatus: 'active',
-                subscriptionStartDate: new Date(),
-                subscriptionEndDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-                commissionRate: selectedPlan.commission,
-                productLimit: selectedPlan.productLimit,
-                analyticsLevel: selectedPlan.analytics,
-                supportLevel: selectedPlan.support
-              });
-
-              console.log('✅ Subscription activated successfully!');
-              
-              // Refresh all data after successful subscription
-              console.log('🔄 Refreshing products and orders after subscription upgrade...');
-              
-              // Refresh products
-              try {
-                const refreshedProducts = await firebaseService.products.getByVendor(currentUser.uid);
-                console.log('✅ Refreshed products:', refreshedProducts.length);
-                setProducts(refreshedProducts);
-                setProductsCount(refreshedProducts.length);
-              } catch (productError) {
-                console.error('Error refreshing products:', productError);
-                // Try email fallback
-                if (currentUser.email) {
-                  try {
-                    const emailProducts = await firebaseService.products.getByVendorEmail(currentUser.email);
-                    setProducts(emailProducts);
-                    setProductsCount(emailProducts.length);
-                  } catch (emailError) {
-                    console.error('Error refreshing products by email:', emailError);
-                  }
-                }
-              }
-              
-              // Refresh orders
-              try {
-                const ordersData = await getVendorDataOptimized(currentUser.uid, 'orders');
-                if (ordersData?.orders && Array.isArray(ordersData.orders)) {
-                  setOrders(ordersData.orders);
-                  setOrdersCount(ordersData.orders.length);
-                  console.log('✅ Refreshed orders:', ordersData.orders.length);
-                }
-              } catch (orderError) {
-                console.error('Error refreshing orders:', orderError);
-              }
-              
-              // Refresh billing data
-              if (activeTab === 'billing') {
-                loadTabData('billing');
-              }
-              
-              // Show success message
-              alert(`Subscription activated! You can now add up to ${selectedPlan.productLimit === -1 ? 'unlimited' : selectedPlan.productLimit} products.`);
-              
-              // Clean up URL
-              window.history.replaceState({}, '', window.location.pathname);
-              } else {
-                console.error('❌ Payment verification failed');
-                alert('Payment verification failed. Please contact support if payment was successful.');
-              }
-            } else {
-              console.warn('⚠️ No transaction ID found in callback URL');
-              alert('Payment redirect received but transaction ID not found. Please contact support if payment was successful.');
+              console.log('✅ Subscription record created');
+            } catch (subError) {
+              console.warn('⚠️ Subscription record creation failed (non-critical):', subError);
             }
-          } else if (status === 'cancelled') {
-            console.log('Payment was cancelled by user');
-            window.history.replaceState({}, '', window.location.pathname);
-          } else {
-            console.warn('⚠️ Payment status unknown:', status);
           }
+          
+          // STEP 3: Show success banner
+          setUpgradeSuccessBanner({
+            plan: plan.toUpperCase(),
+                productLimit: selectedPlan.productLimit,
+            commissionRate: selectedPlan.commission
+              });
+          console.log('✅ Success banner shown');
+              
+          // STEP 4: Force complete data refresh
+          console.log('🔄 Step 4: Refreshing all data...');
+          
+          // Set activeTab to billing to show billing tab
+          setActiveTab('billing');
+              
+          // Refresh overview data (products, orders, stats)
+          await fetchInitialData();
+          console.log('✅ Initial data refreshed');
+          
+          // Force overview tab to reload if user switches to it
+          // Also ensure products and orders are set
+          try {
+            const [refreshedProducts, refreshedOrders] = await Promise.all([
+              firebaseService.products.getByVendor(currentUser.uid).catch(err => {
+                console.warn('Error loading products:', err);
+                if (currentUser.email) {
+                  return firebaseService.products.getByVendorEmail(currentUser.email).catch(() => []);
+                  }
+                return [];
+              }),
+              getVendorDataOptimized(currentUser.uid, 'orders').then(d => d?.orders || []).catch(() => [])
+            ]);
+            
+            setProducts(refreshedProducts || []);
+            setProductsCount(refreshedProducts?.length || 0);
+            setOrders(refreshedOrders || []);
+            setOrdersCount(refreshedOrders?.length || 0);
+            
+            console.log('✅ Force-refreshed products:', refreshedProducts?.length || 0, 'orders:', refreshedOrders?.length || 0);
+          } catch (refreshErr) {
+            console.error('Error force-refreshing data:', refreshErr);
+              }
+              
+          // Give a moment for context to update
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Refresh billing tab data
+          try {
+            await loadTabData('billing');
+            console.log('✅ Billing tab data refreshed');
+          } catch (billingErr) {
+            console.warn('Error refreshing billing tab:', billingErr);
+              }
+              
+          // STEP 5: Clean up URL but keep tab parameter
+          const cleanUrl = window.location.pathname + '?tab=billing';
+          window.history.replaceState({}, '', cleanUrl);
+          console.log('✅ URL cleaned:', cleanUrl);
+          
+          console.log('🎉 UPGRADE FLOW COMPLETE! Plan:', plan);
+          
+          // Double-check profile is updated - verify upgrade was successful
+          console.log('🔍 Verifying profile update:', {
+            subscriptionPlan: userProfile?.subscriptionPlan,
+            subscriptionStatus: userProfile?.subscriptionStatus,
+            productLimit: userProfile?.productLimit,
+            commissionRate: userProfile?.commissionRate
+          });
+              
+          // Final verification: Ensure profile actually has the upgrade
+          // If not, log a warning (but don't fail - profile update already happened)
+          if (userProfile?.subscriptionPlan !== plan) {
+            console.warn('⚠️ Profile verification: Plan mismatch detected. Profile may need a moment to sync.');
+            console.warn('⚠️ Expected plan:', plan, 'Profile plan:', userProfile?.subscriptionPlan);
+              } else {
+            console.log('✅ Profile verification: Upgrade confirmed in profile!');
+          }
+          
+          // Final UI refresh to ensure everything is in sync
+          // Wait a bit more for context propagation, then do one final refresh
+          setTimeout(async () => {
+            try {
+              console.log('🔄 Final UI sync refresh...');
+              await fetchInitialData();
+              console.log('✅ Final UI sync complete');
+            } catch (syncErr) {
+              console.warn('⚠️ Final sync refresh failed (non-critical):', syncErr);
+              }
+          }, 1000);
+          
         } catch (error) {
-          console.error('❌ Error processing payment callback:', error);
-          alert('Error processing payment. Please contact support if payment was successful.');
+          console.error('❌ UPGRADE FLOW ERROR:', error);
+          
+          // Even if there's an error, try to show the banner and refresh UI
+          // This ensures user sees SOME feedback even if something fails
+          try {
+            setUpgradeSuccessBanner({
+              plan: plan.toUpperCase(),
+              productLimit: planDetails[plan]?.productLimit || 50,
+              commissionRate: planDetails[plan]?.commission || 5.0
+            });
+            setActiveTab('billing');
+            
+            // Still try to refresh data even on error
+            fetchInitialData().catch(err => console.error('Error refreshing after upgrade error:', err));
+          } catch (recoveryError) {
+            console.error('Error in recovery:', recoveryError);
+          }
+          
+          alert('Upgrade processing encountered an error. Your subscription may still have been updated. Please check your billing tab or contact support if you have any concerns. Error: ' + error.message);
+        } finally {
+          // Reset processing flag after delay
+          setTimeout(() => {
+            processingUpgradeRef.current = false;
+            console.log('🔄 Upgrade processing flag reset - ready for next upgrade');
+          }, 3000);
         }
-      }
-    };
-    
-    handlePaymentCallback();
-  }, [currentUser, activeTab]);
+      })();
+      
+    } else if (paymentStatus === 'cancelled') {
+      console.log('Payment cancelled');
+            window.history.replaceState({}, '', window.location.pathname);
+      processingUpgradeRef.current = false;
+          } else {
+      processingUpgradeRef.current = false;
+        }
+  }, [currentUser, userProfile, fetchInitialData, loadTabData, updateUserProfile]); // Include userProfile to detect updates
 
   // Check subscription limits before product creation
   const checkProductLimit = async (vendorId) => {
@@ -1299,6 +1568,39 @@ const Vendor = () => {
             </div>
           )}
 
+          {/* Upgrade Success Banner */}
+          {upgradeSuccessBanner && (
+            <div className="mb-6 bg-gradient-to-r from-green-50 to-emerald-50 border-l-4 border-green-500 rounded-lg p-6 shadow-sm">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start gap-4 flex-1">
+                  <div className="flex-shrink-0">
+                    <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                      <span className="text-2xl">🎉</span>
+                    </div>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-green-900 mb-2">
+                      Successfully Upgraded to {upgradeSuccessBanner.plan} Plan!
+                    </h3>
+                    <p className="text-sm text-green-800 mb-3">
+                      Your subscription has been activated. You can now:
+                    </p>
+                    <ul className="text-sm text-green-700 space-y-1 ml-4">
+                      <li>• Add up to {upgradeSuccessBanner.productLimit === -1 ? 'unlimited' : upgradeSuccessBanner.productLimit} products</li>
+                      <li>• Pay only {upgradeSuccessBanner.commissionRate}% commission on sales</li>
+                    </ul>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setUpgradeSuccessBanner(null)}
+                  className="text-green-600 hover:text-green-800 text-xl"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Add Product Modal */}
           <ProductEditorModal
             open={showAddProductForm}
@@ -1507,20 +1809,21 @@ const Vendor = () => {
           )}
 
           {activeTab === 'store' && (
-            <>
+            <div key="store-tab-content">
               {console.log('🏪 Rendering VendorStoreManager, activeTab:', activeTab)}
               <BulkOperations 
                 products={products}
                 onProductsUpdate={() => loadTabData('products')}
               />
               <VendorStoreManager 
+                key="vendor-store-manager"
                 products={products}
                 onEditProduct={openEditProduct}
                 onDeleteProduct={(product) => setConfirmDelete({ open: true, product })}
                 onCreateProduct={openCreateProduct}
                 onRefreshProducts={() => loadTabData('products')}
               />
-            </>
+            </div>
           )}
 
           {activeTab === 'products' && Array.isArray(products) && (
@@ -2027,215 +2330,6 @@ const Vendor = () => {
                     Next
                   </button>
                 </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'store' && (
-            <div>
-              {console.log('🏪 Rendering VendorStoreManager, activeTab:', activeTab, 'products:', products.length)}
-              <VendorStoreManager 
-                products={products}
-                onEditProduct={openEditProduct}
-                onDeleteProduct={(product) => setConfirmDelete({ open: true, product })}
-                onCreateProduct={openCreateProduct}
-                onRefreshProducts={() => {
-                  console.log('🔄 VendorStoreManager: Refreshing products...');
-                  loadTabData('products');
-                }}
-              />
-            </div>
-          )}
-
-          {activeTab === 'products' && Array.isArray(products) && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-gray-900">Product Management</h2>
-                <button 
-                  onClick={openCreateProduct}
-                  className="bg-emerald-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-emerald-700"
-                >
-                  Add New Product
-                </button>
-              </div>
-
-              <div className="bg-white rounded-xl border">
-                <div className="p-6 border-b border-gray-200">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold text-gray-900">Your Products</h3>
-                    <div className="flex gap-3">
-                      <div className="flex flex-wrap gap-2 text-sm">
-                        {[
-                          {key:'all', label: `All (${productCountsByStatus.all})`},
-                          {key:'pending', label: `Pending (${productCountsByStatus.pending})`},
-                          {key:'active', label: `Active (${productCountsByStatus.active})`},
-                          {key:'rejected', label: `Rejected (${productCountsByStatus.rejected})`},
-                          {key:'outofstock', label: `Out of Stock (${productCountsByStatus.outofstock})`},
-                          {key:'draft', label: `Draft (${productCountsByStatus.draft})`},
-                        ].map(t => (
-                          <button
-                            key={t.key}
-                            onClick={() => setProductStatusFilter(t.key)}
-                            className={`px-3 py-1 rounded-lg border ${productStatusFilter===t.key ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'text-gray-700 hover:bg-gray-50'}`}
-                          >
-                            {t.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sold</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {(Array.isArray(displayedProducts) ? displayedProducts : []).map((product) => (
-                        <tr key={product.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center gap-3">
-                              <div className="flex -space-x-2">
-                                {Array.isArray(product.images) && product.images.length > 0 ? (
-                                  product.images.slice(0,3).map((url, i) => (
-                                    <img key={i} src={url} alt={`${product.name}-${i}`} className="w-10 h-10 rounded-lg border object-cover bg-gray-100" />
-                                  ))
-                                ) : (
-                              <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                                    <span className="text-lg">🖼️</span>
-                                  </div>
-                                )}
-                              </div>
-                              <div>
-                                <p className="font-medium text-gray-900">{product.name}</p>
-                                <p className="text-xs text-gray-500">{product.id}</p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{product.category}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{product.price}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{product.stock}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{product.sold}</td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center gap-2">
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                (product.status || '').toLowerCase() === 'active' ? 'bg-green-100 text-green-800' :
-                                (product.status || '').toLowerCase() === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                                (product.status || '').toLowerCase() === 'out of stock' ? 'bg-red-100 text-red-800' : 
-                              'bg-gray-100 text-gray-800'
-                            }`}>
-                                {product.status || 'Draft'}
-                            </span>
-                              <select
-                                className="text-xs border rounded px-2 py-1"
-                                value={product.status || 'draft'}
-                                onChange={async (e) => {
-                                  const next = e.target.value;
-                                  try {
-                                    setUpdatingProductId(product.id);
-                                    await firebaseService.products.update(product.id, { status: next });
-                                    setProducts((prev) => prev.map((p) => p.id === product.id ? { ...p, status: next } : p));
-                                  } catch (err) {
-                                    console.error('Status update failed', err);
-                                    alert('Failed to update status');
-                                  }
-                                  setUpdatingProductId(null);
-                                }}
-                              >
-                                <option value="pending">Pending (Awaiting Approval)</option>
-                                <option value="active">Active</option>
-                                <option value="out of stock">Out of Stock</option>
-                                <option value="draft">Draft</option>
-                              </select>
-                              {updatingProductId === product.id && (
-                                <span className="text-xs text-gray-500">Saving...</span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm">
-                              <div className="flex gap-2">
-                              <button onClick={() => openEditProduct(product)} className="text-emerald-600 hover:text-emerald-700 font-medium">Edit</button>
-                              <button 
-                                onClick={() => {
-                                  const productLink = `${window.location.origin}/products/${product.id}`;
-                                  navigator.clipboard.writeText(productLink);
-                                  alert('Product link copied to clipboard!');
-                                }}
-                                className="text-blue-600 hover:text-blue-700 font-medium" 
-                                title="Copy product link"
-                              >
-                                Share
-                              </button>
-                              <button onClick={() => setConfirmDelete({ open: true, product })} className="text-red-600 hover:text-red-700 font-medium" disabled={deletingProductId === product.id}>
-                                {deletingProductId === product.id ? 'Deleting…' : 'Delete'}
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                  {/* Rejection reason helper */}
-                  <div className="px-6 pb-4">
-                    {products.some(p => (p.status || '').toLowerCase() === 'rejected' && p.rejectionReason) && (
-                      <div className="rounded-lg border border-red-200 bg-red-50 p-4">
-                        <p className="text-sm text-red-800 font-medium mb-1">Some products were rejected.</p>
-                        <p className="text-sm text-red-700">Open the product to see the rejection reason, fix the issues, and click Edit to resubmit.</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="p-4 flex items-center justify-between">
-                  <div className="text-sm text-gray-600">
-                    {products.length} {products.length === 1 ? 'product' : 'products'}
-                    {productsCursor && ` (showing all loaded)`}
-                  </div>
-                  {/* Only show pagination if we're using cursor-based pagination */}
-                  {productsCursor && (
-                    <div className="flex gap-2">
-                      <button
-                        disabled={productsPageIndex === 0}
-                        onClick={() => {
-                          if (productsPageIndex === 0) return;
-                          const prevIndex = productsPageIndex - 1;
-                          setProducts(productsPages[prevIndex].items);
-                          setProductsCursor(productsPages[prevIndex].cursor);
-                          setProductsPageIndex(prevIndex);
-                        }}
-                        className={`px-3 py-2 text-sm rounded-lg border ${productsPageIndex > 0 ? 'text-gray-700 hover:bg-gray-50' : 'text-gray-400 cursor-not-allowed'}`}
-                      >
-                        Previous
-                      </button>
-                      <button
-                        disabled={!productsCursor}
-                        onClick={async () => {
-                          if (!productsCursor) return;
-                          try {
-                            const next = await firebaseService.products.getByVendorPaged({ vendorId: currentUser.uid, pageSize, cursor: productsCursor });
-                            setProducts(next.items);
-                            setProductsCursor(next.nextCursor);
-                            setProductsPages((prev) => [...prev, { items: next.items, cursor: next.nextCursor }]);
-                            setProductsPageIndex((i) => i + 1);
-                          } catch (e) {
-                            console.error('Next products failed', e);
-                          }
-                        }}
-                        className={`px-3 py-2 text-sm rounded-lg border ${productsCursor ? 'text-gray-700 hover:bg-gray-50' : 'text-gray-400 cursor-not-allowed'}`}
-                      >
-                        Next
-                      </button>
-                    </div>
-                  )}
                 </div>
             </div>
           )}
@@ -2447,84 +2541,6 @@ const Vendor = () => {
 
           {activeTab === 'disputes' && (
             <DisputeManagement userType="vendor" />
-          )}
-
-          {activeTab === 'analytics' && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white p-6 rounded-xl border">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Sales Overview</h3>
-                  <svg viewBox="0 0 100 40" className="w-full h-40">
-                    <defs>
-                      <linearGradient id="gradSales" x1="0" x2="0" y1="0" y2="1">
-                        <stop offset="0%" stopColor="#10b981" stopOpacity="0.8" />
-                        <stop offset="100%" stopColor="#10b981" stopOpacity="0.2" />
-                      </linearGradient>
-                    </defs>
-                    {(() => {
-                      const points = Array.from({ length: 8 }).map((_, i) => {
-                        const x = (i / 7) * 100;
-                        const yBase = (stats.totalSales || 0) % 100000;
-                        const yVal = (yBase / 100000) * 25 + (i * 2);
-                        const y = 35 - Math.min(35, Math.max(5, yVal));
-                        return `${x},${y}`;
-                      }).join(' ');
-                      return (
-                        <>
-                          <polyline fill="none" stroke="#10b981" strokeWidth="1.5" points={points} />
-                          <polyline fill="url(#gradSales)" stroke="none" points={`0,40 ${points} 100,40`} />
-                        </>
-                      );
-                    })()}
-                  </svg>
-                </div>
-
-                <div className="bg-white p-6 rounded-xl border">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Order Volume</h3>
-                  <svg viewBox="0 0 100 40" className="w-full h-40">
-                    <defs>
-                      <linearGradient id="gradOrders" x1="0" x2="0" y1="0" y2="1">
-                        <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.8" />
-                        <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.2" />
-                      </linearGradient>
-                    </defs>
-                    {(() => {
-                      const points = Array.from({ length: 8 }).map((_, i) => {
-                        const x = (i / 7) * 100;
-                        const yBase = (stats.totalOrders || 0) % 100;
-                        const yVal = (yBase / 100) * 25 + (i * 3);
-                        const y = 35 - Math.min(35, Math.max(5, yVal));
-                        return `${x},${y}`;
-                      }).join(' ');
-                      return (
-                        <>
-                          <polyline fill="none" stroke="#3b82f6" strokeWidth="1.5" points={points} />
-                          <polyline fill="url(#gradOrders)" stroke="none" points={`0,40 ${points} 100,40`} />
-                        </>
-                      );
-                    })()}
-                  </svg>
-                </div>
-
-                <div className="bg-white p-6 rounded-xl border">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">KPIs</h3>
-                  <div className="space-y-3">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Total Orders</span>
-                      <span className="text-sm font-medium">{stats.totalOrders || 0}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Completed</span>
-                      <span className="text-sm font-medium">{stats.completedOrders || 0}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Active</span>
-                      <span className="text-sm font-medium">{stats.activeOrders || 0}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
           )}
 
           {activeTab === 'wallet' && (

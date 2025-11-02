@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import firebaseService from '../services/firebaseService';
 import ProductCard from '../components/ProductCard';
+import Product3DCard from '../components/Product3DCard';
 import { ProductListSkeleton } from '../components/SkeletonLoaders';
 import { collection, query, where, getDocs, orderBy, limit, startAfter } from 'firebase/firestore';
 import { db } from '../firebase/config';
@@ -31,6 +32,7 @@ const Products = () => {
   const [hasMore, setHasMore] = useState(true);
   const [lastDoc, setLastDoc] = useState(null);
   const [isSearching, setIsSearching] = useState(false);
+  const [viewMode, setViewMode] = useState('3D'); // '2D' or '3D'
 
   // Price slider constants and derived percentages for styled track
   const PRICE_MIN = 0;
@@ -322,13 +324,41 @@ const Products = () => {
       <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 py-4 sm:py-8">
         {/* Header */}
         <motion.div 
-          className="mb-6 sm:mb-8"
+          className="mb-6 sm:mb-8 flex justify-between items-start"
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2 sm:mb-4">Products</h1>
-          <p className="text-sm sm:text-base text-gray-600">Discover amazing products from local vendors</p>
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2 sm:mb-4">Products</h1>
+            <p className="text-sm sm:text-base text-gray-600">Discover amazing products from local vendors</p>
+          </div>
+          
+          {/* View Mode Toggle */}
+          <div className="flex items-center gap-2 bg-white/90 backdrop-blur-sm rounded-lg p-1 shadow-sm border border-gray-200">
+            <button
+              onClick={() => setViewMode('2D')}
+              className={`px-4 py-2 rounded-md font-medium text-sm transition-all ${
+                viewMode === '2D' 
+                  ? 'bg-emerald-600 text-white shadow-md' 
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+              }`}
+              title="2D View"
+            >
+              📐 2D
+            </button>
+            <button
+              onClick={() => setViewMode('3D')}
+              className={`px-4 py-2 rounded-md font-medium text-sm transition-all ${
+                viewMode === '3D' 
+                  ? 'bg-emerald-600 text-white shadow-md' 
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+              }`}
+              title="3D View"
+            >
+              🎮 3D
+            </button>
+          </div>
         </motion.div>
 
         {/* Search and Filters */}
@@ -618,7 +648,7 @@ const Products = () => {
                 className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
                 layout
               >
-                <Framer.AnimatePresence>
+                <Framer.AnimatePresence mode="wait">
                   {products.map((product, index) => (
                     <motion.div
                       key={product.id}
@@ -632,10 +662,17 @@ const Products = () => {
                         layout: { duration: 0.3 }
                       }}
                     >
-                <ProductCard
-                  product={product}
-                  onAddToCart={handleAddToCart}
-                />
+                      {viewMode === '3D' ? (
+                        <Product3DCard
+                          product={product}
+                          onAddToCart={handleAddToCart}
+                        />
+                      ) : (
+                        <ProductCard
+                          product={product}
+                          onAddToCart={handleAddToCart}
+                        />
+                      )}
                     </motion.div>
               ))}
                 </Framer.AnimatePresence>

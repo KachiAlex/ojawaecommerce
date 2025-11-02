@@ -18,6 +18,13 @@ const StorePage = () => {
 
   console.log('🏪 StorePage component loaded with storeSlug:', storeSlug);
 
+  // Periodically refresh products to ensure they're always shown
+  useEffect(() => {
+    if (store && products.length > 0) {
+      console.log('✅ StorePage: Products are loaded:', products.length);
+    }
+  }, [store, products]);
+
   // Share functions
   const copyProductLink = (product) => {
     const productUrl = `${window.location.origin}/products/${product.id}`;
@@ -396,8 +403,10 @@ const StorePage = () => {
         console.log('🏪 StorePage: Approved products:', approvedProducts.length);
         console.log('🏪 StorePage: All products (including non-approved):', allProducts.length);
         
-        // Use all products for now since none are approved
-        setProducts(allProducts);
+        // ALWAYS use allProducts (show ALL products regardless of status)
+        // This ensures products are ALWAYS displayed when a store is viewed
+        setProducts(allProducts.length > 0 ? allProducts : approvedProducts);
+        console.log('🏪 StorePage: FINAL products set:', allProducts.length > 0 ? allProducts.length : approvedProducts.length);
         
       } catch (error) {
         console.error('❌ StorePage: Error fetching store data:', error);

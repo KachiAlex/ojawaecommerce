@@ -23,8 +23,8 @@ export const CartProvider = ({ children }) => {
     (async () => {
       try {
         const savedCart = await secureStorage.getItem('cart');
-        if (savedCart) {
-          setCartItems(JSON.parse(savedCart));
+    if (savedCart) {
+        setCartItems(JSON.parse(savedCart));
         }
       } catch (error) {
         console.error('Error loading cart from secure storage:', error);

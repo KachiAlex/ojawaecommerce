@@ -23,6 +23,7 @@ const Messages = () => {
   const [sending, setSending] = useState(false);
   const bottomRef = useRef(null);
   const [otherParticipantName, setOtherParticipantName] = useState('');
+  const [senderNames, setSenderNames] = useState({}); // Cache sender names
 
   // Check for pending vendor message from sessionStorage after login
   useEffect(() => {
@@ -74,6 +75,60 @@ const Messages = () => {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length]);
+  
+  // Fetch sender names for all messages
+  useEffect(() => {
+    if (!messages || messages.length === 0 || !currentUser) return;
+    
+    const fetchSenderNames = async () => {
+      const uniqueSenderIds = [...new Set(messages.map(msg => msg.senderId).filter(Boolean))];
+      
+      // Use functional update to check current state without including in dependencies
+      setSenderNames(prev => {
+        const namesToFetch = uniqueSenderIds.filter(id => !prev[id]);
+        
+        if (namesToFetch.length === 0) return prev;
+        
+        // Fetch names asynchronously and update state
+        (async () => {
+          const namePromises = namesToFetch.map(async (senderId) => {
+            try {
+              const userRef = doc(db, 'users', senderId);
+              const snap = await getDoc(userRef);
+              if (snap.exists()) {
+                const data = snap.data();
+                // Get display name - prioritize vendor/business name, then display name, then email
+                const displayName = data.vendorProfile?.businessName || 
+                                   data.vendorProfile?.storeName ||
+                                   data.displayName || 
+                                   data.name || 
+                                   data.email?.split('@')[0] || 
+                                   senderId;
+                return { senderId, displayName };
+              }
+              return { senderId, displayName: senderId };
+            } catch (error) {
+              console.warn('Error fetching sender name:', error);
+              return { senderId, displayName: senderId };
+            }
+          });
+          
+          const names = await Promise.all(namePromises);
+          setSenderNames(current => {
+            const updated = { ...current };
+            names.forEach(({ senderId, displayName }) => {
+              updated[senderId] = displayName;
+            });
+            return updated;
+          });
+        })();
+        
+        return prev; // Return current state immediately
+      });
+    };
+    
+    fetchSenderNames();
+  }, [messages, currentUser]);
 
   const handleSend = async (e) => {
     e?.preventDefault();
@@ -187,9 +242,35 @@ const Messages = () => {
                     .sort((a, b) => (a.timestamp?.seconds || 0) - (b.timestamp?.seconds || 0))
                     .map((msg) => {
                       const mine = msg.senderId === currentUser?.uid;
+                      const senderName = senderNames[msg.senderId] || (mine ? 'You' : 'Unknown');
+                      
                       return (
-                        <div key={msg.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-                          <div className={`${mine ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-900'} px-3 py-2 rounded-2xl max-w-[80%] whitespace-pre-wrap break-words`}>{msg.content}</div>
+                        <div key={msg.id} className={`flex flex-col ${mine ? 'items-end' : 'items-start'} mb-3`}>
+                          {/* Sender name - only show if not current user */}
+                          {!mine && (
+                            <div className="mb-1 px-2">
+                              <span className="text-xs font-medium text-gray-600">
+                                {senderName}
+                              </span>
+                            </div>
+                          )}
+                          <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                            <div className={`${mine ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-900'} px-3 py-2 rounded-2xl max-w-[80%] whitespace-pre-wrap break-words`}>
+                              {msg.content}
+                              {/* Timestamp */}
+                              <div className={`text-xs mt-1 ${mine ? 'text-emerald-100' : 'text-gray-500'}`}>
+                                {msg.timestamp?.toDate ? new Date(msg.timestamp.toDate()).toLocaleTimeString('en-US', { 
+                                  hour: 'numeric', 
+                                  minute: '2-digit',
+                                  hour12: true 
+                                }) : msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString('en-US', { 
+                                  hour: 'numeric', 
+                                  minute: '2-digit',
+                                  hour12: true 
+                                }) : ''}
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       );
                     })}

@@ -63,10 +63,18 @@ const ProductDetail = () => {
               
               if (vendorSnap.exists()) {
                 const vendorData = vendorSnap.data();
+                // Get vendor phone number from multiple possible locations
+                const vendorPhone = vendorData.vendorProfile?.businessPhone || 
+                                   vendorData.phone || 
+                                   vendorData.phoneNumber || 
+                                   vendorData.contactPhone || 
+                                   '';
+                
                 setVendorInfo({
                   id: productData.vendorId,
                   name: vendorData.vendorProfile?.storeName || vendorData.displayName || vendorData.name || 'Vendor',
-                  address: vendorData.vendorProfile?.businessAddress || vendorData.address || 'Not specified'
+                  address: vendorData.vendorProfile?.businessAddress || vendorData.address || 'Not specified',
+                  phone: vendorPhone
                 });
               }
             } catch (vendorError) {
@@ -232,15 +240,28 @@ const ProductDetail = () => {
         <div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">{product.name}</h1>
           
-          {/* Vendor/Store Name */}
+          {/* Vendor/Store Name and Contact */}
           {vendorInfo && (
-            <div className="mb-4 flex items-center text-gray-600">
-              <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a1 1 0 110 2h-3a1 1 0 01-1-1v-2a1 1 0 00-1-1H9a1 1 0 00-1 1v2a1 1 0 01-1 1H4a1 1 0 110-2V4zm3 1h2v2H7V5zm2 4H7v2h2V9zm2-4h2v2h-2V5zm2 4h-2v2h2V9z" clipRule="evenodd" />
-              </svg>
-              <span className="text-sm">
-                Sold by: <span className="font-semibold text-gray-900">{vendorInfo.name}</span>
-              </span>
+            <div className="mb-4 space-y-2">
+              <div className="flex items-center text-gray-600">
+                <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a1 1 0 110 2h-3a1 1 0 01-1-1v-2a1 1 0 00-1-1H9a1 1 0 00-1 1v2a1 1 0 01-1 1H4a1 1 0 110-2V4zm3 1h2v2H7V5zm2 4H7v2h2V9zm2-4h2v2h-2V5zm2 4h-2v2h2V9z" clipRule="evenodd" />
+                </svg>
+                <span className="text-sm">
+                  Sold by: <span className="font-semibold text-gray-900">{vendorInfo.name}</span>
+                </span>
+              </div>
+              {vendorInfo.phone && (
+                <a 
+                  href={`tel:${vendorInfo.phone}`}
+                  className="inline-flex items-center text-sm text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                  </svg>
+                  Call Vendor: {vendorInfo.phone}
+                </a>
+              )}
             </div>
           )}
           

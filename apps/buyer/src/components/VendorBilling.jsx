@@ -40,7 +40,7 @@ const VendorBilling = () => {
 
   useEffect(() => {
     loadSubscriptionData();
-  }, [currentUser]);
+  }, [currentUser, userProfile]); // Added userProfile to refresh when profile updates
 
   // Listen for payment success and refresh subscription
   useEffect(() => {
@@ -53,7 +53,7 @@ const VendorBilling = () => {
         loadSubscriptionData();
       }, 1000);
     }
-  }, [currentUser]);
+  }, [currentUser, userProfile]); // Added userProfile
 
   const loadSubscriptionData = async () => {
     if (!currentUser) return;
@@ -61,8 +61,39 @@ const VendorBilling = () => {
     try {
       setLoading(true);
       
-      // Load subscription
-      const sub = await firebaseService.subscriptions.getByUser(currentUser.uid);
+      // Load subscription - but prioritize userProfile if it has subscription info
+      let sub = null;
+      try {
+        sub = await firebaseService.subscriptions.getByUser(currentUser.uid);
+      } catch (err) {
+        console.warn('Error loading subscription record:', err);
+      }
+      
+      // If userProfile has subscription info and subscription record doesn't, use userProfile
+      if (userProfile?.subscriptionPlan && !sub) {
+        sub = {
+          plan: userProfile.subscriptionPlan,
+          status: userProfile.subscriptionStatus || 'active',
+          commissionRate: userProfile.commissionRate,
+          productLimit: userProfile.productLimit,
+          analyticsLevel: userProfile.analyticsLevel,
+          supportLevel: userProfile.supportLevel,
+          startDate: userProfile.subscriptionStartDate,
+          endDate: userProfile.subscriptionEndDate
+        };
+      } else if (userProfile?.subscriptionPlan && sub) {
+        // Merge userProfile data to ensure we have latest info
+        sub = {
+          ...sub,
+          plan: userProfile.subscriptionPlan || sub.plan,
+          status: userProfile.subscriptionStatus || sub.status || 'active',
+          commissionRate: userProfile.commissionRate || sub.commissionRate,
+          productLimit: userProfile.productLimit !== undefined ? userProfile.productLimit : sub.productLimit,
+          analyticsLevel: userProfile.analyticsLevel || sub.analyticsLevel,
+          supportLevel: userProfile.supportLevel || sub.supportLevel
+        };
+      }
+      
       setSubscription(sub);
 
       // Load usage data
@@ -96,10 +127,15 @@ const VendorBilling = () => {
   };
 
   const getCurrentPlan = () => {
-    if (!subscription) {
+    // Prioritize userProfile subscription info (most up-to-date)
+    const planFromProfile = userProfile?.subscriptionPlan;
+    const planFromSubscription = subscription?.plan;
+    const activePlan = planFromProfile || planFromSubscription;
+    
+    if (!activePlan) {
       return subscriptionPlans.basic;
     }
-    return subscriptionPlans[subscription.plan] || subscriptionPlans.basic;
+    return subscriptionPlans[activePlan] || subscriptionPlans.basic;
   };
 
   const getUsagePercentage = (current, limit) => {

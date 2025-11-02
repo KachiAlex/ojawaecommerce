@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useMessaging } from '../contexts/MessagingContext';
 import { useAuth } from '../contexts/AuthContext';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../firebase/config';
 import MobileBottomSheet from './MobileBottomSheet';
 import MobileTouchHandler from './MobileTouchHandler';
 
@@ -23,6 +25,7 @@ const MessagingInterface = ({ isOpen, onClose, order = null, otherUserId = null 
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
+  const [senderNames, setSenderNames] = useState({}); // Cache sender names
 
   const emojis = ['😊', '👍', '👎', '❤️', '😢', '😡', '🎉', '🤔', '👌', '🙏'];
 
@@ -30,6 +33,60 @@ const MessagingInterface = ({ isOpen, onClose, order = null, otherUserId = null 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+  
+  // Fetch sender names for all messages
+  useEffect(() => {
+    if (!messages || messages.length === 0 || !currentUser) return;
+    
+    const fetchSenderNames = async () => {
+      const uniqueSenderIds = [...new Set(messages.map(msg => msg.senderId).filter(Boolean))];
+      
+      // Use functional update to check current state without including in dependencies
+      setSenderNames(prev => {
+        const namesToFetch = uniqueSenderIds.filter(id => !prev[id]);
+        
+        if (namesToFetch.length === 0) return prev;
+        
+        // Fetch names asynchronously and update state
+        (async () => {
+          const namePromises = namesToFetch.map(async (senderId) => {
+            try {
+              const userRef = doc(db, 'users', senderId);
+              const snap = await getDoc(userRef);
+              if (snap.exists()) {
+                const data = snap.data();
+                // Get display name - prioritize vendor/business name, then display name, then email
+                const displayName = data.vendorProfile?.businessName || 
+                                   data.vendorProfile?.storeName ||
+                                   data.displayName || 
+                                   data.name || 
+                                   data.email?.split('@')[0] || 
+                                   senderId;
+                return { senderId, displayName };
+              }
+              return { senderId, displayName: senderId };
+            } catch (error) {
+              console.warn('Error fetching sender name:', error);
+              return { senderId, displayName: senderId };
+            }
+          });
+          
+          const names = await Promise.all(namePromises);
+          setSenderNames(current => {
+            const updated = { ...current };
+            names.forEach(({ senderId, displayName }) => {
+              updated[senderId] = displayName;
+            });
+            return updated;
+          });
+        })();
+        
+        return prev; // Return current state immediately
+      });
+    };
+    
+    fetchSenderNames();
+  }, [messages, currentUser]);
 
   // Initialize conversation when component opens
   useEffect(() => {
@@ -152,48 +209,63 @@ const MessagingInterface = ({ isOpen, onClose, order = null, otherUserId = null 
             <p>No messages yet. Start the conversation!</p>
           </div>
         ) : (
-          messages.map((message) => (
-            <div
-              key={message.id}
-              className={`flex ${message.senderId === currentUser.uid ? 'justify-end' : 'justify-start'}`}
-            >
+          messages.map((message) => {
+            const mine = message.senderId === currentUser.uid;
+            const senderName = senderNames[message.senderId] || (mine ? 'You' : 'Unknown');
+            
+            return (
               <div
-                className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                  message.senderId === currentUser.uid
-                    ? 'bg-emerald-600 text-white'
-                    : 'bg-white text-gray-900 border border-gray-200'
-                }`}
+                key={message.id}
+                className={`flex flex-col ${mine ? 'items-end' : 'items-start'} mb-3`}
               >
-                {message.type === 'image' ? (
-                  <img
-                    src={message.content}
-                    alt="Shared image"
-                    className="max-w-full h-auto rounded"
-                    onClick={() => window.open(message.content, '_blank')}
-                  />
-                ) : message.type === 'file' ? (
-                  <div className="flex items-center space-x-2">
-                    <span>📎</span>
-                    <a
-                      href={message.content}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="underline"
-                    >
-                      {message.fileName}
-                    </a>
+                {/* Sender name - only show if not current user */}
+                {!mine && (
+                  <div className="mb-1 px-2">
+                    <span className="text-xs font-medium text-gray-600">
+                      {senderName}
+                    </span>
                   </div>
-                ) : (
-                  <p className="text-sm">{message.content}</p>
                 )}
-                <p className={`text-xs mt-1 ${
-                  message.senderId === currentUser.uid ? 'text-emerald-100' : 'text-gray-500'
-                }`}>
-                  {formatTime(message.timestamp)}
-                </p>
+                <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                  <div
+                    className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                      mine
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-white text-gray-900 border border-gray-200'
+                    }`}
+                  >
+                    {message.type === 'image' ? (
+                      <img
+                        src={message.content}
+                        alt="Shared image"
+                        className="max-w-full h-auto rounded"
+                        onClick={() => window.open(message.content, '_blank')}
+                      />
+                    ) : message.type === 'file' ? (
+                      <div className="flex items-center space-x-2">
+                        <span>📎</span>
+                        <a
+                          href={message.content}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline"
+                        >
+                          {message.fileName}
+                        </a>
+                      </div>
+                    ) : (
+                      <p className="text-sm">{message.content}</p>
+                    )}
+                    <p className={`text-xs mt-1 ${
+                      mine ? 'text-emerald-100' : 'text-gray-500'
+                    }`}>
+                      {formatTime(message.timestamp)}
+                    </p>
+                  </div>
+                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
         <div ref={messagesEndRef} />
       </div>

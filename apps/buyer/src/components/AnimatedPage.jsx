@@ -14,25 +14,28 @@ const AnimatedPage = ({ children, className = "" }) => {
   const pageVariants = {
     initial: { 
       opacity: 0, 
-      y: 20,
-      scale: 0.98
+      y: 30,
+      scale: 0.96,
+      filter: 'blur(10px)'
     },
     in: { 
       opacity: 1, 
       y: 0,
-      scale: 1
+      scale: 1,
+      filter: 'blur(0px)'
     },
     out: { 
       opacity: 0, 
-      y: -20,
-      scale: 1.02
+      y: -30,
+      scale: 1.04,
+      filter: 'blur(10px)'
     }
   };
 
   const pageTransition = {
     type: "tween",
-    ease: "anticipate",
-    duration: 0.4
+    ease: [0.4, 0, 0.2, 1], // Custom cubic-bezier for smoother animations
+    duration: 0.5
   };
 
   return (

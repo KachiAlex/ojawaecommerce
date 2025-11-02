@@ -114,39 +114,66 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Google Sign-In function with improved error handling and redirect fallback
+  // Google Sign-In function with improved error handling, timeout, and redirect fallback
   const signInWithGoogle = async (userType = 'buyer') => {
     try {
       console.log('🔐 AuthContext: Starting Google Sign-In as:', userType);
+      
+      // Validate userType
+      const validUserTypes = ['buyer', 'vendor', 'logistics', 'existing'];
+      const normalizedUserType = validUserTypes.includes(userType) ? userType : 'buyer';
+      
       const provider = new GoogleAuthProvider();
       provider.addScope('email');
       provider.addScope('profile');
       provider.setCustomParameters({
-        prompt: 'select_account' // Always show account picker
+        prompt: 'consent' // Force consent screen for better reliability
       });
       
-      // Store userType for redirect flow
-      if (userType) {
-        sessionStorage.setItem('google_signin_usertype', userType);
+      // Store userType for redirect flow with timestamp
+      if (normalizedUserType) {
+        sessionStorage.setItem('google_signin_usertype', normalizedUserType);
+        sessionStorage.setItem('google_signin_timestamp', Date.now().toString());
       }
       
-      // Detect mobile/tablet and use redirect flow
+      // Improved mobile detection
       const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      const isTablet = /iPad|Android/i.test(navigator.userAgent) && window.innerWidth >= 768;
       
-      if (isMobile) {
+      if (isMobile || isTablet) {
         // Use redirect flow for mobile
-        console.log('📱 Mobile detected, using redirect flow');
+        console.log('📱 Mobile/Tablet detected, using redirect flow');
         await signInWithRedirect(auth, provider);
         return null; // Will complete after redirect
       }
       
-      // Use popup for desktop
+      // Use popup for desktop with timeout
       let result;
       try {
-        result = await signInWithPopup(auth, provider);
+        console.log('💻 Desktop detected, using popup flow');
+        
+        // Create a timeout promise to prevent hanging
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('TIMEOUT')), 60000); // 60 second timeout
+        });
+        
+        // Race between sign-in and timeout
+        result = await Promise.race([
+          signInWithPopup(auth, provider),
+          timeoutPromise
+        ]);
       } catch (popupError) {
+        console.log('⚠️ Popup error:', popupError.message || popupError.code);
+        
+        // If timeout, suggest manual retry
+        if (popupError.message === 'TIMEOUT') {
+          throw new Error('Sign-in timed out. Please try again or allow popups for this site.');
+        }
+        
         // If popup fails, try redirect as fallback
-        if (popupError.code === 'auth/popup-blocked' || popupError.code === 'auth/popup-closed-by-user') {
+        if (popupError.code === 'auth/popup-blocked' || 
+            popupError.code === 'auth/popup-closed-by-user' ||
+            popupError.code === 'auth/cancelled-popup-request') {
           console.log('⚠️ Popup blocked/failed, falling back to redirect');
           await signInWithRedirect(auth, provider);
           return null; // Will complete after redirect
@@ -156,12 +183,29 @@ export const AuthProvider = ({ children }) => {
       
       // Clear stored userType on successful popup sign-in
       sessionStorage.removeItem('google_signin_usertype');
+      sessionStorage.removeItem('google_signin_timestamp');
       
       const user = result.user;
       console.log('✅ AuthContext: Google Sign-In successful, user:', user.uid);
       
-      // Check if user already exists in Firestore
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      // Validate user data
+      if (!user.email) {
+        throw new Error('Unable to retrieve email from Google account. Please try again.');
+      }
+      
+      // Check if user already exists in Firestore with retry
+      let userDoc;
+      let retries = 3;
+      while (retries > 0) {
+        try {
+          userDoc = await getDoc(doc(db, 'users', user.uid));
+          break;
+        } catch (docError) {
+          retries--;
+          if (retries === 0) throw new Error('Unable to check user profile. Please try again.');
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+        }
+      }
       
       if (!userDoc.exists()) {
         // New user - create profile
@@ -175,9 +219,9 @@ export const AuthProvider = ({ children }) => {
           phone: user.phoneNumber || '',
           address: '',
           createdAt: new Date(),
-          role: userType || 'buyer',
-          isVendor: userType === 'vendor',
-          isLogisticsPartner: userType === 'logistics',
+          role: normalizedUserType === 'existing' ? 'buyer' : normalizedUserType,
+          isVendor: normalizedUserType === 'vendor',
+          isLogisticsPartner: normalizedUserType === 'logistics',
           isAdmin: false,
           vendorProfile: null,
           logisticsProfile: null,
@@ -185,18 +229,34 @@ export const AuthProvider = ({ children }) => {
           signInMethod: 'google'
         };
 
+        // Save profile with retry
+        retries = 3;
+        while (retries > 0) {
+          try {
         await setDoc(doc(db, 'users', user.uid), userProfileData);
         setUserProfile(userProfileData);
+            break;
+          } catch (saveError) {
+            retries--;
+            if (retries === 0) {
+              console.error('Failed to save user profile after retries:', saveError);
+              throw new Error('Unable to complete sign-up. Please try again.');
+            }
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+        }
         
-        // Create wallet for new user
+        // Create wallet for new user with error handling
         try {
-          await firebaseService.wallet.createWallet(user.uid, userType || 'buyer');
+          await firebaseService.wallet.createWallet(user.uid, normalizedUserType || 'buyer');
+          console.log('✅ Wallet created successfully');
         } catch (walletError) {
-          console.error('Error creating wallet:', walletError);
+          console.error('⚠️ Error creating wallet (non-critical):', walletError);
+          // Don't fail sign-up if wallet creation fails
         }
         
         // Show wallet education for new users
-        setNewUserType(userType || 'buyer');
+        setNewUserType(normalizedUserType === 'existing' ? 'buyer' : normalizedUserType);
         setShowEscrowEducation(true);
       } else {
         // Existing user - just load profile
@@ -209,6 +269,10 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('❌ AuthContext: Google Sign-In failed:', error);
       
+      // Clear stored data on error
+      sessionStorage.removeItem('google_signin_usertype');
+      sessionStorage.removeItem('google_signin_timestamp');
+      
       // Handle account exists with different credential
       if (error.code === 'auth/account-exists-with-different-credential') {
         const email = error.customData?.email;
@@ -217,10 +281,14 @@ export const AuthProvider = ({ children }) => {
       
       // Don't retry on user cancellation or popup blocked
       if (error.code === 'auth/popup-closed-by-user' || 
-          error.code === 'auth/cancelled-popup-request' ||
-          error.code === 'auth/popup-blocked') {
-        console.log('ℹ️ User cancelled or blocked Google Sign-In');
+          error.code === 'auth/cancelled-popup-request') {
+        console.log('ℹ️ User cancelled Google Sign-In');
         return null;
+      }
+      
+      // Provide more specific error messages
+      if (error.message.includes('timeout')) {
+        throw new Error('Sign-in timed out. Please check your internet connection and try again.');
       }
       
       throw error;
@@ -328,15 +396,45 @@ export const AuthProvider = ({ children }) => {
           console.log('✅ AuthContext: Redirect result received');
           const user = result.user;
           
-          // Get stored userType from redirect
+          // Get stored userType from redirect with timestamp check
           const storedUserType = sessionStorage.getItem('google_signin_usertype') || 'buyer';
+          const storedTimestamp = sessionStorage.getItem('google_signin_timestamp');
+          
+          // Clear stored data
           sessionStorage.removeItem('google_signin_usertype');
+          sessionStorage.removeItem('google_signin_timestamp');
           
-          // Check if user profile exists
-          const userDoc = await getDoc(doc(db, 'users', user.uid));
+          // Validate timestamp (discard if older than 10 minutes)
+          if (storedTimestamp && Date.now() - parseInt(storedTimestamp) > 600000) {
+            console.warn('⚠️ Redirect result too old, ignoring');
+            return;
+          }
           
-          if (!userDoc.exists()) {
+          // Normalize userType
+          const validUserTypes = ['buyer', 'vendor', 'logistics', 'existing'];
+          const normalizedUserType = validUserTypes.includes(storedUserType) ? storedUserType : 'buyer';
+          
+          // Check if user profile exists with retry
+          let userDoc;
+          let retries = 3;
+          while (retries > 0) {
+            try {
+              userDoc = await getDoc(doc(db, 'users', user.uid));
+              break;
+            } catch (docError) {
+              console.error('Error fetching user doc, retrying...', docError);
+              retries--;
+              if (retries === 0) {
+                console.error('Failed to fetch user doc after retries');
+                return;
+              }
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+          }
+          
+          if (!userDoc || !userDoc.exists()) {
             // New user from redirect - create profile
+            console.log('👤 New user from redirect, creating profile');
             const userProfileData = {
               uid: user.uid,
               email: user.email,
@@ -346,9 +444,9 @@ export const AuthProvider = ({ children }) => {
               phone: user.phoneNumber || '',
               address: '',
               createdAt: new Date(),
-              role: storedUserType || 'buyer',
-              isVendor: storedUserType === 'vendor',
-              isLogisticsPartner: storedUserType === 'logistics',
+              role: normalizedUserType === 'existing' ? 'buyer' : normalizedUserType,
+              isVendor: normalizedUserType === 'vendor',
+              isLogisticsPartner: normalizedUserType === 'logistics',
               isAdmin: false,
               vendorProfile: null,
               logisticsProfile: null,
@@ -356,20 +454,37 @@ export const AuthProvider = ({ children }) => {
               signInMethod: 'google'
             };
 
+            // Save with retry
+            retries = 3;
+            while (retries > 0) {
+              try {
             await setDoc(doc(db, 'users', user.uid), userProfileData);
             setUserProfile(userProfileData);
+                console.log('✅ User profile created successfully');
+                break;
+              } catch (saveError) {
+                retries--;
+                if (retries === 0) {
+                  console.error('Failed to save user profile:', saveError);
+                  return;
+                }
+                await new Promise(resolve => setTimeout(resolve, 1000));
+              }
+            }
             
             // Create wallet with correct userType
             try {
-              await firebaseService.wallet.createWallet(user.uid, storedUserType || 'buyer');
+              await firebaseService.wallet.createWallet(user.uid, normalizedUserType === 'existing' ? 'buyer' : normalizedUserType);
+              console.log('✅ Wallet created successfully');
             } catch (walletError) {
-              console.error('Error creating wallet:', walletError);
+              console.error('⚠️ Error creating wallet (non-critical):', walletError);
             }
             
-            setNewUserType(storedUserType || 'buyer');
+            setNewUserType(normalizedUserType === 'existing' ? 'buyer' : normalizedUserType);
             setShowEscrowEducation(true);
           } else {
             // Existing user from redirect - load profile
+            console.log('👤 Existing user from redirect, loading profile');
             const userData = userDoc.data();
             setUserProfile(userData);
           }
@@ -377,6 +492,9 @@ export const AuthProvider = ({ children }) => {
       })
       .catch((error) => {
         console.error('❌ AuthContext: Redirect result error:', error);
+        // Clear any stale session data on error
+        sessionStorage.removeItem('google_signin_usertype');
+        sessionStorage.removeItem('google_signin_timestamp');
       });
     
     const unsubscribe = onAuthStateChanged(auth, async (user) => {

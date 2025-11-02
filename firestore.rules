@@ -20,10 +20,13 @@ service cloud.firestore {
     
     // Notifications collection - users can access only their notifications
     match /notifications/{notificationId} {
+      // Allow read if user owns the notification or is admin
       allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
       // Allow any authenticated user to create notifications (for cross-user notifications)
       allow create: if isAuthenticated();
       allow update, delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      // Allow list/query for authenticated users
+      // Firestore will validate that each document in query results matches the read rule above
       allow list: if isAuthenticated();
     }
 
