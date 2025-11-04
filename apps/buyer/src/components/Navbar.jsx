@@ -57,17 +57,18 @@ const Navbar = () => {
     }
   };
 
-  // Close dropdown when clicking outside
+  // Close dropdown when clicking outside (use click to avoid early mousedown race)
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+      if (!dropdownRef.current) return;
+      if (!dropdownRef.current.contains(event.target)) {
         setIsUserDropdownOpen(false);
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('click', handleClickOutside);
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('click', handleClickOutside);
     };
   }, []);
 
@@ -159,7 +160,14 @@ const Navbar = () => {
               )}
 
               {/* Account Dropdown - always available (shows Sign In/Sign Out based on auth) */}
-              <div className="relative" ref={dropdownRef}>
+              <div
+                className="relative"
+                ref={dropdownRef}
+                onClick={(e) => {
+                  // Prevent outside click handler from immediately closing after toggle
+                  e.stopPropagation();
+                }}
+              >
                 <button
                   onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
                   className="flex items-center space-x-2 text-gray-700 hover:text-gray-900 font-medium transition-colors"
