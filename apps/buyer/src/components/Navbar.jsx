@@ -186,7 +186,7 @@ const Navbar = () => {
                 </button>
 
                 {isUserDropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border py-2 z-[9999]">
+                  <div className="fixed right-4 md:right-8 top-[64px] w-56 bg-white rounded-xl shadow-2xl border py-2 z-[2147483647] pointer-events-auto">
                     {currentUser ? (
                       <>
                         <div className="px-4 py-3 border-b">
