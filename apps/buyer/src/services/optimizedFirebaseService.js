@@ -195,13 +195,37 @@ const getOrdersCount = async (vendorId) => {
 };
 
 const getProductsCount = async (vendorId) => {
-  // Count all products for vendor regardless of status (vendor dashboard should show all)
-  const q = query(
-    collection(db, 'products'),
-    where('vendorId', '==', vendorId)
-  );
-  const snapshot = await getDocs(q);
-  return snapshot.size;
+  // Count all products for vendor regardless of status (dashboard should show all)
+  try {
+    // 1) Primary: by vendorId
+    const idQuery = query(
+      collection(db, 'products'),
+      where('vendorId', '==', vendorId)
+    );
+    const idSnap = await getDocs(idQuery);
+    if (idSnap.size > 0) return idSnap.size;
+
+    // 2) Fallback: by vendor email (some older products saved with vendorEmail only)
+    try {
+      const userSnap = await getDoc(doc(db, 'users', vendorId));
+      const email = userSnap.exists() ? (userSnap.data()?.email || '').toLowerCase() : '';
+      if (email) {
+        const emailQuery = query(
+          collection(db, 'products'),
+          where('vendorEmail', '==', email)
+        );
+        const emailSnap = await getDocs(emailQuery);
+        if (emailSnap.size > 0) return emailSnap.size;
+      }
+    } catch (_) {
+      // ignore and continue
+    }
+
+    return 0;
+  } catch (err) {
+    console.warn('getProductsCount fallback counting failed:', err);
+    return 0;
+  }
 };
 
 const getVendorStats = async (vendorId) => {
