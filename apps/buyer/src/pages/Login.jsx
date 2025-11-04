@@ -10,7 +10,8 @@ const Login = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const [userType, setUserType] = useState('');
+  // Default to existing sign-in to keep login page centered as before
+  const [userType, setUserType] = useState('existing');
   
   const { signin, signInWithGoogle } = useAuth();
   const { getIntendedDestination } = useCart();
