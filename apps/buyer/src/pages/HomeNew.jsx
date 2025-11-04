@@ -5,12 +5,14 @@ import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import ProductDetailModal from '../components/ProductDetailModal';
 import ProductSearchFilter from '../components/ProductSearchFilter';
+import AnimatedSplash from '../components/AnimatedSplash';
 import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
 const HomeNew = () => {
   const { currentUser, userProfile } = useAuth();
   const { addToCart } = useCart();
+  const [showSplash, setShowSplash] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [featuredProducts, setFeaturedProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
@@ -247,6 +249,9 @@ const HomeNew = () => {
 
   return (
     <div className="min-h-screen bg-white">
+      {showSplash && (
+        <AnimatedSplash onDone={() => setShowSplash(false)} />
+      )}
       {/* Dynamic Banner Slider */}
       <section className="relative h-[600px] overflow-hidden" aria-label="Hero banner - Shop safely across Africa">
         {/* Dynamic Background Image */}

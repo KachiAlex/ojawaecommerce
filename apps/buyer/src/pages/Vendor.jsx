@@ -1365,7 +1365,11 @@ const Vendor = () => {
       setUploadProgress(null);
     } catch (e) {
       console.error('Save product failed', e);
-      alert('Failed to save product.');
+      // Show specific error message for duplicate products
+      const errorMessage = e.message?.includes('already exists') 
+        ? e.message 
+        : 'Failed to save product. Please try again.';
+      alert(errorMessage);
       setUploadProgress(null);
     }
   };

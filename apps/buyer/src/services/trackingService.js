@@ -214,6 +214,31 @@ export const productTrackingService = {
         throw new Error(`Invalid vendorId: ${vendorId}. Vendor not found in users collection.`);
       }
       
+      // Check for duplicate products (same name from same vendor)
+      if (productData.name) {
+        try {
+          const productsRef = collection(db, 'products');
+          const duplicateQuery = query(
+            productsRef,
+            where('vendorId', '==', vendorId),
+            where('name', '==', productData.name.trim())
+          );
+          const duplicateSnapshot = await getDocs(duplicateQuery);
+          
+          if (!duplicateSnapshot.empty) {
+            const existingProduct = duplicateSnapshot.docs[0].data();
+            throw new Error(`A product with the name "${productData.name}" already exists. Please use a different name or edit the existing product.`);
+          }
+        } catch (duplicateError) {
+          // If it's our custom duplicate error, throw it
+          if (duplicateError.message.includes('already exists')) {
+            throw duplicateError;
+          }
+          // Otherwise, log and continue (query might have failed for other reasons)
+          console.warn('Error checking for duplicate products:', duplicateError);
+        }
+      }
+      
       const productPayload = {
         ...productData,
         trackingNumber, // Our custom tracking number

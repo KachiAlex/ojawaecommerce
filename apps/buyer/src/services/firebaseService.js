@@ -227,6 +227,31 @@ export const productService = {
         throw new Error(`Invalid vendorId: ${vendorId}. Vendor not found in users collection.`);
       }
       
+      // Check for duplicate products (same name from same vendor)
+      if (productData.name) {
+        try {
+          const productsRef = collection(db, 'products');
+          const duplicateQuery = query(
+            productsRef,
+            where('vendorId', '==', vendorId),
+            where('name', '==', productData.name.trim())
+          );
+          const duplicateSnapshot = await getDocs(duplicateQuery);
+          
+          if (!duplicateSnapshot.empty) {
+            const existingProduct = duplicateSnapshot.docs[0].data();
+            throw new Error(`A product with the name "${productData.name}" already exists. Please use a different name or edit the existing product.`);
+          }
+        } catch (duplicateError) {
+          // If it's our custom duplicate error, throw it
+          if (duplicateError.message.includes('already exists')) {
+            throw duplicateError;
+          }
+          // Otherwise, log and continue (query might have failed for other reasons)
+          console.warn('Error checking for duplicate products:', duplicateError);
+        }
+      }
+      
       const productPayload = {
         ...productData,
         vendorId, // Primary reference - always required
@@ -500,6 +525,41 @@ export const productService = {
   // Update product
   async update(productId, updates) {
     try {
+      // Check for duplicate products if name is being updated
+      if (updates.name) {
+        try {
+          // Get current product to check vendorId
+          const currentProductDoc = await getDoc(doc(db, 'products', productId));
+          if (currentProductDoc.exists()) {
+            const currentProduct = currentProductDoc.data();
+            const vendorId = currentProduct.vendorId;
+            
+            // Check for duplicates (same name from same vendor, excluding current product)
+            const productsRef = collection(db, 'products');
+            const duplicateQuery = query(
+              productsRef,
+              where('vendorId', '==', vendorId),
+              where('name', '==', updates.name.trim())
+            );
+            const duplicateSnapshot = await getDocs(duplicateQuery);
+            
+            // Filter out current product from duplicates
+            const otherDuplicates = duplicateSnapshot.docs.filter(d => d.id !== productId);
+            
+            if (otherDuplicates.length > 0) {
+              throw new Error(`A product with the name "${updates.name}" already exists. Please use a different name or edit the existing product.`);
+            }
+          }
+        } catch (duplicateError) {
+          // If it's our custom duplicate error, throw it
+          if (duplicateError.message.includes('already exists')) {
+            throw duplicateError;
+          }
+          // Otherwise, log and continue (query might have failed for other reasons)
+          console.warn('Error checking for duplicate products during update:', duplicateError);
+        }
+      }
+      
       const docRef = doc(db, 'products', productId);
       await updateDoc(docRef, {
         ...updates,

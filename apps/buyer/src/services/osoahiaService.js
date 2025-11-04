@@ -7,6 +7,18 @@ class OsoahiaService {
     this.userPreferences = {};
     this.currentContext = null;
     this.isTyping = false;
+    this.conversationContext = {
+      lastIntent: null,
+      lastProducts: [],
+      lastSearchTerm: null,
+      filters: {},
+      pendingAction: null
+    };
+    this.entities = {
+      categories: ['electronics', 'fashion', 'home', 'books', 'sports', 'toys', 'beauty', 'health', 'automotive', 'food'],
+      brands: [],
+      priceRanges: []
+    };
   }
 
   // Initialize Osoahia with user context
@@ -78,78 +90,167 @@ class OsoahiaService {
     }
   }
 
-  // Analyze user intent from message
+  // Enhanced intent analysis with confidence scoring and multi-intent support
   async analyzeIntent(message) {
     const lowerMessage = message.toLowerCase();
+    const intents = [];
     
-    // Product search intent
-    if (this.containsKeywords(lowerMessage, ['find', 'search', 'looking for', 'need', 'want', 'buy', 'show me'])) {
-      return {
+    // Check for context continuation (follow-up questions)
+    if (this.isFollowUpQuestion(message)) {
+      const lastIntent = this.conversationContext.lastIntent;
+      if (lastIntent) {
+        return {
+          ...lastIntent,
+          isFollowUp: true,
+          originalMessage: message
+        };
+      }
+    }
+    
+    // Product search intent (enhanced with more patterns)
+    const searchKeywords = ['find', 'search', 'looking for', 'need', 'want', 'buy', 'show me', 'looking to buy', 'where can i find', 'where to buy'];
+    const searchScore = this.calculateKeywordScore(lowerMessage, searchKeywords);
+    if (searchScore > 0.3) {
+      intents.push({
         type: 'product_search',
-        confidence: 0.9,
-        entities: this.extractProductEntities(message)
-      };
+        confidence: Math.min(0.95, 0.6 + searchScore * 0.3),
+        entities: this.extractAdvancedEntities(message)
+      });
     }
 
-    // Cart management intent
-    if (this.containsKeywords(lowerMessage, ['cart', 'add to cart', 'remove', 'checkout', 'buy now'])) {
-      return {
+    // Cart management intent (enhanced)
+    const cartKeywords = ['cart', 'add to cart', 'remove', 'checkout', 'buy now', 'purchase', 'order', 'check out'];
+    const cartScore = this.calculateKeywordScore(lowerMessage, cartKeywords);
+    if (cartScore > 0.3) {
+      intents.push({
         type: 'cart_management',
-        confidence: 0.8,
-        entities: this.extractCartEntities(message)
-      };
+        confidence: Math.min(0.95, 0.6 + cartScore * 0.3),
+        entities: this.extractAdvancedEntities(message)
+      });
     }
 
-    // Product information intent
-    if (this.containsKeywords(lowerMessage, ['what is', 'tell me about', 'details', 'price', 'available', 'in stock'])) {
-      return {
+    // Product information intent (enhanced)
+    const infoKeywords = ['what is', 'tell me about', 'details', 'price', 'available', 'in stock', 'how much', 'cost', 'specifications'];
+    const infoScore = this.calculateKeywordScore(lowerMessage, infoKeywords);
+    if (infoScore > 0.3) {
+      intents.push({
         type: 'product_info',
-        confidence: 0.8,
-        entities: this.extractProductEntities(message)
-      };
+        confidence: Math.min(0.95, 0.6 + infoScore * 0.3),
+        entities: this.extractAdvancedEntities(message)
+      });
     }
 
-    // Recommendations intent
-    if (this.containsKeywords(lowerMessage, ['recommend', 'suggest', 'similar', 'popular', 'trending', 'best'])) {
-      return {
+    // Recommendations intent (enhanced)
+    const recKeywords = ['recommend', 'suggest', 'similar', 'popular', 'trending', 'best', 'what should i buy', 'top picks'];
+    const recScore = this.calculateKeywordScore(lowerMessage, recKeywords);
+    if (recScore > 0.3) {
+      intents.push({
         type: 'recommendations',
-        confidence: 0.9,
-        entities: this.extractRecommendationEntities(message)
-      };
+        confidence: Math.min(0.95, 0.6 + recScore * 0.3),
+        entities: this.extractAdvancedEntities(message)
+      });
     }
 
-    // Comparison intent
-    if (this.containsKeywords(lowerMessage, ['compare', 'difference', 'better', 'vs', 'versus'])) {
-      return {
+    // Comparison intent (enhanced)
+    const compKeywords = ['compare', 'difference', 'better', 'vs', 'versus', 'which is better', 'which one should i choose'];
+    const compScore = this.calculateKeywordScore(lowerMessage, compKeywords);
+    if (compScore > 0.3) {
+      intents.push({
         type: 'product_comparison',
-        confidence: 0.8,
-        entities: this.extractComparisonEntities(message)
-      };
+        confidence: Math.min(0.95, 0.6 + compScore * 0.3),
+        entities: this.extractAdvancedEntities(message)
+      });
+    }
+
+    // Price/budget intent (new)
+    const priceKeywords = ['under', 'below', 'cheap', 'affordable', 'budget', 'price range', 'maximum price', 'less than'];
+    const priceScore = this.calculateKeywordScore(lowerMessage, priceKeywords);
+    if (priceScore > 0.3) {
+      intents.push({
+        type: 'price_filter',
+        confidence: Math.min(0.95, 0.6 + priceScore * 0.3),
+        entities: this.extractAdvancedEntities(message)
+      });
     }
 
     // Help intent
-    if (this.containsKeywords(lowerMessage, ['help', 'how to', 'guide', 'tutorial', 'explain'])) {
-      return {
+    const helpKeywords = ['help', 'how to', 'guide', 'tutorial', 'explain', 'how do i', 'what do i need to do'];
+    const helpScore = this.calculateKeywordScore(lowerMessage, helpKeywords);
+    if (helpScore > 0.3) {
+      intents.push({
         type: 'help',
-        confidence: 0.9,
-        entities: this.extractHelpEntities(message)
-      };
+        confidence: Math.min(0.95, 0.6 + helpScore * 0.3),
+        entities: this.extractAdvancedEntities(message)
+      });
     }
 
     // Greeting intent
-    if (this.containsKeywords(lowerMessage, ['hello', 'hi', 'hey', 'good morning', 'good afternoon', 'good evening'])) {
-      return {
+    const greetingKeywords = ['hello', 'hi', 'hey', 'good morning', 'good afternoon', 'good evening', 'greetings'];
+    const greetingScore = this.calculateKeywordScore(lowerMessage, greetingKeywords);
+    if (greetingScore > 0.5) {
+      intents.push({
         type: 'greeting',
-        confidence: 0.9
-      };
+        confidence: 0.95
+      });
+    }
+
+    // Sort by confidence and return top intent
+    if (intents.length > 0) {
+      intents.sort((a, b) => b.confidence - a.confidence);
+      const topIntent = intents[0];
+      
+      // Store for context
+      this.conversationContext.lastIntent = topIntent;
+      
+      return topIntent;
     }
 
     // Default to general assistance
     return {
       type: 'general_assistance',
       confidence: 0.5,
-      entities: []
+      entities: this.extractAdvancedEntities(message)
     };
+  }
+
+  // Calculate keyword score (for fuzzy matching)
+  calculateKeywordScore(text, keywords) {
+    let score = 0;
+    let matches = 0;
+    
+    keywords.forEach(keyword => {
+      if (text.includes(keyword)) {
+        score += 1 / keywords.length;
+        matches++;
+      }
+    });
+    
+    // Boost score if multiple keywords match
+    if (matches > 1) {
+      score *= 1.2;
+    }
+    
+    return Math.min(1, score);
+  }
+
+  // Check if message is a follow-up question
+  isFollowUpQuestion(message) {
+    const followUpIndicators = ['what about', 'how about', 'and', 'also', 'what else', 'more', 'another', 'the', 'this', 'that', 'these', 'those', 'it'];
+    const lowerMessage = message.toLowerCase().trim();
+    
+    // Check if message starts with follow-up indicators
+    for (const indicator of followUpIndicators) {
+      if (lowerMessage.startsWith(indicator + ' ') || lowerMessage === indicator) {
+        return true;
+      }
+    }
+    
+    // Check if message is very short (likely a follow-up)
+    if (lowerMessage.split(' ').length <= 3 && this.conversationContext.lastIntent) {
+      return true;
+    }
+    
+    return false;
   }
 
   // Generate response based on intent
@@ -170,6 +271,9 @@ class OsoahiaService {
       case 'product_comparison':
         return await this.handleProductComparison(intent, originalMessage);
       
+      case 'price_filter':
+        return await this.handlePriceFilter(intent, originalMessage);
+      
       case 'help':
         return await this.handleHelp(intent, originalMessage);
       
@@ -181,63 +285,272 @@ class OsoahiaService {
     }
   }
 
-  // Handle product search requests
+  // Handle price filter requests (new)
+  async handlePriceFilter(intent, message) {
+    try {
+      const priceEntities = intent.entities.filter(e => 
+        e.type === 'price' || e.type === 'price_min' || e.type === 'price_max' || e.type === 'price_range'
+      );
+      
+      if (priceEntities.length === 0) {
+        return {
+          message: "I can help you find products within your budget! What price range are you looking for? For example, 'products under ₦50,000' or 'items between ₦10,000 and ₦30,000'.",
+          type: 'clarification',
+          suggestions: [
+            "Show me products under ₦50,000",
+            "Find items between ₦10,000 and ₦30,000",
+            "Affordable products",
+            "Budget-friendly options"
+          ]
+        };
+      }
+      
+      // Build search options from price entities
+      const searchOptions = {
+        pageSize: 20,
+        minPrice: null,
+        maxPrice: null,
+        sortBy: 'price_low' // Sort by price ascending for budget searches
+      };
+      
+      priceEntities.forEach(priceEntity => {
+        if (priceEntity.type === 'price_min') {
+          searchOptions.minPrice = priceEntity.value;
+        } else if (priceEntity.type === 'price_max') {
+          searchOptions.maxPrice = priceEntity.value;
+        } else if (priceEntity.type === 'price_range') {
+          searchOptions.minPrice = priceEntity.min;
+          searchOptions.maxPrice = priceEntity.max;
+        } else if (priceEntity.type === 'price') {
+          searchOptions.maxPrice = priceEntity.value;
+        }
+      });
+      
+      // Get products within price range
+      const allProducts = await firebaseService.products.getAll({ status: 'active' });
+      let filteredProducts = allProducts.filter(product => {
+        const price = parseFloat(product.price) || 0;
+        if (searchOptions.minPrice && price < searchOptions.minPrice) return false;
+        if (searchOptions.maxPrice && price > searchOptions.maxPrice) return false;
+        return true;
+      });
+      
+      // Sort by price
+      filteredProducts.sort((a, b) => (parseFloat(a.price) || 0) - (parseFloat(b.price) || 0));
+      
+      if (filteredProducts.length === 0) {
+        return {
+          message: `I couldn't find any products in your price range. Would you like to adjust your budget or see what's available?`,
+          type: 'no_results',
+          suggestions: [
+            "Increase budget",
+            "Show all products",
+            "Get recommendations",
+            "Browse categories"
+          ]
+        };
+      }
+      
+      const productCards = filteredProducts.slice(0, 6).map(product => ({
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        currency: product.currency || '₦ NGN',
+        image: product.images?.[0] || product.image,
+        category: product.category,
+        rating: product.rating || 4.0,
+        inStock: product.stock > 0
+      }));
+      
+      let priceMessage = `I found ${filteredProducts.length} product${filteredProducts.length !== 1 ? 's' : ''}`;
+      if (searchOptions.minPrice && searchOptions.maxPrice) {
+        priceMessage += ` between ₦${searchOptions.minPrice.toLocaleString()} and ₦${searchOptions.maxPrice.toLocaleString()}`;
+      } else if (searchOptions.maxPrice) {
+        priceMessage += ` under ₦${searchOptions.maxPrice.toLocaleString()}`;
+      } else if (searchOptions.minPrice) {
+        priceMessage += ` above ₦${searchOptions.minPrice.toLocaleString()}`;
+      }
+      priceMessage += '. Here are the best options sorted by price:';
+      
+      return {
+        message: priceMessage,
+        type: 'price_filtered_results',
+        products: productCards,
+        totalResults: filteredProducts.length,
+        priceRange: {
+          min: searchOptions.minPrice,
+          max: searchOptions.maxPrice
+        },
+        actions: [
+          { type: 'view_all', label: 'View All Results', data: { filters: searchOptions } },
+          { type: 'adjust_price', label: 'Adjust Price Range', data: { currentRange: searchOptions } }
+        ],
+        suggestions: [
+          "Show cheapest options",
+          "Sort by rating",
+          "Filter by category",
+          "Get recommendations"
+        ]
+      };
+    } catch (error) {
+      console.error('Error handling price filter:', error);
+      return {
+        message: "I'm having trouble filtering products by price. Please try again or browse our categories.",
+        type: 'error',
+        suggestions: ["Browse categories", "Search products", "Get help"]
+      };
+    }
+  }
+
+  // Enhanced product search with filters and context awareness
   async handleProductSearch(intent, message) {
     try {
-      const searchTerms = intent.entities.filter(e => e.type === 'product').map(e => e.value);
+      // Extract search terms from entities
+      const productEntities = intent.entities.filter(e => e.type === 'product');
+      const categoryEntities = intent.entities.filter(e => e.type === 'category');
+      const priceEntities = intent.entities.filter(e => e.type === 'price' || e.type === 'price_min' || e.type === 'price_max' || e.type === 'price_range');
+      const filterEntities = intent.entities.filter(e => e.type === 'filter');
       
-      if (searchTerms.length === 0) {
+      // Build search query
+      let searchTerm = '';
+      if (productEntities.length > 0) {
+        searchTerm = productEntities.map(e => e.value).join(' ');
+      } else if (intent.isFollowUp && this.conversationContext.lastSearchTerm) {
+        // Use context from previous search
+        searchTerm = this.conversationContext.lastSearchTerm;
+      } else {
+        // Extract search terms from message (improved)
+        const words = message.toLowerCase().split(/\s+/);
+        const stopWords = ['find', 'search', 'looking', 'for', 'show', 'me', 'i', 'want', 'need', 'buy', 'the', 'a', 'an', 'is', 'are', 'was', 'were'];
+        const searchWords = words.filter(w => !stopWords.includes(w) && w.length > 2);
+        searchTerm = searchWords.join(' ');
+      }
+      
+      // Build search options with filters
+      const searchOptions = {
+        pageSize: 20,
+        category: categoryEntities.length > 0 ? categoryEntities[0].value : null,
+        minPrice: null,
+        maxPrice: null,
+        sortBy: 'relevance'
+      };
+      
+      // Apply price filters
+      priceEntities.forEach(priceEntity => {
+        if (priceEntity.type === 'price_min') {
+          searchOptions.minPrice = priceEntity.value;
+        } else if (priceEntity.type === 'price_max') {
+          searchOptions.maxPrice = priceEntity.value;
+        } else if (priceEntity.type === 'price_range') {
+          searchOptions.minPrice = priceEntity.min;
+          searchOptions.maxPrice = priceEntity.max;
+        } else if (priceEntity.type === 'price') {
+          // If exact price, treat as maximum
+          searchOptions.maxPrice = priceEntity.value;
+        }
+      });
+      
+      // Store search context
+      this.conversationContext.lastSearchTerm = searchTerm;
+      this.conversationContext.filters = {
+        category: searchOptions.category,
+        minPrice: searchOptions.minPrice,
+        maxPrice: searchOptions.maxPrice
+      };
+      
+      if (!searchTerm || searchTerm.trim() === '') {
         return {
-          message: "I'd be happy to help you find products! What are you looking for? You can search by category, brand, or specific items.",
+          message: "I'd be happy to help you find products! What are you looking for? You can search by category, brand, or specific items. I can also help you filter by price!",
           type: 'clarification',
           suggestions: [
             "Show me electronics",
-            "Find fashion items",
+            "Find fashion items under ₦50,000",
             "Search for home goods",
             "Browse categories"
           ]
         };
       }
 
-      // Search for products
-      const products = await this.searchProducts(searchTerms.join(' '));
+      // Search for products with filters
+      const products = await this.searchProducts(searchTerm, searchOptions);
       
-      if (products.length === 0) {
-        return {
-          message: `I couldn't find any products matching "${searchTerms.join(' ')}". Let me suggest some alternatives or help you refine your search.`,
-          type: 'no_results',
-          suggestions: [
-            "Try different keywords",
-            "Browse categories",
-            "View popular items",
-            "Get recommendations"
-          ]
-        };
+      // Apply additional filters client-side
+      let filteredProducts = products;
+      filterEntities.forEach(filter => {
+        if (filter.filterType === 'color') {
+          filteredProducts = filteredProducts.filter(p => 
+            p.name?.toLowerCase().includes(filter.value) ||
+            p.description?.toLowerCase().includes(filter.value) ||
+            p.category?.toLowerCase().includes(filter.value)
+          );
+        }
+      });
+      
+      if (filteredProducts.length === 0) {
+        // Try without filters if no results
+        if (products.length > 0) {
+          filteredProducts = products;
+        } else {
+          return {
+            message: `I couldn't find any products matching "${searchTerm}". Let me suggest some alternatives or help you refine your search.`,
+            type: 'no_results',
+            suggestions: [
+              "Try different keywords",
+              "Browse categories",
+              "View popular items",
+              "Get recommendations"
+            ]
+          };
+        }
       }
 
-      const productCards = products.slice(0, 3).map(product => ({
+      // Store products in context
+      this.conversationContext.lastProducts = filteredProducts.slice(0, 10);
+
+      const productCards = filteredProducts.slice(0, 6).map(product => ({
         id: product.id,
         name: product.name,
         price: product.price,
+        currency: product.currency || '₦ NGN',
         image: product.images?.[0] || product.image,
         category: product.category,
         rating: product.rating || 4.0,
-        inStock: product.stock > 0
+        inStock: product.stock > 0,
+        vendor: product.vendorName || product.vendorEmail
       }));
 
+      // Build response message with context
+      let responseMessage = `I found ${filteredProducts.length} product${filteredProducts.length !== 1 ? 's' : ''} matching "${searchTerm}"`;
+      
+      if (searchOptions.minPrice || searchOptions.maxPrice) {
+        responseMessage += ' with your price filter';
+        if (searchOptions.minPrice && searchOptions.maxPrice) {
+          responseMessage += ` (₦${searchOptions.minPrice.toLocaleString()} - ₦${searchOptions.maxPrice.toLocaleString()})`;
+        } else if (searchOptions.maxPrice) {
+          responseMessage += ` (under ₦${searchOptions.maxPrice.toLocaleString()})`;
+        } else if (searchOptions.minPrice) {
+          responseMessage += ` (above ₦${searchOptions.minPrice.toLocaleString()})`;
+        }
+      }
+      
+      responseMessage += '. Here are the top results:';
+
       return {
-        message: `I found ${products.length} products matching "${searchTerms.join(' ')}". Here are the top results:`,
+        message: responseMessage,
         type: 'product_results',
         products: productCards,
+        searchTerm: searchTerm,
+        totalResults: filteredProducts.length,
+        filters: searchOptions,
         actions: [
-          { type: 'view_all', label: 'View All Results', data: { searchTerm: searchTerms.join(' ') } },
-          { type: 'filter', label: 'Filter Results', data: { products } }
+          { type: 'view_all', label: 'View All Results', data: { searchTerm, filters: searchOptions } },
+          { type: 'filter', label: 'Filter Results', data: { products: filteredProducts, filters: searchOptions } }
         ],
         suggestions: [
           "Show me more results",
           "Filter by price",
           "Sort by rating",
-          "Add to cart"
+          "Show cheapest options"
         ]
       };
     } catch (error) {
@@ -397,15 +710,36 @@ class OsoahiaService {
     }
   }
 
-  // Handle recommendations requests
+  // Enhanced recommendations with budget awareness
   async handleRecommendations(intent, message) {
     try {
       const recommendationType = this.getRecommendationType(message);
       
+      // Extract budget from entities if present
+      const priceEntities = intent.entities.filter(e => 
+        e.type === 'price' || e.type === 'price_min' || e.type === 'price_max' || e.type === 'price_range'
+      );
+      let budget = null;
+      if (priceEntities.length > 0) {
+        const priceEntity = priceEntities[0];
+        if (priceEntity.type === 'price_max') {
+          budget = priceEntity.value;
+        } else if (priceEntity.type === 'price_range') {
+          budget = priceEntity.max;
+        } else if (priceEntity.type === 'price') {
+          budget = priceEntity.value;
+        }
+      }
+      
+      // Check if user has price preferences in context
+      if (!budget && this.conversationContext.filters?.maxPrice) {
+        budget = this.conversationContext.filters.maxPrice;
+      }
+      
       let recommendations;
       switch (recommendationType) {
         case 'personalized':
-          recommendations = await this.getPersonalizedRecommendations();
+          recommendations = await this.getPersonalizedRecommendations(budget);
           break;
         case 'popular':
           recommendations = await this.getPopularRecommendations();
@@ -419,26 +753,59 @@ class OsoahiaService {
         default:
           recommendations = await this.getGeneralRecommendations();
       }
+      
+      // Apply budget filter if specified
+      if (budget && recommendations.length > 0) {
+        recommendations = recommendations.filter(p => {
+          const price = parseFloat(p.price) || 0;
+          return price <= budget;
+        });
+      }
 
       if (recommendations.length === 0) {
+        let noRecMessage = "I don't have recommendations available right now";
+        if (budget) {
+          noRecMessage += ` within your budget of ₦${budget.toLocaleString()}`;
+        }
+        noRecMessage += ", but I can help you find what you're looking for!";
+        
         return {
-          message: "I don't have recommendations available right now, but I can help you find what you're looking for!",
+          message: noRecMessage,
           type: 'no_recommendations',
           suggestions: [
             "Search for products",
             "Browse categories",
             "View popular items",
-            "Get help"
+            budget ? "Increase budget" : "Get help"
           ]
         };
       }
 
+      const recommendationCards = recommendations.slice(0, 6).map(product => ({
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        currency: product.currency || '₦ NGN',
+        image: product.images?.[0] || product.image,
+        category: product.category,
+        rating: product.rating || 4.0,
+        inStock: product.stock > 0,
+        vendor: product.vendorName || product.vendorEmail
+      }));
+
+      let responseMessage = `Here are my ${recommendationType} recommendations for you`;
+      if (budget) {
+        responseMessage += ` within your budget of ₦${budget.toLocaleString()}`;
+      }
+      responseMessage += ':';
+
       return {
-        message: `Here are my ${recommendationType} recommendations for you:`,
+        message: responseMessage,
         type: 'recommendations',
-        recommendations: recommendations.slice(0, 6),
+        recommendations: recommendationCards,
+        budget: budget,
         actions: [
-          { type: 'view_all_recommendations', label: 'View All', data: { type: recommendationType } }
+          { type: 'view_all_recommendations', label: 'View All', data: { type: recommendationType, budget } }
         ],
         suggestions: [
           "Show more",
@@ -615,17 +982,173 @@ class OsoahiaService {
     return keywords.some(keyword => text.includes(keyword));
   }
 
-  extractProductEntities(message) {
+  // Advanced entity extraction with prices, quantities, categories, brands, and filters
+  extractAdvancedEntities(message) {
     const entities = [];
-    const productKeywords = ['laptop', 'phone', 'shirt', 'dress', 'shoes', 'book', 'watch', 'bag', 'headphones', 'camera'];
+    const lowerMessage = message.toLowerCase();
+    
+    // Extract prices (currency amounts)
+    const pricePatterns = [
+      /(?:₦|n|ngn|naira)\s*(\d+(?:,\d{3})*(?:\.\d{2})?)/gi,
+      /(\d+(?:,\d{3})*(?:\.\d{2})?)\s*(?:₦|n|ngn|naira)/gi,
+      /(?:under|below|less than|maximum|max|up to)\s*(?:₦|n|ngn|naira)?\s*(\d+(?:,\d{3})*(?:\.\d{2})?)/gi,
+      /(?:above|over|more than|minimum|min|at least)\s*(?:₦|n|ngn|naira)?\s*(\d+(?:,\d{3})*(?:\.\d{2})?)/gi,
+      /(?:between|from)\s*(?:₦|n|ngn|naira)?\s*(\d+(?:,\d{3})*(?:\.\d{2})?)\s*(?:and|to|-)\s*(?:₦|n|ngn|naira)?\s*(\d+(?:,\d{3})*(?:\.\d{2})?)/gi
+    ];
+    
+    pricePatterns.forEach((pattern, index) => {
+      const matches = [...message.matchAll(pattern)];
+      matches.forEach(match => {
+        if (index === 4 && match[1] && match[2]) {
+          // Price range
+          entities.push({
+            type: 'price_range',
+            min: parseFloat(match[1].replace(/,/g, '')),
+            max: parseFloat(match[2].replace(/,/g, '')),
+            confidence: 0.9
+          });
+        } else if (match[1]) {
+          const amount = parseFloat(match[1].replace(/,/g, ''));
+          if (index === 2) {
+            // Maximum price
+            entities.push({
+              type: 'price_max',
+              value: amount,
+              confidence: 0.9
+            });
+          } else if (index === 3) {
+            // Minimum price
+            entities.push({
+              type: 'price_min',
+              value: amount,
+              confidence: 0.9
+            });
+          } else {
+            // Exact price
+            entities.push({
+              type: 'price',
+              value: amount,
+              confidence: 0.85
+            });
+          }
+        }
+      });
+    });
+    
+    // Extract quantities
+    const quantityPatterns = [
+      /(\d+)\s*(?:x|×|pcs|pieces|units|items)/gi,
+      /(?:quantity|qty|amount|how many)\s*(\d+)/gi
+    ];
+    
+    quantityPatterns.forEach(pattern => {
+      const matches = [...message.matchAll(pattern)];
+      matches.forEach(match => {
+        if (match[1]) {
+          entities.push({
+            type: 'quantity',
+            value: parseInt(match[1]),
+            confidence: 0.8
+          });
+        }
+      });
+    });
+    
+    // Extract categories
+    const categoryKeywords = {
+      'electronics': ['electronics', 'electronic', 'laptop', 'phone', 'smartphone', 'tablet', 'computer', 'tv', 'television'],
+      'fashion': ['fashion', 'clothing', 'clothes', 'shirt', 'dress', 'shoes', 'bag', 'accessories', 'jewelry'],
+      'home': ['home', 'furniture', 'kitchen', 'appliance', 'decor', 'decoration'],
+      'books': ['book', 'books', 'novel', 'literature', 'reading'],
+      'sports': ['sports', 'sport', 'fitness', 'gym', 'exercise', 'outdoor'],
+      'beauty': ['beauty', 'cosmetics', 'makeup', 'skincare', 'perfume'],
+      'health': ['health', 'medicine', 'medical', 'supplements', 'vitamins'],
+      'toys': ['toy', 'toys', 'games', 'game', 'puzzle'],
+      'automotive': ['car', 'automotive', 'vehicle', 'auto', 'parts'],
+      'food': ['food', 'groceries', 'snacks', 'beverages', 'drinks']
+    };
+    
+    Object.keys(categoryKeywords).forEach(category => {
+      categoryKeywords[category].forEach(keyword => {
+        if (lowerMessage.includes(keyword)) {
+          entities.push({
+            type: 'category',
+            value: category,
+            confidence: 0.8
+          });
+        }
+      });
+    });
+    
+    // Extract product names (improved - extract from message)
+    const productKeywords = ['laptop', 'phone', 'smartphone', 'tablet', 'shirt', 'dress', 'shoes', 'book', 'watch', 'bag', 'headphones', 'camera', 'tv', 'television', 'fridge', 'refrigerator', 'washing machine', 'microwave'];
     
     productKeywords.forEach(keyword => {
-      if (message.toLowerCase().includes(keyword)) {
-        entities.push({ type: 'product', value: keyword, confidence: 0.8 });
+      if (lowerMessage.includes(keyword)) {
+        entities.push({
+          type: 'product',
+          value: keyword,
+          confidence: 0.8
+        });
+      }
+    });
+    
+    // Extract product names from quoted text or specific phrases
+    const quotedMatch = message.match(/"([^"]+)"/);
+    if (quotedMatch) {
+      entities.push({
+        type: 'product',
+        value: quotedMatch[1],
+        confidence: 0.95
+      });
+    }
+    
+    // Extract filters (color, size, brand, etc.)
+    const colorKeywords = ['black', 'white', 'red', 'blue', 'green', 'yellow', 'pink', 'purple', 'orange', 'brown', 'gray', 'grey', 'silver', 'gold'];
+    colorKeywords.forEach(color => {
+      if (lowerMessage.includes(color)) {
+        entities.push({
+          type: 'filter',
+          filterType: 'color',
+          value: color,
+          confidence: 0.7
+        });
+      }
+    });
+    
+    const sizeKeywords = ['small', 'medium', 'large', 'xl', 'xxl', 'xs', 'size'];
+    sizeKeywords.forEach(size => {
+      if (lowerMessage.includes(size)) {
+        entities.push({
+          type: 'filter',
+          filterType: 'size',
+          value: size,
+          confidence: 0.7
+        });
+      }
+    });
+    
+    // Extract brand names (common patterns)
+    const brandPattern = /\b([A-Z][a-z]+(?:[A-Z][a-z]+)*)\b/g;
+    const brandMatches = [...message.matchAll(brandPattern)];
+    brandMatches.forEach(match => {
+      const potentialBrand = match[1];
+      // Simple heuristic: if it's capitalized and not a common word, it might be a brand
+      if (potentialBrand.length > 2 && !['The', 'This', 'That', 'What', 'Where', 'When', 'How'].includes(potentialBrand)) {
+        entities.push({
+          type: 'brand',
+          value: potentialBrand,
+          confidence: 0.6
+        });
       }
     });
     
     return entities;
+  }
+
+  // Legacy method for backward compatibility
+  extractProductEntities(message) {
+    return this.extractAdvancedEntities(message).filter(e => e.type === 'product');
   }
 
   extractCartEntities(message) {
@@ -664,23 +1187,104 @@ class OsoahiaService {
     return entities;
   }
 
-  async searchProducts(searchTerm) {
+  async searchProducts(searchTerm, options = {}) {
     try {
-      return await firebaseService.products.search(searchTerm, { pageSize: 10 });
+      // Enhanced search with filters
+      const searchOptions = {
+        pageSize: options.pageSize || 20,
+        category: options.category || null,
+        minPrice: options.minPrice || null,
+        maxPrice: options.maxPrice || null,
+        sortBy: options.sortBy || 'relevance'
+      };
+      
+      // Use Firebase service search
+      let products = await firebaseService.products.search(searchTerm, searchOptions);
+      
+      // Apply price filters client-side if not supported by backend
+      if (searchOptions.minPrice || searchOptions.maxPrice) {
+        products = products.filter(product => {
+          const price = parseFloat(product.price) || 0;
+          if (searchOptions.minPrice && price < searchOptions.minPrice) return false;
+          if (searchOptions.maxPrice && price > searchOptions.maxPrice) return false;
+          return true;
+        });
+      }
+      
+      // Sort products
+      if (searchOptions.sortBy === 'price_low') {
+        products.sort((a, b) => (parseFloat(a.price) || 0) - (parseFloat(b.price) || 0));
+      } else if (searchOptions.sortBy === 'price_high') {
+        products.sort((a, b) => (parseFloat(b.price) || 0) - (parseFloat(a.price) || 0));
+      } else if (searchOptions.sortBy === 'rating') {
+        products.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+      }
+      
+      return products;
     } catch (error) {
       console.error('Error searching products:', error);
       return [];
     }
   }
 
-  async getPersonalizedRecommendations() {
+  async getPersonalizedRecommendations(budget = null) {
     try {
       // Get user's order history and preferences
       const userOrders = await firebaseService.orders.getByUser(this.userId);
       const categories = this.extractUserPreferences(userOrders);
       
+      // Get average spending from order history
+      let avgPrice = null;
+      if (userOrders && userOrders.length > 0) {
+        const prices = [];
+        userOrders.forEach(order => {
+          order.items?.forEach(item => {
+            if (item.price) prices.push(parseFloat(item.price));
+          });
+        });
+        if (prices.length > 0) {
+          avgPrice = prices.reduce((a, b) => a + b, 0) / prices.length;
+        }
+      }
+      
+      // Use budget if provided, otherwise use average spending
+      const priceFilter = budget || avgPrice;
+      
       // Get recommendations based on user preferences
-      return await firebaseService.products.getByCategory(categories[0] || 'Electronics', { pageSize: 6 });
+      let products = [];
+      if (categories.length > 0) {
+        // Try to get products from preferred categories
+        for (const category of categories.slice(0, 3)) {
+          const categoryProducts = await firebaseService.products.getByCategory(category, { pageSize: 10 });
+          products.push(...categoryProducts);
+        }
+      } else {
+        // Fallback to general products
+        products = await firebaseService.products.getAll({ status: 'active', pageSize: 30 });
+      }
+      
+      // Filter by budget if available
+      if (priceFilter) {
+        products = products.filter(p => {
+          const price = parseFloat(p.price) || 0;
+          // Include products within 50% of budget (above or below)
+          return price <= priceFilter * 1.5 && price >= priceFilter * 0.5;
+        });
+      }
+      
+      // Sort by relevance (preferred categories first, then by rating)
+      products.sort((a, b) => {
+        const aCategory = categories.indexOf(a.category);
+        const bCategory = categories.indexOf(b.category);
+        if (aCategory !== -1 && bCategory !== -1) {
+          return aCategory - bCategory;
+        }
+        if (aCategory !== -1) return -1;
+        if (bCategory !== -1) return 1;
+        return (b.rating || 0) - (a.rating || 0);
+      });
+      
+      return products.slice(0, 6);
     } catch (error) {
       console.error('Error getting personalized recommendations:', error);
       return [];
@@ -838,12 +1442,54 @@ class OsoahiaService {
   }
 
   getInitialSuggestions() {
-    return [
+    // Personalized suggestions based on user preferences
+    const suggestions = [
       "Search for products",
       "Get recommendations",
       "Browse categories",
       "View popular items"
     ];
+    
+    // Add budget-aware suggestions if user has purchase history
+    if (this.userPreferences?.averagePrice) {
+      const avgPrice = this.userPreferences.averagePrice;
+      suggestions.push(`Show me products under ₦${Math.round(avgPrice * 1.2).toLocaleString()}`);
+    }
+    
+    return suggestions;
+  }
+
+  // Get proactive suggestions based on context
+  getProactiveSuggestions() {
+    const suggestions = [];
+    
+    // Based on recent search
+    if (this.conversationContext.lastSearchTerm) {
+      suggestions.push(`Show more ${this.conversationContext.lastSearchTerm}`);
+      suggestions.push(`Compare ${this.conversationContext.lastSearchTerm} options`);
+    }
+    
+    // Based on price filters
+    if (this.conversationContext.filters?.maxPrice) {
+      suggestions.push(`Show cheaper options`);
+      suggestions.push(`Show similar products`);
+    }
+    
+    // Based on viewed products
+    if (this.conversationContext.lastProducts.length > 0) {
+      suggestions.push(`Show similar to ${this.conversationContext.lastProducts[0].name}`);
+      suggestions.push(`Compare these products`);
+    }
+    
+    // Default suggestions if no context
+    if (suggestions.length === 0) {
+      suggestions.push("Search for products");
+      suggestions.push("Get recommendations");
+      suggestions.push("Browse categories");
+      suggestions.push("View popular items");
+    }
+    
+    return suggestions.slice(0, 4);
   }
 
   async loadUserPreferences() {

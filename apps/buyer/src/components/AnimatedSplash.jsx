@@ -2,10 +2,10 @@ import { useEffect } from 'react';
 
 const AnimatedSplash = ({ onDone }) => {
   useEffect(() => {
-    // Show splash for 5 seconds, then call onDone
+    // Show splash for 3 seconds, then call onDone
     const timer = setTimeout(() => {
       onDone?.();
-    }, 5000);
+    }, 3000);
 
     return () => clearTimeout(timer);
   }, [onDone]);
@@ -28,7 +28,7 @@ const AnimatedSplash = ({ onDone }) => {
         }
         
         .logo-animation {
-          animation: logoZoom 5s ease-out forwards;
+          animation: logoZoom 3s ease-out forwards;
         }
       `}</style>
 

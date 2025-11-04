@@ -19,6 +19,7 @@ const Navbar = () => {
   const dropdownRef = useRef(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const [isDashboardDropdownOpen, setIsDashboardDropdownOpen] = useState(false);
 
   // Lightweight prefetch on hover for faster first render of key routes
   const prefetchProducts = () => {
@@ -46,6 +47,48 @@ const Navbar = () => {
       return currentUser.displayName.split(' ')[0];
     }
     return currentUser?.email?.split('@')[0] || 'User';
+  };
+
+  // Determine user's available dashboards
+  const getAvailableDashboards = () => {
+    const dashboards = [];
+    
+    // Everyone can access buyer dashboard
+    dashboards.push({
+      id: 'buyer',
+      name: 'Buyer Dashboard',
+      icon: '🛍️',
+      route: '/buyer'
+    });
+    
+    if (userProfile?.role === 'vendor' || userProfile?.isVendor) {
+      dashboards.push({
+        id: 'vendor',
+        name: 'Vendor Dashboard',
+        icon: '🏪',
+        route: '/vendor'
+      });
+    }
+    
+    if (userProfile?.role === 'logistics' || userProfile?.isLogisticsPartner) {
+      dashboards.push({
+        id: 'logistics',
+        name: 'Logistics Dashboard',
+        icon: '🚚',
+        route: '/logistics'
+      });
+    }
+    
+    if (userProfile?.role === 'admin' || userProfile?.isAdmin) {
+      dashboards.push({
+        id: 'admin',
+        name: 'Admin Dashboard',
+        icon: '⚙️',
+        route: '/admin'
+      });
+    }
+    
+    return dashboards;
   };
 
   // Handle search
@@ -193,29 +236,44 @@ const Navbar = () => {
                           <p className="text-sm font-medium text-gray-900">{currentUser.displayName || 'User'}</p>
                           <p className="text-sm text-gray-500">{currentUser.email}</p>
                         </div>
-                        {/* Explicit dashboard links as before */}
-                        <div className="py-2">
+                        {/* Dashboard dropdown */}
+                        <div className="py-2 relative">
                           <button
-                            onClick={() => { setIsUserDropdownOpen(false); navigate('/dashboard'); }}
-                            className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                            onMouseEnter={() => setIsDashboardDropdownOpen(true)}
+                            onMouseLeave={() => setIsDashboardDropdownOpen(false)}
+                            className="w-full flex items-center justify-between px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                           >
-                            <span className="mr-3">🛍️</span>
-                            Buyer Dashboard
+                            <div className="flex items-center">
+                              <span className="mr-3">📊</span>
+                              Dashboard
+                            </div>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
+                            </svg>
                           </button>
-                          <button
-                            onClick={() => { setIsUserDropdownOpen(false); navigate('/vendor'); }}
-                            className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                          >
-                            <span className="mr-3">🏪</span>
-                            Vendor Dashboard
-                          </button>
-                          <button
-                            onClick={() => { setIsUserDropdownOpen(false); navigate('/logistics'); }}
-                            className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                          >
-                            <span className="mr-3">🚚</span>
-                            Logistics Dashboard
-                          </button>
+                          
+                          {isDashboardDropdownOpen && (
+                            <div 
+                              className="absolute right-full top-0 mr-1 w-56 bg-white rounded-lg shadow-xl border py-2 z-[2147483648]"
+                              onMouseEnter={() => setIsDashboardDropdownOpen(true)}
+                              onMouseLeave={() => setIsDashboardDropdownOpen(false)}
+                            >
+                              {getAvailableDashboards().map((dashboard) => (
+                                <button
+                                  key={dashboard.id}
+                                  onClick={() => {
+                                    setIsUserDropdownOpen(false);
+                                    setIsDashboardDropdownOpen(false);
+                                    navigate(dashboard.route);
+                                  }}
+                                  className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                >
+                                  <span className="mr-3">{dashboard.icon}</span>
+                                  {dashboard.name}
+                                </button>
+                              ))}
+                            </div>
+                          )}
                         </div>
                         <div className="border-t py-2">
                           <button
