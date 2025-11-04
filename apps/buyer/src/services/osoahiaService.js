@@ -19,6 +19,31 @@ class OsoahiaService {
       brands: [],
       priceRanges: []
     };
+    
+    // Performance optimizations
+    this.responseCache = new Map();
+    this.cacheExpiry = 5 * 60 * 1000; // 5 minutes
+    this.debounceTimer = null;
+    this.pendingQueries = [];
+    
+    // User behavior tracking
+    this.userBehavior = {
+      clicks: [],
+      searches: [],
+      purchases: [],
+      preferences: {},
+      feedback: []
+    };
+    
+    // Analytics
+    this.analytics = {
+      queries: 0,
+      responses: 0,
+      actions: 0,
+      errors: 0,
+      avgResponseTime: 0,
+      responseTimes: []
+    };
   }
 
   // Initialize Osoahia with user context
@@ -27,13 +52,17 @@ class OsoahiaService {
       this.userId = userId;
       this.userProfile = userProfile;
       
-      // Load user preferences and conversation history
+      // Load user preferences, conversation history, and behavior
       await this.loadUserPreferences();
       await this.loadConversationHistory();
+      await this.loadUserBehavior();
+      
+      // Generate personalized greeting
+      const personalizedGreeting = this.generatePersonalizedGreeting();
       
       return {
         success: true,
-        message: "Osoahia initialized successfully! How can I help you shop today?",
+        message: personalizedGreeting,
         suggestions: this.getInitialSuggestions()
       };
     } catch (error) {
@@ -46,11 +75,48 @@ class OsoahiaService {
     }
   }
 
-  // Process user message and generate response
+  // Generate personalized greeting based on user behavior
+  generatePersonalizedGreeting() {
+    const timeOfDay = this.getTimeOfDay();
+    const personalizedGreeting = this.getPersonalizedGreeting();
+    
+    // Check if user has recent searches
+    const recentSearches = this.userBehavior.searches.filter(
+      s => Date.now() - s.timestamp < 24 * 60 * 60 * 1000
+    );
+    
+    if (recentSearches.length > 0) {
+      const lastSearch = recentSearches[recentSearches.length - 1];
+      return `${personalizedGreeting}! ${timeOfDay} I noticed you were looking for "${lastSearch.query}" recently. Would you like to continue searching or explore something new?`;
+    }
+    
+    // Check if user has preferences
+    if (this.userBehavior.preferences.categories && Object.keys(this.userBehavior.preferences.categories).length > 0) {
+      const topCategory = Object.keys(this.userBehavior.preferences.categories).sort(
+        (a, b) => this.userBehavior.preferences.categories[b] - this.userBehavior.preferences.categories[a]
+      )[0];
+      return `${personalizedGreeting}! ${timeOfDay} I see you're interested in ${topCategory}. How can I help you find the perfect ${topCategory} today?`;
+    }
+    
+    return `${personalizedGreeting}! ${timeOfDay} I'm Osoahia, your AI shopping assistant. How can I help you find the perfect products today?`;
+  }
+
+  // Process user message with optimizations
   async processMessage(message, context = null) {
+    const startTime = Date.now();
     try {
       this.currentContext = context;
       this.isTyping = true;
+      this.analytics.queries++;
+      
+      // Check cache first
+      const cacheKey = this.getCacheKey(message, context);
+      const cachedResponse = this.getCachedResponse(cacheKey);
+      if (cachedResponse) {
+        console.log('🎯 Using cached response');
+        this.analytics.responses++;
+        return cachedResponse;
+      }
       
       // Add user message to history
       this.conversationHistory.push({
@@ -64,6 +130,9 @@ class OsoahiaService {
       const intent = await this.analyzeIntent(message);
       const response = await this.generateResponse(intent, message);
       
+      // Track user behavior
+      this.trackUserBehavior(message, intent, response);
+      
       // Add AI response to history
       this.conversationHistory.push({
         type: 'assistant',
@@ -74,20 +143,207 @@ class OsoahiaService {
         suggestions: response.suggestions || []
       });
 
-      // Save conversation
-      await this.saveConversationHistory();
+      // Cache response
+      this.cacheResponse(cacheKey, response);
       
+      // Save conversation (debounced)
+      this.debounceSave();
+      
+      // Track analytics
+      const responseTime = Date.now() - startTime;
+      this.trackResponseTime(responseTime);
+      
+      this.analytics.responses++;
       return response;
     } catch (error) {
       console.error('Error processing message:', error);
+      this.analytics.errors++;
+      
+      // Try to recover with context
+      const recoveryResponse = await this.tryErrorRecovery(message, error);
+      if (recoveryResponse) {
+        return recoveryResponse;
+      }
+      
       return {
         message: "I apologize, but I'm having trouble understanding. Could you please rephrase your question?",
         type: 'error',
-        suggestions: ["Search products", "View cart", "Get help"]
+        suggestions: this.getProactiveSuggestions()
       };
     } finally {
       this.isTyping = false;
     }
+  }
+
+  // Get cache key for message
+  getCacheKey(message, context) {
+    const normalizedMessage = message.toLowerCase().trim();
+    const contextKey = context ? JSON.stringify(context) : '';
+    return `${normalizedMessage}_${contextKey}`;
+  }
+
+  // Get cached response
+  getCachedResponse(cacheKey) {
+    const cached = this.responseCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < this.cacheExpiry) {
+      return cached.response;
+    }
+    if (cached) {
+      this.responseCache.delete(cacheKey);
+    }
+    return null;
+  }
+
+  // Cache response
+  cacheResponse(cacheKey, response) {
+    // Limit cache size
+    if (this.responseCache.size > 100) {
+      const firstKey = this.responseCache.keys().next().value;
+      this.responseCache.delete(firstKey);
+    }
+    
+    this.responseCache.set(cacheKey, {
+      response,
+      timestamp: Date.now()
+    });
+  }
+
+  // Debounce save to prevent excessive writes
+  debounceSave() {
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+    }
+    this.debounceTimer = setTimeout(() => {
+      this.saveConversationHistory();
+      this.saveUserPreferences();
+      this.saveUserBehavior();
+    }, 2000); // Save after 2 seconds of inactivity
+  }
+
+  // Track user behavior
+  trackUserBehavior(message, intent, response) {
+    // Track search queries
+    if (intent.type === 'product_search') {
+      this.userBehavior.searches.push({
+        query: message,
+        timestamp: Date.now(),
+        results: response.products?.length || 0
+      });
+    }
+    
+    // Track clicked products
+    if (response.products && response.products.length > 0) {
+      // Will be updated when user clicks on products
+      this.userBehavior.preferences.products = response.products.map(p => p.id);
+    }
+    
+    // Learn from user preferences
+    if (intent.entities) {
+      const categories = intent.entities.filter(e => e.type === 'category').map(e => e.value);
+      const prices = intent.entities.filter(e => e.type === 'price_max' || e.type === 'price_range').map(e => e.value || e.max);
+      
+      if (categories.length > 0) {
+        categories.forEach(cat => {
+          this.userBehavior.preferences.categories = this.userBehavior.preferences.categories || {};
+          this.userBehavior.preferences.categories[cat] = (this.userBehavior.preferences.categories[cat] || 0) + 1;
+        });
+      }
+      
+      if (prices.length > 0) {
+        const avgPrice = prices.reduce((a, b) => a + b, 0) / prices.length;
+        if (!this.userBehavior.preferences.averagePrice) {
+          this.userBehavior.preferences.averagePrice = avgPrice;
+        } else {
+          this.userBehavior.preferences.averagePrice = (this.userBehavior.preferences.averagePrice + avgPrice) / 2;
+        }
+      }
+    }
+  }
+
+  // Track response time
+  trackResponseTime(responseTime) {
+    this.analytics.responseTimes.push(responseTime);
+    if (this.analytics.responseTimes.length > 100) {
+      this.analytics.responseTimes.shift();
+    }
+    
+    const avg = this.analytics.responseTimes.reduce((a, b) => a + b, 0) / this.analytics.responseTimes.length;
+    this.analytics.avgResponseTime = avg;
+  }
+
+  // Try error recovery
+  async tryErrorRecovery(message, error) {
+    // Try to use conversation context
+    if (this.conversationContext.lastIntent) {
+      const lastIntent = this.conversationContext.lastIntent;
+      if (lastIntent.type === 'product_search' && this.conversationContext.lastSearchTerm) {
+        return {
+          message: "I'm having trouble with that search. Let me try again with your previous search terms.",
+          type: 'recovery',
+          suggestions: [`Search for ${this.conversationContext.lastSearchTerm}`, "Try different keywords", "Browse categories"]
+        };
+      }
+    }
+    
+    // Try to understand partial message
+    const lowerMessage = message.toLowerCase();
+    if (lowerMessage.length < 3) {
+      return {
+        message: "Could you provide more details? I'm here to help you find products, manage your cart, or answer questions.",
+        type: 'clarification',
+        suggestions: this.getProactiveSuggestions()
+      };
+    }
+    
+    return null;
+  }
+
+  // Save user behavior
+  async saveUserBehavior() {
+    try {
+      localStorage.setItem(`osoahia_behavior_${this.userId}`, JSON.stringify(this.userBehavior));
+    } catch (error) {
+      console.error('Error saving user behavior:', error);
+    }
+  }
+
+  // Load user behavior
+  async loadUserBehavior() {
+    try {
+      const saved = localStorage.getItem(`osoahia_behavior_${this.userId}`);
+      if (saved) {
+        this.userBehavior = { ...this.userBehavior, ...JSON.parse(saved) };
+      }
+    } catch (error) {
+      console.error('Error loading user behavior:', error);
+    }
+  }
+
+  // Track action execution
+  trackAction(actionType, actionData) {
+    this.analytics.actions++;
+    this.userBehavior.clicks.push({
+      type: actionType,
+      data: actionData,
+      timestamp: Date.now()
+    });
+    
+    // Save behavior
+    this.saveUserBehavior();
+  }
+
+  // Get analytics summary
+  getAnalyticsSummary() {
+    return {
+      totalQueries: this.analytics.queries,
+      totalResponses: this.analytics.responses,
+      totalActions: this.analytics.actions,
+      totalErrors: this.analytics.errors,
+      avgResponseTime: this.analytics.avgResponseTime,
+      cacheHitRate: this.responseCache.size > 0 ? (this.analytics.responses - this.analytics.queries) / this.analytics.queries : 0,
+      userSearches: this.userBehavior.searches.length,
+      userPreferences: this.userBehavior.preferences
+    };
   }
 
   // Enhanced intent analysis with confidence scoring and multi-intent support
@@ -1233,7 +1489,17 @@ class OsoahiaService {
       const userOrders = await firebaseService.orders.getByUser(this.userId);
       const categories = this.extractUserPreferences(userOrders);
       
-      // Get average spending from order history
+      // Use learned preferences from behavior tracking
+      const learnedCategories = this.userBehavior.preferences.categories 
+        ? Object.keys(this.userBehavior.preferences.categories).sort(
+            (a, b) => this.userBehavior.preferences.categories[b] - this.userBehavior.preferences.categories[a]
+          )
+        : [];
+      
+      // Combine order history categories with learned preferences
+      const allCategories = [...new Set([...categories, ...learnedCategories])];
+      
+      // Get average spending from order history or learned preferences
       let avgPrice = null;
       if (userOrders && userOrders.length > 0) {
         const prices = [];
@@ -1247,14 +1513,15 @@ class OsoahiaService {
         }
       }
       
-      // Use budget if provided, otherwise use average spending
-      const priceFilter = budget || avgPrice;
+      // Use budget if provided, otherwise use average spending or learned preferences
+      const priceFilter = budget || avgPrice || this.userBehavior.preferences.averagePrice;
       
       // Get recommendations based on user preferences
       let products = [];
-      if (categories.length > 0) {
-        // Try to get products from preferred categories
-        for (const category of categories.slice(0, 3)) {
+      if (allCategories.length > 0) {
+        // Try to get products from preferred categories (prioritize learned preferences)
+        const categoriesToUse = learnedCategories.length > 0 ? learnedCategories : allCategories;
+        for (const category of categoriesToUse.slice(0, 3)) {
           const categoryProducts = await firebaseService.products.getByCategory(category, { pageSize: 10 });
           products.push(...categoryProducts);
         }
@@ -1272,15 +1539,33 @@ class OsoahiaService {
         });
       }
       
-      // Sort by relevance (preferred categories first, then by rating)
+      // Exclude products user has already viewed (if tracking)
+      if (this.userBehavior.preferences.products) {
+        products = products.filter(p => !this.userBehavior.preferences.products.includes(p.id));
+      }
+      
+      // Sort by relevance (learned preferences first, then order history, then by rating)
       products.sort((a, b) => {
-        const aCategory = categories.indexOf(a.category);
-        const bCategory = categories.indexOf(b.category);
-        if (aCategory !== -1 && bCategory !== -1) {
-          return aCategory - bCategory;
+        const aLearnedIndex = learnedCategories.indexOf(a.category);
+        const bLearnedIndex = learnedCategories.indexOf(b.category);
+        const aOrderIndex = categories.indexOf(a.category);
+        const bOrderIndex = categories.indexOf(b.category);
+        
+        // Prioritize learned preferences
+        if (aLearnedIndex !== -1 && bLearnedIndex !== -1) {
+          return aLearnedIndex - bLearnedIndex;
         }
-        if (aCategory !== -1) return -1;
-        if (bCategory !== -1) return 1;
+        if (aLearnedIndex !== -1) return -1;
+        if (bLearnedIndex !== -1) return 1;
+        
+        // Then order history
+        if (aOrderIndex !== -1 && bOrderIndex !== -1) {
+          return aOrderIndex - bOrderIndex;
+        }
+        if (aOrderIndex !== -1) return -1;
+        if (bOrderIndex !== -1) return 1;
+        
+        // Finally by rating
         return (b.rating || 0) - (a.rating || 0);
       });
       
@@ -1516,7 +1801,13 @@ class OsoahiaService {
     try {
       const saved = localStorage.getItem(`osoahia_history_${this.userId}`);
       if (saved) {
-        this.conversationHistory = JSON.parse(saved);
+        const history = JSON.parse(saved);
+        // If history is too long, summarize it
+        if (history.length > 100) {
+          this.conversationHistory = this.summarizeConversationHistory(history);
+        } else {
+          this.conversationHistory = history;
+        }
       }
     } catch (error) {
       console.error('Error loading conversation history:', error);
@@ -1525,12 +1816,60 @@ class OsoahiaService {
 
   async saveConversationHistory() {
     try {
+      // Summarize if history is too long
+      let historyToSave = this.conversationHistory;
+      if (historyToSave.length > 100) {
+        historyToSave = this.summarizeConversationHistory(historyToSave);
+      }
+      
       // Keep only last 50 messages to prevent storage bloat
-      const recentHistory = this.conversationHistory.slice(-50);
+      const recentHistory = historyToSave.slice(-50);
       localStorage.setItem(`osoahia_history_${this.userId}`, JSON.stringify(recentHistory));
     } catch (error) {
       console.error('Error saving conversation history:', error);
     }
+  }
+
+  // Summarize conversation history to reduce storage
+  summarizeConversationHistory(history) {
+    if (history.length <= 50) return history;
+    
+    // Keep first few messages (initial context)
+    const initialMessages = history.slice(0, 5);
+    
+    // Keep last 20 messages (recent context)
+    const recentMessages = history.slice(-20);
+    
+    // Summarize middle section
+    const middleMessages = history.slice(5, -20);
+    const summary = {
+      type: 'summary',
+      message: `[Previous conversation summary: ${middleMessages.length} messages about ${this.extractSummaryTopics(middleMessages).join(', ')}]`,
+      timestamp: middleMessages[0]?.timestamp || new Date(),
+      count: middleMessages.length
+    };
+    
+    return [...initialMessages, summary, ...recentMessages];
+  }
+
+  // Extract summary topics from conversation
+  extractSummaryTopics(messages) {
+    const topics = new Set();
+    const intents = new Set();
+    
+    messages.forEach(msg => {
+      if (msg.intent) {
+        intents.add(msg.intent.type);
+      }
+      if (msg.entities) {
+        msg.entities.forEach(e => {
+          if (e.type === 'category') topics.add(e.value);
+          if (e.type === 'product') topics.add(e.value);
+        });
+      }
+    });
+    
+    return Array.from(topics).slice(0, 5);
   }
 
   // Clear conversation history
