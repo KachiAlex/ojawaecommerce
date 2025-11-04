@@ -169,38 +169,42 @@ const StorePage = () => {
           }
         }
         
-        // If still not found, try matching by vendor email (for "ojawa-mock-store" -> "vendor.mock@ojawa.test")
+        // If still not found, attempt to resolve by vendor profile storeSlug or name
         if (!foundStore) {
-          console.log('🏪 StorePage: Not found by name slug, trying vendor email...');
-          
-          // Extract potential vendor email from slug (this is a workaround for known stores)
-          let targetVendorId = null;
-          if (storeSlug === 'ojawa-mock-store') {
-            // Find vendor with email "vendor.mock@ojawa.test"
-            try {
-              const usersRef = collection(db, 'users');
-              const usersQuery = query(usersRef, where('email', '==', 'vendor.mock@ojawa.test'));
-              const usersSnapshot = await getDocs(usersQuery);
-              
-              if (!usersSnapshot.empty) {
-                targetVendorId = usersSnapshot.docs[0].id;
-                console.log('🏪 StorePage: Found vendor by email:', targetVendorId);
-              }
-            } catch (emailErr) {
-              console.warn('🏪 StorePage: Error finding vendor by email:', emailErr);
+          console.log('🏪 StorePage: Not found by slug/name in stores. Looking up vendor profiles...');
+          try {
+            const usersRef = collection(db, 'users');
+            // 1) Exact match on vendorProfile.storeSlug if present
+            const directSlugQuery = query(usersRef, where('vendorProfile.storeSlug', '==', storeSlug));
+            const directSlugSnap = await getDocs(directSlugQuery);
+            if (!directSlugSnap.empty) {
+              const u = directSlugSnap.docs[0];
+              foundStore = { id: null, vendorId: u.id, name: u.data()?.vendorProfile?.storeName || u.data()?.displayName || u.data()?.name || 'Store' };
+              console.log('🏪 StorePage: ✅ Resolved by users.vendorProfile.storeSlug');
             }
-          }
-          
-          // Find store by vendorId
-          if (targetVendorId) {
-            for (const doc of storesSnapshot.docs) {
-              const storeData = { id: doc.id, ...doc.data() };
-              if (storeData.vendorId === targetVendorId) {
-                foundStore = storeData;
-                console.log('🏪 StorePage: ✅ Found matching store by vendorId:', storeData.name);
-                break;
+
+            // 2) If still not found, fetch a small set of users and match by normalized store/business name client-side
+            if (!foundStore) {
+              const usersSnapshot = await getDocs(usersRef);
+              const norm = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+              const req = norm(storeSlug);
+              for (const u of usersSnapshot.docs) {
+                const d = u.data();
+                const candidates = [
+                  d?.vendorProfile?.storeName,
+                  d?.vendorProfile?.businessName,
+                  d?.displayName,
+                  d?.name
+                ];
+                if (candidates.some(v => norm(v) === req)) {
+                  foundStore = { id: null, vendorId: u.id, name: candidates.find(Boolean) || 'Store' };
+                  console.log('🏪 StorePage: ✅ Resolved by users name match');
+                  break;
+                }
               }
             }
+          } catch (resolveErr) {
+            console.warn('🏪 StorePage: Vendor profile resolution failed:', resolveErr);
           }
         }
 
