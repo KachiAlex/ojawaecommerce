@@ -140,10 +140,9 @@ const Navbar = () => {
               )}
             </button>
             
-            {currentUser ? (
-              <div className="flex items-center space-x-4">
-            
-                {/* Notification Bell */}
+            <div className="flex items-center space-x-4">
+              {/* Notification Bell - only when signed in */}
+              {currentUser && (
                 <button
                   onClick={() => setIsNotificationOpen(true)}
                   className="relative text-gray-600 hover:text-gray-900 transition-colors"
@@ -157,79 +156,80 @@ const Navbar = () => {
                     </span>
                   )}
                 </button>
-            
-                {/* User Dropdown */}
-                <div className="relative" ref={dropdownRef}>
-                  <button
-                    onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
-                    className="flex items-center space-x-2 text-gray-700 hover:text-gray-900 font-medium transition-colors"
-                  >
-                    <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center">
-                      <span className="text-emerald-600 font-semibold text-sm">
-                        {getFirstName().charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                    <span className="text-sm">{getFirstName()}</span>
-                    <svg className={`w-4 h-4 transition-transform ${isUserDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
-                    </svg>
-                  </button>
+              )}
 
-                  {/* Dropdown Menu */}
-                  {isUserDropdownOpen && (
-                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border py-2 z-50">
-                      {/* User Info */}
-                      <div className="px-4 py-3 border-b">
-                        <p className="text-sm font-medium text-gray-900">{currentUser.displayName || 'User'}</p>
-                        <p className="text-sm text-gray-500">{currentUser.email}</p>
-                      </div>
+              {/* Account Dropdown - always available (shows Sign In/Sign Out based on auth) */}
+              <div className="relative" ref={dropdownRef}>
+                <button
+                  onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
+                  className="flex items-center space-x-2 text-gray-700 hover:text-gray-900 font-medium transition-colors"
+                  aria-haspopup="menu"
+                  aria-expanded={isUserDropdownOpen}
+                >
+                  <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center">
+                    <span className="text-emerald-600 font-semibold text-sm">
+                      {currentUser ? getFirstName().charAt(0).toUpperCase() : 'OJ'}
+                    </span>
+                  </div>
+                  <span className="text-sm">{currentUser ? getFirstName() : 'Account'}</span>
+                  <svg className={`w-4 h-4 transition-transform ${isUserDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+                  </svg>
+                </button>
 
-                      {/* Dashboard Switcher */}
-                      <div className="py-2">
-                        <DashboardSwitcher />
-                      </div>
-
-                      {/* Quick Links */}
-                      <div className="border-t py-2">
+                {isUserDropdownOpen && (
+                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border py-2 z-50">
+                    {currentUser ? (
+                      <>
+                        <div className="px-4 py-3 border-b">
+                          <p className="text-sm font-medium text-gray-900">{currentUser.displayName || 'User'}</p>
+                          <p className="text-sm text-gray-500">{currentUser.email}</p>
+                        </div>
+                        <div className="py-2">
+                          <DashboardSwitcher />
+                        </div>
+                        <div className="border-t py-2">
+                          <button
+                            onClick={() => {
+                              setIsUserDropdownOpen(false);
+                              setIsSettingsOpen(true);
+                            }}
+                            className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                          >
+                            <span className="mr-3">⚙️</span>
+                            Account Settings
+                          </button>
+                          <button
+                            onClick={handleLogout}
+                            className="w-full flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                          >
+                            <span className="mr-3">🚪</span>
+                            Logout
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
                         <button
-                          onClick={() => {
-                            setIsUserDropdownOpen(false);
-                            setIsSettingsOpen(true);
-                          }}
+                          onClick={() => { setIsUserDropdownOpen(false); navigate('/login'); }}
                           className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                         >
-                          <span className="mr-3">⚙️</span>
-                          Account Settings
+                          <span className="mr-3">🔐</span>
+                          Sign In
                         </button>
-                        
-                <button
-                  onClick={handleLogout}
-                          className="w-full flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
-                >
-                          <span className="mr-3">🚪</span>
-                  Logout
-                </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                        <button
+                          onClick={() => { setIsUserDropdownOpen(false); navigate('/register'); }}
+                          className="w-full flex items-center px-4 py-2 text-sm text-emerald-700 hover:bg-emerald-50 transition-colors"
+                        >
+                          <span className="mr-3">✨</span>
+                          Get Started
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
-            ) : (
-              <div className="flex items-center space-x-3">
-                <Link 
-                  to="/login" 
-                  className="text-gray-700 hover:text-gray-900 font-medium transition-colors"
-                >
-                  Sign In
-                </Link>
-                <Link 
-                  to="/register" 
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-                >
-                  Get Started
-                </Link>
-              </div>
-            )}
+            </div>
           </div>
 
           {/* Mobile menu button */}
