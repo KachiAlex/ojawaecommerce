@@ -171,11 +171,11 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-8 px-4">
       <div className="w-full max-w-sm mx-auto">
         {!userType ? (
           /* User Type Selection */
-          <div className="bg-white rounded-xl shadow-lg border p-6 sm:p-8">
+          <div className="bg-white rounded-xl shadow-lg border p-6">
             <div className="text-center">
               <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
                 <span className="text-emerald-600 text-2xl">👋</span>
@@ -249,34 +249,34 @@ const Login = () => {
           </div>
         ) : (
           /* Login Form */
-          <div className="bg-white rounded-xl shadow-lg border p-6 sm:p-8">
-            <div className="text-center mb-6">
+          <div className="bg-white rounded-xl shadow-lg border p-6">
+            <div className="text-center mb-5">
               <button 
                 onClick={() => setUserType('')}
-                className="text-gray-500 hover:text-gray-700 text-xs mb-4 block text-center mx-auto"
+                className="text-gray-500 hover:text-gray-700 text-xs mb-3 block text-center mx-auto"
               >
                 ← Back to user type selection
               </button>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">
+              <h2 className="text-lg font-bold text-gray-900 mb-1">
                 {userType === 'existing' ? 'Sign in to your account' : `Join as ${userType === 'buyer' ? 'Buyer' : userType === 'vendor' ? 'Vendor' : 'Logistics Partner'}`}
               </h2>
               {message && (
-                <div className="mt-3 p-2 bg-emerald-50 border border-emerald-200 rounded text-xs text-emerald-800 mx-auto max-w-xs">
+                <div className="mt-2 p-2 bg-emerald-50 border border-emerald-200 rounded text-xs text-emerald-800 mx-auto max-w-xs">
                   {message}
                 </div>
               )}
-              <p className="mt-2 text-xs text-gray-600">
+              <p className="mt-1 text-xs text-gray-600">
                 {userType === 'existing' ? 'Welcome back!' : 'Create your account to get started'}
               </p>
             </div>
           
             {userType !== 'existing' && (
-              <div className="mb-5 p-3 bg-gray-50 rounded-lg">
+              <div className="mb-4 p-2 bg-gray-50 rounded-lg">
                 <div className="flex flex-col items-center text-center">
-                  <span className="text-xl mb-1">
+                  <span className="text-lg mb-1">
                     {userType === 'buyer' ? '🛒' : userType === 'vendor' ? '🏪' : '🚚'}
                   </span>
-                  <p className="font-medium text-gray-900 text-sm mb-1">
+                  <p className="font-medium text-gray-900 text-xs mb-1">
                     {userType === 'buyer' ? 'Buyer Account' : 
                      userType === 'vendor' ? 'Vendor Account' : 
                      'Logistics Partner Account'}
@@ -290,14 +290,14 @@ const Login = () => {
               </div>
             )}
             
-            <form className="space-y-4" onSubmit={handleSubmit}>
+            <form className="space-y-3" onSubmit={handleSubmit}>
               {error && (
                 <div className="bg-red-100 border border-red-400 text-red-700 px-3 py-2 rounded text-sm">
                   {error}
                 </div>
               )}
               
-              <div className="space-y-3">
+              <div className="space-y-2">
                 <div>
                   <label htmlFor="email" className="sr-only">
                     Email address
@@ -348,7 +348,7 @@ const Login = () => {
                 </div>
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {/* Email/Password Submit Button */}
                 <div>
                   {userType === 'existing' ? (
