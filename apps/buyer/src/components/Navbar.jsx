@@ -193,8 +193,29 @@ const Navbar = () => {
                           <p className="text-sm font-medium text-gray-900">{currentUser.displayName || 'User'}</p>
                           <p className="text-sm text-gray-500">{currentUser.email}</p>
                         </div>
+                        {/* Explicit dashboard links as before */}
                         <div className="py-2">
-                          <DashboardSwitcher />
+                          <button
+                            onClick={() => { setIsUserDropdownOpen(false); navigate('/dashboard'); }}
+                            className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                          >
+                            <span className="mr-3">🛍️</span>
+                            Buyer Dashboard
+                          </button>
+                          <button
+                            onClick={() => { setIsUserDropdownOpen(false); navigate('/vendor'); }}
+                            className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                          >
+                            <span className="mr-3">🏪</span>
+                            Vendor Dashboard
+                          </button>
+                          <button
+                            onClick={() => { setIsUserDropdownOpen(false); navigate('/logistics'); }}
+                            className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                          >
+                            <span className="mr-3">🚚</span>
+                            Logistics Dashboard
+                          </button>
                         </div>
                         <div className="border-t py-2">
                           <button
