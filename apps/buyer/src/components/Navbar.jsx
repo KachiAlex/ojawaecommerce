@@ -74,7 +74,7 @@ const Navbar = () => {
 
   return (
     <>
-    <nav className="bg-white border-b">
+    <nav className="bg-white border-b relative z-[1000]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center">
@@ -161,7 +161,7 @@ const Navbar = () => {
 
               {/* Account Dropdown - always available (shows Sign In/Sign Out based on auth) */}
               <div
-                className="relative"
+                className="relative z-[1000]"
                 ref={dropdownRef}
                 onClick={(e) => {
                   // Prevent outside click handler from immediately closing after toggle
@@ -186,7 +186,7 @@ const Navbar = () => {
                 </button>
 
                 {isUserDropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border py-2 z-50">
+                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border py-2 z-[9999]">
                     {currentUser ? (
                       <>
                         <div className="px-4 py-3 border-b">
