@@ -16,21 +16,15 @@ const AnimatedSplash = ({ onDone }) => {
       inset: 0,
       zIndex: 9999,
       overflow: 'hidden',
-      background: 'linear-gradient(135deg, #1e3a8a 0%, #059669 50%, #0e7490 100%)',
+      background: '#ffffff',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
     }}>
       <style>{`
         @keyframes logoZoom {
-          0% {
-            transform: scale(0.3);
-            opacity: 0;
-          }
-          100% {
-            transform: scale(1);
-            opacity: 1;
-          }
+          0% { transform: scale(0.3); }
+          100% { transform: scale(1); }
         }
         
         .logo-animation {
@@ -38,7 +32,7 @@ const AnimatedSplash = ({ onDone }) => {
         }
       `}</style>
 
-      {/* Logo with zoom animation */}
+      {/* Logo with ONLY zoom animation */}
       <div className="logo-animation">
         <img
           src="/logos/ojawa-logo.png"
