@@ -175,7 +175,7 @@ const Login = () => {
       <div className="w-full max-w-md mx-auto flex justify-center">
         {!userType ? (
           /* User Type Selection */
-          <div className="bg-white rounded-xl shadow-lg border p-6">
+          <div className="bg-white rounded-xl shadow-lg border p-6 w-full">
             <div className="text-center">
               <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
                 <span className="text-emerald-600 text-2xl">👋</span>
@@ -249,7 +249,7 @@ const Login = () => {
           </div>
         ) : (
           /* Login Form */
-          <div className="bg-white rounded-xl shadow-lg border p-6">
+          <div className="bg-white rounded-xl shadow-lg border p-6 w-full">
             <div className="text-center mb-5">
               <button 
                 onClick={() => setUserType('')}
