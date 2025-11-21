@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en" prefix="og: http://ogp.me/ns#">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/logos/ojawa-logo.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' 'unsafe-eval' data: https://checkout.flutterwave.com https://maps.googleapis.com https://*.gstatic.com https://apis.google.com https://accounts.google.com; connect-src 'self' https://api.firebase.com https://*.firebase.com https://*.googleapis.com https://us-central1-ojawa-ecommerce.cloudfunctions.net https://api.flutterwave.com https://api.ravepay.co https://*.myflutterwave.com https://metrics.flutterwave.com https://api.fpjs.io https://api.allorigins.win https://accounts.google.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com; frame-src https://accounts.google.com https://ojawa-ecommerce.firebaseapp.com https://checkout.flutterwave.com https://*.flutterwave.com https://checkout-v3-ui-prod.f4b-flutterwave.com;" />
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#059669" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Ojawa" />
+    <meta name="msapplication-TileColor" content="#059669" />
+    <meta name="msapplication-tap-highlight" content="no" />
+    
+    <!-- Apple Touch Icons -->
+    <link rel="apple-touch-icon" href="/icons/icon-152x152.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152x152.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180x180.png" />
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-16x16.png" />
+    
+    <!-- Performance: Preconnect and DNS Prefetch (Critical for LCP) -->
+    <link rel="preconnect" href="https://www.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin />
+    <link rel="preconnect" href="https://firebase.googleapis.com" crossorigin />
+    <link rel="preconnect" href="https://firebasestorage.googleapis.com" crossorigin />
+    <link rel="preconnect" href="https://checkout.flutterwave.com" crossorigin />
+    <link rel="preconnect" href="https://accounts.google.com" crossorigin />
+    <link rel="preconnect" href="https://apis.google.com" crossorigin />
+    <link rel="dns-prefetch" href="https://www.gstatic.com" />
+    <link rel="dns-prefetch" href="https://firestore.googleapis.com" />
+    <link rel="dns-prefetch" href="https://firebase.googleapis.com" />
+    <link rel="dns-prefetch" href="https://firebasestorage.googleapis.com" />
+    <link rel="dns-prefetch" href="https://checkout.flutterwave.com" />
+    <link rel="dns-prefetch" href="https://accounts.google.com" />
+    <link rel="dns-prefetch" href="https://apis.google.com" />
+    
+    <!-- Preload critical resources for better LCP -->
+    <link rel="modulepreload" href="/src/App.jsx" />
+    <link rel="modulepreload" href="/src/contexts/AuthContext.jsx" />
+    <link rel="modulepreload" href="/src/pages/Home.jsx" />
+    
+    <!-- Preload critical fonts -->
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"></noscript>
+    
+    <title>Ojawa - Shop Safely Across Africa | Secure E-Commerce with Escrow Protection</title>
+    
+    <!-- SEO Meta Tags - Optimized for secure transactions across Africa -->
+    <meta name="description" content="The safest e-commerce platform across Africa. Shop securely with 100% escrow protection, verified vendors, zero fraud guarantee. Buy from Nigeria, Ghana, Kenya, South Africa & more. Your payment is protected until delivery." />
+    <meta name="keywords" content="secure e-commerce Africa, escrow protection, safe online shopping Africa, verified vendors Africa, secure payments Nigeria, secure payments Ghana, secure payments Kenya, zero fraud e-commerce, escrow marketplace, secure transactions Africa, pan-African marketplace, safe shopping Africa, buyer protection Africa, dispute resolution Africa" />
+    <meta name="author" content="Ojawa" />
+    <meta name="geo.region" content="Africa" />
+    <meta name="geo.placename" content="Africa" />
+    
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://ojawa-ecommerce.web.app" />
+    
+    <!-- Open Graph Meta Tags - Enhanced for social sharing -->
+    <meta property="og:title" content="Ojawa - Shop Safely Across Africa | Secure E-Commerce with Escrow Protection" />
+    <meta property="og:description" content="The safest e-commerce platform across Africa. Shop securely with 100% escrow protection, verified vendors, zero fraud guarantee. Your payment is protected until delivery." />
+    <meta property="og:image" content="https://ojawa-ecommerce.web.app/logos/ojawa-logo.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Ojawa - Secure E-Commerce Platform Across Africa" />
+    <meta property="og:url" content="https://ojawa-ecommerce.web.app" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Ojawa" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:locale:alternate" content="fr_FR" />
+    <meta property="og:locale:alternate" content="sw_KE" />
+    
+    <!-- Twitter Card Meta Tags -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Ojawa - Shop Safely Across Africa | Secure E-Commerce" />
+    <meta name="twitter:description" content="The safest e-commerce platform across Africa. 100% escrow protection, zero fraud guarantee, verified vendors." />
+    <meta name="twitter:image" content="https://ojawa-ecommerce.web.app/logos/ojawa-logo.png" />
+    <meta name="twitter:image:alt" content="Ojawa - Secure E-Commerce Platform Across Africa" />
+    
+    <!-- Robots & Sitemap -->
+    <link rel="sitemap" type="application/xml" href="/sitemap.xml" />
+    
+    <!-- Additional Meta Tags -->
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <meta name="googlebot" content="index, follow" />
+    <meta name="bingbot" content="index, follow" />
+    <meta name="language" content="English" />
+    <meta name="revisit-after" content="1 days" />
+    <meta name="rating" content="general" />
+    <meta name="distribution" content="global" />
+    <meta name="coverage" content="worldwide" />
+    <meta name="target" content="all" />
+    
+    <!-- Structured Data (JSON-LD) - Organization -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "Ojawa",
+      "alternateName": "Ojawa E-Commerce",
+      "url": "https://ojawa-ecommerce.web.app",
+      "logo": "https://ojawa-ecommerce.web.app/logos/ojawa-logo.png",
+      "description": "The safest e-commerce platform across Africa with 100% escrow protection, verified vendors, and zero fraud guarantee.",
+      "foundingDate": "2024",
+      "areaServed": {
+        "@type": "Continent",
+        "name": "Africa"
+      },
+      "sameAs": [],
+      "contactPoint": {
+        "@type": "ContactPoint",
+        "contactType": "Customer Service",
+        "availableLanguage": ["English", "French", "Swahili"]
+      },
+      "aggregateRating": {
+        "@type": "AggregateRating",
+        "ratingValue": "4.8",
+        "reviewCount": "1000",
+        "bestRating": "5",
+        "worstRating": "1"
+      }
+    }
+    </script>
+    
+    <!-- Structured Data (JSON-LD) - WebSite with SearchAction -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "Ojawa",
+      "alternateName": "Ojawa E-Commerce",
+      "url": "https://ojawa-ecommerce.web.app",
+      "description": "The safest e-commerce platform across Africa. Shop securely with escrow protection from verified vendors.",
+      "inLanguage": "en-US",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": {
+          "@type": "EntryPoint",
+          "urlTemplate": "https://ojawa-ecommerce.web.app/products?search={search_term_string}"
+        },
+        "query-input": "required name=search_term_string"
+      }
+    }
+    </script>
+    
+    <!-- Structured Data (JSON-LD) - BreadcrumbList -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Home",
+          "item": "https://ojawa-ecommerce.web.app"
+        }
+      ]
+    }
+    </script>
+    
+    <!-- Structured Data (JSON-LD) - Service/E-Commerce Platform -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Service",
+      "serviceType": "E-Commerce Platform",
+      "provider": {
+        "@type": "Organization",
+        "name": "Ojawa"
+      },
+      "areaServed": {
+        "@type": "Place",
+        "name": "Africa",
+        "description": "Pan-African coverage including Nigeria, Ghana, Kenya, South Africa, and more"
+      },
+      "description": "Secure e-commerce platform with escrow protection, verified vendors, and zero fraud guarantee. The safest way to shop online across Africa.",
+      "offers": {
+        "@type": "Offer",
+        "description": "Secure online shopping with escrow protection",
+        "price": "0",
+        "priceCurrency": "NGN"
+      },
+      "featureList": [
+        "100% Escrow Protection",
+        "Verified Vendors Only",
+        "Zero Fraud Guarantee",
+        "Dispute Resolution",
+        "Bank-Level Security",
+        "24/7 Customer Support",
+        "Pan-African Coverage"
+      ]
+    }
+    </script>
+    
+    <!-- Inline critical CSS for initial render (improves LCP) -->
+    <style>
+      /* Critical CSS for initial page load */
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+          'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        background-color: #ffffff;
+      }
+      
+      #root {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+      
+      /* Initial splash with centered logo */
+      .initial-splash {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 120px;
+        height: 120px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+      }
+      .initial-splash img { max-width: 100%; max-height: 100%; object-fit: contain; }
+      
+      @keyframes spin {
+        0% { transform: translate(-50%, -50%) rotate(0deg); }
+        100% { transform: translate(-50%, -50%) rotate(360deg); }
+      }
+      
+      /* Hide splash when app is ready */
+      .app-loaded .initial-splash {
+        display: none;
+      }
+      
+      /* Critical layout styles for faster rendering */
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 1rem;
+      }
+      
+      /* Prevent layout shift */
+      img {
+        max-width: 100%;
+        height: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <!-- Initial splash (removed when React renders) -->
+      <div class="initial-splash">
+        <img src="/logos/ojawa-logo.png" alt="Ojawa" />
+      </div>
+    </div>
+    
+    <!-- Load Flutterwave script asynchronously with error handling -->
+    <script>
+      // Load Flutterwave asynchronously to avoid blocking
+      (function() {
+        const script = document.createElement('script');
+        script.src = 'https://checkout.flutterwave.com/v3.js';
+        script.async = true;
+        script.onerror = function() {
+          console.warn('⚠️ Flutterwave script failed to load - payment features may be limited');
+        };
+        document.head.appendChild(script);
+      })();
+      
+      // Network status indicator
+      window.addEventListener('load', function() {
+        if (!navigator.onLine) {
+          console.warn('📴 App started in offline mode');
+        }
+      });
+      
+      // Mark app as loaded when React hydrates
+      window.addEventListener('DOMContentLoaded', function() {
+        setTimeout(function() {
+          document.body.classList.add('app-loaded');
+        }, 100);
+      });
+    </script>
+    
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

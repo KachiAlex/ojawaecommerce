@@ -1,0 +1,26 @@
+{
+  "appId": "com.ojawa.app",
+  "appName": "Ojawa",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true
+  },
+  "android": {
+    "allowMixedContent": true,
+    "captureInput": true,
+    "compileOptions": {
+      "sourceCompatibility": "VERSION_17",
+      "targetCompatibility": "VERSION_17"
+    }
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 5000,
+      "launchAutoHide": true,
+      "backgroundColor": "#FFFFFF",
+      "androidScaleType": "CENTER_CROP",
+      "showSpinner": false
+    }
+  }
+}
