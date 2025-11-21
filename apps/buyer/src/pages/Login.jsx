@@ -172,17 +172,10 @@ const Login = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-8 px-4">
-<<<<<<< HEAD
-      <div className="w-full max-w-md mx-auto flex flex-col items-center">
-        {!userType ? (
-          /* User Type Selection */
-          <div className="bg-white rounded-xl shadow-lg border p-6 w-full max-w-sm">
-=======
       <div className="w-full max-w-sm mx-auto">
         {!userType ? (
           /* User Type Selection */
           <div className="bg-white rounded-xl shadow-lg border p-6">
->>>>>>> ec288b6682da0e2312173ac5292a4b10e20daf27
             <div className="text-center">
               <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
                 <span className="text-emerald-600 text-2xl">👋</span>
@@ -256,7 +249,7 @@ const Login = () => {
           </div>
         ) : (
           /* Login Form */
-          <div className="bg-white rounded-xl shadow-lg border p-6 w-full max-w-sm">
+          <div className="bg-white rounded-xl shadow-lg border p-6">
             <div className="text-center mb-5">
               <button 
                 onClick={() => setUserType('')}
