@@ -166,22 +166,32 @@ const ProductCard = ({ product, onAddToCart, onClick }) => {
           
           const finalImageUrl = imageUrl || '/placeholder-product.jpg';
           
-          return !imageError && finalImageUrl ? (
+          if (imageError) {
+            return (
+              <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                <div className="text-center text-gray-400">
+                  <div className="text-4xl mb-2">📦</div>
+                  <div className="text-sm">No Image</div>
+                </div>
+              </div>
+            );
+          }
+          
+          return (
             <>
               {!imageLoaded && (
-                <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+                <div className="absolute inset-0 flex items-center justify-center bg-gray-100 z-0">
                   <div className="animate-pulse bg-gray-200 w-full h-full"></div>
                 </div>
               )}
               <img
                 src={finalImageUrl}
                 alt={product.name}
-                className={`w-full h-full object-cover transition-all duration-300 ${
-                  imageLoaded ? 'opacity-100' : 'opacity-0'
+                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
+                  imageLoaded ? 'opacity-100 z-10' : 'opacity-0 z-0'
                 }`}
                 onLoad={() => {
                   setImageLoaded(true);
-                  console.log('✅ ProductCard: Image loaded successfully for', product.name, '- URL:', finalImageUrl);
                 }}
                 onError={(e) => {
                   console.error('❌ ProductCard: Image failed to load for', product.name, '- URL:', e.target.src);
@@ -191,13 +201,6 @@ const ProductCard = ({ product, onAddToCart, onClick }) => {
                 loading="lazy"
               />
             </>
-          ) : (
-            <div className="w-full h-full flex items-center justify-center bg-gray-100">
-              <div className="text-center text-gray-400">
-                <div className="text-4xl mb-2">📦</div>
-                <div className="text-sm">No Image</div>
-              </div>
-            </div>
           );
         })()}
         
