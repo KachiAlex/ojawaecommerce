@@ -22,7 +22,13 @@ const ForgotPassword = () => {
       setError('');
       setLoading(true);
       
-      await sendPasswordResetEmail(auth, email);
+      // Use actionCodeSettings to handle reCAPTCHA properly
+      const actionCodeSettings = {
+        url: `${window.location.origin}/login`,
+        handleCodeInApp: false,
+      };
+      
+      await sendPasswordResetEmail(auth, email, actionCodeSettings);
       setSuccess(true);
       
       // Auto-close after 5 seconds

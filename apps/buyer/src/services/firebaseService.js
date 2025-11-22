@@ -614,16 +614,59 @@ export const orderService = {
   // Get order by tracking ID (Order ID)
   async getByTrackingId(trackingId) {
     try {
+      // First try to find by document ID
       const orderRef = doc(db, 'orders', trackingId);
       const orderDoc = await getDoc(orderRef);
       
       if (orderDoc.exists()) {
         return { id: orderDoc.id, ...orderDoc.data() };
       }
+      
+      // If not found by ID, try searching by trackingId field
+      const ordersRef = collection(db, 'orders');
+      const q = query(
+        ordersRef,
+        where('trackingId', '==', trackingId),
+        fsLimit(1)
+      );
+      const snapshot = await getDocs(q);
+      
+      if (!snapshot.empty) {
+        const orderDoc = snapshot.docs[0];
+        return { id: orderDoc.id, ...orderDoc.data() };
+      }
+      
+      // Also try trackingNumber field
+      const q2 = query(
+        ordersRef,
+        where('trackingNumber', '==', trackingId),
+        fsLimit(1)
+      );
+      const snapshot2 = await getDocs(q2);
+      
+      if (!snapshot2.empty) {
+        const orderDoc = snapshot2.docs[0];
+        return { id: orderDoc.id, ...orderDoc.data() };
+      }
+      
+      // Also try orderId field
+      const q3 = query(
+        ordersRef,
+        where('orderId', '==', trackingId),
+        fsLimit(1)
+      );
+      const snapshot3 = await getDocs(q3);
+      
+      if (!snapshot3.empty) {
+        const orderDoc = snapshot3.docs[0];
+        return { id: orderDoc.id, ...orderDoc.data() };
+      }
+      
       return null;
     } catch (error) {
       console.error('Error fetching order by tracking ID:', error);
-      throw error;
+      // Return null instead of throwing to show user-friendly message
+      return null;
     }
   },
 

@@ -143,6 +143,15 @@ const Categories = () => {
       // Fetch products for this category
       const categoryProducts = await firebaseService.products.getByCategory(category.id || category.name);
       setProducts(categoryProducts);
+      
+      // Update the category's product count in the categories list
+      setCategories(prevCategories => 
+        prevCategories.map(cat => 
+          cat.id === category.id || cat.name === category.name
+            ? { ...cat, productCount: categoryProducts.length }
+            : cat
+        )
+      );
     } catch (error) {
       console.error('Error fetching products:', error);
       // Use sample products as fallback
