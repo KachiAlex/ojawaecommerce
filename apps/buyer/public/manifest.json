@@ -12,10 +12,22 @@
   "categories": ["shopping", "business", "finance"],
   "icons": [
     {
-      "src": "/vite.svg",
+      "src": "/logos/ojawa-logo.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ],
   "screenshots": [],
@@ -27,7 +39,7 @@
       "url": "/enhanced-buyer",
       "icons": [
         {
-          "src": "/icons/orders-96x96.png",
+          "src": "/icons/icon-192x192.png",
           "sizes": "96x96"
         }
       ]
@@ -39,7 +51,7 @@
       "url": "/wallet",
       "icons": [
         {
-          "src": "/icons/wallet-96x96.png",
+          "src": "/icons/icon-192x192.png",
           "sizes": "96x96"
         }
       ]
@@ -51,7 +63,7 @@
       "url": "/tracking",
       "icons": [
         {
-          "src": "/icons/tracking-96x96.png",
+          "src": "/icons/icon-192x192.png",
           "sizes": "96x96"
         }
       ]
