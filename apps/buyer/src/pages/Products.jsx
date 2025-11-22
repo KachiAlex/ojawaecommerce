@@ -11,6 +11,7 @@ import { ProductListSkeleton } from '../components/SkeletonLoaders';
 import AdvancedFilters from '../components/AdvancedFilters';
 import SearchAutocomplete from '../components/SearchAutocomplete';
 import ProductComparison from '../components/ProductComparison';
+import WishlistButton from '../components/WishlistButton';
 import { collection, query, where, getDocs, orderBy, limit, startAfter } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
@@ -705,7 +706,7 @@ const Products = () => {
                         layout: { duration: 0.3 }
                       }}
                     >
-                      <div className="relative">
+                      <div className="relative group">
                         {viewMode === '3D' ? (
                           <Product3DCard
                             product={product}
@@ -717,10 +718,15 @@ const Products = () => {
                             onAddToCart={handleAddToCart}
                           />
                         )}
-                        {/* Compare Button */}
+                        {/* Wishlist Button - Top Left */}
+                        <div className="absolute top-2 left-2 z-10">
+                          <WishlistButton product={product} size="md" showText={false} />
+                        </div>
+                        {/* Compare Button - Top Right */}
                         <div className="absolute top-2 right-2 z-10">
                           <button
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               if (compareProducts.includes(product.id)) {
                                 setCompareProducts(prev => prev.filter(id => id !== product.id));
                               } else {
@@ -733,12 +739,20 @@ const Products = () => {
                             }}
                             className={`p-2 rounded-full transition-colors ${
                               compareProducts.includes(product.id)
-                                ? 'bg-emerald-600 text-white'
-                                : 'bg-white/90 text-gray-600 hover:bg-emerald-50'
-                            } shadow-md`}
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-white/90 text-gray-600 hover:bg-blue-50'
+                            } shadow-md hover:shadow-lg`}
                             title={compareProducts.includes(product.id) ? 'Remove from comparison' : 'Add to comparison'}
                           >
-                            {compareProducts.includes(product.id) ? '✓' : '📊'}
+                            {compareProducts.includes(product.id) ? (
+                              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                              </svg>
+                            ) : (
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+                              </svg>
+                            )}
                           </button>
                         </div>
                       </div>
