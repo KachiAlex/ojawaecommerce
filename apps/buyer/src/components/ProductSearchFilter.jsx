@@ -253,7 +253,7 @@ const ProductSearchFilter = ({ onSearchResults, onLoading, featuredProducts = []
   const hasAnyFilter = !!(searchTerm || selectedCategory || selectedStore || priceRange.min !== PRICE_MIN || priceRange.max !== PRICE_MAX || sortBy !== 'newest');
 
   return (
-    <div className="bg-white/90 backdrop-blur-sm p-3 sm:p-4 rounded-xl shadow-sm border sticky top-[env(safe-area-inset-top,0px)] md:top-4 z-20">
+    <div className="bg-white/90 backdrop-blur-sm p-3 sm:p-4 rounded-xl shadow-sm border sticky top-[env(safe-area-inset-top,0px)] md:top-4 z-10 mb-4">
       {/* Compact toolbar */}
       <div className="flex flex-col gap-2 sm:gap-3">
         <div className="flex items-stretch gap-2">

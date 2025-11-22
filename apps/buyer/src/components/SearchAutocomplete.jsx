@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { collection, query, where, getDocs, limit, orderBy } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
-const SearchAutocomplete = ({ onSelect, placeholder = "Search products..." }) => {
-  const [searchTerm, setSearchTerm] = useState('');
+const SearchAutocomplete = ({ onSelect, onSearch, placeholder = "Search products...", initialQuery = "", products = [] }) => {
+  const [searchTerm, setSearchTerm] = useState(initialQuery);
   const [suggestions, setSuggestions] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -111,12 +111,18 @@ const SearchAutocomplete = ({ onSelect, placeholder = "Search products..." }) =>
   };
 
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      searchProducts(searchTerm);
-    }, 300);
-
-    return () => clearTimeout(timeoutId);
-  }, [searchTerm]);
+    if (onSearch && searchTerm.trim()) {
+      const timeoutId = setTimeout(() => {
+        onSearch(searchTerm);
+      }, 300);
+      return () => clearTimeout(timeoutId);
+    } else if (!onSearch) {
+      const timeoutId = setTimeout(() => {
+        searchProducts(searchTerm);
+      }, 300);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [searchTerm, onSearch]);
 
   const handleSelect = (product) => {
     setSearchTerm(product.name);

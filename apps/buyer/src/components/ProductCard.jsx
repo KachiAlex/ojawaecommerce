@@ -37,12 +37,9 @@ const ProductCard = ({ product, onAddToCart, onClick }) => {
       { productName: product.name, price: product.price }
     );
     
-    // Check if user is logged in
-    if (!currentUser) {
-      saveIntendedDestination(`/products/${product.id}`, product.id);
-      navigate(`/login?message=${encodeURIComponent('Please sign in to add this product to your cart and complete your purchase.')}`);
-      return;
-    }
+    // Allow guest users to add to cart - they'll be prompted at checkout
+    // Only redirect to login if explicitly required (e.g., from ProductDetail page)
+    // For Products page, allow adding to cart without login
 
     // Clear any existing timeout
     if (addToCartTimeoutRef.current) {

@@ -20,8 +20,8 @@ const CartToast = () => {
   if (!toast) return null
 
   return (
-    <div className="fixed top-4 right-4 z-50">
-      <div className="bg-emerald-600 text-white shadow-lg rounded-lg px-4 py-3 text-sm">
+    <div className="fixed top-4 right-4 z-[9999] pointer-events-none">
+      <div className="bg-emerald-600 text-white shadow-lg rounded-lg px-4 py-3 text-sm animate-in slide-in-from-top-5 fade-in duration-300">
         ✅ {toast.message}
       </div>
     </div>

@@ -491,9 +491,25 @@ const Cart = () => {
                 <div className="flex-1 min-w-0 w-full sm:w-auto">
                   <h3 className="font-medium text-gray-900 text-sm sm:text-base truncate">{item.name}</h3>
                   <p className="text-sm text-gray-600">
-                    {formatCurrency(item.price, item.currency)}
+                    {formatCurrency(item.price, item.currency)} <span className="text-gray-500">× {item.quantity}</span>
                     {item.currency && <span className="ml-1 text-xs text-gray-500">({item.currency.split(' ')[1]})</span>}
                   </p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <button
+                      onClick={() => updateQuantity(item.id, Math.max(1, item.quantity - 1))}
+                      className="w-6 h-6 flex items-center justify-center border border-gray-300 rounded text-gray-600 hover:bg-gray-100 text-sm"
+                      disabled={item.quantity <= 1}
+                    >
+                      −
+                    </button>
+                    <span className="text-sm font-medium text-gray-700 min-w-[2rem] text-center">Qty: {item.quantity}</span>
+                    <button
+                      onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                      className="w-6 h-6 flex items-center justify-center border border-gray-300 rounded text-gray-600 hover:bg-gray-100 text-sm"
+                    >
+                      +
+                    </button>
+                  </div>
                   {vendorInfo && vendorInfo[item.vendorId] && (
                     <div className="mt-1 space-y-1">
                       <p className="text-xs text-gray-500 truncate">Sold by: {vendorInfo[item.vendorId].name}</p>

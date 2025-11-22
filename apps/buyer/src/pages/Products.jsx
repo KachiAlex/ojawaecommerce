@@ -308,19 +308,38 @@ const Products = () => {
         };
       });
 
-      setProducts(searchResults);
-      setFilteredProducts(searchResults);
+      // Apply sorting to search results
+      const sortByValue = advancedFilters.sortBy || sortBy;
+      const sortedResults = [...searchResults];
+      switch (sortByValue) {
+        case 'newest':
+          sortedResults.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+          break;
+        case 'oldest':
+          sortedResults.sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+          break;
+        case 'price-low':
+          sortedResults.sort((a, b) => (a.price || 0) - (b.price || 0));
+          break;
+        case 'price-high':
+          sortedResults.sort((a, b) => (b.price || 0) - (a.price || 0));
+          break;
+        case 'name':
+          sortedResults.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+          break;
+        default:
+          sortedResults.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+      }
+
+      setProducts(sortedResults);
+      setFilteredProducts(sortedResults);
       setHasMore(false);
+      setError(null);
     } catch (err) {
       console.error('Error searching products:', err);
-      // More specific error handling for mobile
-      if (err.code === 'unavailable') {
-        setError('Network error. Please check your connection and try again.');
-      } else if (err.code === 'permission-denied') {
-        setError('Access denied. Please refresh the page.');
-      } else {
-      setError('Search failed. Please try again.');
-      }
+      setError('Something went wrong while searching. Please try again.');
+      setProducts([]);
+      setFilteredProducts([]);
     } finally {
       setLoading(false);
     }
@@ -346,13 +365,20 @@ const Products = () => {
     }
   };
 
-  // Handle add to cart
+  // Handle add to cart - allow guest users to add to cart (they'll be prompted at checkout)
   const handleAddToCart = async (product) => {
     try {
       await addToCart(product, 1);
       console.log('✅ Product added to cart:', product.name);
+      // Toast notification is handled by CartToast component via cart:add event
     } catch (error) {
       console.error('❌ Failed to add to cart:', error);
+      // Show error toast if available
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('cart:error', { 
+          detail: { message: error.message || 'Failed to add product to cart' } 
+        }));
+      }
     }
   };
 
@@ -363,10 +389,54 @@ const Products = () => {
     fetchCategories();
   }, []);
 
+  // Separate filtering from sorting - only refetch when filters change, not when sort changes
   useEffect(() => {
     console.log('🛍️ Products: Filters changed, refetching products...');
     fetchProducts(true);
-  }, [selectedCategory, sortBy, priceRange, advancedFilters]);
+  }, [selectedCategory, priceRange, advancedFilters.category, advancedFilters.brand, advancedFilters.condition, advancedFilters.priceRange, advancedFilters.inStock, advancedFilters.minRating]);
+
+  // Helper function to sort products
+  const sortProducts = (productsToSort) => {
+    const sorted = [...productsToSort];
+    const sortByValue = advancedFilters.sortBy || sortBy;
+    
+    switch (sortByValue) {
+      case 'newest':
+        sorted.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+        break;
+      case 'oldest':
+        sorted.sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+        break;
+      case 'price-low':
+        sorted.sort((a, b) => (a.price || 0) - (b.price || 0));
+        break;
+      case 'price-high':
+        sorted.sort((a, b) => (b.price || 0) - (a.price || 0));
+        break;
+      case 'name':
+        sorted.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        break;
+      case 'rating':
+        sorted.sort((a, b) => (b.averageRating || 0) - (a.averageRating || 0));
+        break;
+      case 'popular':
+        sorted.sort((a, b) => (b.views || 0) - (a.views || 0));
+        break;
+      default:
+        sorted.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    }
+    
+    return sorted;
+  };
+
+  // Apply sorting when sortBy changes or when products are fetched
+  useEffect(() => {
+    if (!loading && products.length > 0) {
+      const sorted = sortProducts(products);
+      setFilteredProducts(sorted);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sortBy, advancedFilters.sortBy, products, loading]);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -472,7 +542,7 @@ const Products = () => {
 
         {/* Search and Filters */}
         <motion.div 
-          className="bg-white/90 backdrop-blur-sm rounded-lg shadow-sm md:shadow-md md:border md:border-gray-100 p-3 sm:p-6 mb-6 sm:mb-8 sticky top-[env(safe-area-inset-top,0px)] md:top-4 z-30"
+          className="bg-white/90 backdrop-blur-sm rounded-lg shadow-sm md:shadow-md md:border md:border-gray-100 p-3 sm:p-6 mb-6 sm:mb-8 sticky top-[env(safe-area-inset-top,0px)] md:top-4 z-20"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1 }}
@@ -490,10 +560,14 @@ const Products = () => {
               </label>
               <SearchAutocomplete 
                 placeholder="Search products, categories..."
-                onSelect={(product) => {
-                  setSearchQuery(product.name);
-                  // Navigate or highlight the product
+                onSearch={(query) => {
+                  setSearchQuery(query);
                 }}
+                onSelect={(product) => {
+                  navigate(`/products/${product.id}`);
+                }}
+                initialQuery={searchQuery}
+                products={products}
               />
             </motion.div>
 
@@ -658,29 +732,36 @@ const Products = () => {
 
         {/* Advanced Filters Sidebar */}
         {showFilters && (
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            className="mb-6"
-          >
-            <AdvancedFilters
-              categories={categories}
-              brands={brands}
-              onFiltersChange={(filters) => {
-                setAdvancedFilters(filters);
-                fetchProducts(true);
-              }}
-              initialFilters={advancedFilters}
-              isOpen={showFilters}
-              onToggle={() => setShowFilters(false)}
+          <>
+            {/* Overlay to close filters on mobile */}
+            <div 
+              className="fixed inset-0 bg-black/20 z-30 lg:hidden"
+              onClick={() => setShowFilters(false)}
             />
-          </motion.div>
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="mb-6 relative z-40"
+            >
+              <AdvancedFilters
+                categories={categories}
+                brands={brands}
+                onFiltersChange={(filters) => {
+                  setAdvancedFilters(filters);
+                  // Don't refetch, just update filters - sorting will be applied separately
+                }}
+                initialFilters={advancedFilters}
+                isOpen={showFilters}
+                onToggle={() => setShowFilters(false)}
+              />
+            </motion.div>
+          </>
         )}
 
         {/* Products Grid */}
         <Framer.AnimatePresence mode="wait">
-        {loading && products.length === 0 ? (
+        {loading && filteredProducts.length === 0 ? (
             <motion.div
               key="loading"
               initial={{ opacity: 0 }}
@@ -689,7 +770,7 @@ const Products = () => {
             >
               <ProductListSkeleton count={8} />
             </motion.div>
-        ) : products.length === 0 ? (
+        ) : filteredProducts.length === 0 ? (
             <motion.div 
               key="empty"
               className="text-center py-12"
@@ -744,7 +825,7 @@ const Products = () => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
               >
-                <p className="text-gray-600">Showing {products.length} products</p>
+                <p className="text-gray-600">Showing {filteredProducts.length} products</p>
               </motion.div>
               
               <motion.div 
@@ -752,7 +833,7 @@ const Products = () => {
                 layout
               >
                 <Framer.AnimatePresence mode="wait">
-                  {products.map((product, index) => (
+                  {filteredProducts.map((product, index) => (
                     <motion.div
                       key={product.id}
                       layout
