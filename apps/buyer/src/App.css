@@ -24,7 +24,13 @@ html, body {
 }
 
 /* Ensure all containers respect viewport width */
-.container, .mx-auto, [class*="max-w"] {
+.container {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+/* Allow max-w utilities to work properly - only override on specific cases */
+.mx-auto:not([class*="max-w"]) {
   max-width: 100vw;
   overflow-x: hidden;
 }
