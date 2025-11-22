@@ -20,6 +20,14 @@ const Login = () => {
   
   const message = location.state?.message || new URLSearchParams(location.search).get('message');
   const from = location.state?.from?.pathname || '/dashboard';
+  const preselectedUserType = location.state?.userType;
+
+  // Set preselected user type from navigation state
+  useEffect(() => {
+    if (preselectedUserType && !userType) {
+      setUserType(preselectedUserType);
+    }
+  }, [preselectedUserType]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

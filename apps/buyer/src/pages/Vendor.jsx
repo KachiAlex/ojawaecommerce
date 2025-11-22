@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useState, useEffect, useMemo, useCallback, lazy, Suspense, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useMessaging } from '../contexts/MessagingContext';
@@ -318,7 +318,36 @@ const VendorMessagesTabContent = ({
 
 const Vendor = () => {
   console.log('🏪 Vendor component loaded');
-  const { currentUser, userProfile, updateUserProfile } = useAuth();
+  const { currentUser, userProfile, updateUserProfile, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!authLoading && !currentUser) {
+      console.log('❌ Vendor: No user, redirecting to login with vendor intent');
+      navigate('/login', {
+        state: {
+          userType: 'vendor',
+          message: 'Please sign in or create a vendor account to access the vendor dashboard',
+          from: { pathname: '/vendor' }
+        }
+      });
+    }
+  }, [currentUser, authLoading, navigate]);
+
+  // Show loading while checking auth or if not authenticated
+  if (authLoading || !currentUser) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">
+            {authLoading ? 'Loading...' : 'Redirecting to login...'}
+          </p>
+        </div>
+      </div>
+    );
+  }
   const {
     conversations,
     activeConversation,
@@ -1398,24 +1427,6 @@ const Vendor = () => {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading your vendor dashboard...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!currentUser) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <p className="text-gray-700">Please sign in to access your vendor dashboard.</p>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="max-w-6xl mx-auto px-4 py-8">
-        <div className="bg-white rounded-xl border p-6">
-          <p className="text-gray-700">Loading vendor dashboard…</p>
         </div>
       </div>
     );

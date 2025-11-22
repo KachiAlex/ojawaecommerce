@@ -1,7 +1,39 @@
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import SimpleLogo from './SimpleLogo';
 
 const Footer = () => {
   const year = new Date().getFullYear();
+  const navigate = useNavigate();
+  const { currentUser, userProfile } = useAuth();
+
+  const handleStartSelling = (e) => {
+    e.preventDefault();
+    
+    // Check if user is authenticated
+    if (!currentUser) {
+      // Not authenticated - route to login with vendor intent
+      navigate('/login', { 
+        state: { 
+          userType: 'vendor',
+          message: 'Sign up as a vendor to start selling on Ojawa'
+        } 
+      });
+      return;
+    }
+
+    // Check if user is already a vendor
+    const isVendor = userProfile?.role === 'vendor' || userProfile?.isVendor;
+    
+    if (isVendor) {
+      // User is a vendor - route to vendor dashboard
+      navigate('/vendor');
+    } else {
+      // User is authenticated but not a vendor - route to become vendor page
+      navigate('/become-vendor');
+    }
+  };
+
   return (
     <footer className="border-t bg-white">
       <div className="max-w-7xl mx-auto px-4 py-8 grid gap-4 md:grid-cols-3 text-sm text-slate-600">
@@ -20,7 +52,7 @@ const Footer = () => {
           <div>
             <p className="font-medium text-slate-900">Vendors</p>
             <ul className="mt-1 space-y-1">
-              <li><a href="/become-vendor" className="hover:underline">Start Selling</a></li>
+              <li><a href="#" onClick={handleStartSelling} className="hover:underline">Start Selling</a></li>
               <li><a href="/dashboard" className="hover:underline">Dashboard</a></li>
             </ul>
           </div>
