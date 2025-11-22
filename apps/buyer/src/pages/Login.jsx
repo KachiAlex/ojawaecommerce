@@ -172,7 +172,7 @@ const Login = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-8 px-4">
-      <div className="w-full max-w-sm mx-auto">
+      <div className="flex-shrink-0" style={{ width: '100%', maxWidth: '384px' }}>
         {!userType ? (
           /* User Type Selection */
           <div className="bg-white rounded-xl shadow-lg border p-6">
