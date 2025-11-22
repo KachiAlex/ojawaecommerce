@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import * as Framer from 'framer-motion';
 const { motion } = Framer;
 import { useAuth } from '../contexts/AuthContext';
@@ -8,6 +8,9 @@ import firebaseService from '../services/firebaseService';
 import ProductCard from '../components/ProductCard';
 import Product3DCard from '../components/Product3DCard';
 import { ProductListSkeleton } from '../components/SkeletonLoaders';
+import AdvancedFilters from '../components/AdvancedFilters';
+import SearchAutocomplete from '../components/SearchAutocomplete';
+import ProductComparison from '../components/ProductComparison';
 import { collection, query, where, getDocs, orderBy, limit, startAfter } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
@@ -33,6 +36,20 @@ const Products = () => {
   const [lastDoc, setLastDoc] = useState(null);
   const [isSearching, setIsSearching] = useState(false);
   const [viewMode, setViewMode] = useState('3D'); // '2D' or '3D'
+  const [showFilters, setShowFilters] = useState(false);
+  const [showComparison, setShowComparison] = useState(false);
+  const [compareProducts, setCompareProducts] = useState([]);
+  const [advancedFilters, setAdvancedFilters] = useState({
+    category: 'all',
+    priceRange: { min: 0, max: 100000 },
+    brand: 'all',
+    condition: 'all',
+    inStock: true,
+    minRating: 0,
+    sortBy: 'newest'
+  });
+  const [brands, setBrands] = useState([]);
+  const [searchParams] = useSearchParams();
 
   // Price slider constants and derived percentages for styled track
   const PRICE_MIN = 0;
@@ -93,7 +110,8 @@ const Products = () => {
       });
 
       // Apply client-side sorting
-      switch (sortBy) {
+      const sortByValue = advancedFilters.sortBy || sortBy;
+      switch (sortByValue) {
         case 'newest':
           allProducts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
           break;
@@ -108,6 +126,13 @@ const Products = () => {
           break;
         case 'name':
           allProducts.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+          break;
+        case 'rating':
+          allProducts.sort((a, b) => (b.averageRating || 0) - (a.averageRating || 0));
+          break;
+        case 'popular':
+          // Sort by popularity (could use view count, sales, etc.)
+          allProducts.sort((a, b) => (b.views || 0) - (a.views || 0));
           break;
         default:
           allProducts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -164,7 +189,7 @@ const Products = () => {
     }
   };
 
-  // Fetch categories
+  // Fetch categories and brands
   const fetchCategories = async () => {
     try {
       // Direct Firestore query to get categories
@@ -175,16 +200,22 @@ const Products = () => {
       
       const snapshot = await getDocs(q);
       const categoriesSet = new Set();
+      const brandsSet = new Set();
       
       snapshot.docs.forEach(doc => {
         const data = doc.data();
         if (data.category) {
           categoriesSet.add(data.category);
         }
+        if (data.brand) {
+          brandsSet.add(data.brand);
+        }
       });
       
       const categoriesData = Array.from(categoriesSet).sort();
+      const brandsData = Array.from(brandsSet).sort();
       setCategories(categoriesData);
+      setBrands(brandsData);
     } catch (err) {
       console.error('Error fetching categories:', err);
       // Fallback categories
@@ -275,7 +306,7 @@ const Products = () => {
   useEffect(() => {
     console.log('🛍️ Products: Filters changed, refetching products...');
     fetchProducts(true);
-  }, [selectedCategory, sortBy, priceRange]);
+  }, [selectedCategory, sortBy, priceRange, advancedFilters]);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -334,30 +365,48 @@ const Products = () => {
             <p className="text-sm sm:text-base text-gray-600">Discover amazing products from local vendors</p>
           </div>
           
-          {/* View Mode Toggle */}
-          <div className="flex items-center gap-2 bg-white/90 backdrop-blur-sm rounded-lg p-1 shadow-sm border border-gray-200">
+          {/* View Mode Toggle & Filters */}
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => setViewMode('2D')}
-              className={`px-4 py-2 rounded-md font-medium text-sm transition-all ${
-                viewMode === '2D' 
-                  ? 'bg-emerald-600 text-white shadow-md' 
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-              }`}
-              title="2D View"
+              onClick={() => setShowFilters(!showFilters)}
+              className="px-4 py-2 rounded-md font-medium text-sm transition-all bg-white/90 backdrop-blur-sm shadow-sm border border-gray-200 text-gray-700 hover:text-emerald-600 hover:bg-emerald-50"
+              title="Advanced Filters"
             >
-              📐 2D
+              🔍 Filters
             </button>
-            <button
-              onClick={() => setViewMode('3D')}
-              className={`px-4 py-2 rounded-md font-medium text-sm transition-all ${
-                viewMode === '3D' 
-                  ? 'bg-emerald-600 text-white shadow-md' 
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-              }`}
-              title="3D View"
-            >
-              🎮 3D
-            </button>
+            {compareProducts.length > 0 && (
+              <button
+                onClick={() => setShowComparison(true)}
+                className="px-4 py-2 rounded-md font-medium text-sm transition-all bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
+                title="Compare Products"
+              >
+                Compare ({compareProducts.length})
+              </button>
+            )}
+            <div className="flex items-center gap-2 bg-white/90 backdrop-blur-sm rounded-lg p-1 shadow-sm border border-gray-200">
+              <button
+                onClick={() => setViewMode('2D')}
+                className={`px-4 py-2 rounded-md font-medium text-sm transition-all ${
+                  viewMode === '2D' 
+                    ? 'bg-emerald-600 text-white shadow-md' 
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                }`}
+                title="2D View"
+              >
+                📐 2D
+              </button>
+              <button
+                onClick={() => setViewMode('3D')}
+                className={`px-4 py-2 rounded-md font-medium text-sm transition-all ${
+                  viewMode === '3D' 
+                    ? 'bg-emerald-600 text-white shadow-md' 
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                }`}
+                title="3D View"
+              >
+                🎮 3D
+              </button>
+            </div>
           </div>
         </motion.div>
 
@@ -379,41 +428,13 @@ const Products = () => {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Search Products
               </label>
-              <div className="relative">
-                <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-gray-400">
-                  {/* Search icon */}
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
-                    <path fillRule="evenodd" d="M10.5 3.75a6.75 6.75 0 1 0 4.253 11.97l4.264 4.264a.75.75 0 1 0 1.06-1.06l-4.264-4.264A6.75 6.75 0 0 0 10.5 3.75Zm-5.25 6.75a5.25 5.25 0 1 1 10.5 0 5.25 5.25 0 0 1-10.5 0Z" clipRule="evenodd" />
-                  </svg>
-                </span>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search products, categories..."
-                  aria-label="Search products"
-                  className="w-full pl-11 pr-11 py-3 rounded-xl bg-gray-50 border border-transparent shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all duration-200"
-                />
-                {searchQuery && (
-                  loading ? (
-                    <span className="absolute inset-y-0 right-0 mr-3 flex items-center">
-                      <span className="h-5 w-5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
-                    </span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setSearchQuery('')}
-                      aria-label="Clear search"
-                      className="absolute inset-y-0 right-0 mr-2 flex items-center justify-center rounded-full p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition"
-                    >
-                      {/* Clear (X) icon */}
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
-                        <path fillRule="evenodd" d="M6.225 4.811a.75.75 0 0 1 1.06 0L12 9.525l4.715-4.714a.75.75 0 1 1 1.06 1.06L13.06 10.586l4.715 4.714a.75.75 0 1 1-1.06 1.061L12 11.647l-4.715 4.714a.75.75 0 0 1-1.06-1.06l4.714-4.715-4.714-4.715a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
-                      </svg>
-                    </button>
-                  )
-                )}
-              </div>
+              <SearchAutocomplete 
+                placeholder="Search products, categories..."
+                onSelect={(product) => {
+                  setSearchQuery(product.name);
+                  // Navigate or highlight the product
+                }}
+              />
             </motion.div>
 
             {/* Category Filter */}
@@ -575,6 +596,28 @@ const Products = () => {
           </motion.div>
         </motion.div>
 
+        {/* Advanced Filters Sidebar */}
+        {showFilters && (
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className="mb-6"
+          >
+            <AdvancedFilters
+              categories={categories}
+              brands={brands}
+              onFiltersChange={(filters) => {
+                setAdvancedFilters(filters);
+                fetchProducts(true);
+              }}
+              initialFilters={advancedFilters}
+              isOpen={showFilters}
+              onToggle={() => setShowFilters(false)}
+            />
+          </motion.div>
+        )}
+
         {/* Products Grid */}
         <Framer.AnimatePresence mode="wait">
         {loading && products.length === 0 ? (
@@ -662,17 +705,43 @@ const Products = () => {
                         layout: { duration: 0.3 }
                       }}
                     >
-                      {viewMode === '3D' ? (
-                        <Product3DCard
-                          product={product}
-                          onAddToCart={handleAddToCart}
-                        />
-                      ) : (
-                        <ProductCard
-                          product={product}
-                          onAddToCart={handleAddToCart}
-                        />
-                      )}
+                      <div className="relative">
+                        {viewMode === '3D' ? (
+                          <Product3DCard
+                            product={product}
+                            onAddToCart={handleAddToCart}
+                          />
+                        ) : (
+                          <ProductCard
+                            product={product}
+                            onAddToCart={handleAddToCart}
+                          />
+                        )}
+                        {/* Compare Button */}
+                        <div className="absolute top-2 right-2 z-10">
+                          <button
+                            onClick={() => {
+                              if (compareProducts.includes(product.id)) {
+                                setCompareProducts(prev => prev.filter(id => id !== product.id));
+                              } else {
+                                if (compareProducts.length < 4) {
+                                  setCompareProducts(prev => [...prev, product.id]);
+                                } else {
+                                  alert('You can compare up to 4 products at once');
+                                }
+                              }
+                            }}
+                            className={`p-2 rounded-full transition-colors ${
+                              compareProducts.includes(product.id)
+                                ? 'bg-emerald-600 text-white'
+                                : 'bg-white/90 text-gray-600 hover:bg-emerald-50'
+                            } shadow-md`}
+                            title={compareProducts.includes(product.id) ? 'Remove from comparison' : 'Add to comparison'}
+                          >
+                            {compareProducts.includes(product.id) ? '✓' : '📊'}
+                          </button>
+                        </div>
+                      </div>
                     </motion.div>
               ))}
                 </Framer.AnimatePresence>
@@ -724,6 +793,16 @@ const Products = () => {
             {searchQuery && ` for "${searchQuery}"`}
           </motion.div>
         )}
+
+        {/* Product Comparison Modal */}
+        <ProductComparison
+          isOpen={showComparison}
+          onClose={() => {
+            setShowComparison(false);
+            setCompareProducts([]);
+          }}
+          productIds={compareProducts}
+        />
       </div>
     {/* Slider styling */}
     <style>{`
