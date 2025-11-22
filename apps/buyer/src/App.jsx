@@ -98,6 +98,8 @@ const EnhancedTrackingStatus = lazyLoad(() => import('./components/EnhancedTrack
 
 // Help page
 const Help = lazyLoad(() => import('./pages/Help'));
+const Wishlist = lazyLoad(() => import('./pages/Wishlist'));
+const Referrals = lazyLoad(() => import('./pages/Referrals'));
 
 // Auth pages
 const ForgotPassword = lazyLoad(() => import('./pages/ForgotPassword'));
@@ -285,6 +287,16 @@ const AppRoutes = () => {
       <Route path="/categories" element={
         <Suspense fallback={<RouteLoadingSpinner route="categories" />}>
           <Categories />
+        </Suspense>
+      } />
+      <Route path="/wishlist" element={
+        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+          <Wishlist />
+        </Suspense>
+      } />
+      <Route path="/referrals" element={
+        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+          <Referrals />
         </Suspense>
       } />
       <Route path="/tracking" element={

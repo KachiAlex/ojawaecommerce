@@ -4533,6 +4533,226 @@ export const reviewsService = {
 };
 
 // ===============================
+// WISHLIST/FAVORITES SERVICE
+// ===============================
+
+export const wishlistService = {
+  // Add product to wishlist
+  async addToWishlist(userId, productId, productData = {}) {
+    try {
+      const wishlistRef = doc(db, 'wishlists', userId);
+      const wishlistDoc = await getDoc(wishlistRef);
+      
+      if (wishlistDoc.exists()) {
+        const currentItems = wishlistDoc.data().items || [];
+        // Check if product already exists
+        if (currentItems.find(item => item.productId === productId)) {
+          return { success: false, message: 'Product already in wishlist' };
+        }
+        
+        await updateDoc(wishlistRef, {
+          items: [...currentItems, { productId, ...productData, addedAt: serverTimestamp() }],
+          updatedAt: serverTimestamp()
+        });
+      } else {
+        await setDoc(wishlistRef, {
+          userId,
+          items: [{ productId, ...productData, addedAt: serverTimestamp() }],
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+      }
+      return { success: true };
+    } catch (error) {
+      console.error('Error adding to wishlist:', error);
+      throw error;
+    }
+  },
+
+  // Remove product from wishlist
+  async removeFromWishlist(userId, productId) {
+    try {
+      const wishlistRef = doc(db, 'wishlists', userId);
+      const wishlistDoc = await getDoc(wishlistRef);
+      
+      if (wishlistDoc.exists()) {
+        const currentItems = wishlistDoc.data().items || [];
+        const updatedItems = currentItems.filter(item => item.productId !== productId);
+        
+        await updateDoc(wishlistRef, {
+          items: updatedItems,
+          updatedAt: serverTimestamp()
+        });
+      }
+      return { success: true };
+    } catch (error) {
+      console.error('Error removing from wishlist:', error);
+      throw error;
+    }
+  },
+
+  // Get user's wishlist
+  async getWishlist(userId) {
+    try {
+      const wishlistRef = doc(db, 'wishlists', userId);
+      const wishlistDoc = await getDoc(wishlistRef);
+      
+      if (wishlistDoc.exists()) {
+        return wishlistDoc.data().items || [];
+      }
+      return [];
+    } catch (error) {
+      console.error('Error getting wishlist:', error);
+      throw error;
+    }
+  },
+
+  // Check if product is in wishlist
+  async isInWishlist(userId, productId) {
+    try {
+      const wishlistRef = doc(db, 'wishlists', userId);
+      const wishlistDoc = await getDoc(wishlistRef);
+      
+      if (wishlistDoc.exists()) {
+        const items = wishlistDoc.data().items || [];
+        return items.some(item => item.productId === productId);
+      }
+      return false;
+    } catch (error) {
+      console.error('Error checking wishlist:', error);
+      return false;
+    }
+  },
+
+  // Get wishlist count
+  async getWishlistCount(userId) {
+    try {
+      const items = await this.getWishlist(userId);
+      return items.length;
+    } catch (error) {
+      console.error('Error getting wishlist count:', error);
+      return 0;
+    }
+  }
+};
+
+// ===============================
+// REFERRAL SERVICE
+// ===============================
+
+export const referralService = {
+  // Generate referral code for user
+  async generateReferralCode(userId) {
+    try {
+      const userRef = doc(db, 'users', userId);
+      const userDoc = await getDoc(userRef);
+      
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        // Use existing referral code or generate new one
+        if (userData.referralCode) {
+          return userData.referralCode;
+        }
+        
+        // Generate unique referral code
+        const code = `${userId.slice(0, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+        await updateDoc(userRef, {
+          referralCode: code,
+          referralRewards: 0,
+          totalReferrals: 0,
+          updatedAt: serverTimestamp()
+        });
+        return code;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error generating referral code:', error);
+      throw error;
+    }
+  },
+
+  // Apply referral code
+  async applyReferralCode(userId, referralCode) {
+    try {
+      // Find user with this referral code
+      const usersRef = collection(db, 'users');
+      const q = query(usersRef, where('referralCode', '==', referralCode));
+      const snapshot = await getDocs(q);
+      
+      if (snapshot.empty) {
+        return { success: false, message: 'Invalid referral code' };
+      }
+      
+      const referrerDoc = snapshot.docs[0];
+      const referrerId = referrerDoc.id;
+      
+      if (referrerId === userId) {
+        return { success: false, message: 'You cannot use your own referral code' };
+      }
+      
+      // Update new user with referrer
+      const newUserRef = doc(db, 'users', userId);
+      await updateDoc(newUserRef, {
+        referredBy: referrerId,
+        referralCodeApplied: referralCode,
+        referralAppliedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      
+      // Update referrer's stats
+      const referrerRef = doc(db, 'users', referrerId);
+      const referrerData = referrerDoc.data();
+      await updateDoc(referrerRef, {
+        totalReferrals: increment(1),
+        updatedAt: serverTimestamp()
+      });
+      
+      // Record referral
+      await addDoc(collection(db, 'referrals'), {
+        referrerId,
+        referredUserId: userId,
+        referralCode,
+        status: 'pending',
+        createdAt: serverTimestamp()
+      });
+      
+      return { success: true, referrerId };
+    } catch (error) {
+      console.error('Error applying referral code:', error);
+      throw error;
+    }
+  },
+
+  // Get referral stats for user
+  async getReferralStats(userId) {
+    try {
+      const referralsRef = collection(db, 'referrals');
+      const q = query(referralsRef, where('referrerId', '==', userId));
+      const snapshot = await getDocs(q);
+      
+      const referrals = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      const userRef = doc(db, 'users', userId);
+      const userDoc = await getDoc(userRef);
+      const userData = userDoc.exists() ? userDoc.data() : {};
+      
+      return {
+        referralCode: userData.referralCode || '',
+        totalReferrals: referrals.length,
+        totalRewards: userData.referralRewards || 0,
+        referrals: referrals
+      };
+    } catch (error) {
+      console.error('Error getting referral stats:', error);
+      throw error;
+    }
+  }
+};
+
+// ===============================
 // EXPORT ALL SERVICES
 // ===============================
 
@@ -4554,5 +4774,7 @@ export default {
   auth: authService,
   fraud: fraudService,
   reviews: reviewsService,
-  subscriptions: subscriptionService
+  subscriptions: subscriptionService,
+  wishlist: wishlistService,
+  referrals: referralService
 };

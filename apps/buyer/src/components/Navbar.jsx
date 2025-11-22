@@ -174,6 +174,13 @@ const Navbar = () => {
               Track Package
             </Link>
             
+            {/* Wishlist Icon - Visible when signed in */}
+            {currentUser && (
+              <button onClick={() => navigate('/wishlist')} className="relative" title="Wishlist">
+                <span className="text-gray-600 hover:text-red-600 text-xl">💝</span>
+              </button>
+            )}
+            
             {/* Cart Icon - Visible for all users */}
             <button onClick={() => navigate('/cart')} className="relative">
                   <span className="text-gray-600 hover:text-gray-900 text-xl">🛒</span>
@@ -355,6 +362,15 @@ const Navbar = () => {
               >
                 Products
               </Link>
+              {currentUser && (
+                <Link 
+                  to="/wishlist" 
+                  className="text-gray-700 hover:text-blue-600 block px-3 py-2 rounded-md text-base font-medium"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  Wishlist 💝
+                </Link>
+              )}
               <Link 
                 to="/cart" 
                 onMouseEnter={prefetchCart}

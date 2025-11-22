@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import analyticsService from '../services/analyticsService';
 import AnimatedCard from './AnimatedCard';
 import AnimatedButton from './AnimatedButton';
+import WishlistButton from './WishlistButton';
 
 const ProductCard = ({ product, onAddToCart, onClick }) => {
   const { addToCart, saveIntendedDestination } = useCart();
@@ -277,20 +278,13 @@ const ProductCard = ({ product, onAddToCart, onClick }) => {
             View Details
           </Link>
           
-          {currentUser && (
-            <motion.button
-              className="flex-1 py-2 px-3 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-50 transition-all duration-200 hover:border-emerald-300"
-              onClick={(e) => {
-                e.stopPropagation();
-                // Add to wishlist functionality could go here
-                console.log('Add to wishlist:', product.name);
-              }}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              ♡ Wishlist
-            </motion.button>
-          )}
+          <motion.div
+            className="flex-1 flex items-center justify-center"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            <WishlistButton product={product} size="sm" showText={false} />
+          </motion.div>
         </motion.div>
       </div>
     </AnimatedCard>
