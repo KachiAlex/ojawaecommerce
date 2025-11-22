@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import * as Framer from 'framer-motion';
 const { motion } = Framer;
 import { useAuth } from '../contexts/AuthContext';
@@ -19,6 +19,7 @@ const Products = () => {
   console.log('🛍️ Products: Component function called');
   const { currentUser } = useAuth();
   const { addToCart } = useCart();
+  const navigate = useNavigate();
   
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
@@ -82,18 +83,27 @@ const Products = () => {
         
         // Handle images - ensure we have proper image URLs
         let images = [];
-        if (data.images && Array.isArray(data.images) && data.images.length > 0) {
-          images = data.images.filter(img => img && typeof img === 'string' && img.trim() !== '' && img !== 'undefined');
-        }
         
-        // Check various image field names that might be used
-        const imageFields = ['image', 'imageUrl', 'imageURL', 'photo', 'photoUrl', 'thumbnail'];
+        // Check various image field names that might be used (prioritize single image fields first)
+        const imageFields = ['image', 'imageUrl', 'imageURL', 'photo', 'photoUrl', 'thumbnail', 'img', 'picture'];
         for (const field of imageFields) {
           if (data[field] && typeof data[field] === 'string' && data[field].trim() !== '' && data[field] !== 'undefined') {
             if (!images.includes(data[field])) {
-              images.unshift(data[field]); // Add to beginning if not already in array
+              images.push(data[field]); // Add to array if not already present
             }
           }
+        }
+        
+        // Then add from images array
+        if (data.images && Array.isArray(data.images) && data.images.length > 0) {
+          const validImages = data.images.filter(img => 
+            img && typeof img === 'string' && img.trim() !== '' && img !== 'undefined'
+          );
+          validImages.forEach(img => {
+            if (!images.includes(img)) {
+              images.push(img);
+            }
+          });
         }
         
         const product = {
@@ -272,41 +282,64 @@ const Products = () => {
       setLoading(true);
       setError(null);
 
+      // Use a simpler query that doesn't require a composite index
+      // Fetch active products and filter client-side for better performance
       const q = query(
         collection(db, 'products'),
         where('isActive', '==', true),
-        where('name', '>=', searchQuery),
-        where('name', '<=', searchQuery + '\uf8ff'),
-        limit(20)
+        limit(100) // Fetch more products to search through client-side
       );
 
       const snapshot = await getDocs(q);
-      const searchResults = snapshot.docs.map(doc => {
-        const data = doc.data();
-        
-        // Handle images - normalize image fields
-        let images = [];
-        if (data.images && Array.isArray(data.images) && data.images.length > 0) {
-          images = data.images.filter(img => img && typeof img === 'string' && img.trim() !== '' && img !== 'undefined');
-        }
-        
-        // Check various image field names
-        const imageFields = ['image', 'imageUrl', 'imageURL', 'photo', 'photoUrl', 'thumbnail'];
-        for (const field of imageFields) {
-          if (data[field] && typeof data[field] === 'string' && data[field].trim() !== '' && data[field] !== 'undefined') {
-            if (!images.includes(data[field])) {
-              images.unshift(data[field]);
+      const searchLower = searchQuery.toLowerCase().trim();
+      
+      // Filter products client-side by search query
+      const searchResults = snapshot.docs
+        .map(doc => {
+          const data = doc.data();
+          
+          // Handle images - normalize image fields
+          let images = [];
+          
+          // Check various image field names (prioritize single image fields first)
+          const imageFields = ['image', 'imageUrl', 'imageURL', 'photo', 'photoUrl', 'thumbnail', 'img', 'picture'];
+          for (const field of imageFields) {
+            if (data[field] && typeof data[field] === 'string' && data[field].trim() !== '' && data[field] !== 'undefined') {
+              if (!images.includes(data[field])) {
+                images.push(data[field]); // Add to array if not already present
+              }
             }
           }
-        }
-        
-        return {
-          id: doc.id,
-          ...data,
-          images: images,
-          image: images.length > 0 ? images[0] : null
-        };
-      });
+          
+          // Then add from images array
+          if (data.images && Array.isArray(data.images) && data.images.length > 0) {
+            const validImages = data.images.filter(img => 
+              img && typeof img === 'string' && img.trim() !== '' && img !== 'undefined'
+            );
+            validImages.forEach(img => {
+              if (!images.includes(img)) {
+                images.push(img);
+              }
+            });
+          }
+          
+          return {
+            id: doc.id,
+            ...data,
+            images: images,
+            image: images.length > 0 ? images[0] : null
+          };
+        })
+        .filter(product => {
+          // Client-side filtering for search query
+          const nameMatch = product.name?.toLowerCase().includes(searchLower);
+          const descMatch = product.description?.toLowerCase().includes(searchLower);
+          const categoryMatch = product.category?.toLowerCase().includes(searchLower);
+          const brandMatch = product.brand?.toLowerCase().includes(searchLower);
+          const tagsMatch = product.tags?.some(tag => tag.toLowerCase().includes(searchLower));
+          
+          return nameMatch || descMatch || categoryMatch || brandMatch || tagsMatch;
+        });
 
       // Apply sorting to search results
       const sortByValue = advancedFilters.sortBy || sortBy;
@@ -395,45 +428,83 @@ const Products = () => {
     fetchProducts(true);
   }, [selectedCategory, priceRange, advancedFilters.category, advancedFilters.brand, advancedFilters.condition, advancedFilters.priceRange, advancedFilters.inStock, advancedFilters.minRating]);
 
-  // Helper function to sort products
+  // Helper function to sort products - this only REORDERS, never filters
   const sortProducts = (productsToSort) => {
+    // Always work with a copy to avoid mutating the original array
     const sorted = [...productsToSort];
     const sortByValue = advancedFilters.sortBy || sortBy;
     
+    // Sort all products - never filter them out
     switch (sortByValue) {
       case 'newest':
-        sorted.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+        sorted.sort((a, b) => {
+          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return dateB - dateA; // Newest first
+        });
         break;
       case 'oldest':
-        sorted.sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+        sorted.sort((a, b) => {
+          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return dateA - dateB; // Oldest first
+        });
         break;
       case 'price-low':
-        sorted.sort((a, b) => (a.price || 0) - (b.price || 0));
+        sorted.sort((a, b) => {
+          const priceA = parseFloat(a.price) || 0;
+          const priceB = parseFloat(b.price) || 0;
+          return priceA - priceB; // Low to high
+        });
         break;
       case 'price-high':
-        sorted.sort((a, b) => (b.price || 0) - (a.price || 0));
+        sorted.sort((a, b) => {
+          const priceA = parseFloat(a.price) || 0;
+          const priceB = parseFloat(b.price) || 0;
+          return priceB - priceA; // High to low
+        });
         break;
       case 'name':
-        sorted.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        sorted.sort((a, b) => {
+          const nameA = (a.name || '').toLowerCase();
+          const nameB = (b.name || '').toLowerCase();
+          return nameA.localeCompare(nameB); // A to Z
+        });
         break;
       case 'rating':
-        sorted.sort((a, b) => (b.averageRating || 0) - (a.averageRating || 0));
+        sorted.sort((a, b) => {
+          const ratingA = parseFloat(a.averageRating) || parseFloat(a.rating) || 0;
+          const ratingB = parseFloat(b.averageRating) || parseFloat(b.rating) || 0;
+          return ratingB - ratingA; // Highest rating first
+        });
         break;
       case 'popular':
-        sorted.sort((a, b) => (b.views || 0) - (a.views || 0));
+        sorted.sort((a, b) => {
+          const viewsA = parseInt(a.views) || parseInt(a.viewCount) || 0;
+          const viewsB = parseInt(b.views) || parseInt(b.viewCount) || 0;
+          return viewsB - viewsA; // Most popular first
+        });
         break;
       default:
-        sorted.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+        sorted.sort((a, b) => {
+          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return dateB - dateA; // Default to newest first
+        });
     }
     
     return sorted;
   };
 
   // Apply sorting when sortBy changes or when products are fetched
+  // This only REORDERS products, never filters them
   useEffect(() => {
     if (!loading && products.length > 0) {
       const sorted = sortProducts(products);
       setFilteredProducts(sorted);
+    } else if (!loading && products.length === 0) {
+      // If no products, clear filtered products too
+      setFilteredProducts([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sortBy, advancedFilters.sortBy, products, loading]);
@@ -449,11 +520,6 @@ const Products = () => {
 
     return () => clearTimeout(timeoutId);
   }, [searchQuery]);
-
-  // Initialize filtered products when products change
-  useEffect(() => {
-    setFilteredProducts(products);
-  }, [products]);
 
   if (error) {
     return (

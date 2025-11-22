@@ -69,38 +69,36 @@ const SearchAutocomplete = ({ onSelect, onSearch, placeholder = "Search products
     try {
       setLoading(true);
       const productsRef = collection(db, 'products');
+      // Use a simpler query that doesn't require a composite index
+      // Fetch active products and filter client-side
       const q = query(
         productsRef,
         where('isActive', '==', true),
-        where('name', '>=', term.trim()),
-        where('name', '<=', term.trim() + '\uf8ff'),
-        orderBy('name'),
-        limit(8)
+        limit(50) // Fetch more products to search through client-side
       );
 
       const snapshot = await getDocs(q);
-      const results = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      const searchLower = term.toLowerCase().trim();
+      
+      // Filter products client-side by search query
+      const filtered = snapshot.docs
+        .map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }))
+        .filter(product => {
+          // Client-side filtering for search query
+          return (
+            product.name?.toLowerCase().includes(searchLower) ||
+            product.description?.toLowerCase().includes(searchLower) ||
+            product.category?.toLowerCase().includes(searchLower) ||
+            product.brand?.toLowerCase().includes(searchLower) ||
+            product.tags?.some(tag => tag.toLowerCase().includes(searchLower))
+          );
+        })
+        .slice(0, 8); // Limit to 8 suggestions
 
-      // Also search in descriptions and categories (client-side)
-      const allProducts = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-
-      const filtered = allProducts.filter(product => {
-        const searchLower = term.toLowerCase();
-        return (
-          product.name?.toLowerCase().includes(searchLower) ||
-          product.description?.toLowerCase().includes(searchLower) ||
-          product.category?.toLowerCase().includes(searchLower) ||
-          product.brand?.toLowerCase().includes(searchLower)
-        );
-      });
-
-      setSuggestions(filtered.slice(0, 8));
+      setSuggestions(filtered);
       setIsOpen(filtered.length > 0);
     } catch (error) {
       console.error('Error searching products:', error);
