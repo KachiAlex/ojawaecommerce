@@ -89,6 +89,70 @@ const Buyer = () => {
     fetchBuyerData();
   }, [currentUser]);
 
+  // Fetch wishlist when user switches to wishlist tab
+  useEffect(() => {
+    if (activeTab === 'wishlist' && currentUser) {
+      loadWishlist();
+    }
+  }, [activeTab, currentUser]);
+
+  // Listen for wishlist updates from WishlistButton component
+  useEffect(() => {
+    const handleWishlistUpdate = () => {
+      if (activeTab === 'wishlist' && currentUser) {
+        loadWishlist();
+      }
+    };
+    
+    // Listen to custom events for wishlist updates
+    window.addEventListener('wishlistUpdated', handleWishlistUpdate);
+    return () => {
+      window.removeEventListener('wishlistUpdated', handleWishlistUpdate);
+    };
+  }, [activeTab, currentUser]);
+
+  const loadWishlist = async () => {
+    if (!currentUser) return;
+    
+    try {
+      setLoadingWishlist(true);
+      // Get wishlist items
+      const items = await firebaseService.wishlist.getWishlist(currentUser.uid);
+      setWishlistItems(items);
+
+      // Fetch full product details
+      if (items.length > 0) {
+        const productIds = items.map(item => item.productId);
+        const fetchedProducts = [];
+        
+        for (const productId of productIds) {
+          try {
+            const productDoc = await getDoc(doc(db, 'products', productId));
+            if (productDoc.exists()) {
+              fetchedProducts.push({ id: productDoc.id, ...productDoc.data() });
+            }
+          } catch (err) {
+            console.error(`Error fetching product ${productId}:`, err);
+          }
+        }
+
+        // Merge with wishlist data
+        const mergedProducts = items.map(item => {
+          const product = fetchedProducts.find(p => p.id === item.productId);
+          return product ? { ...product, ...item } : null;
+        }).filter(Boolean);
+
+        setWishlistProducts(mergedProducts);
+      } else {
+        setWishlistProducts([]);
+      }
+    } catch (err) {
+      console.error('Error loading wishlist:', err);
+    } finally {
+      setLoadingWishlist(false);
+    }
+  };
+
   const getStatusColor = (status) => {
     switch (status) {
       case 'escrow_funded': return 'bg-emerald-100 text-emerald-800';
