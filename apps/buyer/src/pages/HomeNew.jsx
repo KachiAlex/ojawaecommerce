@@ -448,7 +448,7 @@ const HomeNew = () => {
               {filteredProducts.map((product) => (
                 <div key={product.id} className="bg-white rounded-lg shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden group">
                   <div className="relative">
-                    <div className="h-48 bg-gray-100 flex items-center justify-center overflow-hidden">
+                    <div className="relative h-48 bg-gray-100 overflow-hidden">
                       {(() => {
                         // Get the first available image - prioritize images array, then image field
                         let productImage = null;
@@ -466,46 +466,49 @@ const HomeNew = () => {
                           productImage = product.image;
                         }
                         
-                        console.log('🖼️ Product image for', product.name, ':', productImage);
-                        console.log('🖼️ Product images array:', product.images);
-                        console.log('🖼️ Product image field:', product.image);
+                        if (!productImage) {
+                          return (
+                            <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
+                              <span className="text-4xl">🛍️</span>
+                            </div>
+                          );
+                        }
                         
-                        return productImage ? (
-                          <img 
-                            src={productImage} 
-                            alt={`${product.name} - ${product.vendorName || product.vendor || 'Vendor'} - Secure purchase with escrow protection on Ojawa`}
-                            loading="lazy"
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                            onError={(e) => {
-                              console.log('❌ Image failed to load:', productImage);
-                              // Try next image in array if available
-                              if (product.images && Array.isArray(product.images) && product.images.length > 1) {
-                                const currentIndex = product.images.indexOf(productImage);
-                                if (currentIndex !== -1 && currentIndex < product.images.length - 1) {
-                                  const nextImage = product.images[currentIndex + 1];
-                                  if (nextImage && typeof nextImage === 'string' && nextImage.trim() !== '') {
-                                    console.log('🔄 Trying next image:', nextImage);
-                                    e.target.src = nextImage;
-                                    return; // Don't hide, try next image
+                        return (
+                          <>
+                            <img 
+                              src={productImage} 
+                              alt={`${product.name} - ${product.vendorName || product.vendor || 'Vendor'} - Secure purchase with escrow protection on Ojawa`}
+                              loading="lazy"
+                              className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              onError={(e) => {
+                                console.log('❌ Image failed to load:', productImage);
+                                // Try next image in array if available
+                                if (product.images && Array.isArray(product.images) && product.images.length > 1) {
+                                  const currentIndex = product.images.indexOf(productImage);
+                                  if (currentIndex !== -1 && currentIndex < product.images.length - 1) {
+                                    const nextImage = product.images[currentIndex + 1];
+                                    if (nextImage && typeof nextImage === 'string' && nextImage.trim() !== '') {
+                                      console.log('🔄 Trying next image:', nextImage);
+                                      e.target.src = nextImage;
+                                      return; // Don't hide, try next image
+                                    }
                                   }
                                 }
-                              }
-                              // Hide image and show placeholder if all images fail
-                              e.target.style.display = 'none';
-                              e.target.nextSibling.style.display = 'flex';
-                            }}
-                            onLoad={() => {
-                              console.log('✅ Image loaded successfully:', productImage);
-                            }}
-                          />
-                        ) : null;
+                                // Hide image and show placeholder if all images fail
+                                e.target.style.display = 'none';
+                                e.target.nextSibling.style.display = 'flex';
+                              }}
+                              onLoad={() => {
+                                console.log('✅ Image loaded successfully:', productImage);
+                              }}
+                            />
+                            <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 hidden">
+                              <span className="text-4xl">🛍️</span>
+                            </div>
+                          </>
+                        );
                       })()}
-                      <div className={`w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 ${(() => {
-                        const hasImage = product.image || (product.images && product.images.length > 0);
-                        return hasImage ? 'hidden' : 'flex';
-                      })()}`}>
-                        <span className="text-4xl">🛍️</span>
-                      </div>
                     </div>
                     <div className="absolute top-3 left-3 bg-emerald-500 text-white px-2 py-1 rounded-full text-xs font-medium">
                       Verified
