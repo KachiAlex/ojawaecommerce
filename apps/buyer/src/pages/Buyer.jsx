@@ -8,6 +8,11 @@ import OrderDetailsModal from '../components/OrderDetailsModal';
 import WalletTopUpModal from '../components/WalletTopUpModal';
 import VendorReviewModal from '../components/VendorReviewModal';
 import OrderConfirmationModal from '../components/OrderConfirmationModal';
+import ProductCard from '../components/ProductCard';
+import WishlistButton from '../components/WishlistButton';
+import { ProductListSkeleton } from '../components/SkeletonLoaders';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../firebase/config';
 
 // Currency formatting helper
 const formatCurrency = (amount, currencyValue) => {
@@ -38,6 +43,9 @@ const Buyer = () => {
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [isOrderConfirmationOpen, setIsOrderConfirmationOpen] = useState(false);
   const [orderToConfirm, setOrderToConfirm] = useState(null);
+  const [wishlistItems, setWishlistItems] = useState([]);
+  const [wishlistProducts, setWishlistProducts] = useState([]);
+  const [loadingWishlist, setLoadingWishlist] = useState(false);
 
   useEffect(() => {
     const fetchBuyerData = async () => {
@@ -237,6 +245,12 @@ const Buyer = () => {
                 className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'vendors' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
               >
                 🏪 Vendors & Ratings
+              </button>
+              <button 
+                onClick={() => setActiveTab('wishlist')}
+                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'wishlist' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+              >
+                💝 Wishlist
               </button>
               <button 
                 onClick={() => setActiveTab('wallet')}
@@ -537,6 +551,56 @@ const Buyer = () => {
                       </div>
                     ))}
                   </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'wishlist' && (
+            <div className="space-y-6">
+              <div className="bg-white rounded-xl border">
+                <div className="p-6 border-b border-gray-200">
+                  <h2 className="text-lg font-semibold text-gray-900">My Wishlist</h2>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {wishlistProducts.length === 0 
+                      ? 'Your wishlist is empty' 
+                      : `${wishlistProducts.length} item${wishlistProducts.length !== 1 ? 's' : ''} saved`}
+                  </p>
+                </div>
+                
+                <div className="p-6">
+                  {loadingWishlist ? (
+                    <ProductListSkeleton count={4} />
+                  ) : wishlistProducts.length === 0 ? (
+                    <div className="text-center py-12">
+                      <div className="text-6xl mb-4">💝</div>
+                      <h3 className="text-xl font-bold text-gray-900 mb-2">Your Wishlist is Empty</h3>
+                      <p className="text-gray-600 mb-6">
+                        Start saving your favorite products for later!
+                      </p>
+                      <Link
+                        to="/products"
+                        className="inline-block bg-emerald-600 text-white px-6 py-3 rounded-lg hover:bg-emerald-700 transition-colors"
+                      >
+                        Browse Products
+                      </Link>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                      {wishlistProducts.map((product) => (
+                        <div key={product.id} className="relative">
+                          <div className="absolute top-2 right-2 z-10">
+                            <WishlistButton 
+                              product={product} 
+                              size="md"
+                              showText={false}
+                            />
+                          </div>
+                          <ProductCard product={product} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

@@ -2,6 +2,12 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import firebaseService from '../services/firebaseService';
 
+// Event listener for wishlist updates
+const wishlistUpdateListeners = new Set();
+export const triggerWishlistUpdate = () => {
+  wishlistUpdateListeners.forEach(listener => listener());
+};
+
 const WishlistButton = ({ product, size = 'md', showText = false }) => {
   const { currentUser } = useAuth();
   const [isInWishlist, setIsInWishlist] = useState(false);
@@ -12,6 +18,18 @@ const WishlistButton = ({ product, size = 'md', showText = false }) => {
     if (currentUser && product?.id) {
       checkWishlistStatus();
     }
+    
+    // Listen for wishlist updates from other components
+    const handleUpdate = () => {
+      if (currentUser && product?.id) {
+        checkWishlistStatus();
+      }
+    };
+    wishlistUpdateListeners.add(handleUpdate);
+    
+    return () => {
+      wishlistUpdateListeners.delete(handleUpdate);
+    };
   }, [currentUser, product?.id]);
 
   const checkWishlistStatus = async () => {
@@ -37,6 +55,10 @@ const WishlistButton = ({ product, size = 'md', showText = false }) => {
       if (isInWishlist) {
         await firebaseService.wishlist.removeFromWishlist(currentUser.uid, product.id);
         setIsInWishlist(false);
+        // Trigger update for other components
+        triggerWishlistUpdate();
+        // Dispatch custom event for components that listen to it
+        window.dispatchEvent(new CustomEvent('wishlistUpdated'));
       } else {
         await firebaseService.wishlist.addToWishlist(currentUser.uid, product.id, {
           name: product.name,
@@ -46,6 +68,10 @@ const WishlistButton = ({ product, size = 'md', showText = false }) => {
           vendorName: product.vendorName
         });
         setIsInWishlist(true);
+        // Trigger update for other components
+        triggerWishlistUpdate();
+        // Dispatch custom event for components that listen to it
+        window.dispatchEvent(new CustomEvent('wishlistUpdated'));
       }
     } catch (error) {
       console.error('Error toggling wishlist:', error);
