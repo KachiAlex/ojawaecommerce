@@ -7,7 +7,6 @@ import AccountSettingsModal from './AccountSettingsModal';
 import NotificationCenter from './NotificationCenter';
 import DashboardSwitcher from './DashboardSwitcher';
 import SimpleLogo from './SimpleLogo';
-import SearchAutocomplete from './SearchAutocomplete';
 
 const Navbar = () => {
   const { currentUser, logout, userProfile } = useAuth();
@@ -16,7 +15,6 @@ const Navbar = () => {
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
   const dropdownRef = useRef(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
@@ -92,14 +90,6 @@ const Navbar = () => {
     return dashboards;
   };
 
-  // Handle search
-  const handleSearch = (e) => {
-    e.preventDefault();
-    if (searchTerm.trim()) {
-      navigate(`/products?q=${encodeURIComponent(searchTerm.trim())}`);
-      setSearchTerm('');
-    }
-  };
 
   // Close dropdown when clicking outside (use click to avoid early mousedown race)
   useEffect(() => {
@@ -127,29 +117,6 @@ const Navbar = () => {
             </Link>
           </div>
 
-          {/* Search Bar - Hidden on mobile */}
-          <div className="hidden md:flex flex-1 max-w-lg mx-8">
-            <SearchAutocomplete 
-              placeholder="Search products, categories..."
-              onSelect={(product) => {
-                navigate(`/products/${product.id}`);
-              }}
-            />
-          </div>
-          {/* Mobile Search - Keep simple input for now */}
-          <div className="md:hidden flex-1 max-w-xs mx-2">
-            <form onSubmit={handleSearch} className="w-full">
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Search products..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
-                />
-              </div>
-            </form>
-          </div>
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-8">

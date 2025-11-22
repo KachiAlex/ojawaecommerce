@@ -156,6 +156,17 @@ const HomeNew = () => {
         
         const allProducts = snapshot.docs.map(doc => {
           const data = doc.data();
+          // Handle images - ensure we have proper image URLs
+          let images = [];
+          if (data.images && Array.isArray(data.images) && data.images.length > 0) {
+            images = data.images.filter(img => img && typeof img === 'string' && img.trim() !== '');
+          }
+          if (data.image && typeof data.image === 'string' && data.image.trim() !== '') {
+            if (!images.includes(data.image)) {
+              images.unshift(data.image); // Add to beginning if not already in array
+            }
+          }
+          
           return {
           id: doc.id,
             ...data,
@@ -165,7 +176,10 @@ const HomeNew = () => {
             category: data.category || 'Uncategorized',
             isActive: data.isActive !== false,
             isFeatured: data.isFeatured === true,
-            createdAt: data.createdAt || new Date()
+            createdAt: data.createdAt || new Date(),
+            // Normalize images - always use array
+            images: images,
+            image: images.length > 0 ? images[0] : null
           };
         });
         
@@ -436,9 +450,25 @@ const HomeNew = () => {
                   <div className="relative">
                     <div className="h-48 bg-gray-100 flex items-center justify-center overflow-hidden">
                       {(() => {
-                        // Get the first available image from either image field or images array
-                        const productImage = product.image || (product.images && product.images.length > 0 ? product.images[0] : null);
+                        // Get the first available image - prioritize images array, then image field
+                        let productImage = null;
+                        
+                        if (product.images && Array.isArray(product.images) && product.images.length > 0) {
+                          // Filter out empty or invalid URLs
+                          const validImages = product.images.filter(img => 
+                            img && typeof img === 'string' && img.trim() !== '' && img !== 'undefined'
+                          );
+                          productImage = validImages.length > 0 ? validImages[0] : null;
+                        }
+                        
+                        // Fallback to single image field if array is empty
+                        if (!productImage && product.image && typeof product.image === 'string' && product.image.trim() !== '' && product.image !== 'undefined') {
+                          productImage = product.image;
+                        }
+                        
                         console.log('🖼️ Product image for', product.name, ':', productImage);
+                        console.log('🖼️ Product images array:', product.images);
+                        console.log('🖼️ Product image field:', product.image);
                         
                         return productImage ? (
                           <img 
@@ -448,6 +478,19 @@ const HomeNew = () => {
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                             onError={(e) => {
                               console.log('❌ Image failed to load:', productImage);
+                              // Try next image in array if available
+                              if (product.images && Array.isArray(product.images) && product.images.length > 1) {
+                                const currentIndex = product.images.indexOf(productImage);
+                                if (currentIndex !== -1 && currentIndex < product.images.length - 1) {
+                                  const nextImage = product.images[currentIndex + 1];
+                                  if (nextImage && typeof nextImage === 'string' && nextImage.trim() !== '') {
+                                    console.log('🔄 Trying next image:', nextImage);
+                                    e.target.src = nextImage;
+                                    return; // Don't hide, try next image
+                                  }
+                                }
+                              }
+                              // Hide image and show placeholder if all images fail
                               e.target.style.display = 'none';
                               e.target.nextSibling.style.display = 'flex';
                             }}
@@ -457,7 +500,10 @@ const HomeNew = () => {
                           />
                         ) : null;
                       })()}
-                      <div className={`w-full h-full flex items-center justify-center ${(product.image || (product.images && product.images.length > 0)) ? 'hidden' : 'flex'}`}>
+                      <div className={`w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 ${(() => {
+                        const hasImage = product.image || (product.images && product.images.length > 0);
+                        return hasImage ? 'hidden' : 'flex';
+                      })()}`}>
                         <span className="text-4xl">🛍️</span>
                       </div>
                     </div>
