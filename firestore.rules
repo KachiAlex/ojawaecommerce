@@ -165,6 +165,34 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
     
+    // Price alerts collection - users can manage their own alerts
+    match /price_alerts/{alertId} {
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid || isAdmin()
+      );
+      allow create, update, delete: if isAuthenticated() && (
+        request.resource.data.userId == request.auth.uid || 
+        resource.data.userId == request.auth.uid || 
+        isAdmin()
+      );
+    }
+    
+    // Gift cards collection - users can read their own, admins can read all
+    match /gift_cards/{giftCardId} {
+      allow read: if isAuthenticated() && (
+        resource.data.purchasedBy == request.auth.uid ||
+        resource.data.redeemedBy == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (
+        resource.data.purchasedBy == request.auth.uid ||
+        resource.data.redeemedBy == request.auth.uid ||
+        isAdmin()
+      );
+      allow delete: if isAdmin();
+    }
+    
     // Wallets collection - users can read/write their own wallets
     match /wallets/{walletId} {
       // Allow read for wallet owner or admin

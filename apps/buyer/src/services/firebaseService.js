@@ -4753,6 +4753,153 @@ export const referralService = {
 };
 
 // ===============================
+// PRICE ALERTS SERVICE
+// ===============================
+
+export const priceAlertsService = {
+  // Create price drop alert
+  async createPriceAlert(alertData) {
+    try {
+      const alertId = `${alertData.userId}_${alertData.productId}`;
+      const alertRef = doc(db, 'price_alerts', alertId);
+      
+      await setDoc(alertRef, {
+        ...alertData,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        active: true
+      });
+      
+      return alertId;
+    } catch (error) {
+      console.error('Error creating price alert:', error);
+      throw error;
+    }
+  },
+
+  // Remove price alert
+  async removePriceAlert(userId, productId) {
+    try {
+      const alertId = `${userId}_${productId}`;
+      const alertRef = doc(db, 'price_alerts', alertId);
+      await deleteDoc(alertRef);
+    } catch (error) {
+      console.error('Error removing price alert:', error);
+      throw error;
+    }
+  },
+
+  // Get user's price alerts
+  async getUserAlerts(userId) {
+    try {
+      const alertsRef = collection(db, 'price_alerts');
+      const q = query(alertsRef, where('userId', '==', userId), where('active', '==', true));
+      const snapshot = await getDocs(q);
+      
+      return snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+    } catch (error) {
+      console.error('Error getting user alerts:', error);
+      throw error;
+    }
+  }
+};
+
+// ===============================
+// GIFT CARDS SERVICE
+// ===============================
+
+export const giftCardService = {
+  // Create gift card
+  async createGiftCard(giftCardData) {
+    try {
+      const giftCardRef = await addDoc(collection(db, 'gift_cards'), {
+        ...giftCardData,
+        status: 'active',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      
+      return giftCardRef.id;
+    } catch (error) {
+      console.error('Error creating gift card:', error);
+      throw error;
+    }
+  },
+
+  // Redeem gift card
+  async redeemGiftCard(code, userId) {
+    try {
+      const giftCardsRef = collection(db, 'gift_cards');
+      const q = query(giftCardsRef, where('code', '==', code.toUpperCase()), where('status', '==', 'active'));
+      const snapshot = await getDocs(q);
+      
+      if (snapshot.empty) {
+        return { success: false, message: 'Invalid gift card code' };
+      }
+      
+      const giftCardDoc = snapshot.docs[0];
+      const giftCard = { id: giftCardDoc.id, ...giftCardDoc.data() };
+      
+      // Check if already redeemed
+      if (giftCard.redeemedBy && giftCard.redeemedBy !== userId) {
+        return { success: false, message: 'Gift card already redeemed' };
+      }
+      
+      // Mark as redeemed
+      await updateDoc(giftCardDoc.ref, {
+        status: 'redeemed',
+        redeemedBy: userId,
+        redeemedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      
+      // Add balance to user's wallet
+      await walletService.addFunds(userId, giftCard.amount, 'gift_card', `Gift card redemption: ${code}`);
+      
+      return { success: true, amount: giftCard.amount };
+    } catch (error) {
+      console.error('Error redeeming gift card:', error);
+      throw error;
+    }
+  },
+
+  // Get user's gift cards
+  async getUserGiftCards(userId) {
+    try {
+      const giftCardsRef = collection(db, 'gift_cards');
+      const q = query(
+        giftCardsRef,
+        where('purchasedBy', '==', userId),
+        orderBy('createdAt', 'desc')
+      );
+      const snapshot = await getDocs(q);
+      
+      return snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+    } catch (error) {
+      console.error('Error getting user gift cards:', error);
+      throw error;
+    }
+  },
+
+  // Generate unique gift card code
+  generateCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < 12; i++) {
+      if (i === 4 || i === 8) code += '-';
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
+  }
+};
+
+// ===============================
 // EXPORT ALL SERVICES
 // ===============================
 
@@ -4776,5 +4923,7 @@ export default {
   reviews: reviewsService,
   subscriptions: subscriptionService,
   wishlist: wishlistService,
-  referrals: referralService
+  referrals: referralService,
+  alerts: priceAlertsService,
+  giftCards: giftCardService
 };
