@@ -96,7 +96,7 @@ const Products = () => {
           }
         }
         
-        return {
+        const product = {
         id: doc.id,
           ...data,
           // Ensure required fields exist
@@ -109,6 +109,23 @@ const Products = () => {
           images: images,
           image: images.length > 0 ? images[0] : null
         };
+        
+        // Debug logging for images
+        if (images.length > 0) {
+          console.log('✅ Product image found:', product.name, '- Image URL:', product.image);
+        } else {
+          console.log('⚠️ No images found for product:', product.name, '- Data:', { 
+            hasImages: !!data.images, 
+            imagesLength: data.images?.length || 0,
+            hasImage: !!data.image,
+            imageUrl: data.image,
+            imageUrl2: data.imageUrl,
+            imageURL: data.imageURL,
+            allFields: Object.keys(data).filter(k => k.toLowerCase().includes('image') || k.toLowerCase().includes('photo'))
+          });
+        }
+        
+        return product;
       });
 
       // Apply client-side filtering

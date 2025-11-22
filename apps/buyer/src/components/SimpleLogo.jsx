@@ -4,7 +4,7 @@ const SimpleLogo = ({ className = "", size = "default", variant = "full" }) => {
   const sizeClasses = {
     small: "w-8 h-8",
     default: "w-12 h-12", 
-    large: "w-16 h-16",
+    large: "h-10 w-auto", // Height matches navbar menu items, width auto for SVG aspect ratio
     xl: "w-20 h-20"
   };
 

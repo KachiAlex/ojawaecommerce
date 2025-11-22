@@ -103,7 +103,17 @@ const ProductCard = ({ product, onAddToCart, onClick }) => {
     return `${symbol}${price.toLocaleString()}`;
   };
 
-  const handleImageError = () => {
+  const handleImageError = (e) => {
+    console.error('❌ Image failed to load for product:', product.name, '- Attempted URL:', e.target.src);
+    console.error('❌ Product image data:', {
+      image: product.image,
+      images: product.images,
+      allImageFields: Object.keys(product).filter(k => 
+        k.toLowerCase().includes('image') || 
+        k.toLowerCase().includes('photo') || 
+        k.toLowerCase().includes('url')
+      ).map(k => ({ [k]: product[k] }))
+    });
     setImageError(true);
   };
 
@@ -130,14 +140,18 @@ const ProductCard = ({ product, onAddToCart, onClick }) => {
               let imageUrl = null;
               
               // First check normalized fields
-              if (product.image && typeof product.image === 'string' && product.image.trim() !== '') {
+              if (product.image && typeof product.image === 'string' && product.image.trim() !== '' && product.image !== 'undefined') {
                 imageUrl = product.image;
+                console.log('✅ Using product.image for', product.name, ':', imageUrl);
               } else if (product.images && Array.isArray(product.images) && product.images.length > 0) {
                 // Filter out invalid images
                 const validImages = product.images.filter(img => 
                   img && typeof img === 'string' && img.trim() !== '' && img !== 'undefined'
                 );
                 imageUrl = validImages.length > 0 ? validImages[0] : null;
+                if (imageUrl) {
+                  console.log('✅ Using product.images[0] for', product.name, ':', imageUrl);
+                }
               }
               
               // Fallback to check other possible field names
@@ -146,9 +160,14 @@ const ProductCard = ({ product, onAddToCart, onClick }) => {
                 for (const field of imageFields) {
                   if (product[field] && typeof product[field] === 'string' && product[field].trim() !== '' && product[field] !== 'undefined') {
                     imageUrl = product[field];
+                    console.log('✅ Using', field, 'for', product.name, ':', imageUrl);
                     break;
                   }
                 }
+              }
+              
+              if (!imageUrl) {
+                console.warn('⚠️ No image URL found for product:', product.name, '- Product ID:', product.id);
               }
               
               return imageUrl || '/placeholder-product.jpg';

@@ -113,7 +113,7 @@ const Navbar = () => {
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center">
             <Link to="/" className="flex items-center">
-              <SimpleLogo size="default" />
+              <SimpleLogo size="large" variant="icon" />
             </Link>
           </div>
 
@@ -317,7 +317,7 @@ const Navbar = () => {
             <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-white border-t">
               {/* Mobile Logo */}
               <div className="flex justify-center py-4 border-b">
-                <SimpleLogo size="small" />
+                <SimpleLogo size="large" variant="icon" />
               </div>
               <Link 
                 to="/" 
