@@ -125,12 +125,40 @@ const ProductCard = ({ product, onAddToCart, onClick }) => {
       <div className="relative aspect-square bg-gray-100 overflow-hidden">
         {!imageError ? (
           <motion.img
-            src={product.image || product.images?.[0] || '/placeholder-product.jpg'}
+            src={(() => {
+              // Try to get image from various possible fields
+              let imageUrl = null;
+              
+              // First check normalized fields
+              if (product.image && typeof product.image === 'string' && product.image.trim() !== '') {
+                imageUrl = product.image;
+              } else if (product.images && Array.isArray(product.images) && product.images.length > 0) {
+                // Filter out invalid images
+                const validImages = product.images.filter(img => 
+                  img && typeof img === 'string' && img.trim() !== '' && img !== 'undefined'
+                );
+                imageUrl = validImages.length > 0 ? validImages[0] : null;
+              }
+              
+              // Fallback to check other possible field names
+              if (!imageUrl) {
+                const imageFields = ['imageUrl', 'imageURL', 'photo', 'photoUrl', 'thumbnail'];
+                for (const field of imageFields) {
+                  if (product[field] && typeof product[field] === 'string' && product[field].trim() !== '' && product[field] !== 'undefined') {
+                    imageUrl = product[field];
+                    break;
+                  }
+                }
+              }
+              
+              return imageUrl || '/placeholder-product.jpg';
+            })()}
             alt={product.name}
             className="w-full h-full object-cover"
             onError={handleImageError}
             whileHover={{ scale: 1.05 }}
             transition={{ duration: 0.3, ease: "easeOut" }}
+            loading="lazy"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-gray-100">

@@ -79,6 +79,23 @@ const Products = () => {
       const snapshot = await getDocs(q);
       let allProducts = snapshot.docs.map(doc => {
         const data = doc.data();
+        
+        // Handle images - ensure we have proper image URLs
+        let images = [];
+        if (data.images && Array.isArray(data.images) && data.images.length > 0) {
+          images = data.images.filter(img => img && typeof img === 'string' && img.trim() !== '' && img !== 'undefined');
+        }
+        
+        // Check various image field names that might be used
+        const imageFields = ['image', 'imageUrl', 'imageURL', 'photo', 'photoUrl', 'thumbnail'];
+        for (const field of imageFields) {
+          if (data[field] && typeof data[field] === 'string' && data[field].trim() !== '' && data[field] !== 'undefined') {
+            if (!images.includes(data[field])) {
+              images.unshift(data[field]); // Add to beginning if not already in array
+            }
+          }
+        }
+        
         return {
         id: doc.id,
           ...data,
@@ -87,7 +104,10 @@ const Products = () => {
           price: parseFloat(data.price) || 0,
           category: data.category || 'Uncategorized',
           isActive: data.isActive !== false,
-          createdAt: data.createdAt || new Date()
+          createdAt: data.createdAt || new Date(),
+          // Normalize images - always use array
+          images: images,
+          image: images.length > 0 ? images[0] : null
         };
       });
 
@@ -244,10 +264,32 @@ const Products = () => {
       );
 
       const snapshot = await getDocs(q);
-      const searchResults = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      const searchResults = snapshot.docs.map(doc => {
+        const data = doc.data();
+        
+        // Handle images - normalize image fields
+        let images = [];
+        if (data.images && Array.isArray(data.images) && data.images.length > 0) {
+          images = data.images.filter(img => img && typeof img === 'string' && img.trim() !== '' && img !== 'undefined');
+        }
+        
+        // Check various image field names
+        const imageFields = ['image', 'imageUrl', 'imageURL', 'photo', 'photoUrl', 'thumbnail'];
+        for (const field of imageFields) {
+          if (data[field] && typeof data[field] === 'string' && data[field].trim() !== '' && data[field] !== 'undefined') {
+            if (!images.includes(data[field])) {
+              images.unshift(data[field]);
+            }
+          }
+        }
+        
+        return {
+          id: doc.id,
+          ...data,
+          images: images,
+          image: images.length > 0 ? images[0] : null
+        };
+      });
 
       setProducts(searchResults);
       setFilteredProducts(searchResults);
