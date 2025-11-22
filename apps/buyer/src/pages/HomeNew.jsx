@@ -159,11 +159,18 @@ const HomeNew = () => {
           // Handle images - ensure we have proper image URLs
           let images = [];
           if (data.images && Array.isArray(data.images) && data.images.length > 0) {
-            images = data.images.filter(img => img && typeof img === 'string' && img.trim() !== '');
+            images = data.images.filter(img => 
+              img && typeof img === 'string' && img.trim() !== '' && img !== 'undefined' && img.trim().startsWith('http')
+            );
           }
-          if (data.image && typeof data.image === 'string' && data.image.trim() !== '') {
-            if (!images.includes(data.image)) {
-              images.unshift(data.image); // Add to beginning if not already in array
+          
+          // Check various image field names that might be used
+          const imageFields = ['image', 'imageUrl', 'imageURL', 'photo', 'photoUrl', 'thumbnail'];
+          for (const field of imageFields) {
+            if (data[field] && typeof data[field] === 'string' && data[field].trim() !== '' && data[field] !== 'undefined' && data[field].trim().startsWith('http')) {
+              if (!images.includes(data[field])) {
+                images.unshift(data[field]); // Add to beginning if not already in array
+              }
             }
           }
           
@@ -450,23 +457,15 @@ const HomeNew = () => {
                   <div className="relative">
                     <div className="relative h-48 bg-gray-100 overflow-hidden">
                       {(() => {
-                        // Get the first available image - prioritize images array, then image field
-                        let productImage = null;
+                        // Get the first available image - use normalized image field
+                        const productImage = product.image || (product.images && product.images.length > 0 ? product.images[0] : null);
                         
-                        if (product.images && Array.isArray(product.images) && product.images.length > 0) {
-                          // Filter out empty or invalid URLs
-                          const validImages = product.images.filter(img => 
-                            img && typeof img === 'string' && img.trim() !== '' && img !== 'undefined'
-                          );
-                          productImage = validImages.length > 0 ? validImages[0] : null;
-                        }
+                        console.log('🖼️ HomeNew: Rendering product', product.name);
+                        console.log('🖼️ HomeNew: product.image =', product.image);
+                        console.log('🖼️ HomeNew: product.images =', product.images);
+                        console.log('🖼️ HomeNew: final productImage =', productImage);
                         
-                        // Fallback to single image field if array is empty
-                        if (!productImage && product.image && typeof product.image === 'string' && product.image.trim() !== '' && product.image !== 'undefined') {
-                          productImage = product.image;
-                        }
-                        
-                        if (!productImage) {
+                        if (!productImage || !productImage.trim() || productImage === 'undefined' || !productImage.startsWith('http')) {
                           return (
                             <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
                               <span className="text-4xl">🛍️</span>
@@ -475,40 +474,41 @@ const HomeNew = () => {
                         }
                         
                         return (
-                          <>
-                            <img 
-                              src={productImage} 
-                              alt={`${product.name} - ${product.vendorName || product.vendor || 'Vendor'} - Secure purchase with escrow protection on Ojawa`}
-                              loading="lazy"
-                              className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                              onError={(e) => {
-                                console.log('❌ Image failed to load:', productImage);
-                                // Try next image in array if available
-                                if (product.images && Array.isArray(product.images) && product.images.length > 1) {
-                                  const currentIndex = product.images.indexOf(productImage);
-                                  if (currentIndex !== -1 && currentIndex < product.images.length - 1) {
-                                    const nextImage = product.images[currentIndex + 1];
-                                    if (nextImage && typeof nextImage === 'string' && nextImage.trim() !== '') {
-                                      console.log('🔄 Trying next image:', nextImage);
-                                      e.target.src = nextImage;
-                                      return; // Don't hide, try next image
-                                    }
+                          <img 
+                            src={productImage} 
+                            alt={`${product.name} - ${product.vendorName || product.vendor || 'Vendor'}`}
+                            loading="lazy"
+                            className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            style={{ display: 'block' }}
+                            onError={(e) => {
+                              console.error('❌ HomeNew: Image failed to load for', product.name, '- URL:', productImage);
+                              // Try next image in array if available
+                              if (product.images && Array.isArray(product.images) && product.images.length > 1) {
+                                const currentIndex = product.images.indexOf(productImage);
+                                if (currentIndex !== -1 && currentIndex < product.images.length - 1) {
+                                  const nextImage = product.images[currentIndex + 1];
+                                  if (nextImage && typeof nextImage === 'string' && nextImage.trim() !== '' && nextImage.startsWith('http')) {
+                                    console.log('🔄 HomeNew: Trying next image:', nextImage);
+                                    e.target.src = nextImage;
+                                    return;
                                   }
                                 }
-                                // Hide image and show placeholder if all images fail
-                                e.target.style.display = 'none';
-                                e.target.nextSibling.style.display = 'flex';
-                              }}
-                              onLoad={() => {
-                                console.log('✅ Image loaded successfully:', productImage);
-                              }}
-                            />
-                            <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 hidden">
-                              <span className="text-4xl">🛍️</span>
-                            </div>
-                          </>
+                              }
+                              // Show placeholder on error
+                              e.target.style.display = 'none';
+                            }}
+                            onLoad={() => {
+                              console.log('✅ HomeNew: Image loaded successfully for', product.name, '- URL:', productImage);
+                            }}
+                          />
                         );
                       })()}
+                      {/* Fallback placeholder - shown when no image */}
+                      {(!product.image && (!product.images || product.images.length === 0)) && (
+                        <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
+                          <span className="text-4xl">🛍️</span>
+                        </div>
+                      )}
                     </div>
                     <div className="absolute top-3 left-3 bg-emerald-500 text-white px-2 py-1 rounded-full text-xs font-medium">
                       Verified
