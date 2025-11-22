@@ -456,58 +456,66 @@ const HomeNew = () => {
                 <div key={product.id} className="bg-white rounded-lg shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden group">
                   <div className="relative">
                     <div className="relative h-48 bg-gray-100 overflow-hidden">
-                      {(() => {
-                        // Get the first available image - use normalized image field
-                        const productImage = product.image || (product.images && product.images.length > 0 ? product.images[0] : null);
-                        
-                        console.log('🖼️ HomeNew: Rendering product', product.name);
-                        console.log('🖼️ HomeNew: product.image =', product.image);
-                        console.log('🖼️ HomeNew: product.images =', product.images);
-                        console.log('🖼️ HomeNew: final productImage =', productImage);
-                        
-                        if (!productImage || !productImage.trim() || productImage === 'undefined' || !productImage.startsWith('http')) {
-                          return (
-                            <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
-                              <span className="text-4xl">🛍️</span>
-                            </div>
-                          );
-                        }
-                        
-                        return (
-                          <img 
-                            src={productImage} 
-                            alt={`${product.name} - ${product.vendorName || product.vendor || 'Vendor'}`}
-                            loading="lazy"
-                            className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                            style={{ display: 'block' }}
-                            onError={(e) => {
-                              console.error('❌ HomeNew: Image failed to load for', product.name, '- URL:', productImage);
-                              // Try next image in array if available
-                              if (product.images && Array.isArray(product.images) && product.images.length > 1) {
-                                const currentIndex = product.images.indexOf(productImage);
-                                if (currentIndex !== -1 && currentIndex < product.images.length - 1) {
-                                  const nextImage = product.images[currentIndex + 1];
-                                  if (nextImage && typeof nextImage === 'string' && nextImage.trim() !== '' && nextImage.startsWith('http')) {
-                                    console.log('🔄 HomeNew: Trying next image:', nextImage);
-                                    e.target.src = nextImage;
-                                    return;
-                                  }
-                                }
-                              }
-                              // Show placeholder on error
-                              e.target.style.display = 'none';
-                            }}
-                            onLoad={() => {
-                              console.log('✅ HomeNew: Image loaded successfully for', product.name, '- URL:', productImage);
-                            }}
-                          />
-                        );
-                      })()}
-                      {/* Fallback placeholder - shown when no image */}
-                      {(!product.image && (!product.images || product.images.length === 0)) && (
+                      {/* Placeholder - only shown when no image */}
+                      {(!product.image && (!product.images || product.images.length === 0)) ? (
                         <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
                           <span className="text-4xl">🛍️</span>
                         </div>
+                      ) : (
+                        <>
+                          {/* Get the first available image - use normalized image field */}
+                          {(() => {
+                            const productImage = product.image || (product.images && product.images.length > 0 ? product.images[0] : null);
+                            
+                            if (!productImage || typeof productImage !== 'string' || !productImage.trim() || productImage === 'undefined' || !productImage.startsWith('http')) {
+                              return (
+                                <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
+                                  <span className="text-4xl">🛍️</span>
+                                </div>
+                              );
+                            }
+                            
+                            return (
+                              <img 
+                                src={productImage} 
+                                alt={`${product.name} - ${product.vendorName || product.vendor || 'Vendor'}`}
+                                loading="lazy"
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                style={{ 
+                                  display: 'block',
+                                  width: '100%',
+                                  height: '100%',
+                                  objectFit: 'cover'
+                                }}
+                                onError={(e) => {
+                                  console.error('❌ HomeNew: Image failed to load for', product.name, '- URL:', productImage);
+                                  // Try next image in array if available
+                                  if (product.images && Array.isArray(product.images) && product.images.length > 1) {
+                                    const currentIndex = product.images.indexOf(productImage);
+                                    if (currentIndex !== -1 && currentIndex < product.images.length - 1) {
+                                      const nextImage = product.images[currentIndex + 1];
+                                      if (nextImage && typeof nextImage === 'string' && nextImage.trim() !== '' && nextImage.startsWith('http')) {
+                                        console.log('🔄 HomeNew: Trying next image:', nextImage);
+                                        e.target.src = nextImage;
+                                        return;
+                                      }
+                                    }
+                                  }
+                                  // Show placeholder on error
+                                  e.target.style.display = 'none';
+                                  e.target.nextElementSibling.style.display = 'flex';
+                                }}
+                                onLoad={() => {
+                                  console.log('✅ HomeNew: Image loaded and displayed for', product.name, '- URL:', productImage);
+                                }}
+                              />
+                            );
+                          })()}
+                          {/* Error placeholder - hidden by default, shown on error */}
+                          <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 hidden">
+                            <span className="text-4xl">🛍️</span>
+                          </div>
+                        </>
                       )}
                     </div>
                     <div className="absolute top-3 left-3 bg-emerald-500 text-white px-2 py-1 rounded-full text-xs font-medium">
