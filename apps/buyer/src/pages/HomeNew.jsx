@@ -505,7 +505,10 @@ const HomeNew = () => {
                                   e.target.style.display = 'none';
                                   e.target.nextElementSibling.style.display = 'flex';
                                 }}
-                                onLoad={() => {
+                                onLoad={(e) => {
+                                  // Add 'loaded' class to make image visible (required by App.css)
+                                  e.target.classList.add('loaded');
+                                  e.target.style.opacity = '1';
                                   console.log('✅ HomeNew: Image loaded and displayed for', product.name, '- URL:', productImage);
                                 }}
                               />

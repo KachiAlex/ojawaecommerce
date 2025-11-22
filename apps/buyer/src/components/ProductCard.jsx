@@ -187,11 +187,15 @@ const ProductCard = ({ product, onAddToCart, onClick }) => {
               <img
                 src={finalImageUrl}
                 alt={product.name}
-                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
+                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 loaded ${
                   imageLoaded ? 'opacity-100 z-10' : 'opacity-0 z-0'
                 }`}
-                onLoad={() => {
+                onLoad={(e) => {
+                  // Add 'loaded' class to make image visible (required by App.css)
+                  e.target.classList.add('loaded');
+                  e.target.style.opacity = '1';
                   setImageLoaded(true);
+                  console.log('✅ ProductCard: Image loaded and displayed for', product.name, '- URL:', finalImageUrl);
                 }}
                 onError={(e) => {
                   console.error('❌ ProductCard: Image failed to load for', product.name, '- URL:', e.target.src);
