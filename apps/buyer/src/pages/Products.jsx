@@ -22,6 +22,7 @@ const Products = () => {
   const navigate = useNavigate();
   
   const [products, setProducts] = useState([]);
+  const [allFilteredProducts, setAllFilteredProducts] = useState([]); // Store ALL filtered products (not paginated)
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   
@@ -138,7 +139,7 @@ const Products = () => {
         return product;
       });
 
-      // Apply client-side filtering
+      // Apply client-side filtering ONLY - NO SORTING HERE
       allProducts = allProducts.filter(product => {
         // Filter by isActive
         if (product.isActive === false) return false;
@@ -157,56 +158,29 @@ const Products = () => {
         return true;
       });
 
-      // Apply client-side sorting
-      const sortByValue = advancedFilters.sortBy || sortBy;
-      switch (sortByValue) {
-        case 'newest':
-          allProducts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-          break;
-        case 'oldest':
-          allProducts.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-          break;
-        case 'price-low':
-          allProducts.sort((a, b) => (a.price || 0) - (b.price || 0));
-          break;
-        case 'price-high':
-          allProducts.sort((a, b) => (b.price || 0) - (a.price || 0));
-          break;
-        case 'name':
-          allProducts.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-          break;
-        case 'rating':
-          allProducts.sort((a, b) => (b.averageRating || 0) - (a.averageRating || 0));
-          break;
-        case 'popular':
-          // Sort by popularity (could use view count, sales, etc.)
-          allProducts.sort((a, b) => (b.views || 0) - (a.views || 0));
-          break;
-        default:
-          allProducts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-          break;
+      // Store ALL filtered products (not paginated) so sorting can work on all products
+      // Sorting will be applied separately by the sortProducts helper function
+      // Store all filtered products for sorting - always replace on reset, append on load more
+      if (reset) {
+        setAllFilteredProducts(allProducts);
+      } else {
+        // For pagination, append to existing allFilteredProducts
+        setAllFilteredProducts(prev => {
+          const combined = [...prev, ...allProducts];
+          return combined;
+        });
       }
 
-      // Apply pagination client-side
-      const startIndex = reset ? 0 : products.length;
-      const endIndex = startIndex + 20;
-      const newProducts = allProducts.slice(startIndex, endIndex);
-
-      console.log('🛍️ Products: Fetched', newProducts.length, 'products');
-      console.log('🛍️ Products: Product data:', newProducts);
+      console.log('🛍️ Products: Fetched', allProducts.length, 'filtered products');
+      console.log('🛍️ Products: Total filtered products:', reset ? allProducts.length : 'appended');
       
       // Mobile debugging - also log to alert for immediate visibility
-      if (newProducts.length === 0) {
+      if (allProducts.length === 0) {
         console.warn('🛍️ Products: No products found - this might be the issue');
       }
 
-      if (reset) {
-        setProducts(newProducts);
-      } else {
-        setProducts(prev => [...prev, ...newProducts]);
-      }
-
-      setHasMore(endIndex < allProducts.length);
+      // Note: hasMore and pagination are now handled in the sorting useEffect
+      // We load all products at once, then sort and paginate for display
       
       // If no products found, show a helpful message
       if (allProducts.length === 0) {
@@ -364,8 +338,9 @@ const Products = () => {
           sortedResults.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
       }
 
-      setProducts(sortedResults);
-      setFilteredProducts(sortedResults);
+      // Store all search results for sorting
+      setAllFilteredProducts(sortedResults);
+      // Sorting will be applied by the useEffect that watches allFilteredProducts
       setHasMore(false);
       setError(null);
     } catch (err) {
@@ -496,18 +471,27 @@ const Products = () => {
     return sorted;
   };
 
-  // Apply sorting when sortBy changes or when products are fetched
+  // Apply sorting when sortBy changes or when allFilteredProducts changes
   // This only REORDERS products, never filters them
+  // Sort ALL products, then display them (with pagination if needed)
   useEffect(() => {
-    if (!loading && products.length > 0) {
-      const sorted = sortProducts(products);
+    if (!loading && allFilteredProducts.length > 0) {
+      // Sort ALL filtered products (not just a subset) - this REARRANGES, never filters
+      const sorted = sortProducts(allFilteredProducts);
+      
+      // For now, show ALL sorted products (no pagination limit)
+      // This ensures all products are visible, just rearranged by sort order
       setFilteredProducts(sorted);
-    } else if (!loading && products.length === 0) {
+      setProducts(sorted);
+      setHasMore(false); // All products are loaded
+    } else if (!loading && allFilteredProducts.length === 0) {
       // If no products, clear filtered products too
       setFilteredProducts([]);
+      setProducts([]);
+      setHasMore(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sortBy, advancedFilters.sortBy, products, loading]);
+  }, [sortBy, advancedFilters.sortBy, allFilteredProducts, loading]);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
