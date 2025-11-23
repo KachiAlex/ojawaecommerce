@@ -465,9 +465,38 @@ const HomeNew = () => {
                         <>
                           {/* Get the first available image - use normalized image field */}
                           {(() => {
-                            const productImage = product.image || (product.images && product.images.length > 0 ? product.images[0] : null);
+                            // Collect all possible image URLs
+                            let imageUrls = [];
                             
-                            if (!productImage || typeof productImage !== 'string' || !productImage.trim() || productImage === 'undefined' || !productImage.startsWith('http')) {
+                            // Add from normalized image field
+                            if (product.image && typeof product.image === 'string' && product.image.trim() !== '' && product.image !== 'undefined') {
+                              imageUrls.push(product.image);
+                            }
+                            
+                            // Add from images array
+                            if (product.images && Array.isArray(product.images) && product.images.length > 0) {
+                              const validImages = product.images.filter(img => 
+                                img && typeof img === 'string' && img.trim() !== '' && img !== 'undefined'
+                              );
+                              imageUrls.push(...validImages);
+                            }
+                            
+                            // Fallback to other field names
+                            const imageFields = ['imageUrl', 'imageURL', 'photo', 'photoUrl', 'thumbnail', 'img', 'picture'];
+                            for (const field of imageFields) {
+                              if (product[field] && typeof product[field] === 'string' && product[field].trim() !== '' && product[field] !== 'undefined') {
+                                if (!imageUrls.includes(product[field])) {
+                                  imageUrls.push(product[field]);
+                                }
+                              }
+                            }
+                            
+                            // Remove duplicates
+                            imageUrls = [...new Set(imageUrls)];
+                            
+                            const productImage = imageUrls.length > 0 ? imageUrls[0] : null;
+                            
+                            if (!productImage) {
                               return (
                                 <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
                                   <span className="text-4xl">🛍️</span>
@@ -490,20 +519,20 @@ const HomeNew = () => {
                                 onError={(e) => {
                                   console.error('❌ HomeNew: Image failed to load for', product.name, '- URL:', productImage);
                                   // Try next image in array if available
-                                  if (product.images && Array.isArray(product.images) && product.images.length > 1) {
-                                    const currentIndex = product.images.indexOf(productImage);
-                                    if (currentIndex !== -1 && currentIndex < product.images.length - 1) {
-                                      const nextImage = product.images[currentIndex + 1];
-                                      if (nextImage && typeof nextImage === 'string' && nextImage.trim() !== '' && nextImage.startsWith('http')) {
-                                        console.log('🔄 HomeNew: Trying next image:', nextImage);
-                                        e.target.src = nextImage;
-                                        return;
-                                      }
+                                  const currentIndex = imageUrls.indexOf(productImage);
+                                  if (currentIndex !== -1 && currentIndex < imageUrls.length - 1) {
+                                    const nextImage = imageUrls[currentIndex + 1];
+                                    if (nextImage && typeof nextImage === 'string' && nextImage.trim() !== '') {
+                                      console.log('🔄 HomeNew: Trying next image:', nextImage);
+                                      e.target.src = nextImage;
+                                      return;
                                     }
                                   }
                                   // Show placeholder on error
                                   e.target.style.display = 'none';
-                                  e.target.nextElementSibling.style.display = 'flex';
+                                  if (e.target.nextElementSibling) {
+                                    e.target.nextElementSibling.style.display = 'flex';
+                                  }
                                 }}
                                 onLoad={(e) => {
                                   // Add 'loaded' class to make image visible (required by App.css)

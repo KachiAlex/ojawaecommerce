@@ -12,14 +12,15 @@ import MessageVendorModal from '../components/MessageVendorModal';
 
 // Helper function to format currency with amount
 const formatCurrency = (amount, currencyString) => {
-  if (!currencyString) return `₦${amount.toFixed(2)}`;
+  const safeAmount = amount || 0;
+  if (!currencyString) return `₦${safeAmount.toFixed(2)}`;
   
   // Extract currency symbol and code from string like "₦ NGN"
   const parts = currencyString.trim().split(/\s+/);
   const symbol = parts[0] || '₦';
   const code = parts[1] || 'NGN';
   
-  return `${symbol}${amount.toFixed(2)}`;
+  return `${symbol}${safeAmount.toFixed(2)}`;
 };
 
 const Cart = () => {

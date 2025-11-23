@@ -160,10 +160,16 @@ const Products = () => {
       // Store all filtered products - always replace on reset, append on load more
       if (reset) {
         setAllFilteredProducts(allProducts);
+        // Also set filteredProducts directly to avoid race conditions
+        setFilteredProducts(allProducts);
+        setProducts(allProducts);
       } else {
         // For pagination, append to existing allFilteredProducts
         setAllFilteredProducts(prev => {
           const combined = [...prev, ...allProducts];
+          // Also update filteredProducts and products
+          setFilteredProducts(combined);
+          setProducts(combined);
           return combined;
         });
       }
@@ -378,16 +384,19 @@ const Products = () => {
 
   // Display products when allFilteredProducts changes
   useEffect(() => {
-    if (!loading && allFilteredProducts.length > 0) {
-      // Display all filtered products directly (no sorting)
-      setFilteredProducts(allFilteredProducts);
-      setProducts(allFilteredProducts);
-      setHasMore(false); // All products are loaded
-    } else if (!loading && allFilteredProducts.length === 0) {
-      // If no products, clear filtered products too
-      setFilteredProducts([]);
-      setProducts([]);
-      setHasMore(false);
+    // Only update filtered products when not loading to avoid race conditions
+    if (!loading) {
+      if (allFilteredProducts.length > 0) {
+        // Display all filtered products directly (no sorting)
+        setFilteredProducts(allFilteredProducts);
+        setProducts(allFilteredProducts);
+        setHasMore(false); // All products are loaded
+      } else {
+        // If no products, clear filtered products too
+        setFilteredProducts([]);
+        setProducts([]);
+        setHasMore(false);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allFilteredProducts, loading]);

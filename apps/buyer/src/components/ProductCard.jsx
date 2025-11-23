@@ -14,14 +14,47 @@ const ProductCard = ({ product, onAddToCart, onClick }) => {
   const navigate = useNavigate();
   const [imageError, setImageError] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isAdding, setIsAdding] = useState(false);
   const [showSuccessBadge, setShowSuccessBadge] = useState(false);
   const addToCartTimeoutRef = useRef(null);
+  
+  // Collect all possible image URLs
+  const getAllImageUrls = () => {
+    let imageUrls = [];
+    
+    // Collect from normalized image field
+    if (product.image && typeof product.image === 'string' && product.image.trim() !== '' && product.image !== 'undefined') {
+      imageUrls.push(product.image);
+    }
+    
+    // Collect from images array
+    if (product.images && Array.isArray(product.images) && product.images.length > 0) {
+      const validImages = product.images.filter(img => 
+        img && typeof img === 'string' && img.trim() !== '' && img !== 'undefined'
+      );
+      imageUrls.push(...validImages);
+    }
+    
+    // Fallback to other field names
+    const imageFields = ['imageUrl', 'imageURL', 'photo', 'photoUrl', 'thumbnail', 'img', 'picture'];
+    for (const field of imageFields) {
+      if (product[field] && typeof product[field] === 'string' && product[field].trim() !== '' && product[field] !== 'undefined') {
+        if (!imageUrls.includes(product[field])) {
+          imageUrls.push(product[field]);
+        }
+      }
+    }
+    
+    // Remove duplicates
+    return [...new Set(imageUrls)];
+  };
 
   // Reset image state when product changes
   useEffect(() => {
     setImageError(false);
     setImageLoaded(false);
+    setCurrentImageIndex(0);
   }, [product.id, product.image]);
 
   const handleAddToCart = async (e) => {
@@ -138,32 +171,13 @@ const ProductCard = ({ product, onAddToCart, onClick }) => {
       {/* Product Image */}
       <div className="relative aspect-square bg-gray-100 overflow-hidden">
         {(() => {
-          // Get image URL - prioritize normalized fields
-          let imageUrl = null;
+          const imageUrls = getAllImageUrls();
+          const currentImageUrl = imageUrls.length > 0 && currentImageIndex < imageUrls.length 
+            ? imageUrls[currentImageIndex] 
+            : null;
           
-          if (product.image && typeof product.image === 'string' && product.image.trim() !== '' && product.image !== 'undefined') {
-            imageUrl = product.image;
-          } else if (product.images && Array.isArray(product.images) && product.images.length > 0) {
-            const validImages = product.images.filter(img => 
-              img && typeof img === 'string' && img.trim() !== '' && img !== 'undefined'
-            );
-            imageUrl = validImages.length > 0 ? validImages[0] : null;
-          }
-          
-          // Fallback to other field names
-          if (!imageUrl) {
-            const imageFields = ['imageUrl', 'imageURL', 'photo', 'photoUrl', 'thumbnail'];
-            for (const field of imageFields) {
-              if (product[field] && typeof product[field] === 'string' && product[field].trim() !== '' && product[field] !== 'undefined') {
-                imageUrl = product[field];
-                break;
-              }
-            }
-          }
-          
-          const finalImageUrl = imageUrl || '/placeholder-product.jpg';
-          
-          if (imageError) {
+          if (imageError && currentImageIndex >= imageUrls.length - 1) {
+            // All images failed, show placeholder
             return (
               <div className="w-full h-full flex items-center justify-center bg-gray-100">
                 <div className="text-center text-gray-400">
@@ -176,31 +190,51 @@ const ProductCard = ({ product, onAddToCart, onClick }) => {
           
           return (
             <>
-              {!imageLoaded && (
+              {!imageLoaded && !imageError && (
                 <div className="absolute inset-0 flex items-center justify-center bg-gray-100 z-0">
                   <div className="animate-pulse bg-gray-200 w-full h-full"></div>
                 </div>
               )}
-              <img
-                src={finalImageUrl}
-                alt={product.name}
-                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 loaded ${
-                  imageLoaded ? 'opacity-100 z-10' : 'opacity-0 z-0'
-                }`}
-                onLoad={(e) => {
-                  // Add 'loaded' class to make image visible (required by App.css)
-                  e.target.classList.add('loaded');
-                  e.target.style.opacity = '1';
-                  setImageLoaded(true);
-                  console.log('✅ ProductCard: Image loaded and displayed for', product.name, '- URL:', finalImageUrl);
-                }}
-                onError={(e) => {
-                  console.error('❌ ProductCard: Image failed to load for', product.name, '- URL:', e.target.src);
-                  setImageError(true);
-                  setImageLoaded(true);
-                }}
-                loading="lazy"
-              />
+              {currentImageUrl && (
+                <img
+                  key={`${product.id}-${currentImageIndex}`}
+                  src={currentImageUrl}
+                  alt={product.name}
+                  className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
+                    imageLoaded ? 'opacity-100 z-10 loaded' : 'opacity-0 z-0'
+                  }`}
+                  onLoad={(e) => {
+                    e.target.classList.add('loaded');
+                    e.target.style.opacity = '1';
+                    setImageLoaded(true);
+                    setImageError(false);
+                    console.log('✅ ProductCard: Image loaded for', product.name, '- URL:', currentImageUrl);
+                  }}
+                  onError={(e) => {
+                    console.error('❌ ProductCard: Image failed to load for', product.name, '- URL:', e.target.src);
+                    // Try next image if available
+                    if (currentImageIndex < imageUrls.length - 1) {
+                      console.log('🔄 ProductCard: Trying next image...');
+                      setCurrentImageIndex(currentImageIndex + 1);
+                      setImageLoaded(false);
+                      setImageError(false);
+                    } else {
+                      // All images failed
+                      setImageError(true);
+                      setImageLoaded(true);
+                    }
+                  }}
+                  loading="lazy"
+                />
+              )}
+              {!currentImageUrl && (
+                <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                  <div className="text-center text-gray-400">
+                    <div className="text-4xl mb-2">📦</div>
+                    <div className="text-sm">No Image</div>
+                  </div>
+                </div>
+              )}
             </>
           );
         })()}
