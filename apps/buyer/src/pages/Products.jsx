@@ -32,7 +32,6 @@ const Products = () => {
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [sortBy, setSortBy] = useState('newest');
   const [priceRange, setPriceRange] = useState({ min: 0, max: 100000 });
   const [categories, setCategories] = useState([]);
   const [hasMore, setHasMore] = useState(true);
@@ -48,8 +47,7 @@ const Products = () => {
     brand: 'all',
     condition: 'all',
     inStock: true,
-    minRating: 0,
-    sortBy: 'newest'
+    minRating: 0
   });
   const [brands, setBrands] = useState([]);
   const [searchParams] = useSearchParams();
@@ -158,9 +156,8 @@ const Products = () => {
         return true;
       });
 
-      // Store ALL filtered products (not paginated) so sorting can work on all products
-      // Sorting will be applied separately by the sortProducts helper function
-      // Store all filtered products for sorting - always replace on reset, append on load more
+      // Store ALL filtered products (not paginated)
+      // Store all filtered products - always replace on reset, append on load more
       if (reset) {
         setAllFilteredProducts(allProducts);
       } else {
@@ -179,8 +176,8 @@ const Products = () => {
         console.warn('🛍️ Products: No products found - this might be the issue');
       }
 
-      // Note: hasMore and pagination are now handled in the sorting useEffect
-      // We load all products at once, then sort and paginate for display
+      // Note: hasMore and pagination are now handled in the display useEffect
+      // We load all products at once, then display them
       
       // If no products found, show a helpful message
       if (allProducts.length === 0) {
@@ -315,32 +312,8 @@ const Products = () => {
           return nameMatch || descMatch || categoryMatch || brandMatch || tagsMatch;
         });
 
-      // Apply sorting to search results
-      const sortByValue = advancedFilters.sortBy || sortBy;
-      const sortedResults = [...searchResults];
-      switch (sortByValue) {
-        case 'newest':
-          sortedResults.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-          break;
-        case 'oldest':
-          sortedResults.sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
-          break;
-        case 'price-low':
-          sortedResults.sort((a, b) => (a.price || 0) - (b.price || 0));
-          break;
-        case 'price-high':
-          sortedResults.sort((a, b) => (b.price || 0) - (a.price || 0));
-          break;
-        case 'name':
-          sortedResults.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-          break;
-        default:
-          sortedResults.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-      }
-
-      // Store all search results for sorting
-      setAllFilteredProducts(sortedResults);
-      // Sorting will be applied by the useEffect that watches allFilteredProducts
+      // Store all search results
+      setAllFilteredProducts(searchResults);
       setHasMore(false);
       setError(null);
     } catch (err) {
@@ -397,92 +370,18 @@ const Products = () => {
     fetchCategories();
   }, []);
 
-  // Separate filtering from sorting - only refetch when filters change, not when sort changes
+  // Refetch when filters change
   useEffect(() => {
     console.log('🛍️ Products: Filters changed, refetching products...');
     fetchProducts(true);
   }, [selectedCategory, priceRange, advancedFilters.category, advancedFilters.brand, advancedFilters.condition, advancedFilters.priceRange, advancedFilters.inStock, advancedFilters.minRating]);
 
-  // Helper function to sort products - this only REORDERS, never filters
-  const sortProducts = (productsToSort) => {
-    // Always work with a copy to avoid mutating the original array
-    const sorted = [...productsToSort];
-    const sortByValue = advancedFilters.sortBy || sortBy;
-    
-    // Sort all products - never filter them out
-    switch (sortByValue) {
-      case 'newest':
-        sorted.sort((a, b) => {
-          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-          return dateB - dateA; // Newest first
-        });
-        break;
-      case 'oldest':
-        sorted.sort((a, b) => {
-          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-          return dateA - dateB; // Oldest first
-        });
-        break;
-      case 'price-low':
-        sorted.sort((a, b) => {
-          const priceA = parseFloat(a.price) || 0;
-          const priceB = parseFloat(b.price) || 0;
-          return priceA - priceB; // Low to high
-        });
-        break;
-      case 'price-high':
-        sorted.sort((a, b) => {
-          const priceA = parseFloat(a.price) || 0;
-          const priceB = parseFloat(b.price) || 0;
-          return priceB - priceA; // High to low
-        });
-        break;
-      case 'name':
-        sorted.sort((a, b) => {
-          const nameA = (a.name || '').toLowerCase();
-          const nameB = (b.name || '').toLowerCase();
-          return nameA.localeCompare(nameB); // A to Z
-        });
-        break;
-      case 'rating':
-        sorted.sort((a, b) => {
-          const ratingA = parseFloat(a.averageRating) || parseFloat(a.rating) || 0;
-          const ratingB = parseFloat(b.averageRating) || parseFloat(b.rating) || 0;
-          return ratingB - ratingA; // Highest rating first
-        });
-        break;
-      case 'popular':
-        sorted.sort((a, b) => {
-          const viewsA = parseInt(a.views) || parseInt(a.viewCount) || 0;
-          const viewsB = parseInt(b.views) || parseInt(b.viewCount) || 0;
-          return viewsB - viewsA; // Most popular first
-        });
-        break;
-      default:
-        sorted.sort((a, b) => {
-          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-          return dateB - dateA; // Default to newest first
-        });
-    }
-    
-    return sorted;
-  };
-
-  // Apply sorting when sortBy changes or when allFilteredProducts changes
-  // This only REORDERS products, never filters them
-  // Sort ALL products, then display them (with pagination if needed)
+  // Display products when allFilteredProducts changes
   useEffect(() => {
     if (!loading && allFilteredProducts.length > 0) {
-      // Sort ALL filtered products (not just a subset) - this REARRANGES, never filters
-      const sorted = sortProducts(allFilteredProducts);
-      
-      // For now, show ALL sorted products (no pagination limit)
-      // This ensures all products are visible, just rearranged by sort order
-      setFilteredProducts(sorted);
-      setProducts(sorted);
+      // Display all filtered products directly (no sorting)
+      setFilteredProducts(allFilteredProducts);
+      setProducts(allFilteredProducts);
       setHasMore(false); // All products are loaded
     } else if (!loading && allFilteredProducts.length === 0) {
       // If no products, clear filtered products too
@@ -491,7 +390,7 @@ const Products = () => {
       setHasMore(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sortBy, advancedFilters.sortBy, allFilteredProducts, loading]);
+  }, [allFilteredProducts, loading]);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -652,35 +551,6 @@ const Products = () => {
               </div>
             </motion.div>
 
-            {/* Sort */}
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.4, delay: 0.4 }}
-            >
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Sort By
-              </label>
-              <div className="relative">
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                  className="w-full appearance-none pl-4 pr-10 py-3 rounded-xl bg-gray-50 border border-transparent shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all duration-200"
-              >
-                <option value="newest">Newest First</option>
-                <option value="oldest">Oldest First</option>
-                <option value="price-low">Price: Low to High</option>
-                <option value="price-high">Price: High to Low</option>
-                <option value="name">Name A-Z</option>
-              </select>
-                <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400">
-                  {/* Chevron icon */}
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
-                    <path fillRule="evenodd" d="M12 14.5a.75.75 0 0 1-.53-.22l-4-4a.75.75 0 1 1 1.06-1.06L12 12.69l3.47-3.47a.75.75 0 0 1 1.06 1.06l-4 4a.75.75 0 0 1-.53.22Z" clipRule="evenodd" />
-                  </svg>
-                </span>
-              </div>
-            </motion.div>
           </div>
 
           {/* Quick category chips */}
@@ -799,7 +669,7 @@ const Products = () => {
                 brands={brands}
                 onFiltersChange={(filters) => {
                   setAdvancedFilters(filters);
-                  // Don't refetch, just update filters - sorting will be applied separately
+                  // Don't refetch, just update filters
                 }}
                 initialFilters={advancedFilters}
                 isOpen={showFilters}

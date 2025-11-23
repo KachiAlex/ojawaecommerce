@@ -16,21 +16,10 @@ const AdvancedFilters = ({
     condition: initialFilters.condition || 'all',
     inStock: initialFilters.inStock ?? true,
     minRating: initialFilters.minRating || 0,
-    sortBy: initialFilters.sortBy || 'newest',
     ...initialFilters
   });
 
   const [localPriceRange, setLocalPriceRange] = useState(filters.priceRange);
-
-  const sortOptions = [
-    { value: 'newest', label: 'Newest First' },
-    { value: 'oldest', label: 'Oldest First' },
-    { value: 'price-low', label: 'Price: Low to High' },
-    { value: 'price-high', label: 'Price: High to Low' },
-    { value: 'name', label: 'Name: A to Z' },
-    { value: 'rating', label: 'Highest Rated' },
-    { value: 'popular', label: 'Most Popular' }
-  ];
 
   useEffect(() => {
     onFiltersChange(filters);
@@ -56,8 +45,7 @@ const AdvancedFilters = ({
       brand: 'all',
       condition: 'all',
       inStock: true,
-      minRating: 0,
-      sortBy: 'newest'
+      minRating: 0
     };
     setFilters(defaultFilters);
     setLocalPriceRange(defaultFilters.priceRange);
@@ -93,22 +81,6 @@ const AdvancedFilters = ({
       </div>
 
       <div className="space-y-6">
-        {/* Sort By */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Sort By</label>
-          <select
-            value={filters.sortBy}
-            onChange={(e) => handleFilterChange('sortBy', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
-          >
-            {sortOptions.map(option => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
         {/* Category Filter */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
