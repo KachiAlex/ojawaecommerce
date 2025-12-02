@@ -11,6 +11,7 @@ import { ProductListSkeleton } from '../components/SkeletonLoaders';
 import AdvancedFilters from '../components/AdvancedFilters';
 import SearchAutocomplete from '../components/SearchAutocomplete';
 import ProductComparison from '../components/ProductComparison';
+import ProductFilterSidebar from '../components/ProductFilterSidebar';
 import WishlistButton from '../components/WishlistButton';
 import { collection, query, where, getDocs, orderBy, limit, startAfter } from 'firebase/firestore';
 import { db } from '../firebase/config';
@@ -51,6 +52,8 @@ const Products = () => {
   });
   const [brands, setBrands] = useState([]);
   const [searchParams] = useSearchParams();
+  const [sidebarFilters, setSidebarFilters] = useState(null);
+  const [isFilterSidebarOpen, setIsFilterSidebarOpen] = useState(true);
 
   // Price slider constants and derived percentages for styled track
   const PRICE_MIN = 0;
@@ -106,7 +109,7 @@ const Products = () => {
         }
         
         const product = {
-        id: doc.id,
+          id: doc.id,
           ...data,
           // Ensure required fields exist
           name: data.name || 'Unnamed Product',
@@ -116,7 +119,9 @@ const Products = () => {
           createdAt: data.createdAt || new Date(),
           // Normalize images - always use array
           images: images,
-          image: images.length > 0 ? images[0] : null
+          image: images.length > 0 ? images[0] : null,
+          // Also set imageUrls for backward compatibility with Product3DCard
+          imageUrls: images.length > 0 ? images : []
         };
         
         // Debug logging for images
@@ -382,14 +387,106 @@ const Products = () => {
     fetchProducts(true);
   }, [selectedCategory, priceRange, advancedFilters.category, advancedFilters.brand, advancedFilters.condition, advancedFilters.priceRange, advancedFilters.inStock, advancedFilters.minRating]);
 
+  // Apply sidebar filters to products
+  const applySidebarFilters = (productsToFilter, filters) => {
+    if (!filters) return productsToFilter;
+    
+    let filtered = [...productsToFilter];
+    
+    // Search query filter
+    if (filters.searchQuery && filters.searchQuery.trim()) {
+      const searchLower = filters.searchQuery.toLowerCase().trim();
+      filtered = filtered.filter(p => {
+        const nameMatch = p.name?.toLowerCase().includes(searchLower);
+        const descMatch = p.description?.toLowerCase().includes(searchLower);
+        const categoryMatch = p.category?.toLowerCase().includes(searchLower);
+        const brandMatch = p.brand?.toLowerCase().includes(searchLower);
+        const tagsMatch = p.tags?.some(tag => tag.toLowerCase().includes(searchLower));
+        return nameMatch || descMatch || categoryMatch || brandMatch || tagsMatch;
+      });
+    }
+    
+    // Category filter
+    if (filters.categories && filters.categories.length > 0) {
+      filtered = filtered.filter(p => filters.categories.includes(p.category));
+    }
+    
+    // Express delivery filter (if product has expressDelivery flag)
+    if (filters.expressDelivery) {
+      filtered = filtered.filter(p => p.expressDelivery === true || p.fastDelivery === true);
+    }
+    
+    // Price range filter
+    if (filters.priceRange) {
+      filtered = filtered.filter(p => {
+        const price = parseFloat(p.price) || 0;
+        return price >= filters.priceRange.min && price <= filters.priceRange.max;
+      });
+    }
+    
+    // Discount percentage filter
+    if (filters.discountPercentage !== null) {
+      filtered = filtered.filter(p => {
+        if (!p.originalPrice || !p.price) return false;
+        const original = parseFloat(p.originalPrice);
+        const current = parseFloat(p.price);
+        if (original <= current) return false;
+        const discount = Math.round(((original - current) / original) * 100);
+        return discount >= filters.discountPercentage;
+      });
+    }
+    
+    // Brand filter
+    if (filters.brands && filters.brands.length > 0) {
+      filtered = filtered.filter(p => filters.brands.includes(p.brand));
+    }
+    
+    // Size filter
+    if (filters.sizes && filters.sizes.length > 0) {
+      filtered = filtered.filter(p => {
+        if (p.size) {
+          if (Array.isArray(p.size)) {
+            return p.size.some(s => filters.sizes.includes(s));
+          }
+          return filters.sizes.includes(p.size);
+        }
+        if (p.sizes && Array.isArray(p.sizes)) {
+          return p.sizes.some(s => filters.sizes.includes(s));
+        }
+        return false;
+      });
+    }
+    
+    return filtered;
+  };
+
+  // Handle sidebar filter changes
+  const handleSidebarFilterChange = (filters) => {
+    setSidebarFilters(filters);
+    // Update search query if it's in filters
+    if (filters.searchQuery !== undefined) {
+      setSearchQuery(filters.searchQuery);
+    }
+  };
+
+  // Handle search change from sidebar
+  const handleSidebarSearchChange = (query) => {
+    setSearchQuery(query);
+  };
+
   // Display products when allFilteredProducts changes
   useEffect(() => {
     // Only update filtered products when not loading to avoid race conditions
     if (!loading) {
       if (allFilteredProducts.length > 0) {
+        // Apply sidebar filters if they exist
+        let productsToDisplay = allFilteredProducts;
+        if (sidebarFilters) {
+          productsToDisplay = applySidebarFilters(allFilteredProducts, sidebarFilters);
+        }
         // Display all filtered products directly (no sorting)
-        setFilteredProducts(allFilteredProducts);
-        setProducts(allFilteredProducts);
+        setFilteredProducts(productsToDisplay);
+        setProducts(productsToDisplay);
         setHasMore(false); // All products are loaded
       } else {
         // If no products, clear filtered products too
@@ -399,31 +496,34 @@ const Products = () => {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allFilteredProducts, loading]);
+  }, [allFilteredProducts, loading, sidebarFilters]);
 
+  // Handle search query changes - now integrated with sidebar filters
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      if (searchQuery.trim()) {
+    // If search query is set via sidebar, it will be handled by sidebar filters
+    // Only trigger searchProducts if searchQuery is set and sidebar filters don't have it
+    if (searchQuery.trim() && (!sidebarFilters || !sidebarFilters.searchQuery)) {
+      const timeoutId = setTimeout(() => {
         searchProducts();
-      } else {
-        fetchProducts(true);
-      }
-    }, 500);
-
-    return () => clearTimeout(timeoutId);
+      }, 500);
+      return () => clearTimeout(timeoutId);
+    } else if (!searchQuery.trim() && !sidebarFilters?.searchQuery) {
+      // Only fetch if no search query and no sidebar search
+      fetchProducts(true);
+    }
   }, [searchQuery]);
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 py-4 sm:py-8">
+      <div className="min-h-screen bg-slate-950 py-4 sm:py-8">
         <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8">
           <div className="text-center py-8 sm:py-12">
             <div className="text-4xl sm:text-6xl mb-4">😞</div>
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4">Something went wrong</h1>
-            <p className="text-sm sm:text-base text-gray-600 mb-6 sm:mb-8 px-4">{error}</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-white mb-4">Something went wrong</h1>
+            <p className="text-sm sm:text-base text-teal-200 mb-6 sm:mb-8 px-4">{error}</p>
             <button
               onClick={() => fetchProducts(true)}
-              className="bg-blue-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg hover:bg-blue-700 transition-colors text-sm sm:text-base"
+              className="bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 px-4 sm:px-6 py-2 sm:py-3 rounded-lg hover:from-emerald-400 hover:to-teal-400 transition-colors text-sm sm:text-base font-semibold"
             >
               Try Again
             </button>
@@ -435,12 +535,49 @@ const Products = () => {
 
   return (
     <motion.div 
-      className="min-h-screen bg-gray-50"
+      className="min-h-screen bg-slate-950"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
     >
-      <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 py-4 sm:py-8">
+      <div className="flex">
+        {/* Filter Sidebar */}
+        <div className="hidden lg:block">
+          <ProductFilterSidebar
+            products={allFilteredProducts}
+            onFilterChange={handleSidebarFilterChange}
+            onSearchChange={handleSidebarSearchChange}
+            searchQuery={searchQuery}
+            categories={categories}
+            brands={brands}
+            isOpen={isFilterSidebarOpen}
+          />
+        </div>
+        
+        {/* Mobile Filter Overlay */}
+        {isFilterSidebarOpen && (
+          <div className="lg:hidden fixed inset-0 z-40">
+            <div 
+              className="absolute inset-0 bg-black/60"
+              onClick={() => setIsFilterSidebarOpen(false)}
+            />
+            <div className="absolute left-0 top-0 bottom-0 w-64 z-50">
+              <ProductFilterSidebar
+                products={allFilteredProducts}
+                onFilterChange={handleSidebarFilterChange}
+                onSearchChange={handleSidebarSearchChange}
+                searchQuery={searchQuery}
+                categories={categories}
+                brands={brands}
+                isOpen={isFilterSidebarOpen}
+                onClose={() => setIsFilterSidebarOpen(false)}
+              />
+            </div>
+          </div>
+        )}
+        
+        {/* Main Content */}
+        <div className="flex-1 max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 py-4 sm:py-8">
         {/* Header */}
         <motion.div 
           className="mb-6 sm:mb-8 flex justify-between items-start"
@@ -449,18 +586,25 @@ const Products = () => {
           transition={{ duration: 0.5 }}
         >
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2 sm:mb-4">Products</h1>
-            <p className="text-sm sm:text-base text-gray-600">Discover amazing products from local vendors</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2 sm:mb-4">Products</h1>
+            <p className="text-sm sm:text-base text-teal-200">Discover amazing products from local vendors</p>
           </div>
           
           {/* View Mode Toggle & Filters */}
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="px-4 py-2 rounded-md font-medium text-sm transition-all bg-white/90 backdrop-blur-sm shadow-sm border border-gray-200 text-gray-700 hover:text-emerald-600 hover:bg-emerald-50"
-              title="Advanced Filters"
+              onClick={() => setIsFilterSidebarOpen(!isFilterSidebarOpen)}
+              className="lg:hidden px-4 py-2 rounded-md font-medium text-sm transition-all bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm hover:from-emerald-400 hover:to-teal-400"
+              title="Filters"
             >
               🔍 Filters
+            </button>
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="hidden lg:block px-4 py-2 rounded-md font-medium text-sm transition-all bg-white/90 backdrop-blur-sm shadow-sm border border-gray-200 text-gray-700 hover:text-emerald-600 hover:bg-emerald-50"
+              title="Advanced Filters"
+            >
+              🔍 Advanced
             </button>
             {compareProducts.length > 0 && (
               <button
@@ -498,17 +642,17 @@ const Products = () => {
           </div>
         </motion.div>
 
-        {/* Search and Filters */}
+        {/* Search and Filters - Search moved to sidebar, only show category filter here */}
         <motion.div 
-          className="bg-white/90 backdrop-blur-sm rounded-lg shadow-sm md:shadow-md md:border md:border-gray-100 p-3 sm:p-6 mb-6 sm:mb-8 sticky top-[env(safe-area-inset-top,0px)] md:top-4 z-20"
+          className="bg-white/90 backdrop-blur-sm rounded-lg shadow-sm md:shadow-md md:border md:border-gray-100 p-3 sm:p-6 mb-6 sm:mb-8 sticky top-[env(safe-area-inset-top,0px)] md:top-4 z-20 hidden"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1 }}
         >
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {/* Search */}
+            {/* Search - Hidden, now in sidebar */}
             <motion.div 
-              className="md:col-span-2"
+              className="md:col-span-2 hidden"
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.4, delay: 0.2 }}
@@ -747,6 +891,7 @@ const Products = () => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.3 }}
+              className="w-full"
             >
               <motion.div 
                 className="mb-4"
@@ -886,16 +1031,17 @@ const Products = () => {
           }}
           productIds={compareProducts}
         />
+        {/* Slider styling */}
+        <style>{`
+          .price-range input[type=range] { -webkit-appearance: none; appearance: none; height: 0; }
+          .price-range input[type=range]::-webkit-slider-runnable-track { height: 0; background: transparent; }
+          .price-range input[type=range]::-moz-range-track { height: 0; background: transparent; }
+          .price-range input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; height: 18px; width: 18px; border-radius: 9999px; background: #fff; border: 2px solid #059669; box-shadow: 0 1px 2px rgba(0,0,0,0.1); margin-top: -8px; cursor: pointer; position: relative; }
+          .price-range input[type=range]::-moz-range-thumb { height: 18px; width: 18px; border-radius: 9999px; background: #fff; border: 2px solid #059669; box-shadow: 0 1px 2px rgba(0,0,0,0.1); cursor: pointer; position: relative; }
+          .price-range input[type=range]:focus { outline: none; }
+        `}</style>
+        </div>
       </div>
-    {/* Slider styling */}
-    <style>{`
-      .price-range input[type=range] { -webkit-appearance: none; appearance: none; height: 0; }
-      .price-range input[type=range]::-webkit-slider-runnable-track { height: 0; background: transparent; }
-      .price-range input[type=range]::-moz-range-track { height: 0; background: transparent; }
-      .price-range input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; height: 18px; width: 18px; border-radius: 9999px; background: #fff; border: 2px solid #059669; box-shadow: 0 1px 2px rgba(0,0,0,0.1); margin-top: -8px; cursor: pointer; position: relative; }
-      .price-range input[type=range]::-moz-range-thumb { height: 18px; width: 18px; border-radius: 9999px; background: #fff; border: 2px solid #059669; box-shadow: 0 1px 2px rgba(0,0,0,0.1); cursor: pointer; position: relative; }
-      .price-range input[type=range]:focus { outline: none; }
-    `}</style>
     </motion.div>
   );
 };

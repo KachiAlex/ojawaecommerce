@@ -7,15 +7,25 @@ const db = admin.firestore();
 const messaging = admin.messaging();
 
 // Routes optimization (Gen2 HTTPS onRequest)
-try {
-  const { optimizeRoute } = require('./src/routeOptimization');
-  exports.optimizeRoute = optimizeRoute;
-} catch (e) {
-  console.warn('routeOptimization not loaded:', e?.message);
-}
+// Note: optimizeRoute is handled by the 'routes' codebase in functions-routes
+// Commented out to avoid duplicate function definition
+// try {
+//   const { optimizeRoute } = require('./src/routeOptimization');
+//   exports.optimizeRoute = optimizeRoute;
+// } catch (e) {
+//   console.warn('routeOptimization not loaded:', e?.message);
+// }
 
 // Basic notification function
 exports.notifyVendorNewOrder = functions.https.onCall(async (data, context) => {
+  // Verify authentication
+  if (!context.auth) {
+    throw new functions.https.HttpsError(
+      'unauthenticated',
+      'User must be authenticated to send notifications'
+    );
+  }
+  
   try {
     console.log("notifyVendorNewOrder called with data:", data);
     
@@ -71,6 +81,14 @@ exports.notifyVendorNewOrder = functions.https.onCall(async (data, context) => {
 
 // Send payment confirmation email
 exports.sendPaymentConfirmation = functions.https.onCall(async (data, context) => {
+  // Verify authentication
+  if (!context.auth) {
+    throw new functions.https.HttpsError(
+      'unauthenticated',
+      'User must be authenticated to send payment confirmations'
+    );
+  }
+  
   try {
     const { buyerEmail, buyerName, orderId, amount, items } = data || {};
     
@@ -89,6 +107,14 @@ exports.sendPaymentConfirmation = functions.https.onCall(async (data, context) =
 
 // Send order status update email
 exports.sendOrderStatusUpdate = functions.https.onCall(async (data, context) => {
+  // Verify authentication
+  if (!context.auth) {
+    throw new functions.https.HttpsError(
+      'unauthenticated',
+      'User must be authenticated to send order updates'
+    );
+  }
+  
   try {
     const { buyerEmail, buyerName, orderId, status, trackingNumber, carrier } = data || {};
     
@@ -107,24 +133,49 @@ exports.sendOrderStatusUpdate = functions.https.onCall(async (data, context) => 
 
 // Release escrow funds to vendor
 exports.releaseEscrowFunds = functions.https.onCall(async (data, context) => {
+  // Verify authentication
+  if (!context.auth) {
+    throw new functions.https.HttpsError(
+      'unauthenticated',
+      'User must be authenticated to release escrow funds'
+    );
+  }
+  
   try {
     const { orderId, vendorId, amount } = data || {};
     
     if (!orderId || !vendorId || !amount) {
-      throw new Error("Missing required parameters");
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'Missing required parameters: orderId, vendorId, and amount are required'
+      );
     }
-
-    // Get order details
+    
+    // Verify the authenticated user is the buyer of the order
     const orderDoc = await db.collection('orders').doc(orderId).get();
     if (!orderDoc.exists) {
-      throw new Error("Order not found");
+      throw new functions.https.HttpsError(
+        'not-found',
+        'Order not found'
+      );
     }
     
     const order = orderDoc.data();
     const buyerId = order.buyerId;
     
+    // Verify the authenticated user is the buyer of the order
+    if (buyerId !== context.auth.uid) {
+      throw new functions.https.HttpsError(
+        'permission-denied',
+        'Only the buyer of the order can release escrow funds'
+      );
+    }
+    
     if (!buyerId) {
-      throw new Error("Buyer ID not found in order");
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'Buyer ID not found in order'
+      );
     }
 
     // Get buyer and vendor wallets
@@ -206,11 +257,25 @@ exports.releaseEscrowFunds = functions.https.onCall(async (data, context) => {
 
 // CORS-enabled HTTP endpoint mirroring releaseEscrowFunds callable
 exports.releaseEscrowFundsHttp = functions.https.onRequest(async (req, res) => {
-  const allowOrigin = 'https://ojawa-ecommerce.web.app';
-  res.set('Access-Control-Allow-Origin', allowOrigin);
+  // Whitelist of allowed origins
+  const allowedOrigins = [
+    'https://ojawa-ecommerce.web.app',
+    'https://ojawa-ecommerce.firebaseapp.com',
+    'https://ojawa-ecommerce-staging.web.app',
+    'https://ojawa-ecommerce-staging.firebaseapp.com'
+  ];
+  
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.set('Access-Control-Allow-Origin', origin);
+  } else {
+    res.set('Access-Control-Allow-Origin', 'null');
+  }
+  
   res.set('Vary', 'Origin');
   res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.set('Access-Control-Allow-Credentials', 'true');
   res.set('Access-Control-Max-Age', '3600');
 
   if (req.method === 'OPTIONS') {
@@ -663,3 +728,433 @@ exports.sendBulkPushNotifications = functions.https.onCall(async (data, context)
     throw new functions.https.HttpsError('internal', error.message);
   }
 });
+
+// ===== FLUTTERWAVE PAYMENT FUNCTIONS =====
+
+// Top up wallet with Flutterwave payment
+exports.topupWalletFlutterwave = functions.https.onCall(async (data, context) => {
+  // Verify authentication
+  if (!context.auth) {
+    throw new functions.https.HttpsError(
+      'unauthenticated',
+      'User must be authenticated to top up wallet'
+    );
+  }
+
+  try {
+    const { transactionId, userId, amount } = data || {};
+
+    if (!transactionId) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'Transaction ID is required'
+      );
+    }
+
+    if (!userId || userId !== context.auth.uid) {
+      throw new functions.https.HttpsError(
+        'permission-denied',
+        'User ID mismatch'
+      );
+    }
+
+    if (!amount || Number(amount) <= 0) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'Valid amount is required'
+      );
+    }
+
+    console.log('Verifying Flutterwave payment:', { transactionId, userId, amount });
+
+    // Verify transaction with Flutterwave API
+    const config = functions.config();
+    const flutterwaveConfig = config.flutterwave || config.flw || {};
+    const flutterwaveSecretKey = flutterwaveConfig.secret_key || process.env.FLUTTERWAVE_SECRET_KEY;
+    if (!flutterwaveSecretKey) {
+      console.error('Flutterwave secret key not configured');
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'Payment service not configured'
+      );
+    }
+
+    // Verify transaction with Flutterwave
+    const axios = require('axios');
+    const verifyResponse = await axios.get(
+      `https://api.flutterwave.com/v3/transactions/${transactionId}/verify`,
+      {
+        headers: {
+          'Authorization': `Bearer ${flutterwaveSecretKey}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    const transaction = verifyResponse.data.data;
+    console.log('Flutterwave transaction verified:', {
+      id: transaction.id,
+      status: transaction.status,
+      amount: transaction.amount,
+      currency: transaction.currency
+    });
+
+    // Verify transaction status
+    if (transaction.status !== 'successful') {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        `Payment not successful. Status: ${transaction.status}`
+      );
+    }
+
+    // Verify amount matches
+    const paidAmount = Number(transaction.amount);
+    if (Math.abs(paidAmount - Number(amount)) > 0.01) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        `Amount mismatch. Expected: ${amount}, Paid: ${paidAmount}`
+      );
+    }
+
+    // Check if transaction was already processed
+    const existingTx = await db.collection('wallet_transactions')
+      .where('paymentIntentId', '==', transactionId)
+      .where('status', '==', 'completed')
+      .limit(1)
+      .get();
+
+    if (!existingTx.empty) {
+      console.log('Transaction already processed:', transactionId);
+      return {
+        success: true,
+        message: 'Transaction already processed',
+        transactionId: existingTx.docs[0].id
+      };
+    }
+
+    // Get or create wallet
+    const walletQuery = await db.collection('wallets')
+      .where('userId', '==', userId)
+      .limit(1)
+      .get();
+
+    let walletRef;
+    let currentBalance = 0;
+
+    if (walletQuery.empty) {
+      // Create new wallet
+      walletRef = db.collection('wallets').doc();
+      await walletRef.set({
+        userId: userId,
+        balance: 0,
+        currency: transaction.currency || 'NGN',
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      console.log('Created new wallet for user:', userId);
+    } else {
+      walletRef = walletQuery.docs[0].ref;
+      currentBalance = walletQuery.docs[0].data().balance || 0;
+    }
+
+    const newBalance = currentBalance + paidAmount;
+
+    // Update wallet and create transaction record
+    const batch = db.batch();
+
+    batch.update(walletRef, {
+      balance: newBalance,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    const transactionRef = db.collection('wallet_transactions').doc();
+    batch.set(transactionRef, {
+      walletId: walletRef.id,
+      userId: userId,
+      type: 'credit',
+      amount: paidAmount,
+      description: 'Wallet top-up via Flutterwave',
+      paymentIntentId: transactionId,
+      flutterwaveTxRef: transaction.tx_ref,
+      balanceBefore: currentBalance,
+      balanceAfter: newBalance,
+      status: 'completed',
+      currency: transaction.currency || 'NGN',
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    await batch.commit();
+
+    console.log('Wallet topped up successfully:', {
+      userId,
+      amount: paidAmount,
+      newBalance,
+      transactionId: transactionRef.id
+    });
+
+    return {
+      success: true,
+      transactionId: transactionRef.id,
+      newBalance: newBalance,
+      amount: paidAmount
+    };
+  } catch (error) {
+    console.error('Error topping up wallet with Flutterwave:', error);
+    if (error instanceof functions.https.HttpsError) {
+      throw error;
+    }
+    throw new functions.https.HttpsError('internal', error.message);
+  }
+});
+
+// Flutterwave webhook handler
+exports.flutterwaveWebhook = functions.https.onRequest(async (req, res) => {
+  // Set CORS headers
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(204).send('');
+  }
+
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  try {
+    const crypto = require('crypto');
+    const config = functions.config();
+    const flutterwaveConfig = config.flutterwave || config.flw || {};
+    const flutterwaveSecretKey = flutterwaveConfig.secret_key || process.env.FLUTTERWAVE_SECRET_KEY;
+    const flutterwaveSecretHash = flutterwaveConfig.secret_hash || flutterwaveConfig.webhook_secret || process.env.FLUTTERWAVE_SECRET_HASH;
+
+    if (!flutterwaveSecretKey) {
+      console.error('Flutterwave secret key not configured');
+      return res.status(500).json({ error: 'Webhook not configured' });
+    }
+
+    // Verify webhook signature
+    const signature = req.headers['verif-hash'];
+    if (flutterwaveSecretHash && signature !== flutterwaveSecretHash) {
+      console.error('Invalid webhook signature');
+      return res.status(401).json({ error: 'Invalid signature' });
+    }
+
+    const event = req.body;
+    console.log('Flutterwave webhook received:', {
+      event: event.event,
+      transactionId: event.data?.id,
+      txRef: event.data?.tx_ref
+    });
+
+    // Handle different event types
+    switch (event.event) {
+      case 'charge.completed':
+      case 'charge.successful':
+        await handleSuccessfulPayment(event.data);
+        break;
+
+      case 'charge.failed':
+        await handleFailedPayment(event.data);
+        break;
+
+      default:
+        console.log('Unhandled webhook event:', event.event);
+    }
+
+    // Always return 200 to acknowledge receipt
+    return res.status(200).json({ status: 'success', message: 'Webhook processed' });
+  } catch (error) {
+    console.error('Error processing Flutterwave webhook:', error);
+    // Still return 200 to prevent Flutterwave from retrying
+    return res.status(200).json({ 
+      status: 'error', 
+      message: error.message 
+    });
+  }
+});
+
+// Handle successful payment webhook
+async function handleSuccessfulPayment(data) {
+  try {
+    const transaction = data;
+    const transactionId = transaction.id;
+    const txRef = transaction.tx_ref;
+    const amount = Number(transaction.amount);
+    const status = transaction.status;
+
+    console.log('Processing successful payment:', {
+      transactionId,
+      txRef,
+      amount,
+      status
+    });
+
+    // Check if transaction was already processed
+    const existingTx = await db.collection('wallet_transactions')
+      .where('paymentIntentId', '==', String(transactionId))
+      .where('status', '==', 'completed')
+      .limit(1)
+      .get();
+
+    if (!existingTx.empty) {
+      console.log('Transaction already processed:', transactionId);
+      return;
+    }
+
+    // Extract metadata to determine payment type
+    const meta = transaction.meta || {};
+    const purpose = meta.purpose || '';
+    const userId = meta.userId || '';
+    const orderId = meta.orderId || '';
+
+    if (purpose === 'wallet_topup' && userId) {
+      // Handle wallet top-up
+      const walletQuery = await db.collection('wallets')
+        .where('userId', '==', userId)
+        .limit(1)
+        .get();
+
+      if (walletQuery.empty) {
+        console.error('Wallet not found for user:', userId);
+        return;
+      }
+
+      const walletRef = walletQuery.docs[0].ref;
+      const currentBalance = walletQuery.docs[0].data().balance || 0;
+      const newBalance = currentBalance + amount;
+
+      const batch = db.batch();
+
+      batch.update(walletRef, {
+        balance: newBalance,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      const transactionRef = db.collection('wallet_transactions').doc();
+      batch.set(transactionRef, {
+        walletId: walletRef.id,
+        userId: userId,
+        type: 'credit',
+        amount: amount,
+        description: 'Wallet top-up via Flutterwave (webhook)',
+        paymentIntentId: String(transactionId),
+        flutterwaveTxRef: txRef,
+        balanceBefore: currentBalance,
+        balanceAfter: newBalance,
+        status: 'completed',
+        currency: transaction.currency || 'NGN',
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      await batch.commit();
+
+      // Create notification
+      await db.collection('notifications').add({
+        userId: userId,
+        type: 'payment_success',
+        title: 'Wallet Topped Up',
+        message: `Your wallet has been credited with ₦${amount.toLocaleString()}`,
+        read: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      console.log('Wallet topped up via webhook:', { userId, amount, newBalance });
+    } else if (orderId) {
+      // Handle order payment
+      const orderRef = db.collection('orders').doc(orderId);
+      const orderDoc = await orderRef.get();
+
+      if (!orderDoc.exists) {
+        console.error('Order not found:', orderId);
+        return;
+      }
+
+      const order = orderDoc.data();
+      
+      // Update order status
+      await orderRef.update({
+        paymentStatus: 'paid',
+        paymentMethod: 'flutterwave',
+        paymentTransactionId: String(transactionId),
+        paymentCompletedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      // Create notification for buyer
+      if (order.buyerId) {
+        await db.collection('notifications').add({
+          userId: order.buyerId,
+          type: 'payment_success',
+          title: 'Payment Successful',
+          message: `Your payment of ₦${amount.toLocaleString()} for order ${orderId} was successful`,
+          orderId: orderId,
+          read: false,
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      }
+
+      console.log('Order payment processed via webhook:', { orderId, transactionId });
+    } else {
+      console.log('Payment successful but no action taken (unknown purpose):', {
+        transactionId,
+        meta
+      });
+    }
+  } catch (error) {
+    console.error('Error handling successful payment:', error);
+    throw error;
+  }
+}
+
+// Handle failed payment webhook
+async function handleFailedPayment(data) {
+  try {
+    const transaction = data;
+    const transactionId = transaction.id;
+    const txRef = transaction.tx_ref;
+    const meta = transaction.meta || {};
+    const userId = meta.userId || '';
+    const orderId = meta.orderId || '';
+
+    console.log('Processing failed payment:', {
+      transactionId,
+      txRef,
+      userId,
+      orderId
+    });
+
+    // Create notification for user
+    if (userId) {
+      await db.collection('notifications').add({
+        userId: userId,
+        type: 'payment_failed',
+        title: 'Payment Failed',
+        message: `Your payment of ₦${Number(transaction.amount).toLocaleString()} was not successful. Please try again.`,
+        orderId: orderId || null,
+        read: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    }
+
+    // Update order if exists
+    if (orderId) {
+      const orderRef = db.collection('orders').doc(orderId);
+      const orderDoc = await orderRef.get();
+      
+      if (orderDoc.exists) {
+        await orderRef.update({
+          paymentStatus: 'failed',
+          paymentTransactionId: String(transactionId),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      }
+    }
+
+    console.log('Failed payment processed:', { transactionId, userId, orderId });
+  } catch (error) {
+    console.error('Error handling failed payment:', error);
+    throw error;
+  }
+}

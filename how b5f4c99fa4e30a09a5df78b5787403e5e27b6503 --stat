@@ -1,0 +1,13 @@
+[33mb5f4c99[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m Update footer logo size to match header and change banner image to show African people
+[33m0ffddc1[m Update logo to new geometric design with colorful polygons
+[33m53f1289[m logistics: show prompt until address entered; hide generic 'unable to calculate' banner; compute options only when valid address
+[33m1e17701[m Add Product Quick View modal to Home page featured products section
+[33maca49e4[m feat: Redesign Add New Route modal with simplified route categories
+[33md4ed6ea[m Improve dashboard sidebar design: Better separation between Settings tab and Back to Home button
+[33m55814c4[m fix: remove nested Link in Home page product cards to enable navigation
+[33mbdd2d54[m Redesign user role system: All users start as buyers, vendor onboarding
+[33m93f906e[m Complete user dropdown and dashboard switching system
+[33me6f66c2[m Add dashboard button for signed-in users and complete wallet terminology
+[33m914dd82[m Complete wallet account system for all user types
+[33m84aa847[m Clean up UI: Move user type selection to login page
+[33m7c2f121[m Complete Ojawa escrow marketplace with logistics integration

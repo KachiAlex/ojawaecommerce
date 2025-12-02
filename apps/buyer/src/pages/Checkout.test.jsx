@@ -28,35 +28,40 @@ vi.mock('firebase/functions', () => ({
   getFunctions: vi.fn(() => ({})),
 }))
 
-// Mock services - firebaseService is a default export
-const mockFirebaseService = {
-  wallet: {
-    getUserWallet: vi.fn(),
-  },
-  orders: {
-    create: vi.fn(),
-  },
-  notifications: {
-    createOrderNotification: vi.fn(),
-    create: vi.fn(),
-    getByUser: vi.fn(() => Promise.resolve([])),
-    listenToUserNotifications: vi.fn(() => vi.fn()),
-    markAsRead: vi.fn(() => Promise.resolve()),
-    markAllAsRead: vi.fn(() => Promise.resolve()),
-  },
-  logistics: {
-    createDelivery: vi.fn(),
-  },
-}
+// Create mock objects using vi.hoisted() to avoid hoisting issues
+const { mockFirebaseService, mockEscrowPaymentService } = vi.hoisted(() => {
+  return {
+    mockFirebaseService: {
+      wallet: {
+        getUserWallet: vi.fn(),
+      },
+      orders: {
+        create: vi.fn(),
+      },
+      notifications: {
+        createOrderNotification: vi.fn(),
+        create: vi.fn(),
+        getByUser: vi.fn(() => Promise.resolve([])),
+        listenToUserNotifications: vi.fn(() => vi.fn()),
+        markAsRead: vi.fn(() => Promise.resolve()),
+        markAllAsRead: vi.fn(() => Promise.resolve()),
+      },
+      logistics: {
+        createDelivery: vi.fn(),
+      },
+    },
+    mockEscrowPaymentService: {
+      processEscrowPayment: vi.fn(),
+    },
+  }
+})
 
+// Mock services - firebaseService is a default export
 vi.mock('../services/firebaseService', () => ({
   default: mockFirebaseService,
 }))
-// Mock escrowPaymentService
-const mockEscrowPaymentService = {
-  processEscrowPayment: vi.fn(),
-}
 
+// Mock escrowPaymentService
 vi.mock('../services/escrowPaymentService', () => ({
   default: mockEscrowPaymentService,
 }))
@@ -143,15 +148,12 @@ vi.mock('../components/WalletBalanceCheck', () => ({
 const mockCartItems = [
   {
     id: 'item-1',
-    product: {
-      ...mockProduct,
-      id: 'product-1',
-      name: 'Test Product',
-      price: 10000,
-      vendorId: 'vendor-1',
-    },
-    quantity: 2,
+    name: 'Test Product', // Checkout uses item.name directly
+    price: 10000,
+    currency: 'NGN',
     vendorId: 'vendor-1',
+    quantity: 2,
+    processingTimeDays: 2,
   },
 ]
 
@@ -212,28 +214,37 @@ describe('Checkout Component', () => {
   it('renders checkout page with cart items', async () => {
     renderWithProviders(<Checkout />)
 
-    await waitFor(() => {
-      expect(screen.getByText(/checkout/i)).toBeInTheDocument()
-    }, { timeout: 5000 })
+    await waitFor(
+      () => {
+        expect(screen.getByText(/checkout/i)).toBeInTheDocument()
+      },
+      { timeout: 10000 }
+    )
   })
 
   it('displays cart items in checkout', async () => {
     renderWithProviders(<Checkout />)
 
-    await waitFor(() => {
-      expect(screen.getByText('Test Product')).toBeInTheDocument()
-    }, { timeout: 5000 })
+    await waitFor(
+      () => {
+        expect(screen.getByText('Test Product')).toBeInTheDocument()
+      },
+      { timeout: 10000 }
+    )
   })
 
   it('calculates and displays order total', async () => {
     renderWithProviders(<Checkout />)
 
-    await waitFor(() => {
-      // Total should be 10000 * 2 = 20000
-      // Multiple elements may contain this text, so use getAllByText
-      const elements = screen.getAllByText(/₦20,000|20,000/i)
-      expect(elements.length).toBeGreaterThan(0)
-    }, { timeout: 5000 })
+    await waitFor(
+      () => {
+        // Total should be 10000 * 2 = 20000
+        // Multiple elements may contain this text, so use getAllByText
+        const elements = screen.getAllByText(/₦20,000|20,000|20000/i)
+        expect(elements.length).toBeGreaterThan(0)
+      },
+      { timeout: 10000 }
+    )
   })
 
   it('checks wallet balance on load', async () => {

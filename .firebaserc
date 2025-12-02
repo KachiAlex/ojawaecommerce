@@ -8,6 +8,9 @@
       "hosting": {
         "ojawa-ecommerce": [
           "ojawa-ecommerce"
+        ],
+        "ojawa-ecommerce-staging": [
+          "ojawa-ecommerce-staging"
         ]
       }
     }

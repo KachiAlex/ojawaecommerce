@@ -107,13 +107,16 @@ const Navbar = () => {
   }, []);
 
   return (
-    <>
-    <nav className="bg-white border-b relative z-[1000]">
+  <>
+    <nav className="bg-slate-950/95 border-b border-teal-800/60 backdrop-blur-sm shadow-lg relative z-[1000]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center">
-            <Link to="/" className="flex items-center">
+            <Link to="/" className="flex items-center gap-3">
               <SimpleLogo size="large" variant="icon" />
+              <span className="hidden sm:inline text-lg font-semibold bg-gradient-to-r from-teal-300 via-amber-300 to-emerald-300 bg-clip-text text-transparent">
+                Secure Pan‑African Marketplace
+              </span>
             </Link>
           </div>
 
@@ -122,26 +125,26 @@ const Navbar = () => {
           <div className="hidden md:flex items-center space-x-8">
             <Link 
               to="/" 
-              className="text-gray-600 hover:text-gray-900 font-medium transition-colors"
+              className="text-teal-100 hover:text-amber-200 font-medium transition-colors"
             >
               Home
             </Link>
             <Link 
               to="/categories" 
-              className="text-gray-600 hover:text-gray-900 font-medium transition-colors"
+              className="text-teal-100 hover:text-amber-200 font-medium transition-colors"
             >
               Categories
             </Link>
             <Link 
               to="/how-wallet-works" 
-              className="text-gray-600 hover:text-gray-900 font-medium transition-colors"
+              className="text-teal-100 hover:text-amber-200 font-medium transition-colors"
             >
               How Wallet Works
             </Link>
             {/* Messages tab removed from public navbar - dashboard only */}
             <Link 
               to="/tracking" 
-              className="text-gray-600 hover:text-gray-900 font-medium transition-colors"
+              className="text-teal-100 hover:text-amber-200 font-medium transition-colors"
             >
               Track Package
             </Link>
@@ -149,15 +152,15 @@ const Navbar = () => {
             {/* Wishlist Icon - Visible when signed in */}
             {currentUser && (
               <button onClick={() => navigate('/wishlist')} className="relative" title="Wishlist">
-                <span className="text-gray-600 hover:text-red-600 text-xl">💝</span>
+                <span className="text-amber-300 hover:text-amber-200 text-xl">💝</span>
               </button>
             )}
             
             {/* Cart Icon - Visible for all users */}
             <button onClick={() => navigate('/cart')} className="relative">
-                  <span className="text-gray-600 hover:text-gray-900 text-xl">🛒</span>
+                  <span className="text-teal-100 hover:text-amber-200 text-xl">🛒</span>
               {getCartItemsCount() > 0 && (
-                    <span className="absolute -top-2 -right-2 bg-emerald-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                    <span className="absolute -top-2 -right-2 bg-amber-500 text-slate-950 text-xs rounded-full h-5 w-5 flex items-center justify-center">
                   {getCartItemsCount()}
                 </span>
               )}
@@ -168,13 +171,13 @@ const Navbar = () => {
               {currentUser && (
                 <button
                   onClick={() => setIsNotificationOpen(true)}
-                  className="relative text-gray-600 hover:text-gray-900 transition-colors"
+                  className="relative text-teal-100 hover:text-amber-200 transition-colors"
                 >
                   <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-5 5-5-5h5v-5a7.5 7.5 0 0 0-15 0v5h5l-5 5-5-5h5v-5a7.5 7.5 0 0 1 15 0v5z" />
                   </svg>
                   {unreadCount > 0 && (
-                    <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                    <span className="absolute -top-2 -right-2 bg-amber-500 text-slate-950 text-xs rounded-full h-5 w-5 flex items-center justify-center">
                       {unreadCount > 9 ? '9+' : unreadCount}
                     </span>
                   )}
@@ -192,35 +195,35 @@ const Navbar = () => {
               >
                 <button
                   onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
-                  className="flex items-center space-x-2 text-gray-700 hover:text-gray-900 font-medium transition-colors"
+                  className="flex items-center space-x-2 text-teal-100 hover:text-amber-200 font-medium transition-colors"
                   aria-haspopup="menu"
                   aria-expanded={isUserDropdownOpen}
                 >
-                  <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center">
-                    <span className="text-emerald-600 font-semibold text-sm">
+                  <div className="w-8 h-8 bg-slate-900 border border-teal-500/60 rounded-full flex items-center justify-center">
+                    <span className="text-amber-300 font-semibold text-sm">
                       {currentUser ? getFirstName().charAt(0).toUpperCase() : 'OJ'}
                     </span>
                   </div>
-                  <span className="text-sm">{currentUser ? getFirstName() : 'Account'}</span>
+                  <span className="text-sm text-teal-50">{currentUser ? getFirstName() : 'Account'}</span>
                   <svg className={`w-4 h-4 transition-transform ${isUserDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
                   </svg>
                 </button>
 
                 {isUserDropdownOpen && (
-                  <div className="fixed right-4 md:right-8 top-[64px] w-56 bg-white rounded-xl shadow-2xl border py-2 z-[2147483647] pointer-events-auto">
+                  <div className="fixed right-4 md:right-8 top-[64px] w-56 bg-slate-950 border border-teal-800/70 rounded-xl shadow-2xl py-2 z-[2147483647] pointer-events-auto">
                     {currentUser ? (
                       <>
-                        <div className="px-4 py-3 border-b">
-                          <p className="text-sm font-medium text-gray-900">{currentUser.displayName || 'User'}</p>
-                          <p className="text-sm text-gray-500">{currentUser.email}</p>
+                        <div className="px-4 py-3 border-b border-teal-900/70">
+                          <p className="text-sm font-medium text-teal-50">{currentUser.displayName || 'User'}</p>
+                          <p className="text-sm text-teal-300/80">{currentUser.email}</p>
                         </div>
                         {/* Dashboard dropdown */}
                         <div className="py-2 relative">
                           <button
                             onMouseEnter={() => setIsDashboardDropdownOpen(true)}
                             onMouseLeave={() => setIsDashboardDropdownOpen(false)}
-                            className="w-full flex items-center justify-between px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                            className="w-full flex items-center justify-between px-4 py-2 text-sm text-teal-100 hover:bg-slate-900/60 transition-colors"
                           >
                             <div className="flex items-center">
                               <span className="mr-3">📊</span>
@@ -233,7 +236,7 @@ const Navbar = () => {
                           
                           {isDashboardDropdownOpen && (
                             <div 
-                              className="absolute right-full top-0 mr-1 w-56 bg-white rounded-lg shadow-xl border py-2 z-[2147483648]"
+                              className="absolute right-full top-0 mr-1 w-56 bg-slate-950 rounded-lg shadow-xl border border-teal-900/70 py-2 z-[2147483648]"
                               onMouseEnter={() => setIsDashboardDropdownOpen(true)}
                               onMouseLeave={() => setIsDashboardDropdownOpen(false)}
                             >
@@ -245,7 +248,7 @@ const Navbar = () => {
                                     setIsDashboardDropdownOpen(false);
                                     navigate(dashboard.route);
                                   }}
-                                  className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                  className="w-full flex items-center px-4 py-2 text-sm text-teal-100 hover:bg-slate-900/70 transition-colors"
                                 >
                                   <span className="mr-3">{dashboard.icon}</span>
                                   {dashboard.name}
@@ -260,14 +263,14 @@ const Navbar = () => {
                               setIsUserDropdownOpen(false);
                               setIsSettingsOpen(true);
                             }}
-                            className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                            className="w-full flex items-center px-4 py-2 text-sm text-teal-100 hover:bg-slate-900/70 transition-colors"
                           >
                             <span className="mr-3">⚙️</span>
                             Account Settings
                           </button>
                           <button
                             onClick={handleLogout}
-                            className="w-full flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                            className="w-full flex items-center px-4 py-2 text-sm text-amber-300 hover:bg-amber-900/30 transition-colors"
                           >
                             <span className="mr-3">🚪</span>
                             Logout
@@ -278,14 +281,14 @@ const Navbar = () => {
                       <>
                         <button
                           onClick={() => { setIsUserDropdownOpen(false); navigate('/login'); }}
-                          className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                          className="w-full flex items-center px-4 py-2 text-sm text-teal-100 hover:bg-slate-900/70 transition-colors"
                         >
                           <span className="mr-3">🔐</span>
                           Sign In
                         </button>
                         <button
                           onClick={() => { setIsUserDropdownOpen(false); navigate('/register'); }}
-                          className="w-full flex items-center px-4 py-2 text-sm text-emerald-700 hover:bg-emerald-50 transition-colors"
+                          className="w-full flex items-center px-4 py-2 text-sm text-slate-950 bg-amber-400 hover:bg-amber-300 rounded-lg mx-2 transition-colors"
                         >
                           <span className="mr-3">✨</span>
                           Get Started
@@ -302,7 +305,7 @@ const Navbar = () => {
           <div className="md:hidden flex items-center">
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="text-gray-700 hover:text-blue-600 focus:outline-none focus:text-blue-600"
+              className="text-teal-100 hover:text-amber-300 focus:outline-none"
             >
               <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />

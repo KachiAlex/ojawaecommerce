@@ -203,10 +203,10 @@ const ProductDetail = () => {
 
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 bg-slate-950 min-h-screen">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading product...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500 mx-auto"></div>
+          <p className="mt-4 text-teal-200">Loading product...</p>
         </div>
       </div>
     );
@@ -214,10 +214,10 @@ const ProductDetail = () => {
 
   if (!product) {
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 bg-slate-950 min-h-screen">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">Product not found</h1>
-          <p className="text-gray-600">The product you're looking for doesn't exist.</p>
+          <h1 className="text-2xl font-bold text-white mb-4">Product not found</h1>
+          <p className="text-teal-200">The product you're looking for doesn't exist.</p>
         </div>
       </div>
     );
@@ -227,20 +227,20 @@ const ProductDetail = () => {
   const isOutOfStock = product.inStock === false || availableStock <= 0
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 bg-slate-950 min-h-screen">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Product Image */}
         <div>
           <img
             src={product.image || (Array.isArray(product.images) && product.images[0]) || '/placeholder.png'}
             alt={product.name}
-            className="w-full h-96 object-cover rounded-lg shadow-lg"
+            className="w-full h-96 object-cover rounded-lg shadow-lg border border-emerald-900/60"
           />
         </div>
 
         {/* Product Details */}
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">{product.name}</h1>
+          <h1 className="text-3xl font-bold text-white mb-2">{product.name}</h1>
           
           {/* Vendor/Store Name and Contact */}
           {vendorInfo && (

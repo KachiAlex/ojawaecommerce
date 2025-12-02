@@ -2,7 +2,7 @@
 
 ## ✅ Current Status
 
-- ✅ API Key added to vite config: `AIzaSyCw_5hgEojEOW1hAIewyb4TkyHTN2od-Yk`
+- ✅ API Key added to vite config: `[REDACTED - Use environment variable VITE_GOOGLE_MAPS_API_KEY]`
 - ✅ Lazy loading implemented (loads only when needed)
 - ✅ Error handling and fallbacks in place
 - ✅ CSP headers configured
@@ -30,7 +30,7 @@ Without restrictions, your API key:
 
 ### Step 2: Find Your API Key
 
-1. Look for: `AIzaSyCw_5hgEojEOW1hAIewyb4TkyHTN2od-Yk`
+1. Look for your API key in the credentials list
 2. Click on the API key name to edit it
 
 ### Step 3: Set Application Restrictions
@@ -325,7 +325,7 @@ If you encounter any issues:
 
 ---
 
-**Last Updated**: October 13, 2025  
-**API Key**: `AIzaSyCw_5hgEojEOW1hAIewyb4TkyHTN2od-Yk`  
+**Last Updated**: November 29, 2024  
+**API Key**: [Use environment variable - never commit to repository]  
 **Status**: ⏳ Awaiting Manual Configuration
 

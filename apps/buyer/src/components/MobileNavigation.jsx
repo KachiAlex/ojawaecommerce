@@ -110,17 +110,19 @@ const MobileNavigation = () => {
       <nav
         ref={navRef}
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-          isScrolled ? 'bg-white shadow-lg' : 'bg-white/95 backdrop-blur-sm'
+          isScrolled ? 'bg-slate-950/95 shadow-lg border-b border-teal-800/60' : 'bg-slate-950/90 backdrop-blur-sm border-b border-teal-900/60'
         }`}
       >
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
             <Link to="/" className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">O</span>
+              <div className="w-8 h-8 bg-slate-900 border border-teal-500/60 rounded-lg flex items-center justify-center">
+                <span className="text-amber-300 font-bold text-lg">O</span>
               </div>
-              <span className="text-xl font-semibold text-gray-900">Ojawa</span>
+              <span className="text-xl font-semibold bg-gradient-to-r from-teal-300 via-amber-300 to-emerald-300 bg-clip-text text-transparent">
+                Ojawa
+              </span>
             </Link>
 
             {/* Right side buttons */}
@@ -132,7 +134,7 @@ const MobileNavigation = () => {
                 onClick={() => setIsSearchOpen(!isSearchOpen)}
                 className="p-2"
               >
-                <span className="text-xl">🔍</span>
+                <span className="text-xl text-amber-300">🔍</span>
               </MobileTouchButton>
 
               {/* Cart Button */}
@@ -142,9 +144,9 @@ const MobileNavigation = () => {
                   size="sm"
                   className="p-2"
                 >
-                  <span className="text-xl">🛒</span>
+                  <span className="text-xl text-teal-200">🛒</span>
                   {getCartItemsCount() > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                    <span className="absolute -top-1 -right-1 bg-amber-500 text-slate-950 text-xs rounded-full h-5 w-5 flex items-center justify-center">
                       {getCartItemsCount()}
                     </span>
                   )}
@@ -160,21 +162,21 @@ const MobileNavigation = () => {
                     onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
                     className="p-2"
                   >
-                    <span className="text-xl">👤</span>
+                <span className="text-xl text-teal-200">👤</span>
                   </MobileTouchButton>
 
                   {/* User Dropdown */}
                   {isUserMenuOpen && (
-                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
-                      <div className="px-4 py-2 border-b border-gray-100">
-                        <p className="text-sm font-medium text-gray-900">{getUserDisplayName()}</p>
-                        <p className="text-xs text-gray-500">{userProfile?.role || 'User'}</p>
+                  <div className="absolute right-0 mt-2 w-48 bg-slate-950 rounded-lg shadow-lg border border-teal-900/70 py-1 z-50">
+                      <div className="px-4 py-2 border-b border-teal-900/70">
+                        <p className="text-sm font-medium text-teal-50">{getUserDisplayName()}</p>
+                        <p className="text-xs text-teal-300/80">{userProfile?.role || 'User'}</p>
                       </div>
                       {userMenuItems.map((item) => item.onClick ? (
                         <button
                           key={item.name}
                           onClick={() => { item.onClick(); setIsUserMenuOpen(false) }}
-                          className="flex items-center w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
+                          className="flex items-center w-full px-4 py-2 text-left text-sm text-teal-100 hover:bg-slate-900/70"
                         >
                           <span className="mr-3">{item.icon}</span>
                           {item.name}
@@ -183,17 +185,17 @@ const MobileNavigation = () => {
                         <Link
                           key={item.name}
                           to={item.href}
-                          className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                          className="flex items-center px-4 py-2 text-sm text-teal-100 hover:bg-slate-900/70"
                           onClick={() => setIsUserMenuOpen(false)}
                         >
                           <span className="mr-3">{item.icon}</span>
                           {item.name}
                         </Link>
                       ))}
-                      <div className="border-t border-gray-100 mt-1">
+                      <div className="border-t border-teal-900/70 mt-1">
                         <button
                           onClick={logout}
-                          className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                          className="flex items-center w-full px-4 py-2 text-sm text-amber-300 hover:bg-amber-900/30"
                         >
                           <span className="mr-3">🚪</span>
                           Sign Out
@@ -219,7 +221,7 @@ const MobileNavigation = () => {
                 variant="ghost"
                 size="sm"
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className="p-2"
+                className="p-2 text-teal-200"
               >
                 <span className="text-xl">{isMenuOpen ? '✕' : '☰'}</span>
               </MobileTouchButton>
@@ -229,14 +231,14 @@ const MobileNavigation = () => {
 
         {/* Search Bar */}
         {isSearchOpen && (
-          <div className="border-t border-gray-200 bg-white px-4 py-3">
+          <div className="border-t border-teal-900/60 bg-slate-950 px-4 py-3">
             <form onSubmit={handleSearch} className="flex space-x-2">
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search products..."
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-base"
+                className="flex-1 px-3 py-2 border border-teal-700 rounded-lg bg-slate-900 text-teal-50 placeholder:text-teal-400/70 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 text-base"
                 autoFocus
               />
               <MobileTouchButton
@@ -254,16 +256,16 @@ const MobileNavigation = () => {
 
       {/* Mobile Menu Overlay */}
       {isMenuOpen && (
-        <div className="fixed inset-0 z-40 bg-black bg-opacity-50" onClick={() => setIsMenuOpen(false)}>
-          <div className="fixed inset-y-0 left-0 w-80 max-w-full bg-white shadow-xl">
+        <div className="fixed inset-0 z-40 bg-black bg-opacity-60" onClick={() => setIsMenuOpen(false)}>
+          <div className="fixed inset-y-0 left-0 w-80 max-w-full bg-slate-950 shadow-xl border-r border-teal-900/70">
             <div className="flex flex-col h-full">
               {/* Menu Header */}
-              <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <div className="flex items-center justify-between p-4 border-b border-teal-900/70">
                 <div className="flex items-center space-x-2">
-                  <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center">
-                    <span className="text-white font-bold text-lg">O</span>
+                  <div className="w-8 h-8 bg-slate-900 border border-teal-500/60 rounded-lg flex items-center justify-center">
+                    <span className="text-amber-300 font-bold text-lg">O</span>
                   </div>
-                  <span className="text-xl font-semibold text-gray-900">Ojawa</span>
+                  <span className="text-xl font-semibold bg-gradient-to-r from-teal-300 via-amber-300 to-emerald-300 bg-clip-text text-transparent">Ojawa</span>
                 </div>
                 <MobileTouchButton
                   variant="ghost"
@@ -271,20 +273,20 @@ const MobileNavigation = () => {
                   onClick={() => setIsMenuOpen(false)}
                   className="p-2"
                 >
-                  <span className="text-xl">✕</span>
+                  <span className="text-xl text-teal-200">✕</span>
                 </MobileTouchButton>
               </div>
 
               {/* User Info */}
               {currentUser && (
-                <div className="p-4 border-b border-gray-200 bg-gray-50">
+                <div className="p-4 border-b border-teal-900/70 bg-slate-900">
                   <div className="flex items-center space-x-3">
-                    <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center">
-                      <span className="text-2xl">👤</span>
+                    <div className="w-12 h-12 bg-slate-800 rounded-full flex items-center justify-center">
+                      <span className="text-2xl text-teal-200">👤</span>
                     </div>
                     <div>
-                      <p className="font-medium text-gray-900">{getUserDisplayName()}</p>
-                      <p className="text-sm text-gray-500">{userProfile?.role || 'User'}</p>
+                      <p className="font-medium text-teal-50">{getUserDisplayName()}</p>
+                      <p className="text-sm text-teal-300/80">{userProfile?.role || 'User'}</p>
                     </div>
                   </div>
                 </div>
@@ -297,7 +299,7 @@ const MobileNavigation = () => {
                     <Link
                       key={item.name}
                       to={item.href}
-                      className="flex items-center px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                      className="flex items-center px-4 py-3 text-teal-100 hover:bg-slate-900/70 rounded-lg transition-colors"
                       onClick={() => setIsMenuOpen(false)}
                     >
                       <span className="mr-3 text-xl">{item.icon}</span>
@@ -308,8 +310,8 @@ const MobileNavigation = () => {
 
                 {/* User Menu Items */}
                 {currentUser && (
-                  <div className="p-4 border-t border-gray-200">
-                    <p className="px-4 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <div className="p-4 border-t border-teal-900/70">
+                    <p className="px-4 py-2 text-xs font-medium text-teal-400 uppercase tracking-wider">
                       Account
                     </p>
                     <div className="space-y-1">
@@ -317,7 +319,7 @@ const MobileNavigation = () => {
                         <Link
                           key={item.name}
                           to={item.href}
-                          className="flex items-center px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                          className="flex items-center px-4 py-3 text-teal-100 hover:bg-slate-900/70 rounded-lg transition-colors"
                           onClick={() => setIsMenuOpen(false)}
                         >
                           <span className="mr-3">{item.icon}</span>
@@ -354,13 +356,13 @@ const MobileNavigation = () => {
               </div>
 
               {/* Footer */}
-              <div className="p-4 border-t border-gray-200">
-                <div className="text-xs text-gray-500 text-center">
+              <div className="p-4 border-t border-teal-900/70">
+                <div className="text-xs text-teal-300/80 text-center">
                   <p>© 2024 Ojawa. All rights reserved.</p>
                   <div className="flex justify-center space-x-4 mt-2">
-                    <Link to="/privacy" className="hover:text-gray-700">Privacy</Link>
-                    <Link to="/terms" className="hover:text-gray-700">Terms</Link>
-                    <Link to="/help" className="hover:text-gray-700">Help</Link>
+                    <Link to="/privacy" className="hover:text-amber-300">Privacy</Link>
+                    <Link to="/terms" className="hover:text-amber-300">Terms</Link>
+                    <Link to="/help" className="hover:text-amber-300">Help</Link>
                   </div>
                 </div>
               </div>

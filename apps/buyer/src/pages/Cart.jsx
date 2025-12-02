@@ -438,15 +438,15 @@ const Cart = () => {
 
   if (cartItems.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-50 py-8">
+      <div className="min-h-screen bg-slate-950 py-8">
         <div className="max-w-4xl mx-auto px-4">
           <div className="text-center py-12">
             <div className="text-6xl mb-4">🛒</div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-4">Your cart is empty</h1>
-            <p className="text-gray-600 mb-8">Add some products to get started!</p>
+            <h1 className="text-2xl font-bold text-white mb-4">Your cart is empty</h1>
+            <p className="text-teal-200 mb-8">Add some products to get started!</p>
             <Link 
               to="/products" 
-              className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
+              className="bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 px-6 py-3 rounded-lg hover:from-emerald-400 hover:to-teal-400 transition-colors font-semibold"
             >
               Browse Products
             </Link>
@@ -457,19 +457,19 @@ const Cart = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-4 sm:py-8">
+    <div className="min-h-screen bg-slate-950 py-4 sm:py-8">
       <div className="max-w-4xl mx-auto px-2 sm:px-4">
-        <div className="bg-white rounded-lg shadow-sm p-3 sm:p-6">
+        <div className="bg-slate-900 rounded-lg shadow-sm border border-emerald-900/60 p-3 sm:p-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6 space-y-2 sm:space-y-0">
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Shopping Cart</h1>
-            <span className="text-sm sm:text-base text-gray-600">{cartItems.length} item{cartItems.length !== 1 ? 's' : ''}</span>
+            <h1 className="text-xl sm:text-2xl font-bold text-white">Shopping Cart</h1>
+            <span className="text-sm sm:text-base text-teal-200">{cartItems.length} item{cartItems.length !== 1 ? 's' : ''}</span>
           </div>
 
           {/* Cart Items */}
           <div className="space-y-4 mb-6">
             {cartItems.map((item) => (
-              <div key={`${item.id}-${item.vendorId}`} className="flex flex-col sm:flex-row items-start sm:items-center space-y-3 sm:space-y-0 sm:space-x-4 p-4 border border-gray-200 rounded-lg">
-                <div className="w-16 h-16 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden">
+              <div key={`${item.id}-${item.vendorId}`} className="flex flex-col sm:flex-row items-start sm:items-center space-y-3 sm:space-y-0 sm:space-x-4 p-4 border border-emerald-900/60 rounded-lg bg-slate-800">
+                <div className="w-16 h-16 flex-shrink-0 bg-slate-700 rounded-lg overflow-hidden">
                   <img
                     src={item.image || '/placeholder-product.jpg'}
                     alt={item.name}
@@ -490,34 +490,34 @@ const Cart = () => {
                 </div>
                 
                 <div className="flex-1 min-w-0 w-full sm:w-auto">
-                  <h3 className="font-medium text-gray-900 text-sm sm:text-base truncate">{item.name}</h3>
-                  <p className="text-sm text-gray-600">
-                    {formatCurrency(item.price, item.currency)} <span className="text-gray-500">× {item.quantity}</span>
-                    {item.currency && <span className="ml-1 text-xs text-gray-500">({item.currency.split(' ')[1]})</span>}
+                  <h3 className="font-medium text-white text-sm sm:text-base truncate">{item.name}</h3>
+                  <p className="text-sm text-teal-200">
+                    {formatCurrency(item.price, item.currency)} <span className="text-teal-400">× {item.quantity}</span>
+                    {item.currency && <span className="ml-1 text-xs text-teal-400">({item.currency.split(' ')[1]})</span>}
                   </p>
                   <div className="mt-2 flex items-center gap-2">
                     <button
                       onClick={() => updateQuantity(item.id, Math.max(1, item.quantity - 1))}
-                      className="w-6 h-6 flex items-center justify-center border border-gray-300 rounded text-gray-600 hover:bg-gray-100 text-sm"
+                      className="w-6 h-6 flex items-center justify-center border border-teal-700 rounded text-teal-200 hover:bg-emerald-900/40 text-sm"
                       disabled={item.quantity <= 1}
                     >
                       −
                     </button>
-                    <span className="text-sm font-medium text-gray-700 min-w-[2rem] text-center">Qty: {item.quantity}</span>
+                    <span className="text-sm font-medium text-teal-100 min-w-[2rem] text-center">Qty: {item.quantity}</span>
                     <button
                       onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                      className="w-6 h-6 flex items-center justify-center border border-gray-300 rounded text-gray-600 hover:bg-gray-100 text-sm"
+                      className="w-6 h-6 flex items-center justify-center border border-teal-700 rounded text-teal-200 hover:bg-emerald-900/40 text-sm"
                     >
                       +
                     </button>
                   </div>
                   {vendorInfo && vendorInfo[item.vendorId] && (
                     <div className="mt-1 space-y-1">
-                      <p className="text-xs text-gray-500 truncate">Sold by: {vendorInfo[item.vendorId].name}</p>
+                      <p className="text-xs text-teal-400 truncate">Sold by: {vendorInfo[item.vendorId].name}</p>
                       {vendorInfo[item.vendorId].phone && (
                         <a 
                           href={`tel:${vendorInfo[item.vendorId].phone}`}
-                          className="inline-flex items-center text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                          className="inline-flex items-center text-xs text-emerald-300 hover:text-emerald-200 hover:underline"
                         >
                           <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
@@ -530,20 +530,20 @@ const Cart = () => {
                 </div>
 
                 <div className="text-right flex-shrink-0 w-full sm:w-auto">
-                  <p className="font-medium text-sm sm:text-base">
+                  <p className="font-medium text-sm sm:text-base text-emerald-300">
                     {formatCurrency(item.price * item.quantity, item.currency)}
                   </p>
                   <div className="flex flex-col sm:flex-row space-y-1 sm:space-y-0 sm:space-x-2 mt-1">
                     <button
                       onClick={() => messageVendor(item)}
-                      className="bg-purple-100 text-purple-700 px-2 py-1 rounded text-xs hover:bg-purple-200 transition-colors"
+                      className="bg-emerald-900/40 text-emerald-300 border border-emerald-700 px-2 py-1 rounded text-xs hover:bg-emerald-900/60 transition-colors"
                       title="Message vendor directly"
                     >
                       💬 Message
                     </button>
                   <button
                     onClick={() => removeFromCart(item.id)}
-                      className="text-red-600 text-xs hover:text-red-800"
+                      className="text-rose-400 text-xs hover:text-rose-300"
                   >
                     Remove
                   </button>
@@ -555,20 +555,20 @@ const Cart = () => {
 
           {/* Display Total Delivery Time Breakdown */}
           {totalDeliveryTime && deliveryOption === 'delivery' && (
-            <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <h4 className="text-sm font-medium text-blue-900 mb-2">📦 Estimated Delivery Time</h4>
+            <div className="mt-4 p-4 bg-teal-900/20 rounded-lg border border-teal-800/60">
+              <h4 className="text-sm font-medium text-teal-200 mb-2">📦 Estimated Delivery Time</h4>
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-blue-700">Vendor processing:</span>
-                  <span className="font-medium text-blue-900">{totalDeliveryTime.vendorDays} {totalDeliveryTime.vendorDays === 1 ? 'day' : 'days'}</span>
+                  <span className="text-teal-300">Vendor processing:</span>
+                  <span className="font-medium text-amber-300">{totalDeliveryTime.vendorDays} {totalDeliveryTime.vendorDays === 1 ? 'day' : 'days'}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-blue-700">Shipping:</span>
-                  <span className="font-medium text-blue-900">{totalDeliveryTime.logisticsDays} {totalDeliveryTime.logisticsDays === 1 ? 'day' : 'days'}</span>
+                  <span className="text-teal-300">Shipping:</span>
+                  <span className="font-medium text-amber-300">{totalDeliveryTime.logisticsDays} {totalDeliveryTime.logisticsDays === 1 ? 'day' : 'days'}</span>
                 </div>
-                <div className="border-t border-blue-300 pt-1 mt-1 flex justify-between">
-                  <span className="font-medium text-blue-900">Total delivery:</span>
-                  <span className="font-bold text-blue-900">{totalDeliveryTime.totalDays} {totalDeliveryTime.totalDays === 1 ? 'day' : 'days'}</span>
+                <div className="border-t border-teal-800/60 pt-1 mt-1 flex justify-between">
+                  <span className="font-medium text-teal-200">Total delivery:</span>
+                  <span className="font-bold text-amber-400">{totalDeliveryTime.totalDays} {totalDeliveryTime.totalDays === 1 ? 'day' : 'days'}</span>
                 </div>
               </div>
             </div>
@@ -576,7 +576,7 @@ const Cart = () => {
 
           {/* Delivery Options */}
           <div className="mb-4 sm:mb-6">
-            <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4">Delivery Options</h3>
+            <h3 className="text-base sm:text-lg font-medium text-white mb-3 sm:mb-4">Delivery Options</h3>
             <div className="space-y-3">
               <label className="flex items-start sm:items-center">
                 <input
@@ -585,11 +585,11 @@ const Cart = () => {
                   value="pickup"
                   checked={deliveryOption === 'pickup'}
                   onChange={(e) => setDeliveryOption(e.target.value)}
-                  className="mr-3 mt-1 sm:mt-0"
+                  className="mr-3 mt-1 sm:mt-0 accent-emerald-500"
                 />
                 <div className="flex-1 min-w-0">
-                  <span className="font-medium text-sm sm:text-base">Pickup Only</span>
-                  <p className="text-xs sm:text-sm text-gray-600">Free - Pick up from vendor location</p>
+                  <span className="font-medium text-sm sm:text-base text-teal-100">Pickup Only</span>
+                  <p className="text-xs sm:text-sm text-teal-300">Free - Pick up from vendor location</p>
                 </div>
               </label>
               
@@ -600,11 +600,11 @@ const Cart = () => {
                   value="delivery"
                   checked={deliveryOption === 'delivery'}
                   onChange={(e) => setDeliveryOption(e.target.value)}
-                  className="mr-3 mt-1 sm:mt-0"
+                  className="mr-3 mt-1 sm:mt-0 accent-emerald-500"
                 />
                 <div className="flex-1 min-w-0">
-                  <span className="font-medium text-sm sm:text-base">Home Delivery</span>
-                  <p className="text-xs sm:text-sm text-gray-600">
+                  <span className="font-medium text-sm sm:text-base text-teal-100">Home Delivery</span>
+                  <p className="text-xs sm:text-sm text-teal-300">
                     {selectedPartner && deliveryCost > 0 ? `${formatCurrency(deliveryCost)} - ${estimatedDelivery}` : 'Enter your address and select a partner to see pricing'}
                   </p>
                 </div>
@@ -615,7 +615,7 @@ const Cart = () => {
           {/* Address Input for Delivery */}
           {deliveryOption === 'delivery' && (
             <div className="space-y-3 mb-6">
-              <h4 className="text-sm font-medium text-gray-900 mb-3">Delivery Address</h4>
+              <h4 className="text-sm font-medium text-white mb-3">Delivery Address</h4>
               <AddressInput
                 value={buyerAddress}
                 label=""
@@ -652,27 +652,50 @@ const Cart = () => {
           )}
 
           {/* Order Summary */}
-          <div className="border-t pt-4">
-            <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-3">Order Summary</h3>
+          <div className="border-t border-emerald-900/60 pt-4">
+            <h3 className="text-base sm:text-lg font-medium text-white mb-3">Order Summary</h3>
             <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
+              <div className="flex justify-between text-teal-200">
                 <span>Subtotal</span>
-                <span>{formatCurrency(getCartTotal())}</span>
+                <span className="text-white">{formatCurrency(getCartTotal())}</span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between text-teal-200">
                 <span>Delivery</span>
-                <span>{deliveryOption === 'delivery' && selectedPartner ? formatCurrency(deliveryCost) : '₦0.00'}</span>
+                <span className="text-white">{deliveryOption === 'delivery' && selectedPartner ? formatCurrency(deliveryCost) : '₦0.00'}</span>
               </div>
-              <div className="flex justify-between font-semibold border-t pt-2">
+              <div className="flex justify-between font-semibold border-t border-emerald-900/60 pt-2 text-white">
                 <span>Total</span>
-                <span>{formatCurrency((getCartTotal()) + (deliveryOption === 'delivery' && selectedPartner ? deliveryCost : 0))}</span>
+                <span className="text-emerald-400">{formatCurrency((getCartTotal()) + (deliveryOption === 'delivery' && selectedPartner ? deliveryCost : 0))}</span>
               </div>
             </div>
 
             <div className="mt-4 flex flex-col sm:flex-row gap-3">
-              <Link to="/products" className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-center">Continue Shopping</Link>
-              <button onClick={() => setShowMessageModal(true)} className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">💬 Message Vendors</button>
-              <Link to="/checkout" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-center">Proceed to Checkout</Link>
+              <Link to="/products" className="px-4 py-2 bg-slate-800 text-teal-200 border border-emerald-900/60 hover:bg-slate-700 rounded-lg text-center transition-colors">Continue Shopping</Link>
+              <button onClick={() => setShowMessageModal(true)} className="px-4 py-2 bg-emerald-900/40 text-emerald-300 border border-emerald-700 rounded-lg hover:bg-emerald-900/60 transition-colors">💬 Message Vendors</button>
+              <Link
+                to="/checkout"
+                state={{
+                  selectedLogistics: selectedPartner,
+                  deliveryOption,
+                  buyerAddress: buyerFullAddress,
+                  vendorAddress: vendorAddressText,
+                  routeInfo: selectedPartner
+                    ? {
+                        category: 'delivery',
+                        distance: selectedPartner.distance || 0,
+                        selectedPartner: {
+                          companyName: selectedPartner.partner?.name || 'Selected Partner',
+                        },
+                        usingPlatformDefault: false,
+                      }
+                    : null,
+                  calculatedDeliveryFee:
+                    deliveryOption === 'delivery' && selectedPartner ? deliveryCost : 0,
+                }}
+                className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 rounded-lg hover:from-emerald-400 hover:to-teal-400 text-center font-semibold transition-colors"
+              >
+                Proceed to Checkout
+              </Link>
             </div>
           </div>
 

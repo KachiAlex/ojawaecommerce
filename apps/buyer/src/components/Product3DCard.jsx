@@ -9,6 +9,7 @@ const Product3DCard = ({ product, onAddToCart }) => {
   const [isAdding, setIsAdding] = useState(false);
   const [rotation, setRotation] = useState({ x: 0, y: 0 });
   const [isMouseDown, setIsMouseDown] = useState(false);
+  const [imageError, setImageError] = useState(false);
   const cardRef = useRef(null);
 
   const handleAddToCart = async (e) => {
@@ -63,6 +64,40 @@ const Product3DCard = ({ product, onAddToCart }) => {
     setRotation({ x: 0, y: 0 });
   };
 
+  // Get primary image from various possible fields
+  const getImageUrl = () => {
+    // Check normalized image field first
+    if (product.image && typeof product.image === 'string' && product.image.trim() !== '' && product.image !== 'undefined') {
+      return product.image;
+    }
+    // Check images array
+    if (product.images && Array.isArray(product.images) && product.images.length > 0) {
+      const validImage = product.images.find(img => 
+        img && typeof img === 'string' && img.trim() !== '' && img !== 'undefined'
+      );
+      if (validImage) return validImage;
+    }
+    // Check imageUrls (legacy)
+    if (product.imageUrls && Array.isArray(product.imageUrls) && product.imageUrls.length > 0) {
+      return product.imageUrls[0];
+    }
+    // Check other common image field names
+    const imageFields = ['imageUrl', 'imageURL', 'photo', 'photoUrl', 'thumbnail', 'img', 'picture'];
+    for (const field of imageFields) {
+      if (product[field] && typeof product[field] === 'string' && product[field].trim() !== '' && product[field] !== 'undefined') {
+        return product[field];
+      }
+    }
+    return null;
+  };
+
+  const imageUrl = getImageUrl();
+
+  // Reset image error when product changes
+  useEffect(() => {
+    setImageError(false);
+  }, [product.id, imageUrl]);
+
   return (
     <motion.div
       ref={cardRef}
@@ -92,13 +127,21 @@ const Product3DCard = ({ product, onAddToCart }) => {
             transform: 'translateZ(20px)',
           }}
         >
-          {product.imageUrls && product.imageUrls[0] ? (
+          {imageUrl && !imageError ? (
             <img
-              src={product.imageUrls[0]}
+              src={imageUrl}
               alt={product.name}
               className="w-full h-full object-cover"
               style={{
                 filter: 'drop-shadow(0 10px 20px rgba(0,0,0,0.2))',
+              }}
+              onError={(e) => {
+                // Silently handle image errors - don't log to console to avoid spam
+                setImageError(true);
+                e.target.style.display = 'none';
+              }}
+              onLoad={() => {
+                setImageError(false);
               }}
             />
           ) : (

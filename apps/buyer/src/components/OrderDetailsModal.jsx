@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import Receipt from './Receipt';
 
 // Currency formatting helper
 const formatCurrency = (amount, currencyValue) => {
@@ -14,6 +15,8 @@ const formatCurrency = (amount, currencyValue) => {
 };
 
 const OrderDetailsModal = ({ open, order, onClose, onFundWallet }) => {
+  const [isReceiptOpen, setIsReceiptOpen] = useState(false);
+
   if (!open || !order) return null;
 
   return (
@@ -67,9 +70,26 @@ const OrderDetailsModal = ({ open, order, onClose, onFundWallet }) => {
         </div>
         <div className="p-6 border-t flex items-center justify-end gap-3">
           <button onClick={onClose} className="px-4 py-2 text-sm border rounded-lg text-gray-700 hover:bg-gray-50">Close</button>
-          <button onClick={() => onFundWallet(order)} className="px-4 py-2 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">Fund Wallet</button>
+          {(order.paymentStatus === 'escrow_funded' || order.paymentStatus === 'paid' || order.status === 'escrow_funded') && (
+            <button 
+              onClick={() => setIsReceiptOpen(true)} 
+              className="px-4 py-2 text-sm bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-lg hover:from-emerald-400 hover:to-teal-400 font-semibold"
+            >
+              📄 View Receipt
+            </button>
+          )}
+          {onFundWallet && (
+            <button onClick={() => onFundWallet(order)} className="px-4 py-2 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">Fund Wallet</button>
+          )}
         </div>
       </div>
+
+      {/* Receipt Modal */}
+      <Receipt
+        order={order}
+        isOpen={isReceiptOpen}
+        onClose={() => setIsReceiptOpen(false)}
+      />
     </div>
   );
 };

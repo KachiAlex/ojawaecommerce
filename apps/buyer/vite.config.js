@@ -4,9 +4,8 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
-  define: {
-    'import.meta.env.VITE_GOOGLE_MAPS_API_KEY': JSON.stringify('AIzaSyCw_5hgEojEOW1hAIewyb4TkyHTN2od-Yk'),
-  },
+  // Environment variables are automatically available via import.meta.env
+  // No need to hardcode API keys here - use .env file instead
   build: {
     rollupOptions: {
       output: {

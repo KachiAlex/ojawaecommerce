@@ -39,8 +39,14 @@ class AnalyticsService {
 
       const docRef = await addDoc(collection(db, 'analytics'), viewData);
       
-      // Update product view count
-      await this.incrementProductViews(productId);
+      // Update product view count (optional - don't fail if permission denied)
+      try {
+        await this.incrementProductViews(productId);
+      } catch (incrementError) {
+        // Silently ignore view count increment errors (permission issues)
+        // The analytics event is already tracked, which is the main goal
+        console.debug('Could not increment product view count:', incrementError);
+      }
       
       return docRef.id;
     } catch (error) {

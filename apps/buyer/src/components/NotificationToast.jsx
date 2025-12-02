@@ -92,7 +92,13 @@ const NotificationToast = ({ notification, onClose, duration = 5000 }) => {
       case NOTIFICATION_TYPES.PAYMENT_SUCCESS:
         actions.push({
           label: 'View Receipt',
-          action: () => window.location.href = '/buyer'
+          action: () => {
+            if (data.orderId) {
+              window.location.href = `/buyer?orderId=${data.orderId}&showReceipt=true`
+            } else {
+              window.location.href = '/buyer'
+            }
+          }
         })
         break
       case NOTIFICATION_TYPES.SHIPMENT_UPDATE:

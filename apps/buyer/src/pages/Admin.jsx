@@ -813,8 +813,8 @@ const Admin = () => {
         )}
 
         {/* Tabs */}
-        <div className="bg-white rounded-lg shadow mb-6">
-          <div className="border-b border-gray-200">
+        <div className="bg-slate-950 rounded-lg shadow mb-6 border border-teal-900/70">
+          <div className="border-b border-teal-900/70">
             <nav className="flex -mb-px">
               {['overview', 'users', 'orders', 'products', 'featured', 'logistics', 'disputes', 'commission'].map(tab => (
                 <button
@@ -822,8 +822,8 @@ const Admin = () => {
                   onClick={() => setActiveTab(tab)}
                   className={`py-4 px-6 text-sm font-medium border-b-2 transition-colors ${
                     activeTab === tab
-                      ? 'border-emerald-600 text-emerald-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      ? 'border-amber-400 text-amber-300'
+                      : 'border-transparent text-teal-300/80 hover:text-amber-300 hover:border-teal-700/60'
                   }`}
                 >
                   {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -832,7 +832,7 @@ const Admin = () => {
             </nav>
           </div>
 
-          <div className="p-6">
+          <div className="p-6 bg-slate-950">
             {/* Users Tab */}
             {activeTab === 'users' && (
               <div>

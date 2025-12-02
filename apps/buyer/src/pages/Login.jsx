@@ -179,17 +179,17 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-8 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-slate-950 py-8 px-4">
       <div className="max-w-lg mx-auto w-full">
         {!userType ? (
           /* User Type Selection */
-          <div className="bg-white rounded-xl shadow-lg border p-6">
+          <div className="bg-slate-900 rounded-xl shadow-lg border border-emerald-900/60 p-6">
             <div className="text-center">
-              <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                <span className="text-emerald-600 text-2xl">👋</span>
+              <div className="w-16 h-16 bg-emerald-900/40 border border-emerald-700 rounded-full flex items-center justify-center mx-auto mb-6">
+                <span className="text-emerald-400 text-2xl">👋</span>
               </div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Welcome to Ojawa</h2>
-              <p className="text-sm text-gray-600 mb-6">Choose how you'd like to join our marketplace</p>
+              <h2 className="text-2xl font-bold text-white mb-2">Welcome to Ojawa</h2>
+              <p className="text-sm text-teal-200 mb-6">Choose how you'd like to join our marketplace</p>
             
             <div className="space-y-4">
               <button

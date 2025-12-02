@@ -24,7 +24,7 @@ import './utils/clearFlutterwaveScripts';
 import './App.css';
 
 // Core pages (loaded immediately for better performance)
-import HomeNew from './pages/HomeNew';
+import HomeOjawa from './pages/HomeOjawa';
 import DashboardRedirect from './components/DashboardRedirect';
 import LogoUpload from './components/LogoUpload';
 
@@ -266,7 +266,7 @@ const AppRoutes = () => {
   return (
     <AnimatedPage>
     <Routes>
-        <Route path="/" element={<HomeNew />} />
+        <Route path="/" element={<HomeOjawa />} />
       <Route path="/products" element={<Products />} />
         <Route path="/products/:id" element={<ProductDetail />} />
         <Route path="/cart" element={<Cart />} />

@@ -8,7 +8,13 @@ exports.mapsProxy = onRequest({
 }, async (req, res) => {
   try {
     const { endpoint, ...params } = req.query;
-    const apiKey = 'AIzaSyCw_5hgEojEOW1hAIewyb4TkyHTN2od-Yk';
+    // Get API key from environment variable
+    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+    
+    if (!apiKey) {
+      res.status(500).json({ error: 'Google Maps API key not configured' });
+      return;
+    }
 
     if (!endpoint) {
       res.status(400).json({ error: 'Missing endpoint parameter' });

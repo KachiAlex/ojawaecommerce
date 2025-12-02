@@ -107,39 +107,39 @@ const Register = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-slate-950 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
           {preselectedUserType && (
             <div className="text-center mb-6">
-              <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 bg-emerald-900/40 border border-emerald-700 rounded-full flex items-center justify-center mx-auto mb-4">
                 <span className="text-2xl">
                   {preselectedUserType === 'buyer' ? '🛒' : preselectedUserType === 'vendor' ? '🏪' : '🚚'}
                 </span>
               </div>
-              <div className="inline-flex items-center gap-2 bg-emerald-50 px-3 py-1 rounded-full text-sm text-emerald-700 mb-4">
+              <div className="inline-flex items-center gap-2 bg-emerald-900/20 border border-emerald-800/60 px-3 py-1 rounded-full text-sm text-emerald-300 mb-4">
                 <span>Creating {preselectedUserType === 'buyer' ? 'Buyer' : preselectedUserType === 'vendor' ? 'Vendor' : 'Logistics'} Account</span>
               </div>
             </div>
           )}
           
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+          <h2 className="mt-6 text-center text-3xl font-extrabold text-white">
             {preselectedUserType === 'buyer' ? 'Start Shopping Safely' : 
              preselectedUserType === 'vendor' ? 'Start Selling Today' :
              preselectedUserType === 'logistics' ? 'Join Our Delivery Network' :
              'Create your account'}
           </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
+          <p className="mt-2 text-center text-sm text-teal-200">
             {preselectedUserType === 'buyer' ? 'Join thousands of buyers shopping with wallet protection' :
              preselectedUserType === 'vendor' ? 'Reach customers across Africa with guaranteed payments' :
              preselectedUserType === 'logistics' ? 'Provide delivery services and earn competitive rates' :
              'Join the Ojawa marketplace'}
           </p>
-          <p className="mt-2 text-center text-sm text-gray-500">
+          <p className="mt-2 text-center text-sm text-teal-400">
             Already have an account?{' '}
             <Link
               to="/login"
-              className="font-medium text-emerald-600 hover:text-emerald-500"
+              className="font-medium text-emerald-400 hover:text-emerald-300"
             >
               Sign in here
             </Link>
@@ -147,9 +147,9 @@ const Register = () => {
         </div>
         
         {preselectedUserType === 'buyer' && (
-          <div className="bg-white rounded-lg border p-4 mb-6">
-            <h3 className="font-semibold text-gray-900 mb-3">Why buyers love Ojawa:</h3>
-            <div className="space-y-2 text-sm text-gray-600">
+          <div className="bg-slate-900 rounded-lg border border-emerald-900/60 p-4 mb-6">
+            <h3 className="font-semibold text-white mb-3">Why buyers love Ojawa:</h3>
+            <div className="space-y-2 text-sm text-teal-200">
               <div className="flex items-center gap-2">
                 <span className="text-emerald-600">✓</span>
                 <span>Your money is protected until you confirm delivery</span>

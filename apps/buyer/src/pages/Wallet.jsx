@@ -118,101 +118,110 @@ const Wallet = () => {
 
   const typeTag = (type) => {
     const map = {
-      credit: 'bg-emerald-100 text-emerald-700',
-      debit: 'bg-rose-100 text-rose-700',
-      withdrawal: 'bg-amber-100 text-amber-700',
-      wallet_funding: 'bg-emerald-100 text-emerald-700',
-      escrow_release: 'bg-blue-100 text-blue-700',
-      dispute_hold: 'bg-yellow-100 text-yellow-700',
-      dispute_resolution: 'bg-purple-100 text-purple-700'
+      credit: 'bg-teal-900/40 text-teal-200 border border-teal-500/40',
+      debit: 'bg-rose-900/40 text-rose-200 border border-rose-500/40',
+      withdrawal: 'bg-amber-900/40 text-amber-200 border border-amber-500/40',
+      wallet_funding: 'bg-emerald-900/40 text-emerald-200 border border-emerald-500/40',
+      escrow_release: 'bg-teal-900/40 text-teal-200 border border-teal-500/40',
+      dispute_hold: 'bg-amber-900/40 text-amber-200 border border-amber-500/40',
+      dispute_resolution: 'bg-emerald-900/40 text-emerald-200 border border-emerald-500/40'
     }
-    return map[type] || 'bg-gray-100 text-gray-700'
+    return map[type] || 'bg-slate-900/60 text-teal-200 border border-slate-700/60'
   }
 
   if (!currentUser) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <p className="text-gray-700">Please sign in to view your wallet.</p>
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center px-4">
+        <p className="text-teal-100">Please sign in to view your wallet.</p>
       </div>
     )
   }
 
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <p className="text-gray-600">Loading wallet...</p>
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center px-4">
+        <p className="text-teal-100">Loading wallet...</p>
       </div>
     )
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">My Wallet</h1>
-        <p className="text-sm text-gray-600">Manage your balance, top-up, and withdraw funds.</p>
-      </div>
-
-      {error && (
-        <div className="p-3 mb-4 bg-red-50 border border-red-200 rounded text-sm text-red-800">{error}</div>
-      )}
-
-      {/* Balance and Actions */}
-      <div className="grid gap-6 md:grid-cols-3 mb-8">
-        <div className="bg-white rounded-xl border p-6 md:col-span-1">
-          <p className="text-sm text-gray-600">Current Balance</p>
-          <p className="text-3xl font-bold text-gray-900 mt-1">₦{(wallet?.balance || 0).toLocaleString()}</p>
-          <p className="text-xs text-gray-500 mt-1">Wallet ID: {wallet?.id || '—'}</p>
+    <div className="min-h-screen bg-slate-950">
+      <div className="max-w-5xl mx-auto px-4 py-8">
+        <div className="mb-6">
+          <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-teal-300 via-amber-300 to-emerald-300 bg-clip-text text-transparent">
+            My Wallet
+          </h1>
+          <p className="text-sm text-teal-200 mt-1">
+            Manage your balance, top-up, and withdraw funds securely with Ojawa escrow.
+          </p>
         </div>
-        <div className="bg-white rounded-xl border p-6">
-          <h3 className="font-semibold text-gray-900 mb-3">Top Up</h3>
-          <div className="flex items-center gap-2">
+
+        {error && (
+          <div className="p-3 mb-4 bg-rose-900/40 border border-rose-500/60 rounded text-sm text-rose-100">{error}</div>
+        )}
+
+        {/* Balance and Actions */}
+        <div className="grid gap-6 md:grid-cols-3 mb-8">
+          <div className="bg-slate-950 rounded-xl border border-teal-900/70 p-6 md:col-span-1 shadow-soft">
+            <p className="text-sm text-teal-200">Current Balance</p>
+            <p className="text-3xl font-bold text-amber-300 mt-1">
+              ₦{(wallet?.balance || 0).toLocaleString()}
+            </p>
+            <p className="text-xs text-teal-300/80 mt-1">Wallet ID: {wallet?.id || '—'}</p>
+          </div>
+          <div className="bg-slate-950 rounded-xl border border-teal-900/70 p-6 shadow-soft">
+            <h3 className="font-semibold text-teal-100 mb-3">Top Up</h3>
+            <div className="flex items-center gap-2">
             <input
               type="number"
               min="1"
               value={topupAmount}
               onChange={(e) => setTopupAmount(e.target.value)}
-              className="flex-1 border border-gray-300 rounded-lg px-4 py-2"
+              className="flex-1 border border-teal-700 rounded-lg px-4 py-2 bg-slate-900 text-teal-50 placeholder:text-teal-400/70"
               placeholder="Amount (₦)"
             />
             <button onClick={handleTopup} disabled={submitting || !topupAmount || !wallet || loading}
-              className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50">
+              className="px-4 py-2 bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 rounded-lg hover:from-amber-300 hover:to-amber-400 disabled:opacity-50 shadow-lg">
               {submitting ? 'Processing...' : 'Add Funds'}
             </button>
           </div>
-          <p className="text-xs text-gray-500 mt-2">For demo purposes, this simulates a successful top-up.</p>
+          <p className="text-xs text-teal-300/80 mt-2">For demo purposes, this simulates a successful top-up.</p>
         </div>
-        <div className="bg-white rounded-xl border p-6">
-          <h3 className="font-semibold text-gray-900 mb-3">Withdraw</h3>
+        <div className="bg-slate-950 rounded-xl border border-teal-900/70 p-6 shadow-soft">
+          <h3 className="font-semibold text-teal-100 mb-3">Withdraw</h3>
           <div className="grid gap-2 mb-2">
-            <input type="number" min="1" value={withdrawAmount} onChange={(e)=>setWithdrawAmount(e.target.value)} className="border border-gray-300 rounded-lg px-4 py-2" placeholder="Amount (₦)" />
-            <select value={withdrawAccount.type} onChange={(e)=>setWithdrawAccount({ ...withdrawAccount, type: e.target.value })} className="border border-gray-300 rounded-lg px-4 py-2">
+            <input type="number" min="1" value={withdrawAmount} onChange={(e)=>setWithdrawAmount(e.target.value)} className="border border-teal-700 rounded-lg px-4 py-2 bg-slate-900 text-teal-50" placeholder="Amount (₦)" />
+            <select value={withdrawAccount.type} onChange={(e)=>setWithdrawAccount({ ...withdrawAccount, type: e.target.value })} className="border border-teal-700 rounded-lg px-4 py-2 bg-slate-900 text-teal-50">
               <option value="bank">Bank</option>
               <option value="mobile_money">Mobile Money</option>
             </select>
-            <input type="text" value={withdrawAccount.accountName} onChange={(e)=>setWithdrawAccount({ ...withdrawAccount, accountName: e.target.value })} className="border border-gray-300 rounded-lg px-4 py-2" placeholder="Account Name" />
-            <input type="text" value={withdrawAccount.accountNumber} onChange={(e)=>setWithdrawAccount({ ...withdrawAccount, accountNumber: e.target.value })} className="border border-gray-300 rounded-lg px-4 py-2" placeholder="Account Number" />
+            <input type="text" value={withdrawAccount.accountName} onChange={(e)=>setWithdrawAccount({ ...withdrawAccount, accountName: e.target.value })} className="border border-teal-700 rounded-lg px-4 py-2 bg-slate-900 text-teal-50" placeholder="Account Name" />
+            <input type="text" value={withdrawAccount.accountNumber} onChange={(e)=>setWithdrawAccount({ ...withdrawAccount, accountNumber: e.target.value })} className="border border-teal-700 rounded-lg px-4 py-2 bg-slate-900 text-teal-50" placeholder="Account Number" />
             {withdrawAccount.type === 'bank' && (
-              <input type="text" value={withdrawAccount.bankName} onChange={(e)=>setWithdrawAccount({ ...withdrawAccount, bankName: e.target.value })} className="border border-gray-300 rounded-lg px-4 py-2" placeholder="Bank Name" />
+              <input type="text" value={withdrawAccount.bankName} onChange={(e)=>setWithdrawAccount({ ...withdrawAccount, bankName: e.target.value })} className="border border-teal-700 rounded-lg px-4 py-2 bg-slate-900 text-teal-50" placeholder="Bank Name" />
             )}
           </div>
           {userProfile?.payout && (
-            <button onClick={useSavedPayout} className="mr-3 px-3 py-2 text-sm border rounded-lg text-gray-700 hover:bg-gray-50">Use saved payout details</button>
+            <button onClick={useSavedPayout} className="mr-3 px-3 py-2 text-sm border border-teal-700 rounded-lg text-teal-200 hover:bg-slate-900/70">
+              Use saved payout details
+            </button>
           )}
           <button onClick={handleWithdraw} disabled={submitting || !withdrawAmount}
-            className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-black disabled:opacity-50">
+            className="px-4 py-2 bg-gradient-to-r from-emerald-400 to-teal-500 text-slate-950 rounded-lg hover:from-emerald-300 hover:to-teal-400 disabled:opacity-50 shadow-lg">
             {submitting ? 'Processing...' : 'Withdraw'}
           </button>
         </div>
       </div>
 
       {/* Transactions */}
-      <div className="bg-white rounded-xl border">
-        <div className="p-4 border-b">
-          <h3 className="font-semibold text-gray-900">Recent Transactions</h3>
+      <div className="bg-slate-950 rounded-xl border border-teal-900/70">
+        <div className="p-4 border-b border-teal-900/70">
+          <h3 className="font-semibold text-teal-100">Recent Transactions</h3>
         </div>
-        <div className="divide-y">
+        <div className="divide-y divide-slate-800/80">
           {transactions.length === 0 && (
-            <div className="p-4 text-sm text-gray-600">No transactions found.</div>
+            <div className="p-4 text-sm text-teal-200">No transactions found.</div>
           )}
           {transactions.map(tx => (
             <div key={tx.id} className="p-4 flex items-center justify-between text-sm">
@@ -221,17 +230,18 @@ const Wallet = () => {
                   {tx.type.replace('_', ' ')}
                 </span>
                 <div>
-                  <p className="font-medium text-gray-900">₦{(tx.amount || 0).toLocaleString()}</p>
-                  <p className="text-gray-500">{tx.description || '—'}</p>
+                  <p className="font-medium text-teal-50">₦{(tx.amount || 0).toLocaleString()}</p>
+                  <p className="text-teal-300/80">{tx.description || '—'}</p>
                 </div>
               </div>
-              <div className="text-right text-gray-500">
-                <p>{tx.status}</p>
+              <div className="text-right text-teal-300/80">
+                <p className="capitalize">{tx.status}</p>
                 <p className="text-xs">{formatDate(tx.createdAt)}</p>
               </div>
             </div>
           ))}
         </div>
+      </div>
       </div>
     </div>
   )

@@ -1433,16 +1433,18 @@ const Vendor = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-950">
       <div className="flex">
         {/* Sidebar */}
-        <div className="w-64 bg-white shadow-sm min-h-screen">
-          <div className="p-6">
-            <Link to="/" className="flex items-center mb-8">
-              <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center mr-3">
-                <span className="text-white font-bold text-lg">O</span>
+        <div className="w-64 bg-slate-950 border-r border-teal-900/70 shadow-2xl min-h-screen">
+          <div className="p-6 border-b border-teal-900/70">
+            <Link to="/" className="flex items-center mb-6">
+              <div className="w-8 h-8 bg-slate-900 border border-teal-500/60 rounded-lg flex items-center justify-center mr-3">
+                <span className="text-amber-300 font-bold text-lg">O</span>
               </div>
-              <span className="text-xl font-semibold text-gray-900">Ojawa</span>
+              <span className="text-xl font-semibold bg-gradient-to-r from-teal-300 via-amber-300 to-emerald-300 bg-clip-text text-transparent">
+                Ojawa Vendor
+              </span>
             </Link>
             
             {/* Dashboard Switcher */}
@@ -1451,16 +1453,24 @@ const Vendor = () => {
             </div>
             
             <div className="space-y-1">
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">VENDOR MENU</p>
+              <p className="text-xs font-medium text-amber-300 uppercase tracking-wider mb-3">VENDOR MENU</p>
               <button 
                 onClick={() => setActiveTab('overview')}
-                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'overview' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${
+                  activeTab === 'overview'
+                    ? 'text-teal-50 bg-teal-900/40 border border-teal-500/40'
+                    : 'text-teal-200 hover:text-amber-200 hover:bg-slate-900/70'
+                }`}
               >
                 📊 Overview
               </button>
               <button 
                 onClick={() => setActiveTab('orders')}
-                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'orders' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${
+                  activeTab === 'orders'
+                    ? 'text-teal-50 bg-teal-900/40 border border-teal-500/40'
+                    : 'text-teal-200 hover:text-amber-200 hover:bg-slate-900/70'
+                }`}
               >
                 📦 Orders
               </button>
@@ -1469,55 +1479,87 @@ const Vendor = () => {
                   console.log('🏪 My Store tab clicked');
                   setActiveTab('store');
                 }}
-                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'store' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${
+                  activeTab === 'store'
+                    ? 'text-teal-50 bg-teal-900/40 border border-teal-500/40'
+                    : 'text-teal-200 hover:text-amber-200 hover:bg-slate-900/70'
+                }`}
               >
                 🏪 My Store
               </button>
               {/* Logistics tab removed - logistics partners work independently */}
               <button 
                 onClick={() => setActiveTab('billing')}
-                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'billing' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${
+                  activeTab === 'billing'
+                    ? 'text-teal-50 bg-teal-900/40 border border-teal-500/40'
+                    : 'text-teal-200 hover:text-amber-200 hover:bg-slate-900/70'
+                }`}
               >
                 💳 Billing & Subscription
               </button>
               <button 
                 onClick={() => setActiveTab('disputes')}
-                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'disputes' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${
+                  activeTab === 'disputes'
+                    ? 'text-teal-50 bg-teal-900/40 border border-teal-500/40'
+                    : 'text-teal-200 hover:text-amber-200 hover:bg-slate-900/70'
+                }`}
               >
                 ⚖️ Disputes
               </button>
               <button 
                 onClick={() => setActiveTab('analytics')}
-                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'analytics' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${
+                  activeTab === 'analytics'
+                    ? 'text-teal-50 bg-teal-900/40 border border-teal-500/40'
+                    : 'text-teal-200 hover:text-amber-200 hover:bg-slate-900/70'
+                }`}
               >
                 📊 Analytics
               </button>
               <button 
                 onClick={() => setActiveTab('settings')}
-                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'settings' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${
+                  activeTab === 'settings'
+                    ? 'text-teal-50 bg-teal-900/40 border border-teal-500/40'
+                    : 'text-teal-200 hover:text-amber-200 hover:bg-slate-900/70'
+                }`}
               >
                 ⚙️ Settings
               </button>
               <button 
                 onClick={() => setActiveTab('wallet')}
-                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'wallet' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${
+                  activeTab === 'wallet'
+                    ? 'text-teal-50 bg-teal-900/40 border border-teal-500/40'
+                    : 'text-teal-200 hover:text-amber-200 hover:bg-slate-900/70'
+                }`}
               >
                 💳 My Wallet
               </button>
               <button 
                 onClick={() => setActiveTab('messages')}
-                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg relative ${activeTab === 'messages' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg relative ${
+                  activeTab === 'messages'
+                    ? 'text-teal-50 bg-teal-900/40 border border-teal-500/40'
+                    : 'text-teal-200 hover:text-amber-200 hover:bg-slate-900/70'
+                }`}
               >
                 💬 Messages
                 {typeof unreadCount === 'number' && unreadCount > 0 && (
-                  <span className="ml-auto bg-emerald-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                  <span className="ml-auto bg-amber-500 text-slate-950 text-xs rounded-full h-5 w-5 flex items-center justify-center">
                     {unreadCount > 9 ? '9+' : unreadCount}
                   </span>
                 )}
               </button>
               <button 
                 onClick={() => setActiveTab('analytics')}
-                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'analytics' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${
+                  activeTab === 'analytics'
+                    ? 'text-teal-50 bg-teal-900/40 border border-teal-500/40'
+                    : 'text-teal-200 hover:text-amber-200 hover:bg-slate-900/70'
+                }`}
               >
                 📈 Analytics
               </button>
@@ -1528,7 +1570,7 @@ const Vendor = () => {
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 p-8">
+        <div className="flex-1 p-8 bg-slate-950">
           {/* Address Update Banner - Shows if vendor has incomplete structured address */}
           {(() => {
             const hasStructuredAddress = userProfile?.vendorProfile?.structuredAddress;

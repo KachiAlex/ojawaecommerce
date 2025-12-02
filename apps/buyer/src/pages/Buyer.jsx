@@ -8,6 +8,7 @@ import OrderDetailsModal from '../components/OrderDetailsModal';
 import WalletTopUpModal from '../components/WalletTopUpModal';
 import VendorReviewModal from '../components/VendorReviewModal';
 import OrderConfirmationModal from '../components/OrderConfirmationModal';
+import Receipt from '../components/Receipt';
 import ProductCard from '../components/ProductCard';
 import WishlistButton from '../components/WishlistButton';
 import { ProductListSkeleton } from '../components/SkeletonLoaders';
@@ -43,9 +44,29 @@ const Buyer = () => {
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [isOrderConfirmationOpen, setIsOrderConfirmationOpen] = useState(false);
   const [orderToConfirm, setOrderToConfirm] = useState(null);
+  const [isReceiptOpen, setIsReceiptOpen] = useState(false);
+  const [receiptOrder, setReceiptOrder] = useState(null);
   const [wishlistItems, setWishlistItems] = useState([]);
   const [wishlistProducts, setWishlistProducts] = useState([]);
   const [loadingWishlist, setLoadingWishlist] = useState(false);
+
+  // Check for receipt request from URL after orders are loaded
+  useEffect(() => {
+    if (orders.length === 0 || !currentUser) return;
+    const urlParams = new URLSearchParams(window.location.search);
+    const orderId = urlParams.get('orderId');
+    const showReceipt = urlParams.get('showReceipt');
+    
+    if (orderId && showReceipt === 'true') {
+      const order = orders.find(o => o.id === orderId);
+      if (order) {
+        setReceiptOrder(order);
+        setIsReceiptOpen(true);
+        // Clean URL
+        window.history.replaceState({}, '', '/buyer');
+      }
+    }
+  }, [orders, currentUser]);
 
   useEffect(() => {
     const fetchBuyerData = async () => {
@@ -200,6 +221,11 @@ const Buyer = () => {
     setIsOrderDetailsOpen(true);
   };
 
+  const openReceipt = (order) => {
+    setReceiptOrder(order);
+    setIsReceiptOpen(true);
+  };
+
   const handleFundFromOrder = (order) => {
     setSelectedOrder(order);
     setIsOrderDetailsOpen(false);
@@ -258,26 +284,28 @@ const Buyer = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading your dashboard...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-400 mx-auto mb-4"></div>
+          <p className="text-teal-100">Loading your dashboard...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-950">
       <div className="flex">
         {/* Sidebar */}
-        <div className="w-64 bg-white shadow-sm min-h-screen">
-          <div className="p-6">
-            <Link to="/" className="flex items-center mb-8">
-              <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center mr-3">
-                <span className="text-white font-bold text-lg">O</span>
+        <div className="w-64 bg-slate-950 border-r border-teal-900/70 shadow-2xl min-h-screen">
+          <div className="p-6 border-b border-teal-900/70">
+            <Link to="/" className="flex items-center mb-6">
+              <div className="w-8 h-8 bg-slate-900 border border-teal-500/60 rounded-lg flex items-center justify-center mr-3">
+                <span className="text-amber-300 font-bold text-lg">O</span>
               </div>
-              <span className="text-xl font-semibold text-gray-900">Ojawa</span>
+              <span className="text-xl font-semibold bg-gradient-to-r from-teal-300 via-amber-300 to-emerald-300 bg-clip-text text-transparent">
+                Ojawa Buyer
+              </span>
             </Link>
             
             {/* Dashboard Switcher */}
@@ -285,56 +313,84 @@ const Buyer = () => {
             </div>
             
             <div className="space-y-1">
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">BUYER MENU</p>
+              <p className="text-xs font-medium text-amber-300 uppercase tracking-wider mb-3">BUYER MENU</p>
               <button 
                 onClick={() => setActiveTab('overview')}
-                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'overview' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${
+                  activeTab === 'overview'
+                    ? 'text-teal-50 bg-teal-900/40 border border-teal-500/40'
+                    : 'text-teal-200 hover:text-amber-200 hover:bg-slate-900/70'
+                }`}
               >
                 📊 Overview
               </button>
               <button 
                 onClick={() => setActiveTab('orders')}
-                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'orders' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${
+                  activeTab === 'orders'
+                    ? 'text-teal-50 bg-teal-900/40 border border-teal-500/40'
+                    : 'text-teal-200 hover:text-amber-200 hover:bg-slate-900/70'
+                }`}
               >
                 📦 Orders
               </button>
               <button 
                 onClick={() => setActiveTab('transactions')}
-                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'transactions' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${
+                  activeTab === 'transactions'
+                    ? 'text-teal-50 bg-teal-900/40 border border-teal-500/40'
+                    : 'text-teal-200 hover:text-amber-200 hover:bg-slate-900/70'
+                }`}
               >
                 💳 Transaction History
               </button>
               <button 
                 onClick={() => setActiveTab('vendors')}
-                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'vendors' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${
+                  activeTab === 'vendors'
+                    ? 'text-teal-50 bg-teal-900/40 border border-teal-500/40'
+                    : 'text-teal-200 hover:text-amber-200 hover:bg-slate-900/70'
+                }`}
               >
                 🏪 Vendors & Ratings
               </button>
               <button 
                 onClick={() => setActiveTab('wishlist')}
-                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'wishlist' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${
+                  activeTab === 'wishlist'
+                    ? 'text-teal-50 bg-teal-900/40 border border-teal-500/40'
+                    : 'text-teal-200 hover:text-amber-200 hover:bg-slate-900/70'
+                }`}
               >
                 💝 Wishlist
               </button>
               <button 
                 onClick={() => setActiveTab('wallet')}
-                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'wallet' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${
+                  activeTab === 'wallet'
+                    ? 'text-teal-50 bg-teal-900/40 border border-teal-500/40'
+                    : 'text-teal-200 hover:text-amber-200 hover:bg-slate-900/70'
+                }`}
               >
                 💳 My Wallet
               </button>
               <button 
                 onClick={() => setActiveTab('support')}
-                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'support' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${
+                  activeTab === 'support'
+                    ? 'text-teal-50 bg-teal-900/40 border border-teal-500/40'
+                    : 'text-teal-200 hover:text-amber-200 hover:bg-slate-900/70'
+                }`}
               >
                 🆘 Help & Support
               </button>
             </div>
           </div>
           
-          <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 bg-white">
+          <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-teal-900/70 bg-slate-950">
             <Link 
               to="/" 
-              className="flex items-center justify-center px-4 py-2 text-sm font-medium text-gray-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+              className="flex items-center justify-center px-4 py-2 text-sm font-medium text-teal-200 hover:text-amber-200 hover:bg-slate-900/70 rounded-lg transition-colors"
             >
               <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -345,7 +401,7 @@ const Buyer = () => {
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 p-8">
+        <div className="flex-1 p-8 bg-slate-950">
           {/* Tab Content */}
           {activeTab === 'overview' && (
             <>
@@ -485,7 +541,15 @@ const Buyer = () => {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{order.walletId || 'N/A'}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
                           <div className="flex flex-col gap-2">
-                            <button onClick={() => openOrderDetails(order)} className="text-emerald-600 hover:text-emerald-700 font-medium text-left">View Details</button>
+                            <button onClick={() => openOrderDetails(order)} className="text-emerald-300 hover:text-emerald-200 font-medium text-left">View Details</button>
+                            {(order.paymentStatus === 'escrow_funded' || order.paymentStatus === 'paid' || order.status === 'escrow_funded') && (
+                              <button 
+                                onClick={() => openReceipt(order)} 
+                                className="text-teal-300 hover:text-teal-200 font-medium text-left text-sm"
+                              >
+                                📄 View Receipt
+                              </button>
+                            )}
                             {order.status === 'escrow_funded' && (
                               <button 
                                 onClick={() => openOrderConfirmation(order)} 
@@ -781,6 +845,15 @@ const Buyer = () => {
             order={orderToConfirm}
             onClose={() => setIsOrderConfirmationOpen(false)}
             onConfirm={handleOrderConfirmation}
+          />
+
+          <Receipt
+            order={receiptOrder}
+            isOpen={isReceiptOpen}
+            onClose={() => {
+              setIsReceiptOpen(false);
+              setReceiptOrder(null);
+            }}
           />
         </div>
       </div>

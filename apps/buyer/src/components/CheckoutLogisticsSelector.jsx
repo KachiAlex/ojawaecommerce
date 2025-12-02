@@ -122,49 +122,49 @@ const CheckoutLogisticsSelector = ({
 
   if (!isAddressValid(vendorAddress)) {
     return (
-      <div className="bg-white rounded-lg border p-6">
-        <p className="text-sm text-gray-600">Vendor address is missing. Please contact the vendor or use pickup.</p>
+      <div className="bg-slate-900 rounded-lg border border-emerald-900/60 p-6">
+        <p className="text-sm text-teal-200">Vendor address is missing. Please contact the vendor or use pickup.</p>
       </div>
     );
   }
 
   if (!isAddressValid(buyerAddress)) {
     return (
-      <div className="bg-white rounded-lg border p-6">
+      <div className="bg-slate-900 rounded-lg border border-emerald-900/60 p-6">
         <div className="mb-3">
-          <p className="text-sm text-gray-600">Vendor: <span className="font-medium text-gray-900">{vendorAddress}</span></p>
+          <p className="text-sm text-teal-200">Vendor: <span className="font-medium text-white">{vendorAddress}</span></p>
         </div>
-        <p className="text-sm text-gray-600">Enter your delivery address above to see available logistics partners and pricing.</p>
+        <p className="text-sm text-teal-200">Enter your delivery address above to see available logistics partners and pricing.</p>
       </div>
     );
   }
 
   if (fetchingPartners) {
     return (
-      <div className="bg-white rounded-lg border p-6">
+      <div className="bg-slate-900 rounded-lg border border-emerald-900/60 p-6">
         <div className="animate-pulse space-y-4">
-          <div className="h-6 bg-gray-200 rounded w-1/3"></div>
-          <div className="h-4 bg-gray-200 rounded w-2/3"></div>
-          <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+          <div className="h-6 bg-slate-700 rounded w-1/3"></div>
+          <div className="h-4 bg-slate-700 rounded w-2/3"></div>
+          <div className="h-4 bg-slate-700 rounded w-1/2"></div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-lg border">
-      <div className="p-6 border-b border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900">Select Delivery Partner</h3>
-        <p className="text-sm text-gray-600 mt-1">Choose a logistics partner to see delivery pricing</p>
-        <div className="mt-2 text-xs text-gray-600">
-          <div><span className="font-medium text-gray-800">Vendor:</span> {vendorAddress}</div>
-          <div><span className="font-medium text-gray-800">Buyer:</span> {buyerAddress}</div>
+    <div className="bg-slate-900 rounded-lg border border-emerald-900/60">
+      <div className="p-6 border-b border-emerald-900/60">
+        <h3 className="text-lg font-semibold text-white">Select Delivery Partner</h3>
+        <p className="text-sm text-teal-200 mt-1">Choose a logistics partner to see delivery pricing</p>
+        <div className="mt-2 text-xs text-teal-300">
+          <div><span className="font-medium text-teal-100">Vendor:</span> {vendorAddress}</div>
+          <div><span className="font-medium text-teal-100">Buyer:</span> {buyerAddress}</div>
         </div>
       </div>
 
       <div className="p-6 space-y-4">
         {availablePartners.length === 0 && (
-          <div className="text-center text-gray-500 py-4">
+          <div className="text-center text-teal-400 py-4">
             <p>No logistics partners available for this route yet. Try another address or pickup.</p>
           </div>
         )}
@@ -174,24 +174,24 @@ const CheckoutLogisticsSelector = ({
             key={partner.id}
             className={`border rounded-lg p-4 cursor-pointer transition-colors ${
               selectedPartner?.id === partner.id
-                ? 'border-emerald-500 bg-emerald-50'
-                : 'border-gray-200 hover:border-gray-300'
+                ? 'border-emerald-500 bg-emerald-900/40'
+                : 'border-emerald-900/60 hover:border-emerald-700 bg-slate-800'
             }`}
             onClick={() => handlePartnerSelect(partner)}
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
-                <div className="w-4 h-4 border-2 rounded-full flex items-center justify-center">
+                <div className="w-4 h-4 border-2 border-emerald-700 rounded-full flex items-center justify-center">
                   {selectedPartner?.id === partner.id && (
-                    <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
+                    <div className="w-2 h-2 bg-emerald-400 rounded-full"></div>
                   )}
                 </div>
                 <div>
-                  <h4 className="font-medium text-gray-900">{partner.name}</h4>
-                  <p className="text-xs text-gray-500">
+                  <h4 className="font-medium text-white">{partner.name}</h4>
+                  <p className="text-xs text-teal-300">
                     Rating: {partner.rating?.toFixed ? partner.rating.toFixed(1) : partner.rating || 'N/A'}
                     {calculatingPrice && selectedPartner?.id === partner.id && (
-                      <span className="ml-2 text-blue-600">Calculating price...</span>
+                      <span className="ml-2 text-emerald-400">Calculating price...</span>
                     )}
                   </p>
                 </div>

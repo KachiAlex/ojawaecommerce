@@ -307,61 +307,87 @@ const Logistics = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-950">
       <div className="flex">
         {/* Sidebar */}
-        <div className="w-64 bg-white shadow-lg relative">
-          <div className="p-6 border-b border-gray-200">
-            <h1 className="text-xl font-bold text-gray-900">Logistics Dashboard</h1>
-            <p className="text-sm text-gray-500 mt-1">Manage your delivery operations</p>
+        <div className="w-64 bg-slate-950 shadow-2xl border-r border-teal-900/70 relative">
+          <div className="p-6 border-b border-teal-900/70">
+            <h1 className="text-xl font-bold bg-gradient-to-r from-teal-300 to-emerald-300 bg-clip-text text-transparent">
+              Logistics Dashboard
+            </h1>
+            <p className="text-sm text-teal-200 mt-1">Manage your delivery operations</p>
           </div>
           
           <div className="p-4 space-y-2">
             <button 
               onClick={() => setActiveTab('overview')}
-              className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'overview' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+              className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${
+                activeTab === 'overview'
+                  ? 'text-teal-50 bg-teal-900/40 border border-teal-500/40'
+                  : 'text-teal-200 hover:text-amber-200 hover:bg-slate-900/70'
+              }`}
             >
               📊 Overview
             </button>
             <button 
               onClick={() => setActiveTab('routes')}
-              className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'routes' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+              className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${
+                activeTab === 'routes'
+                  ? 'text-teal-50 bg-teal-900/40 border border-teal-500/40'
+                  : 'text-teal-200 hover:text-amber-200 hover:bg-slate-900/70'
+              }`}
             >
               🛣️ Routes
             </button>
             <button 
               onClick={() => setActiveTab('deliveries')}
-              className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'deliveries' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+              className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${
+                activeTab === 'deliveries'
+                  ? 'text-teal-50 bg-teal-900/40 border border-teal-500/40'
+                  : 'text-teal-200 hover:text-amber-200 hover:bg-slate-900/70'
+              }`}
             >
               📦 Deliveries
             </button>
             <button 
               onClick={() => setActiveTab('analytics')}
-              className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'analytics' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+              className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${
+                activeTab === 'analytics'
+                  ? 'text-teal-50 bg-teal-900/40 border border-teal-500/40'
+                  : 'text-teal-200 hover:text-amber-200 hover:bg-slate-900/70'
+              }`}
             >
               📈 Analytics
             </button>
             <button 
               onClick={() => setActiveTab('wallet')}
-              className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'wallet' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+              className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${
+                activeTab === 'wallet'
+                  ? 'text-teal-50 bg-teal-900/40 border border-teal-500/40'
+                  : 'text-teal-200 hover:text-amber-200 hover:bg-slate-900/70'
+              }`}
             >
               💳 My Wallet
             </button>
             <button 
               onClick={() => setActiveTab('settings')}
-              className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${activeTab === 'settings' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+              className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${
+                activeTab === 'settings'
+                  ? 'text-teal-50 bg-teal-900/40 border border-teal-500/40'
+                  : 'text-teal-200 hover:text-amber-200 hover:bg-slate-900/70'
+              }`}
             >
               ⚙️ Settings
             </button>
           </div>
           
           <div className="absolute bottom-4 left-4">
-            <Link to="/" className="text-sm text-gray-500 hover:text-gray-700">← Back to Home</Link>
+            <Link to="/" className="text-sm text-teal-300 hover:text-amber-300">← Back to Home</Link>
           </div>
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 p-8">
+        <div className="flex-1 p-8 bg-slate-950">
           {/* Add Route Modal */}
           {showAddRouteForm && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">

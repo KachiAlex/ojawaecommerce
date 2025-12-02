@@ -36,6 +36,18 @@ const ProductCard = ({ product, onAddToCart, onClick }) => {
       imageUrls.push(...validImages);
     }
     
+    // Check imageUrls array (for backward compatibility)
+    if (product.imageUrls && Array.isArray(product.imageUrls) && product.imageUrls.length > 0) {
+      const validImageUrls = product.imageUrls.filter(img => 
+        img && typeof img === 'string' && img.trim() !== '' && img !== 'undefined'
+      );
+      validImageUrls.forEach(img => {
+        if (!imageUrls.includes(img)) {
+          imageUrls.push(img);
+        }
+      });
+    }
+    
     // Fallback to other field names
     const imageFields = ['imageUrl', 'imageURL', 'photo', 'photoUrl', 'thumbnail', 'img', 'picture'];
     for (const field of imageFields) {
@@ -225,6 +237,7 @@ const ProductCard = ({ product, onAddToCart, onClick }) => {
                     }
                   }}
                   loading="lazy"
+                  crossOrigin="anonymous"
                 />
               )}
               {!currentImageUrl && (

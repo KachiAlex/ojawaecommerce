@@ -1,8 +1,41 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Product images - public read, vendor write
+    match /products/{vendorId}/{allPaths=**} {
+      allow read: if true; // Public can view products
+      allow write: if isAuthenticated() && request.auth.uid == vendorId;
+    }
+    
+    // User uploads - owner only
+    match /users/{userId}/{allPaths=**} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId);
+    }
+    
+    // Dispute evidence - authenticated users only
+    match /dispute-evidence/{orderId}/{allPaths=**} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    // Store assets - public read, owner write
+    match /stores/{vendorId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAuthenticated() && request.auth.uid == vendorId;
+    }
+    
+    // Default deny all
     match /{allPaths=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }

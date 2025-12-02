@@ -48,19 +48,53 @@ const AdvancedDisputeModal = ({ order, isOpen, onClose, onDisputeCreated }) => {
     setUploading(true);
     setError('');
 
+    // Allowed MIME types
+    const ALLOWED_MIME_TYPES = [
+      'image/jpeg',
+      'image/jpg',
+      'image/png',
+      'image/gif',
+      'image/webp',
+      'video/mp4',
+      'video/webm',
+      'application/pdf'
+    ];
+    
+    // Allowed file extensions
+    const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.mp4', '.webm', '.pdf'];
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
     try {
       const uploadPromises = files.map(async (file) => {
-        // Validate file type and size
-        if (!file.type.startsWith('image/') && !file.type.startsWith('video/') && file.type !== 'application/pdf') {
-          throw new Error(`File type ${file.type} is not supported`);
+        // Validate MIME type
+        if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+          throw new Error(`File type ${file.type} is not supported. Allowed types: images (JPEG, PNG, GIF, WebP), videos (MP4, WebM), or PDF`);
         }
 
-        if (file.size > 10 * 1024 * 1024) { // 10MB limit
-          throw new Error('File size must be less than 10MB');
+        // Validate file extension
+        const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+        if (!ALLOWED_EXTENSIONS.includes(fileExtension)) {
+          throw new Error(`File extension ${fileExtension} is not allowed. Allowed extensions: ${ALLOWED_EXTENSIONS.join(', ')}`);
         }
 
-        // Upload to Firebase Storage
-        const fileName = `dispute-evidence/${order.id}/${Date.now()}-${file.name}`;
+        // Validate file size
+        if (file.size > MAX_FILE_SIZE) {
+          throw new Error(`File size (${(file.size / 1024 / 1024).toFixed(2)}MB) exceeds the maximum allowed size of ${MAX_FILE_SIZE / 1024 / 1024}MB`);
+        }
+
+        if (file.size === 0) {
+          throw new Error('File is empty');
+        }
+
+        // Sanitize filename - remove special characters and path traversal attempts
+        const sanitizedFilename = file.name
+          .replace(/[^a-zA-Z0-9._-]/g, '_')
+          .replace(/\.\./g, '_')
+          .replace(/^\./, '_')
+          .substring(0, 255); // Limit filename length
+
+        // Upload to Firebase Storage with sanitized filename
+        const fileName = `dispute-evidence/${order.id}/${Date.now()}-${sanitizedFilename}`;
         const downloadURL = await firebaseService.storage.uploadFile(file, fileName);
 
         return {
