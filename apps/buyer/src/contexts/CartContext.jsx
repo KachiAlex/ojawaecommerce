@@ -234,6 +234,7 @@ export const CartProvider = ({ children }) => {
 
   const value = useMemo(() => ({
     cartItems,
+    cartReady: hasLoaded,
     addToCart,
     removeFromCart,
     updateQuantity,
@@ -248,6 +249,7 @@ export const CartProvider = ({ children }) => {
     getIntendedDestination
   }), [
     cartItems,
+    hasLoaded,
     addToCart,
     removeFromCart,
     updateQuantity,

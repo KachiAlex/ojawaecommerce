@@ -11,12 +11,13 @@ import ProtectedRoute from './components/ProtectedRoute';
 import RoleGuard from './components/RoleGuard';
 import { RouteLoadingSpinner, ComponentLoadingSpinner } from './components/OptimizedLoadingSpinner';
 import PerformanceMonitor from './components/PerformanceMonitor';
-import AnimatedPage from './components/AnimatedPage';
+// import AnimatedPage from './components/AnimatedPage';
 import { setupGlobalErrorHandling } from './utils/errorLogger';
 import { validateEnvironment } from './config/env';
 import networkManager from './utils/networkManager';
 import networkMonitor from './utils/networkMonitor';
 import { analyzeBundle } from './utils/bundleAnalyzer';
+import setupMobileTouchFix from './utils/mobileTouchFix';
 // Console protection disabled during testing - will be enabled for production
 // import { setupConsoleProtection } from './utils/consoleProtection';
 // import logger from './utils/logger';
@@ -27,6 +28,7 @@ import './App.css';
 import HomeOjawa from './pages/HomeOjawa';
 import DashboardRedirect from './components/DashboardRedirect';
 import LogoUpload from './components/LogoUpload';
+import OsoahiaButton from './components/OsoahiaButton';
 
 // Performance optimization: Preload critical components
 const preloadCriticalComponents = () => {
@@ -46,9 +48,7 @@ const lazyLoad = (componentImport) => {
 
 // Lazy load non-critical components
 const Navbar = lazyLoad(() => import('./components/Navbar'));
-const PWAInstallPrompt = lazyLoad(() => import('./components/PWAInstallPrompt'));
 const MobileBottomNavigation = lazyLoad(() => import('./components/MobileBottomNavigation'));
-const OsoahiaButton = lazyLoad(() => import('./components/OsoahiaButton'));
 const NotificationToastContainer = lazyLoad(() => import('./components/NotificationToast').then(m => ({ default: m.NotificationToastContainer })));
 const WalletEducation = lazyLoad(() => import('./components/EscrowEducation'));
 const CartToast = lazyLoad(() => import('./components/CartToast'));
@@ -176,14 +176,11 @@ const AppContent = () => {
             <Router>
               <ScrollToTop />
               <ErrorBoundary componentName="Router">
-                <div className="min-h-screen">
+                <div className="min-h-screen" style={{ paddingBottom: '80px' }}>
                   <Suspense fallback={<ComponentLoadingSpinner />}>
                     <Navbar />
                   </Suspense>
-                  <Suspense fallback={null}>
-                    <PWAInstallPrompt />
-                  </Suspense>
-                  <main>
+                  <main style={{ minHeight: 'calc(100vh - 80px)', paddingBottom: '80px' }}>
                     <AppRoutes />
                   </main>
                   <Suspense fallback={null}>
@@ -264,7 +261,7 @@ const ScrollToTop = () => {
 // Component that wraps Routes (must be inside Router)
 const AppRoutes = () => {
   return (
-    <AnimatedPage>
+    // <AnimatedPage>
     <Routes>
         <Route path="/" element={<HomeOjawa />} />
       <Route path="/products" element={<Products />} />
@@ -290,19 +287,25 @@ const AppRoutes = () => {
         </Suspense>
       } />
       <Route path="/wishlist" element={
-        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
-          <Wishlist />
-        </Suspense>
+        <ProtectedRoute requireVerifiedEmail>
+          <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+            <Wishlist />
+          </Suspense>
+        </ProtectedRoute>
       } />
       <Route path="/referrals" element={
-        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
-          <Referrals />
-        </Suspense>
+        <ProtectedRoute requireVerifiedEmail>
+          <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+            <Referrals />
+          </Suspense>
+        </ProtectedRoute>
       } />
       <Route path="/tracking" element={
-        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
-          <Tracking />
-        </Suspense>
+        <ProtectedRoute requireVerifiedEmail>
+          <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+            <Tracking />
+          </Suspense>
+        </ProtectedRoute>
       } />
       <Route path="/help" element={
         <Suspense fallback={<RouteLoadingSpinner route="default" />}>
@@ -310,19 +313,25 @@ const AppRoutes = () => {
         </Suspense>
       } />
       <Route path="/profile" element={
-        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
-          <ProfileSetup />
-        </Suspense>
+        <ProtectedRoute requireVerifiedEmail>
+          <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+            <ProfileSetup />
+          </Suspense>
+        </ProtectedRoute>
       } />
       <Route path="/wallet" element={
-        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
-          <Wallet />
-        </Suspense>
+        <ProtectedRoute requireVerifiedEmail>
+          <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+            <Wallet />
+          </Suspense>
+        </ProtectedRoute>
       } />
       <Route path="/messages" element={
-        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
-          <Messages />
-        </Suspense>
+        <ProtectedRoute requireVerifiedEmail>
+          <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+            <Messages />
+          </Suspense>
+        </ProtectedRoute>
       } />
       <Route path="/logistics-pricing" element={
         <Suspense fallback={<RouteLoadingSpinner route="default" />}>
@@ -386,7 +395,7 @@ const AppRoutes = () => {
       <Route path="/logo-upload" element={<LogoUpload />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
-    </AnimatedPage>
+    // </AnimatedPage>
   );
 };
 
@@ -403,11 +412,11 @@ function App() {
     // Set up global error handling
     setupGlobalErrorHandling()
     
+    // Set up mobile touch fixes
+    const cleanupMobileFix = setupMobileTouchFix()
+    
     // Preload critical components for better performance
     preloadCriticalComponents()
-    
-    // Analyze bundle size
-    analyzeBundle()
     
     // Defer network monitoring to improve LCP
     const initNetworkMonitoring = () => {
@@ -447,6 +456,9 @@ function App() {
     return () => {
       if (removeListener) {
         removeListener();
+      }
+      if (cleanupMobileFix) {
+        cleanupMobileFix();
       }
     };
   }, [])

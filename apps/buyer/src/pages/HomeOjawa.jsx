@@ -1,5 +1,5 @@
-import { Link } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../contexts/AuthContext";
 import { useCart } from "../contexts/CartContext";
@@ -9,6 +9,7 @@ import CountdownTimer from "../components/CountdownTimer";
 import ProductDetailModal from "../components/ProductDetailModal";
 import ProductFilterSidebar from "../components/ProductFilterSidebar";
 import { getPrimaryImage } from "../utils/imageUtils";
+import SearchAutocomplete from "../components/SearchAutocomplete";
 import { collection, getDocs, query, limit } from "firebase/firestore";
 import { db } from "../firebase/config";
 
@@ -73,6 +74,7 @@ const sliderIntervalMs = 7000;
 const HomeOjawa = () => {
   const { currentUser } = useAuth();
   const { addToCart } = useCart();
+  const navigate = useNavigate();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [flashSaleProducts, setFlashSaleProducts] = useState([]);
@@ -84,6 +86,13 @@ const HomeOjawa = () => {
   const [allProducts, setAllProducts] = useState([]);
   const [sidebarFilters, setSidebarFilters] = useState(null);
   const [categories, setCategories] = useState([]);
+  const [heroSearch, setHeroSearch] = useState({
+    query: "",
+    category: "",
+    priceMin: "",
+    priceMax: "",
+    express: false,
+  });
 
   // Flash sale end time (24 hours from now)
   const flashSaleEndTime = new Date(
@@ -92,7 +101,20 @@ const HomeOjawa = () => {
 
   // Category mapping for product filtering
   const categoryMap = {
-    phones: ["phones", "tablets", "mobile", "smartphone"],
+    phones: [
+      "phones", "phone", "tablets", "tablet", "mobile", "smartphone", 
+      "accessories", "phone accessories", "mobile accessories", 
+      "charger", "charging", "power bank", "powerbank", "battery",
+      "case", "phone case", "mobile case", "cover", "phone cover",
+      "screen protector", "tempered glass", "protector",
+      "earphone", "earphones", "headphone", "headphones", "earbud", "earbuds",
+      "cable", "usb cable", "charging cable", "data cable",
+      "adapter", "charger adapter", "usb adapter",
+      "bluetooth", "wireless", "speaker", "portable speaker",
+      "selfie stick", "tripod", "phone holder", "stand",
+      "sim card", "memory card", "sd card", "storage",
+      "phone repair", "screen replacement", "battery replacement"
+    ],
     fashion: ["fashion", "clothing", "apparel", "wear"],
     electronics: ["electronics", "tv", "audio", "speaker"],
     beauty: ["beauty", "cosmetics", "skincare"],
@@ -104,10 +126,12 @@ const HomeOjawa = () => {
   const fetchProducts = async () => {
     try {
       setIsLoading(true);
+      console.log('[HomeOjawa] Fetching products...');
       const q = query(collection(db, "products"), limit(200));
       const snapshot = await getDocs(q);
+      console.log('[HomeOjawa] Raw snapshot size:', snapshot.size);
 
-      const allProducts = snapshot.docs
+      const processedProducts = snapshot.docs
         .map((doc) => {
           const data = doc.data();
           let images = [];
@@ -186,17 +210,34 @@ const HomeOjawa = () => {
               ? data.createdAt.toDate()
               : data.createdAt || new Date(),
           };
-        })
+        });
+
+      console.log('[HomeOjawa] Processed products before filtering:', processedProducts.length);
+
+      const filteredProducts = processedProducts
         .filter((product) => {
-          return product.isActive === true || product.status === "active";
+          const status = typeof product.status === 'string'
+            ? product.status.toLowerCase()
+            : 'active';
+          const explicitlyInactive = product.isActive === false ||
+            status === 'inactive' ||
+            status === 'archived' ||
+            status === 'suspended';
+          return !explicitlyInactive;
         })
-        .sort((a, b) => {
-          return new Date(b.createdAt) - new Date(a.createdAt);
-        })
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
         .slice(0, 100);
+
+      console.log('[HomeOjawa] Products after filter:', {
+        totalVisible: filteredProducts.length,
+        filteredOut: processedProducts.length - filteredProducts.length
+      });
+
+      const allProducts = filteredProducts;
 
       // Store all products
       setAllProducts(allProducts);
+      console.log('[HomeOjawa] Stored products:', allProducts.length);
 
       // Extract unique categories
       const uniqueCategories = [...new Set(allProducts.map(p => p.category).filter(Boolean))].sort();
@@ -231,9 +272,18 @@ const HomeOjawa = () => {
         categoryMapResult[catKey] = allProducts
           .filter((p) => {
             const categoryLower = (p.category || "").toLowerCase();
-            return categoryMap[catKey].some((keyword) =>
-              categoryLower.includes(keyword),
-            );
+            const nameLower = (p.name || "").toLowerCase();
+            const descriptionLower = (p.description || "").toLowerCase();
+            
+            // Check if any keyword matches in category, name, or description
+            return categoryMap[catKey].some((keyword) => {
+              const keywordLower = keyword.toLowerCase();
+              return (
+                categoryLower.includes(keywordLower) ||
+                nameLower.includes(keywordLower) ||
+                descriptionLower.includes(keywordLower)
+              );
+            });
           })
           .slice(0, 12);
       });
@@ -334,8 +384,99 @@ const HomeOjawa = () => {
   };
 
   // Handle sidebar filter changes
-  const handleSidebarFilterChange = (filters) => {
+  const handleSidebarFilterChange = useCallback((filters) => {
     setSidebarFilters(filters);
+  }, []);
+
+  const priceBoundaries = useMemo(() => {
+    if (!allProducts || allProducts.length === 0) {
+      return { min: 0, max: 10000000 };
+    }
+    const validPrices = allProducts
+      .map((p) => parseFloat(p.price) || 0)
+      .filter((price) => price > 0);
+
+    if (validPrices.length === 0) {
+      return { min: 0, max: 10000000 };
+    }
+
+    return {
+      min: Math.floor(Math.min(...validPrices)),
+      max: Math.ceil(Math.max(...validPrices)),
+    };
+  }, [allProducts]);
+
+  useEffect(() => {
+    setHeroSearch((prev) => ({
+      ...prev,
+      query: sidebarFilters?.searchQuery || "",
+      category: sidebarFilters?.categories?.[0] || "",
+      priceMin:
+        typeof sidebarFilters?.priceRange?.min === "number"
+          ? sidebarFilters.priceRange.min.toString()
+          : "",
+      priceMax:
+        typeof sidebarFilters?.priceRange?.max === "number"
+          ? sidebarFilters.priceRange.max.toString()
+          : "",
+      express: !!sidebarFilters?.expressDelivery,
+    }));
+  }, [sidebarFilters]);
+
+  const handleHeroSearchChange = (field, value) => {
+    setHeroSearch((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const handleHeroSearchSubmit = (event) => {
+    event.preventDefault();
+    const currentFilters = sidebarFilters || {};
+    const minPrice =
+      heroSearch.priceMin !== "" ? Number(heroSearch.priceMin) : null;
+    const maxPrice =
+      heroSearch.priceMax !== "" ? Number(heroSearch.priceMax) : null;
+
+    const priceRange =
+      minPrice !== null || maxPrice !== null
+        ? {
+            min:
+              minPrice !== null
+                ? Math.max(minPrice, 0)
+                : priceBoundaries.min,
+            max:
+              maxPrice !== null
+                ? Math.max(maxPrice, minPrice ?? priceBoundaries.min)
+                : priceBoundaries.max,
+          }
+        : null;
+
+    handleSidebarFilterChange({
+      ...currentFilters,
+      searchQuery: heroSearch.query.trim(),
+      categories: heroSearch.category ? [heroSearch.category] : [],
+      expressDelivery: heroSearch.express,
+      priceRange,
+    });
+  };
+
+  const handleHeroSearchReset = () => {
+    setHeroSearch({
+      query: "",
+      category: "",
+      priceMin: "",
+      priceMax: "",
+      express: false,
+    });
+    const currentFilters = sidebarFilters || {};
+    handleSidebarFilterChange({
+      ...currentFilters,
+      searchQuery: "",
+      categories: [],
+      expressDelivery: false,
+      priceRange: null,
+    });
   };
 
   // Get filtered products for carousels
@@ -347,48 +488,165 @@ const HomeOjawa = () => {
   const activeSlide = heroSlides[currentIndex];
 
   return (
-    <div className="min-h-screen bg-slate-950">
+    <div className="min-h-screen bg-slate-950 pt-0">
       {/* Hero Section */}
       <section className="relative bg-slate-950">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-10 grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)_260px] gap-6 lg:gap-8">
-          {/* Filter Sidebar */}
-          <aside className="hidden lg:block">
-            <ProductFilterSidebar
-              products={allProducts}
-              onFilterChange={handleSidebarFilterChange}
-              categories={categories}
-              isOpen={true}
+        {/* Mobile Filter Button */}
+        <div className="lg:hidden fixed bottom-20 right-4 z-30">
+          <button
+            onClick={() => setSidebarFilters({ ...sidebarFilters, _mobileOpen: true })}
+            className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-lg shadow-lg hover:from-emerald-400 hover:to-teal-400"
+          >
+            🔍 Filters
+          </button>
+        </div>
+        
+        {/* Mobile Filter Overlay */}
+        {sidebarFilters?._mobileOpen && (
+          <div className="lg:hidden fixed inset-0 z-40">
+            <div 
+              className="absolute inset-0 bg-black/60"
+              onClick={() => setSidebarFilters(prev => prev ? { ...prev, _mobileOpen: false } : null)}
             />
-          </aside>
-          
-          {/* Mobile Filter Button */}
-          <div className="lg:hidden fixed bottom-20 right-4 z-30">
-            <button
-              onClick={() => setSidebarFilters({ ...sidebarFilters, _mobileOpen: true })}
-              className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-lg shadow-lg hover:from-emerald-400 hover:to-teal-400"
-            >
-              🔍 Filters
-            </button>
-          </div>
-          
-          {/* Mobile Filter Overlay */}
-          {sidebarFilters?._mobileOpen && (
-            <div className="lg:hidden fixed inset-0 z-40">
-              <div 
-                className="absolute inset-0 bg-black/60"
-                onClick={() => setSidebarFilters(prev => prev ? { ...prev, _mobileOpen: false } : null)}
+            <div className="absolute left-0 top-0 bottom-0 w-64 z-50">
+              <ProductFilterSidebar
+                products={allProducts}
+                onFilterChange={handleSidebarFilterChange}
+                categories={categories}
+                isOpen={true}
+                showSearch={true}
+                onClose={() => setSidebarFilters(prev => prev ? { ...prev, _mobileOpen: false } : null)}
               />
-              <div className="absolute left-0 top-0 bottom-0 w-64 z-50">
-                <ProductFilterSidebar
-                  products={allProducts}
-                  onFilterChange={handleSidebarFilterChange}
-                  categories={categories}
-                  isOpen={true}
-                  onClose={() => setSidebarFilters(prev => prev ? { ...prev, _mobileOpen: false } : null)}
-                />
-              </div>
             </div>
-          )}
+
+            {/* Property search aligned with filters */}
+            <div className="relative z-10 px-4 sm:px-6 lg:px-10 pb-4">
+              <form
+                onSubmit={handleHeroSearchSubmit}
+                className="backdrop-blur-md bg-slate-900/80 border border-teal-700/50 rounded-2xl p-4 sm:p-6 shadow-2xl space-y-3"
+              >
+                <div className="flex items-center gap-2 text-xs sm:text-sm text-teal-200/80 uppercase tracking-[0.2em]">
+                  <span className="text-emerald-300 text-lg">⌕</span>
+                  Intelligent product search aligned with filters
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <div className="col-span-2">
+                    <label className="text-xs text-teal-200 block mb-1">
+                      Product or keyword
+                    </label>
+                    <input
+                      type="text"
+                      value={heroSearch.query}
+                      onChange={(e) =>
+                        handleHeroSearchChange("query", e.target.value)
+                      }
+                      placeholder="Search for secure gadgets, verified vendors..."
+                      className="w-full px-3 py-2 bg-slate-800/80 border border-emerald-800 rounded-xl text-sm text-white placeholder-teal-500 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-teal-200 block mb-1">
+                      Category
+                    </label>
+                    <select
+                      value={heroSearch.category}
+                      onChange={(e) =>
+                        handleHeroSearchChange("category", e.target.value)
+                      }
+                      className="w-full px-3 py-2 bg-slate-800/80 border border-emerald-800 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                    >
+                      <option value="">All categories</option>
+                      {categories.map((category) => (
+                        <option key={category} value={category}>
+                          {category}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs text-teal-200 block mb-1">
+                        Min price
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={heroSearch.priceMin}
+                        onChange={(e) =>
+                          handleHeroSearchChange("priceMin", e.target.value)
+                        }
+                        placeholder="₦0"
+                        className="w-full px-3 py-2 bg-slate-800/80 border border-emerald-800 rounded-xl text-sm text-white placeholder-teal-500 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-teal-200 block mb-1">
+                        Max price
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={heroSearch.priceMax}
+                        onChange={(e) =>
+                          handleHeroSearchChange("priceMax", e.target.value)
+                        }
+                        placeholder="₦150,000"
+                        className="w-full px-3 py-2 bg-slate-800/80 border border-emerald-800 rounded-xl text-sm text-white placeholder-teal-500 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <label className="inline-flex items-center gap-2 text-sm text-teal-100">
+                    <input
+                      type="checkbox"
+                      checked={heroSearch.express}
+                      onChange={(e) =>
+                        handleHeroSearchChange("express", e.target.checked)
+                      }
+                      className="h-4 w-4 rounded border-teal-500 text-emerald-400 focus:ring-emerald-400"
+                    />
+                    Prefer Ojawa Express delivery (24-48h)
+                  </label>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleHeroSearchReset}
+                      className="px-4 py-2 rounded-xl border border-teal-500/40 text-teal-100 text-sm hover:bg-teal-900/40 transition-colors"
+                    >
+                      Reset
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-500 text-slate-950 font-semibold text-sm shadow-lg hover:from-emerald-300 hover:to-teal-400 transition-all"
+                    >
+                      Apply filters
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-10">
+          {/* Desktop Layout: Grid with sidebar */}
+          <div className="hidden lg:grid lg:grid-cols-[260px_minmax(0,1fr)_260px] gap-6 lg:gap-8">
+            {/* Filter Sidebar - without search */}
+            <aside>
+              <ProductFilterSidebar
+                products={allProducts}
+                onFilterChange={handleSidebarFilterChange}
+                categories={categories}
+                isOpen={true}
+                showSearch={true}
+              />
+            </aside>
           
           {/* Old category sidebar - removed, replaced with filter sidebar */}
           {/* <aside className="hidden lg:block bg-slate-900/80 border border-teal-700/60 rounded-2xl shadow-xl overflow-hidden">
@@ -433,8 +691,8 @@ const HomeOjawa = () => {
             </nav>
           </aside>
 
-          {/* Center hero slider */}
-          <div className="relative h-[420px] sm:h-[460px] lg:h-[480px] rounded-3xl overflow-hidden shadow-2xl border-2 border-teal-600/50 bg-slate-900">
+          {/* Center hero slider + property search */}
+          <div className="relative h-auto lg:h-[520px] rounded-2xl lg:rounded-3xl overflow-hidden shadow-xl lg:shadow-2xl border lg:border-2 border-teal-600/50 bg-slate-900 flex flex-col">
             {/* Background image + gradient overlay */}
             <div className="absolute inset-0">
               <AnimatePresence mode="wait">
@@ -453,126 +711,130 @@ const HomeOjawa = () => {
               />
             </div>
 
-            {/* Content */}
-            <div className="relative h-full flex flex-col justify-between px-6 sm:px-10 py-6 sm:py-8">
-              {/* Top badge row */}
-              <div className="flex items-center justify-between gap-4">
-                <div className="inline-flex items-center px-4 py-1.5 rounded-full bg-gradient-to-r from-teal-500/20 to-emerald-500/20 border border-amber-400/40 shadow-lg backdrop-blur-sm">
-                  <span className="text-xs sm:text-sm font-semibold text-amber-100 flex items-center gap-2">
-                    <span className="text-teal-300">🔒</span>
-                    {activeSlide.eyebrow}
-                  </span>
+              {/* Content */}
+              <div className="relative flex-1 flex flex-col justify-between px-4 py-3 sm:px-6 sm:py-4 lg:px-10 lg:py-8">
+                {/* Top badge row */}
+                <div className="flex items-center justify-between gap-2 sm:gap-4">
+                  <div className="inline-flex items-center px-2 py-1 sm:px-4 sm:py-1.5 rounded-full bg-gradient-to-r from-teal-500/20 to-emerald-500/20 border border-amber-400/40 shadow-lg backdrop-blur-sm">
+                    <span className="text-[10px] sm:text-xs lg:text-sm font-semibold text-amber-100 flex items-center gap-1 sm:gap-2">
+                      <span className="text-teal-300">🔒</span>
+                      <span className="hidden sm:inline">{activeSlide.eyebrow}</span>
+                      <span className="sm:hidden">100% Secure</span>
+                    </span>
+                  </div>
+                  <div className="hidden sm:flex items-center gap-3 text-xs text-teal-100/80">
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                      Escrow‑protected payments
+                    </span>
+                    <span className="hidden md:inline-block w-px h-4 bg-teal-300/40" />
+                    <span className="hidden md:inline">
+                      Dispute resolution support
+                    </span>
+                  </div>
                 </div>
-                <div className="hidden sm:flex items-center gap-3 text-xs text-teal-100/80">
-                  <span className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                    Escrow‑protected payments
-                  </span>
-                  <span className="hidden md:inline-block w-px h-4 bg-teal-300/40" />
-                  <span className="hidden md:inline">
-                    Dispute resolution support
-                  </span>
-                </div>
-              </div>
 
-              {/* Main copy */}
-              <div className="max-w-xl mt-4 space-y-4">
-                <motion.h1
-                  key={activeSlide.id + "-title"}
-                  initial={{ y: 20, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ duration: 0.5 }}
-                  className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white leading-tight drop-shadow-[0_10px_35px_rgba(15,23,42,0.8)]"
-                >
-                  {activeSlide.title}
-                </motion.h1>
-                <motion.p
-                  key={activeSlide.id + "-subtitle"}
-                  initial={{ y: 16, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ duration: 0.5, delay: 0.05 }}
-                  className="text-sm sm:text-base lg:text-lg text-teal-50/90 max-w-xl"
-                >
-                  {activeSlide.subtitle}
-                </motion.p>
-              </div>
-
-              {/* CTAs and stats */}
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mt-4">
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <Link
-                    to={activeSlide.primaryTo}
-                    className="inline-flex items-center justify-center px-6 sm:px-7 py-3 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 font-semibold text-sm sm:text-base shadow-xl shadow-amber-900/60 hover:from-amber-300 hover:to-amber-400 hover:shadow-2xl hover:-translate-y-0.5 transform transition-all"
+                {/* Main copy */}
+                <div className="max-w-xl mt-2 sm:mt-4 space-y-2 sm:space-y-4">
+                  <motion.h1
+                    key={activeSlide.id + "-title"}
+                    initial={{ y: 20, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{ duration: 0.5 }}
+                    className="text-xl sm:text-3xl lg:text-5xl font-extrabold text-white leading-tight drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)] sm:drop-shadow-[0_10px_35px_rgba(15,23,42,0.8)]"
                   >
-                    {activeSlide.primaryCta}
-                  </Link>
-                  <Link
-                    to={activeSlide.secondaryTo}
-                    className="inline-flex items-center justify-center px-6 sm:px-7 py-3 rounded-xl border-2 border-teal-300/70 text-teal-50 font-semibold text-sm sm:text-base hover:bg-teal-900/40 hover:border-teal-200 transition-all"
+                    {activeSlide.title}
+                  </motion.h1>
+                  <motion.p
+                    key={activeSlide.id + "-subtitle"}
+                    initial={{ y: 16, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{ duration: 0.5, delay: 0.05 }}
+                    className="text-xs sm:text-sm lg:text-lg text-teal-50/90 max-w-xl line-clamp-2 sm:line-clamp-none"
                   >
-                    {activeSlide.secondaryCta}
-                  </Link>
+                    {activeSlide.subtitle}
+                  </motion.p>
                 </div>
 
-                <div className="grid grid-cols-3 gap-3 text-xs sm:text-sm">
-                  <div className="bg-teal-900/30 rounded-lg p-2 border border-teal-700/40">
-                    <div className="font-semibold text-teal-200">Escrow</div>
-                    <div className="text-teal-300/80 text-[10px] sm:text-xs">
-                      Funds held until you confirm
-                    </div>
+                {/* CTAs and stats */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4 mt-2 sm:mt-4">
+                  <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+                    <Link
+                      to={activeSlide.primaryTo}
+                      className="inline-flex items-center justify-center px-4 py-2 sm:px-6 sm:py-3 rounded-lg sm:rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 font-semibold text-xs sm:text-sm lg:text-base shadow-lg sm:shadow-xl shadow-amber-900/60 hover:from-amber-300 hover:to-amber-400 hover:shadow-xl sm:hover:shadow-2xl hover:-translate-y-0.5 transform transition-all"
+                    >
+                      {activeSlide.primaryCta}
+                    </Link>
+                    <Link
+                      to={activeSlide.secondaryTo}
+                      className="inline-flex items-center justify-center px-4 py-2 sm:px-6 sm:py-3 rounded-lg sm:rounded-xl border sm:border-2 border-teal-300/70 text-teal-50 font-semibold text-xs sm:text-sm lg:text-base hover:bg-teal-900/40 hover:border-teal-200 transition-all"
+                    >
+                      {activeSlide.secondaryCta}
+                    </Link>
                   </div>
-                  <div className="bg-emerald-900/30 rounded-lg p-2 border border-emerald-700/40">
-                    <div className="font-semibold text-emerald-200">
-                      Verified
+
+                  <div className="grid grid-cols-3 gap-1.5 sm:gap-3 text-[9px] sm:text-xs lg:text-sm">
+                    <div className="bg-teal-900/30 rounded sm:rounded-lg p-1 sm:p-2 border border-teal-700/40">
+                      <div className="font-semibold text-teal-200 text-[10px] sm:text-xs">Escrow</div>
+                      <div className="text-teal-300/80 text-[8px] sm:text-[10px] lg:text-xs leading-tight">
+                        <span className="hidden sm:inline">Funds held until you confirm</span>
+                        <span className="sm:hidden">Funds held</span>
+                      </div>
                     </div>
-                    <div className="text-emerald-300/80 text-[10px] sm:text-xs">
-                      ID‑verified African vendors
+                    <div className="bg-emerald-900/30 rounded sm:rounded-lg p-1 sm:p-2 border border-emerald-700/40">
+                      <div className="font-semibold text-emerald-200 text-[10px] sm:text-xs">
+                        Verified
+                      </div>
+                      <div className="text-emerald-300/80 text-[8px] sm:text-[10px] lg:text-xs leading-tight">
+                        <span className="hidden sm:inline">ID‑verified African vendors</span>
+                        <span className="sm:hidden">ID-verified</span>
+                      </div>
                     </div>
-                  </div>
-                  <div className="bg-amber-900/30 rounded-lg p-2 border border-amber-700/40">
-                    <div className="font-semibold text-amber-200">
-                      Protection
-                    </div>
-                    <div className="text-amber-300/80 text-[10px] sm:text-xs">
-                      Disputes handled fairly
+                    <div className="bg-amber-900/30 rounded sm:rounded-lg p-1 sm:p-2 border border-amber-700/40">
+                      <div className="font-semibold text-amber-200 text-[10px] sm:text-xs">
+                        Protection
+                      </div>
+                      <div className="text-amber-300/80 text-[8px] sm:text-[10px] lg:text-xs leading-tight">
+                        <span className="hidden sm:inline">Disputes handled fairly</span>
+                        <span className="sm:hidden">Disputes</span>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Dots */}
-              <div className="flex items-center justify-center gap-2 mt-4">
-                {heroSlides.map((slide, index) => (
-                  <button
-                    key={slide.id}
-                    type="button"
-                    onClick={() => setCurrentIndex(index)}
-                    className={`h-2.5 rounded-full transition-all ${
-                      index === currentIndex
-                        ? `w-8 ${
-                            index === 0
-                              ? "bg-teal-400"
-                              : index === 1
-                                ? "bg-emerald-400"
-                                : "bg-amber-400"
-                          }`
-                        : `w-2.5 ${
-                            index === 0
-                              ? "bg-teal-400/40 hover:bg-teal-300/70"
-                              : index === 1
-                                ? "bg-emerald-400/40 hover:bg-emerald-300/70"
-                                : "bg-amber-400/40 hover:bg-amber-300/70"
-                          }`
-                    }`}
-                    aria-label={`Go to slide ${index + 1}`}
-                  />
-                ))}
+                {/* Dots */}
+                <div className="flex items-center justify-center gap-2 mt-4">
+                  {heroSlides.map((slide, index) => (
+                    <button
+                      key={slide.id}
+                      type="button"
+                      onClick={() => setCurrentIndex(index)}
+                      className={`h-2.5 rounded-full transition-all ${
+                        index === currentIndex
+                          ? `w-8 ${
+                              index === 0
+                                ? "bg-teal-400"
+                                : index === 1
+                                  ? "bg-emerald-400"
+                                  : "bg-amber-400"
+                            }`
+                          : `w-2.5 ${
+                              index === 0
+                                ? "bg-teal-400/40 hover:bg-teal-300/70"
+                                : index === 1
+                                  ? "bg-emerald-400/40 hover:bg-emerald-300/70"
+                                  : "bg-amber-400/40 hover:bg-amber-300/70"
+                            }`
+                      }`}
+                      aria-label={`Go to slide ${index + 1}`}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Right info column */}
-          <aside className="hidden lg:flex flex-col gap-4">
+            {/* Right info column */}
+            <aside className="flex flex-col gap-4">
             <div className="flex-1 rounded-2xl bg-gradient-to-br from-slate-900/90 to-teal-900/20 border border-teal-700/70 shadow-xl p-4 flex flex-col justify-between">
               <div className="space-y-1">
                 <p className="text-xs font-semibold text-amber-300 uppercase tracking-wide flex items-center gap-2">
@@ -618,6 +880,7 @@ const HomeOjawa = () => {
               )}
             </div>
           </aside>
+          </div>
         </div>
       </section>
 
@@ -676,7 +939,7 @@ const HomeOjawa = () => {
               showDiscount={true}
               showItemsLeft={true}
               autoScroll={true}
-              scrollInterval={30000}
+              scrollInterval={5000}
               className="text-white"
             />
           </div>
@@ -830,7 +1093,7 @@ const HomeOjawa = () => {
               products={topSellers}
               showDiscount={true}
               autoScroll={true}
-              scrollInterval={30000}
+              scrollInterval={5000}
               className="text-white"
             />
           </div>
@@ -869,7 +1132,7 @@ const HomeOjawa = () => {
               products={getFilteredProducts(categoryProducts.phones || [])}
               showDiscount={true}
               autoScroll={true}
-              scrollInterval={30000}
+              scrollInterval={5000}
               className="text-white"
             />
           </div>
@@ -908,7 +1171,7 @@ const HomeOjawa = () => {
               products={getFilteredProducts(categoryProducts.fashion || [])}
               showDiscount={true}
               autoScroll={true}
-              scrollInterval={30000}
+              scrollInterval={5000}
               className="text-white"
             />
           </div>
@@ -1084,7 +1347,7 @@ const HomeOjawa = () => {
                 products={getFilteredProducts(categoryProducts.electronics || [])}
                 showDiscount={true}
                 autoScroll={true}
-                scrollInterval={30000}
+                scrollInterval={5000}
                 className="text-white"
               />
             </div>
@@ -1123,7 +1386,7 @@ const HomeOjawa = () => {
               products={getFilteredProducts(categoryProducts.beauty || [])}
               showDiscount={true}
               autoScroll={true}
-              scrollInterval={30000}
+              scrollInterval={5000}
               className="text-white"
             />
           </div>
@@ -1163,7 +1426,7 @@ const HomeOjawa = () => {
                 products={getFilteredProducts(categoryProducts.appliances || [])}
                 showDiscount={true}
                 autoScroll={true}
-                scrollInterval={30000}
+                scrollInterval={5000}
                 className="text-white"
               />
             </div>
@@ -1202,7 +1465,7 @@ const HomeOjawa = () => {
               products={getFilteredProducts(categoryProducts.computing || [])}
               showDiscount={true}
               autoScroll={true}
-              scrollInterval={30000}
+              scrollInterval={5000}
               className="text-white"
             />
           </div>

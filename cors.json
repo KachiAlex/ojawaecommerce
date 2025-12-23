@@ -1,8 +1,24 @@
 [
   {
-    "origin": ["https://ojawa-ecommerce.web.app", "http://localhost:3000", "http://localhost:5173"],
-    "method": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    "origin": [
+      "https://ojawa-ecommerce.web.app",
+      "https://ojawa-ecommerce.firebaseapp.com",
+      "http://localhost:3000",
+      "http://localhost:5173",
+      "http://127.0.0.1:5173",
+      "http://127.0.0.1:3000"
+    ],
+    "method": ["GET", "HEAD", "OPTIONS"],
     "maxAgeSeconds": 3600,
-    "responseHeader": ["Content-Type", "Authorization"]
+    "responseHeader": [
+      "Content-Type",
+      "Content-Length",
+      "Content-Range",
+      "Accept-Ranges",
+      "Cache-Control",
+      "Expires",
+      "Last-Modified",
+      "ETag"
+    ]
   }
 ]

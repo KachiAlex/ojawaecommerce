@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import Receipt from './Receipt';
+import SupportTicket from './SupportTicket';
 
 // Currency formatting helper
 const formatCurrency = (amount, currencyValue) => {
@@ -16,6 +17,7 @@ const formatCurrency = (amount, currencyValue) => {
 
 const OrderDetailsModal = ({ open, order, onClose, onFundWallet }) => {
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
+  const [showReportIssue, setShowReportIssue] = useState(false);
 
   if (!open || !order) return null;
 
@@ -70,6 +72,12 @@ const OrderDetailsModal = ({ open, order, onClose, onFundWallet }) => {
         </div>
         <div className="p-6 border-t flex items-center justify-end gap-3">
           <button onClick={onClose} className="px-4 py-2 text-sm border rounded-lg text-gray-700 hover:bg-gray-50">Close</button>
+          <button 
+            onClick={() => setShowReportIssue(true)} 
+            className="px-4 py-2 text-sm border border-red-300 rounded-lg text-red-600 hover:bg-red-50 font-medium"
+          >
+            🚨 Report Issue
+          </button>
           {(order.paymentStatus === 'escrow_funded' || order.paymentStatus === 'paid' || order.status === 'escrow_funded') && (
             <button 
               onClick={() => setIsReceiptOpen(true)} 
@@ -90,6 +98,31 @@ const OrderDetailsModal = ({ open, order, onClose, onFundWallet }) => {
         isOpen={isReceiptOpen}
         onClose={() => setIsReceiptOpen(false)}
       />
+
+      {/* Report Issue Modal */}
+      {showReportIssue && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <SupportTicket
+              initialData={{
+                orderId: order.id,
+                category: 'order',
+                orderDetails: {
+                  amount: order.totalAmount,
+                  status: order.status,
+                  vendorName: order.vendorName,
+                  date: order.createdAt?.toDate ? order.createdAt.toDate().toLocaleString() : 'N/A'
+                }
+              }}
+              onTicketCreated={() => {
+                setShowReportIssue(false);
+                alert('Issue reported successfully! Our support team will review it shortly.');
+              }}
+              onClose={() => setShowReportIssue(false)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

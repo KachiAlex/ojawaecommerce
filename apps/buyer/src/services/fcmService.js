@@ -5,6 +5,30 @@ import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 
 const messaging = getMessaging(app);
 
+let messagingSwRegistrationPromise = null;
+
+const registerMessagingServiceWorker = () => {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
+    return Promise.reject(new Error('Service workers not supported'));
+  }
+
+  if (!messagingSwRegistrationPromise) {
+    messagingSwRegistrationPromise = navigator.serviceWorker
+      .register('/firebase-messaging-sw.js')
+      .then((registration) => {
+        console.log('Firebase messaging service worker registered');
+        return registration;
+      })
+      .catch((error) => {
+        messagingSwRegistrationPromise = null;
+        console.warn('Failed to register Firebase messaging service worker:', error);
+        throw error;
+      });
+  }
+
+  return messagingSwRegistrationPromise;
+};
+
 // VAPID key for web push (optional - FCM will work without it for basic functionality)
 const VAPID_KEY = 'BEl62iUYgUivLOI6SIKpGzlDq5y2p-4jlbVuBHTj-c0'; // Demo VAPID key for testing
 
@@ -74,9 +98,17 @@ export const getFCMToken = async (userId) => {
       return null;
     }
 
+    let serviceWorkerRegistration = null;
+    try {
+      serviceWorkerRegistration = await registerMessagingServiceWorker();
+    } catch (err) {
+      console.warn('FCM service worker registration failed (non-critical):', err.message);
+    }
+
     // Get token
     const token = await getToken(messaging, {
-      vapidKey: VAPID_KEY
+      vapidKey: VAPID_KEY,
+      serviceWorkerRegistration: serviceWorkerRegistration || undefined
     });
 
     if (token) {

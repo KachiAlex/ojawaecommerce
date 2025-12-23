@@ -12,8 +12,23 @@ const Login = () => {
   const [googleLoading, setGoogleLoading] = useState(false);
   // Default to role selection (centralized login/signup chooser)
   const [userType, setUserType] = useState('');
+  const [verificationState, setVerificationState] = useState({
+    pending: false,
+    email: '',
+    provider: null
+  });
+  const [resendStatus, setResendStatus] = useState('idle');
+  const [lastAttemptCredentials, setLastAttemptCredentials] = useState({
+    email: '',
+    password: ''
+  });
   
-  const { signin, signInWithGoogle } = useAuth();
+  const { 
+    signin, 
+    signInWithGoogle, 
+    resendVerificationEmailWithPassword,
+    lastVerificationEmailSentAt
+  } = useAuth();
   const { getIntendedDestination } = useCart();
   const navigate = useNavigate();
   const location = useLocation();
@@ -29,8 +44,17 @@ const Login = () => {
     }
   }, [preselectedUserType]);
 
+  const canResendVerification = () => {
+    if (!lastVerificationEmailSentAt) return true;
+    const lastSent = new Date(lastVerificationEmailSentAt).getTime();
+    if (Number.isNaN(lastSent)) return true;
+    return Date.now() - lastSent > 60000; // 1 minute cooldown
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setVerificationState({ pending: false, email: '', provider: null });
+    setResendStatus('idle');
     
     if (!email || !password) {
       setError('Please fill in all fields');
@@ -40,6 +64,7 @@ const Login = () => {
     try {
       setError('');
       setLoading(true);
+      setLastAttemptCredentials({ email, password });
       
       console.log('🔐 Attempting login for:', email);
       await signin(email, password);
@@ -80,6 +105,11 @@ const Login = () => {
       
       // Display more specific error messages
       let errorMessage = 'Failed to sign in. Please check your credentials.';
+
+      if (error.code === 'auth/email-not-verified') {
+        setVerificationState({ pending: true, email: error.email || email, provider: 'password' });
+        errorMessage = 'Please verify your email address before signing in.';
+      }
       
       if (error.code === 'auth/user-not-found') {
         errorMessage = 'No account found with this email address. Please register first.';
@@ -102,6 +132,44 @@ const Login = () => {
       setError(errorMessage);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    if (!verificationState.pending || resendStatus === 'sending') return;
+    
+    if (!canResendVerification()) {
+      setResendStatus('cooldown');
+      return;
+    }
+
+    if (verificationState.provider !== 'password') {
+      setResendStatus('unsupported');
+      setError('Please re-attempt sign in to trigger another verification email.');
+      return;
+    }
+
+    const credentials = lastAttemptCredentials.email ? lastAttemptCredentials : { email, password };
+    if (!credentials.email || !credentials.password) {
+      setResendStatus('error');
+      setError('Please enter your email and password, then click Sign In before resending.');
+      return;
+    }
+
+    try {
+      setResendStatus('sending');
+      const result = await resendVerificationEmailWithPassword(credentials.email, credentials.password);
+      if (result?.alreadyVerified) {
+        setVerificationState({ pending: false, email: '', provider: null });
+        setResendStatus('verified');
+        setError('Email already verified. Please sign in again.');
+        return;
+      }
+      setResendStatus('sent');
+    } catch (err) {
+      console.error('Failed to resend verification email:', err);
+      setResendStatus('error');
+      setError(err.message || 'Failed to resend verification email. Please try again.');
     }
   };
 
@@ -155,6 +223,10 @@ const Login = () => {
         errorMessage = 'Popup was blocked by your browser. Please allow popups for this site or try again.';
       } else if (error.code === 'auth/account-exists-with-different-credential') {
         errorMessage = 'An account already exists with this email. Please sign in with email/password.';
+      } else if (error.code === 'auth/email-not-verified') {
+        setVerificationState({ pending: true, email: error.email || email, provider: 'google' });
+        setError('Please verify your Google email address via the link we just sent.');
+        return;
       } else if (error.code === 'auth/network-request-failed') {
         errorMessage = 'Network error. Please check your internet connection and try again.';
       } else if (error.code === 'auth/popup-closed-by-user') {
@@ -177,6 +249,28 @@ const Login = () => {
       setGoogleLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (location.state?.verificationEmail) {
+      setVerificationState({
+        pending: true,
+        email: location.state.verificationEmail,
+        provider: 'password'
+      });
+    }
+  }, [location.state?.verificationEmail]);
+
+  const verificationDescription = verificationState.provider === 'google'
+    ? 'Open the inbox for this Google account and click the verification link to continue.'
+    : 'Open your inbox and click the link we sent to activate wallet protection.';
+
+  const resendButtonLabel = (() => {
+    if (resendStatus === 'sent') return 'Verification email re-sent!';
+    if (resendStatus === 'sending') return 'Sending...';
+    if (resendStatus === 'cooldown') return 'Please wait a minute before resending';
+    if (resendStatus === 'verified') return 'Email verified! Sign in again.';
+    return 'Resend verification email';
+  })();
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-950 py-8 px-4">
@@ -279,6 +373,42 @@ const Login = () => {
                 {userType === 'existing' ? 'Welcome back!' : 'Create your account to get started'}
               </p>
             </div>
+
+            {verificationState.pending && (
+              <div className="mb-4 border border-amber-200 bg-amber-50 text-amber-900 rounded-xl p-4">
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="text-amber-500 text-xl">📧</span>
+                  <div>
+                    <p className="font-semibold text-sm">Verify your email</p>
+                    <p className="text-xs text-amber-800">
+                      We sent a verification link to{' '}
+                      <strong>{verificationState.email || email}</strong>.
+                    </p>
+                  </div>
+                </div>
+                <p className="text-xs text-amber-800 mb-3">{verificationDescription}</p>
+                {verificationState.provider === 'password' && (
+                  <button
+                    type="button"
+                    onClick={handleResendVerification}
+                    disabled={
+                      resendStatus === 'sending' ||
+                      resendStatus === 'cooldown' ||
+                      resendStatus === 'verified' ||
+                      !canResendVerification()
+                    }
+                    className="w-full inline-flex items-center justify-center px-3 py-2 text-xs font-medium rounded-lg border border-amber-300 text-amber-700 bg-white hover:bg-amber-100 disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {resendButtonLabel}
+                  </button>
+                )}
+                {verificationState.provider === 'google' && (
+                  <p className="text-[11px] text-amber-700 italic">
+                    If you need another email, click "Sign in with Google" again and we’ll resend automatically.
+                  </p>
+                )}
+              </div>
+            )}
           
             {userType !== 'existing' && (
               <div className="mb-4 p-2 bg-gray-50 rounded-lg">

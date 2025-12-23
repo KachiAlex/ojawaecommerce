@@ -23,6 +23,10 @@ const AdminDashboard = () => {
   const [allProducts, setAllProducts] = useState([]);
   const [escrowTransactions, setEscrowTransactions] = useState([]);
   const [messages, setMessages] = useState([]);
+  const [supportTickets, setSupportTickets] = useState([]);
+  const [selectedTicket, setSelectedTicket] = useState(null);
+  const [ticketReply, setTicketReply] = useState('');
+  const [showTicketModal, setShowTicketModal] = useState(false);
   
   // Pagination states for users
   const [allUsers, setAllUsers] = useState([]);
@@ -58,13 +62,14 @@ const AdminDashboard = () => {
     try {
       setLoading(true);
       
-      const [usersResult, ordersResult, disputesResult, productsSnapshot, transactionsSnapshot, messagesSnapshot] = await Promise.all([
+      const [usersResult, ordersResult, disputesResult, productsSnapshot, transactionsSnapshot, messagesSnapshot, ticketsSnapshot] = await Promise.all([
         firebaseService.admin.getAllUsers({ pageSize: 50 }),
         firebaseService.admin.getAllOrders({ pageSize: 100 }),
         firebaseService.admin.getAllDisputes({ pageSize: 100 }),
         getDocs(collection(db, 'products')),
         getDocs(collection(db, 'wallet_transactions')),
-        getDocs(collection(db, 'admin_messages'))
+        getDocs(collection(db, 'admin_messages')),
+        getDocs(collection(db, 'support_tickets'))
       ]);
       
       const usersList = usersResult.items || [];
@@ -101,6 +106,12 @@ const AdminDashboard = () => {
         ...doc.data()
       }));
       setMessages(messagesList);
+      
+      const ticketsList = ticketsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setSupportTickets(ticketsList);
       
       const analyticsData = {
         totalUsers: usersList.length,
@@ -324,6 +335,54 @@ const AdminDashboard = () => {
     }
   };
 
+  // Support Ticket Management
+  const handleReplyToTicket = async (ticketId) => {
+    if (!ticketReply.trim()) {
+      alert('Please enter a reply message');
+      return;
+    }
+
+    try {
+      await firebaseService.supportTickets.addReply(ticketId, {
+        message: ticketReply,
+        isAdminReply: true,
+        adminId: currentUser.uid,
+        adminName: userProfile?.name || 'Admin'
+      });
+
+      // Notify user
+      const ticket = supportTickets.find(t => t.id === ticketId);
+      if (ticket) {
+        await firebaseService.notifications.create({
+          userId: ticket.userId,
+          type: 'support_ticket_reply',
+          title: 'Reply to Your Support Ticket',
+          message: `Admin has replied to your ticket: ${ticket.subject}`,
+          ticketId: ticketId,
+          read: false
+        });
+      }
+
+      setTicketReply('');
+      await fetchAdminData();
+      alert('Reply sent successfully!');
+    } catch (error) {
+      console.error('Error replying to ticket:', error);
+      alert('Failed to send reply');
+    }
+  };
+
+  const handleUpdateTicketStatus = async (ticketId, status) => {
+    try {
+      await firebaseService.supportTickets.updateStatus(ticketId, status, currentUser.uid);
+      await fetchAdminData();
+      alert('Ticket status updated successfully!');
+    } catch (error) {
+      console.error('Error updating ticket status:', error);
+      alert('Failed to update ticket status');
+    }
+  };
+
   // Messaging System
   const handleSendMessage = async () => {
     try {
@@ -460,6 +519,7 @@ const AdminDashboard = () => {
             { id: 'disputes', name: 'Disputes', icon: '⚖️' },
             { id: 'escrow', name: 'Escrow', icon: '💰' },
             { id: 'messages', name: 'Messages', icon: '📨' },
+            { id: 'support-tickets', name: 'Support Tickets', icon: '🎫' },
             { id: 'analytics', name: 'Analytics', icon: '📈' }
           ].map((tab) => (
               <button
@@ -1276,6 +1336,90 @@ const AdminDashboard = () => {
                   </div>
       )}
 
+      {/* Support Tickets Tab */}
+      {activeTab === 'support-tickets' && (
+        <div className="space-y-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h3 className="text-lg font-medium text-white">Support Tickets</h3>
+              <p className="text-sm text-teal-200 mt-1">
+                {supportTickets.filter(t => t.status === 'open' || t.status === 'in_progress').length} open tickets
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-slate-900 rounded-xl border border-teal-800/50 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-teal-800/50">
+                <thead className="bg-slate-800">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-teal-300 uppercase tracking-wider">Ticket ID</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-teal-300 uppercase tracking-wider">Subject</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-teal-300 uppercase tracking-wider">User</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-teal-300 uppercase tracking-wider">Category</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-teal-300 uppercase tracking-wider">Priority</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-teal-300 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-teal-300 uppercase tracking-wider">Created</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-teal-300 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-slate-900 divide-y divide-teal-800/50">
+                  {supportTickets.map((ticket) => {
+                    const statusColors = {
+                      open: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50',
+                      in_progress: 'bg-amber-500/20 text-amber-400 border-amber-500/50',
+                      waiting_for_admin: 'bg-blue-500/20 text-blue-400 border-blue-500/50',
+                      resolved: 'bg-teal-500/20 text-teal-400 border-teal-500/50',
+                      closed: 'bg-slate-700 text-slate-300 border-slate-600'
+                    };
+                    const priorityColors = {
+                      low: 'text-blue-400',
+                      medium: 'text-amber-400',
+                      high: 'text-orange-400',
+                      urgent: 'text-red-400'
+                    };
+                    return (
+                      <tr key={ticket.id} className="hover:bg-slate-800/50 transition-colors">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-teal-300">
+                          {ticket.id.slice(-8)}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-white">{ticket.subject}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-teal-200">{ticket.userName || ticket.userEmail}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-teal-300 capitalize">{ticket.category}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`text-sm font-medium ${priorityColors[ticket.priority] || priorityColors.medium}`}>
+                            {ticket.priority}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-2 py-1 text-xs font-medium rounded-full border ${statusColors[ticket.status] || statusColors.open}`}>
+                            {ticket.status.replace('_', ' ')}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-teal-400">
+                          {ticket.createdAt?.toDate ? ticket.createdAt.toDate().toLocaleDateString() : 'N/A'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <button
+                            onClick={() => {
+                              setSelectedTicket(ticket);
+                              setShowTicketModal(true);
+                            }}
+                            className="text-emerald-400 hover:text-emerald-300 font-medium"
+                          >
+                            View
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Analytics Tab */}
       {activeTab === 'analytics' && (
         <div className="space-y-6">
@@ -1430,6 +1574,115 @@ const AdminDashboard = () => {
                 >
                   Reject Product
                   </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Support Ticket Modal */}
+      {showTicketModal && selectedTicket && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4">
+          <div className="relative bg-slate-900 rounded-xl border border-teal-800/50 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-white">Support Ticket Details</h2>
+                <button
+                  onClick={() => {
+                    setShowTicketModal(false);
+                    setSelectedTicket(null);
+                    setTicketReply('');
+                  }}
+                  className="text-teal-300 hover:text-white transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-xl font-semibold text-white mb-2">{selectedTicket.subject}</h3>
+                  <div className="flex items-center gap-4 text-sm mb-4">
+                    <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/50">
+                      {selectedTicket.status.replace('_', ' ').toUpperCase()}
+                    </span>
+                    <span className="text-teal-300 capitalize">{selectedTicket.category}</span>
+                    <span className="text-amber-400">{selectedTicket.priority} priority</span>
+                  </div>
+                </div>
+
+                <div className="bg-slate-800 rounded-lg p-4">
+                  <p className="text-teal-200 whitespace-pre-wrap">{selectedTicket.description}</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-teal-300">User: </span>
+                    <span className="text-white">{selectedTicket.userName || selectedTicket.userEmail}</span>
+                  </div>
+                  <div>
+                    <span className="text-teal-300">Created: </span>
+                    <span className="text-white">
+                      {selectedTicket.createdAt?.toDate ? selectedTicket.createdAt.toDate().toLocaleString() : 'N/A'}
+                    </span>
+                  </div>
+                  {selectedTicket.orderId && (
+                    <div>
+                      <span className="text-teal-300">Order ID: </span>
+                      <span className="text-amber-400 font-mono">{selectedTicket.orderId}</span>
+                    </div>
+                  )}
+                </div>
+
+                {selectedTicket.replies && selectedTicket.replies.length > 0 && (
+                  <div>
+                    <h4 className="text-lg font-semibold text-white mb-4">Replies ({selectedTicket.replies.length})</h4>
+                    <div className="space-y-4">
+                      {selectedTicket.replies.map((reply, index) => (
+                        <div key={index} className="bg-slate-800 rounded-lg p-4 border-l-4 border-teal-500">
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-sm font-semibold text-teal-300">
+                              {reply.isAdminReply ? 'Admin' : selectedTicket.userName}
+                            </span>
+                            <span className="text-xs text-teal-400">
+                              {reply.createdAt?.toDate ? reply.createdAt.toDate().toLocaleString() : 'Recently'}
+                            </span>
+                          </div>
+                          <p className="text-teal-200">{reply.message}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="border-t border-teal-800/50 pt-6">
+                  <h4 className="text-lg font-semibold text-white mb-4">Reply to Ticket</h4>
+                  <textarea
+                    value={ticketReply}
+                    onChange={(e) => setTicketReply(e.target.value)}
+                    placeholder="Enter your reply..."
+                    rows={4}
+                    className="w-full px-4 py-2 rounded-lg bg-slate-800 border border-teal-700/60 text-teal-50 placeholder-teal-300/60 focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none mb-4"
+                  />
+                  <div className="flex gap-4">
+                    <button
+                      onClick={() => handleReplyToTicket(selectedTicket.id)}
+                      className="px-6 py-2 rounded-lg font-semibold bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:from-emerald-400 hover:to-teal-400 transition-all"
+                    >
+                      Send Reply
+                    </button>
+                    <select
+                      value={selectedTicket.status}
+                      onChange={(e) => handleUpdateTicketStatus(selectedTicket.id, e.target.value)}
+                      className="px-4 py-2 rounded-lg bg-slate-800 border border-teal-700/60 text-teal-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    >
+                      <option value="open">Open</option>
+                      <option value="in_progress">In Progress</option>
+                      <option value="resolved">Resolved</option>
+                      <option value="closed">Closed</option>
+                    </select>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

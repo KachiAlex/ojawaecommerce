@@ -320,6 +320,17 @@ const Vendor = () => {
   console.log('🏪 Vendor component loaded');
   const { currentUser, userProfile, updateUserProfile, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const {
+    conversations,
+    activeConversation,
+    setActiveConversation,
+    messages,
+    sendMessage,
+    markAsRead,
+    unreadCount,
+    loading: messagesLoading,
+    startConversation,
+  } = useMessaging();
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -335,41 +346,6 @@ const Vendor = () => {
     }
   }, [currentUser, authLoading, navigate]);
 
-  // Show loading while checking auth or if not authenticated
-  if (authLoading || !currentUser) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">
-            {authLoading ? 'Loading...' : 'Redirecting to login...'}
-          </p>
-        </div>
-      </div>
-    );
-  }
-  const {
-    conversations,
-    activeConversation,
-    setActiveConversation,
-    messages,
-    sendMessage,
-    markAsRead,
-    unreadCount,
-    loading: messagesLoading,
-    startConversation,
-  } = useMessaging?.() || {
-    conversations: [],
-    activeConversation: null,
-    setActiveConversation: () => {},
-    messages: [],
-    sendMessage: async () => {},
-    markAsRead: async () => {},
-    unreadCount: 0,
-    loading: false,
-    startConversation: async () => {},
-  };
-  
   const [activeTab, setActiveTab] = useState('overview');
   const [showAddProductForm, setShowAddProductForm] = useState(false);
   const [orders, setOrders] = useState([]);

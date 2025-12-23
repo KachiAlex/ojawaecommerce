@@ -1,15 +1,21 @@
 import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import { useNotifications } from '../contexts/NotificationContext';
 
 const MobileBottomNavigation = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { currentUser } = useAuth();
   const { getCartItemsCount } = useCart();
   const { unreadCount: notificationUnreadCount } = useNotifications();
   const [activeTab, setActiveTab] = useState(location.pathname);
+
+  const handleNavigation = (href) => {
+    setActiveTab(href);
+    navigate(href);
+  };
 
   const navigationItems = [
     {
@@ -106,26 +112,83 @@ const MobileBottomNavigation = () => {
   };
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50 md:hidden">
-      <div className="flex items-center justify-around py-2">
+    <div 
+      data-mobile-bottom-nav
+      className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 md:hidden safe-area-inset-bottom shadow-lg"
+      style={{
+        zIndex: 9999,
+        pointerEvents: 'auto',
+        touchAction: 'manipulation',
+        WebkitTouchCallout: 'none',
+        WebkitUserSelect: 'none',
+        userSelect: 'none',
+        position: 'fixed',
+        bottom: 0,
+        left: 0,
+        right: 0
+      }}
+    >
+      <div className="flex items-center justify-around py-2" style={{ pointerEvents: 'auto' }}>
         {navigationItems.map((item) => {
           const active = isActive(item.href);
           return (
-            <Link
+            <button
               key={item.name}
-              to={item.href}
-              onClick={() => setActiveTab(item.href)}
-              className={`flex flex-col items-center justify-center py-2 px-3 rounded-lg transition-colors ${
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                e.nativeEvent?.stopImmediatePropagation?.();
+                try {
+                  handleNavigation(item.href);
+                } catch (error) {
+                  console.error('Navigation error:', error);
+                  // Fallback: direct navigation
+                  window.location.href = item.href;
+                }
+              }}
+              onTouchStart={(e) => {
+                e.stopPropagation();
+                e.currentTarget.style.opacity = '0.7';
+                e.currentTarget.style.transform = 'scale(0.95)';
+              }}
+              onTouchEnd={(e) => {
+                e.stopPropagation();
+                e.currentTarget.style.opacity = '1';
+                e.currentTarget.style.transform = 'scale(1)';
+              }}
+              onTouchCancel={(e) => {
+                e.stopPropagation();
+                e.currentTarget.style.opacity = '1';
+                e.currentTarget.style.transform = 'scale(1)';
+              }}
+              className={`flex flex-col items-center justify-center py-2 px-3 rounded-lg transition-all touch-manipulation ${
                 active
                   ? 'text-emerald-600 bg-emerald-50'
-                  : 'text-gray-500 hover:text-gray-700'
+                  : 'text-gray-500 active:text-gray-700'
               }`}
+              style={{
+                touchAction: 'manipulation',
+                WebkitTapHighlightColor: 'transparent',
+                WebkitTouchCallout: 'none',
+                minHeight: '56px',
+                minWidth: '56px',
+                cursor: 'pointer',
+                border: 'none',
+                background: active ? 'rgb(236 253 245)' : 'transparent',
+                outline: 'none',
+                pointerEvents: 'auto',
+                position: 'relative',
+                zIndex: 10000,
+                WebkitUserSelect: 'none',
+                userSelect: 'none'
+              }}
             >
-              <div className="mb-1">
+              <div className="mb-1" style={{ pointerEvents: 'none' }}>
                 {active ? item.activeIcon : item.icon}
               </div>
-              <span className="text-xs font-medium">{item.name}</span>
-            </Link>
+              <span className="text-xs font-medium" style={{ pointerEvents: 'none' }}>{item.name}</span>
+            </button>
           );
         })}
       </div>

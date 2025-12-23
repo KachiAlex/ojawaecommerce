@@ -18,12 +18,18 @@ const Register = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  
-  const { signup } = useAuth();
+  const [successMessage, setSuccessMessage] = useState('');
+  const [registrationComplete, setRegistrationComplete] = useState(false);
+  const [createdUserEmail, setCreatedUserEmail] = useState('');
+  const [submittedCredentials, setSubmittedCredentials] = useState(null);
+  const [resendStatus, setResendStatus] = useState('idle');
+  const [postVerificationDestination, setPostVerificationDestination] = useState('');
+
+  const { signup, resendVerificationEmailWithPassword, lastVerificationEmailSentAt, logout } = useAuth();
   const { getIntendedDestination } = useCart();
   const navigate = useNavigate();
   const location = useLocation();
-  
+
   const from = location.state?.from?.pathname || '/dashboard';
   const preselectedUserType = location.state?.userType;
 
@@ -43,7 +49,7 @@ const Register = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
       return;
@@ -66,6 +72,8 @@ const Register = () => {
 
     try {
       setError('');
+      setSuccessMessage('');
+      setResendStatus('idle');
       setLoading(true);
       await signup(formData.email, formData.password, {
         displayName: formData.displayName,
@@ -73,30 +81,23 @@ const Register = () => {
         address: formData.address,
         userType: formData.userType
       });
-      
-      // Check for intended destination from cart context
+
       const intendedDestination = getIntendedDestination();
-      if (intendedDestination) {
-        // Navigate to the intended destination (e.g., checkout, product page)
-        navigate(intendedDestination.path);
-      } else if (from !== '/dashboard') {
-        // Go back to intended destination (like checkout)
-        navigate(from);
-      } else {
-        // Redirect to appropriate dashboard based on user type
-        switch (formData.userType) {
-          case 'buyer':
-            navigate('/buyer');
-            break;
-          case 'vendor':
-            navigate('/vendor');
-            break;
-          case 'logistics':
-            navigate('/logistics');
-            break;
-          default:
-            navigate('/dashboard');
-        }
+      const fallbackDestination = intendedDestination?.path || from;
+      setPostVerificationDestination(fallbackDestination);
+      setSubmittedCredentials({
+        email: formData.email,
+        password: formData.password
+      });
+      setCreatedUserEmail(formData.email);
+      setRegistrationComplete(true);
+      setSuccessMessage('Almost there! We emailed a verification link to activate your account.');
+      setResendStatus('idle');
+
+      try {
+        await logout();
+      } catch (signOutError) {
+        console.error('Error signing out after registration:', signOutError);
       }
     } catch (error) {
       setError('Failed to create account. Email might already be in use.');
@@ -105,6 +106,56 @@ const Register = () => {
       setLoading(false);
     }
   };
+
+  const canResendVerification = () => {
+    if (!lastVerificationEmailSentAt) return true;
+    const lastSent = new Date(lastVerificationEmailSentAt).getTime();
+    if (Number.isNaN(lastSent)) return true;
+    return Date.now() - lastSent > 60000;
+  };
+
+  const handleResendVerification = async () => {
+    if (!registrationComplete || resendStatus === 'sending') return;
+    if (!canResendVerification()) {
+      setResendStatus('cooldown');
+      return;
+    }
+
+    const credentials = submittedCredentials || {
+      email: formData.email,
+      password: formData.password
+    };
+
+    if (!credentials.email || !credentials.password) {
+      setResendStatus('error');
+      setError('Please re-enter your email and password, then click "Create Account" before resending.');
+      return;
+    }
+
+    try {
+      setResendStatus('sending');
+      const result = await resendVerificationEmailWithPassword(credentials.email, credentials.password);
+      if (result?.alreadyVerified) {
+        setResendStatus('verified');
+        setSuccessMessage('Great news! Your email is already verified. Please sign in.');
+        return;
+      }
+      setResendStatus('sent');
+    } catch (err) {
+      console.error('Failed to resend verification email:', err);
+      setResendStatus('error');
+      setError(err.message || 'Failed to resend verification email. Please try again.');
+    }
+  };
+
+  const resendButtonLabel = (() => {
+    if (resendStatus === 'sent') return 'Verification email re-sent!';
+    if (resendStatus === 'sending') return 'Sending...';
+    if (resendStatus === 'cooldown') return 'Please wait a minute before resending';
+    if (resendStatus === 'verified') return 'Email already verified! Sign in now.';
+    if (resendStatus === 'error') return 'Try resending email';
+    return 'Resend verification email';
+  })();
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-950 py-12 px-4 sm:px-6 lg:px-8">
@@ -145,6 +196,55 @@ const Register = () => {
             </Link>
           </p>
         </div>
+
+        {successMessage && (
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-emerald-900 space-y-3">
+            <div className="flex items-start gap-3">
+              <span className="text-2xl">📬</span>
+              <div>
+                <h3 className="font-semibold text-sm">Verify your email to continue</h3>
+                <p className="text-xs text-emerald-800">
+                  {successMessage}
+                  {createdUserEmail && (
+                    <>
+                      {' '}We sent it to <strong>{createdUserEmail}</strong>.
+                    </>
+                  )}
+                </p>
+                <p className="text-xs text-emerald-700 mt-1">
+                  Open the email, click the verification button, then sign in to finish onboarding.
+                  {postVerificationDestination && (
+                    <>
+                      {' '}We’ll send you to <strong>{postVerificationDestination}</strong> once you log back in.
+                    </>
+                  )}
+                </p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={handleResendVerification}
+                disabled={
+                  resendStatus === 'sending' ||
+                  resendStatus === 'cooldown' ||
+                  resendStatus === 'verified' ||
+                  !canResendVerification()
+                }
+                className="w-full inline-flex items-center justify-center px-3 py-2 text-xs font-medium rounded-lg border border-emerald-300 text-emerald-700 bg-white hover:bg-emerald-100 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {resendButtonLabel}
+              </button>
+              <Link
+                to="/login"
+                state={{ verificationEmail: createdUserEmail, from: { pathname: postVerificationDestination || '/dashboard' } }}
+                className="w-full inline-flex items-center justify-center px-3 py-2 text-xs font-medium rounded-lg border border-transparent text-white bg-emerald-600 hover:bg-emerald-700"
+              >
+                I’ve verified my email — take me to login
+              </Link>
+            </div>
+          </div>
+        )}
         
         {preselectedUserType === 'buyer' && (
           <div className="bg-slate-900 rounded-lg border border-emerald-900/60 p-4 mb-6">

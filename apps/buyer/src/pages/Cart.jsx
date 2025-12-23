@@ -26,7 +26,7 @@ const formatCurrency = (amount, currencyString) => {
 const Cart = () => {
   console.log('🛒 Cart component rendering...');
   
-  const { cartItems, updateQuantity, removeFromCart, getCartTotal, clearCart, validateCartItems, hasOutOfStockItems, saveIntendedDestination } = useCart();
+  const { cartItems, cartReady, updateQuantity, removeFromCart, getCartTotal, clearCart, validateCartItems, hasOutOfStockItems, saveIntendedDestination } = useCart();
   const { currentUser, loading: authLoading } = useAuth();
   const { startConversation, setActiveConversation } = useMessaging?.() || {};
   const navigate = useNavigate?.() || (() => {});
@@ -404,6 +404,10 @@ const Cart = () => {
   // Calculate pricing breakdown
   useEffect(() => {
     const calculatePricing = async () => {
+      if (!cartReady) {
+        return;
+      }
+
       if (cartItems.length === 0) {
         setPricingBreakdown(null);
         return;

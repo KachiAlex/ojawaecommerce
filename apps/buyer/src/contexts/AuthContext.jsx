@@ -8,7 +8,9 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
   signInWithRedirect,
-  getRedirectResult
+  getRedirectResult,
+  sendEmailVerification,
+  reload
 } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
@@ -31,6 +33,36 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [showEscrowEducation, setShowEscrowEducation] = useState(false);
   const [newUserType, setNewUserType] = useState('buyer');
+  const [lastVerificationEmailSentAt, setLastVerificationEmailSentAt] = useState(null);
+
+  const getActionCodeSettings = () => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+    return {
+      url: `${window.location.origin}/login`,
+      handleCodeInApp: false
+    };
+  };
+
+  const triggerVerificationEmail = async (targetUser = auth.currentUser) => {
+    if (!targetUser) {
+      throw new Error('No authenticated user to verify.');
+    }
+    await sendEmailVerification(targetUser, getActionCodeSettings());
+    setLastVerificationEmailSentAt(new Date());
+  };
+
+  const sendVerificationEmail = async () => {
+    await triggerVerificationEmail();
+  };
+
+  const refreshUser = async () => {
+    if (!auth.currentUser) return null;
+    await reload(auth.currentUser);
+    setCurrentUser(auth.currentUser);
+    return auth.currentUser;
+  };
 
   // Sign up function
   const signup = async (email, password, userData) => {
@@ -61,6 +93,11 @@ export const AuthProvider = ({ children }) => {
 
       await setDoc(doc(db, 'users', user.uid), userProfileData);
       setUserProfile(userProfileData);
+      try {
+        await triggerVerificationEmail(user);
+      } catch (verificationError) {
+        console.error('Error sending verification email:', verificationError);
+      }
       
       // Create wallet for new user
       try {
@@ -80,12 +117,46 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const resendVerificationEmailWithPassword = async (email, password) => {
+    try {
+      const { user } = await signInWithEmailAndPassword(auth, email, password);
+      if (user.emailVerified) {
+        await signOut(auth);
+        return { alreadyVerified: true };
+      }
+      await triggerVerificationEmail(user);
+      await signOut(auth);
+      return { success: true };
+    } catch (error) {
+      console.error('Error resending verification email with password:', error);
+      throw error;
+    }
+  };
+
+  const createUnverifiedEmailError = (email) => {
+    const error = new Error('Email address is not verified.');
+    error.code = 'auth/email-not-verified';
+    error.email = email;
+    return error;
+  };
+
   // Sign in function with improved error handling
   const signin = async (email, password) => {
     try {
       console.log('🔐 AuthContext: Signing in user:', email);
       const { user } = await signInWithEmailAndPassword(auth, email, password);
       console.log('✅ AuthContext: Sign in successful, user:', user.uid);
+
+      if (!user.emailVerified) {
+        console.warn('⚠️ AuthContext: User email not verified, blocking sign-in');
+        try {
+          await triggerVerificationEmail(user);
+        } catch (verificationError) {
+          console.error('Error auto-sending verification email on signin:', verificationError);
+        }
+        await signOut(auth);
+        throw createUnverifiedEmailError(email);
+      }
       
       // Fetch user profile to check role
       const userDoc = await getDoc(doc(db, 'users', user.uid));
@@ -187,6 +258,17 @@ export const AuthProvider = ({ children }) => {
       
       const user = result.user;
       console.log('✅ AuthContext: Google Sign-In successful, user:', user.uid);
+
+      if (!user.emailVerified) {
+        console.warn('⚠️ AuthContext: Google user email not verified, blocking sign-in');
+        try {
+          await triggerVerificationEmail(user);
+        } catch (verificationError) {
+          console.error('Error auto-sending verification email for Google user:', verificationError);
+        }
+        await signOut(auth);
+        throw createUnverifiedEmailError(user.email);
+      }
       
       // Validate user data
       if (!user.email) {
@@ -534,7 +616,11 @@ export const AuthProvider = ({ children }) => {
     loading,
     showEscrowEducation,
     setShowEscrowEducation,
-    newUserType
+    newUserType,
+    sendVerificationEmail,
+    refreshUser,
+    lastVerificationEmailSentAt,
+    resendVerificationEmailWithPassword
   };
 
   return (

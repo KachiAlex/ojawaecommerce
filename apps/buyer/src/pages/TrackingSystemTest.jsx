@@ -439,17 +439,17 @@ const TrackingSystemTest = () => {
       {/* Test Results */}
       <div className="mb-6">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold text-gray-800">Test Results</h2>
+          <h2 className="text-xl font-semibold text-slate-900">Test Results</h2>
           <button
             onClick={clearTestResults}
-            className="text-gray-500 hover:text-gray-700 text-sm"
+            className="text-slate-600 hover:text-slate-800 text-sm"
           >
             Clear Results
           </button>
         </div>
 
         {testResults.length === 0 ? (
-          <p className="text-gray-500 text-center py-8">
+          <p className="text-slate-600 text-center py-8">
             No test results yet. Click "Run All Tests" to begin.
           </p>
         ) : (
@@ -469,15 +469,15 @@ const TrackingSystemTest = () => {
               >
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
-                    <h4 className="font-medium text-gray-900">{result.test}</h4>
-                    <p className="text-sm text-gray-600 mt-1">{result.details}</p>
+                    <h4 className="font-medium text-slate-900">{result.test}</h4>
+                    <p className="text-sm text-slate-700 mt-1">{result.details}</p>
                     
                     {result.data && (
                       <details className="mt-2">
-                        <summary className="text-xs text-gray-500 cursor-pointer">
+                        <summary className="text-xs text-slate-600 cursor-pointer">
                           View Data
                         </summary>
-                        <pre className="text-xs bg-gray-100 p-2 rounded mt-1 overflow-x-auto">
+                        <pre className="text-xs bg-gray-100 p-2 rounded mt-1 overflow-x-auto text-slate-800">
                           {JSON.stringify(result.data, null, 2)}
                         </pre>
                       </details>
@@ -498,7 +498,7 @@ const TrackingSystemTest = () => {
                     >
                       {result.status}
                     </span>
-                    <span className="text-xs text-gray-500">{result.timestamp}</span>
+                    <span className="text-xs text-slate-600">{result.timestamp}</span>
                   </div>
                 </div>
               </div>

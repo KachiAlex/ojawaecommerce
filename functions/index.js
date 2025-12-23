@@ -1,10 +1,18 @@
-const functions = require("firebase-functions/v1");
+const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
+const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const admin = require("firebase-admin");
 
 // Initialize Firebase Admin
 admin.initializeApp();
 const db = admin.firestore();
 const messaging = admin.messaging();
+
+const getFlutterwaveConfig = () => {
+  return {
+    secretKey: process.env.FLUTTERWAVE_SECRET_KEY || process.env.FLW_SECRET_KEY,
+    secretHash: process.env.FLUTTERWAVE_SECRET_HASH || process.env.FLW_SECRET_HASH || process.env.FLW_WEBHOOK_SECRET
+  };
+};
 
 // Routes optimization (Gen2 HTTPS onRequest)
 // Note: optimizeRoute is handled by the 'routes' codebase in functions-routes
@@ -17,10 +25,10 @@ const messaging = admin.messaging();
 // }
 
 // Basic notification function
-exports.notifyVendorNewOrder = functions.https.onCall(async (data, context) => {
-  // Verify authentication
-  if (!context.auth) {
-    throw new functions.https.HttpsError(
+exports.notifyVendorNewOrder = onCall(async (request) => {
+  const { auth, data } = request;
+  if (!auth) {
+    throw new HttpsError(
       'unauthenticated',
       'User must be authenticated to send notifications'
     );
@@ -80,10 +88,10 @@ exports.notifyVendorNewOrder = functions.https.onCall(async (data, context) => {
 });
 
 // Send payment confirmation email
-exports.sendPaymentConfirmation = functions.https.onCall(async (data, context) => {
-  // Verify authentication
-  if (!context.auth) {
-    throw new functions.https.HttpsError(
+exports.sendPaymentConfirmation = onCall(async (request) => {
+  const { auth, data } = request;
+  if (!auth) {
+    throw new HttpsError(
       'unauthenticated',
       'User must be authenticated to send payment confirmations'
     );
@@ -106,10 +114,10 @@ exports.sendPaymentConfirmation = functions.https.onCall(async (data, context) =
 });
 
 // Send order status update email
-exports.sendOrderStatusUpdate = functions.https.onCall(async (data, context) => {
-  // Verify authentication
-  if (!context.auth) {
-    throw new functions.https.HttpsError(
+exports.sendOrderStatusUpdate = onCall(async (request) => {
+  const { auth, data } = request;
+  if (!auth) {
+    throw new HttpsError(
       'unauthenticated',
       'User must be authenticated to send order updates'
     );
@@ -132,10 +140,10 @@ exports.sendOrderStatusUpdate = functions.https.onCall(async (data, context) => 
 });
 
 // Release escrow funds to vendor
-exports.releaseEscrowFunds = functions.https.onCall(async (data, context) => {
-  // Verify authentication
-  if (!context.auth) {
-    throw new functions.https.HttpsError(
+exports.releaseEscrowFunds = onCall(async (request) => {
+  const { auth, data } = request;
+  if (!auth) {
+    throw new HttpsError(
       'unauthenticated',
       'User must be authenticated to release escrow funds'
     );
@@ -145,7 +153,7 @@ exports.releaseEscrowFunds = functions.https.onCall(async (data, context) => {
     const { orderId, vendorId, amount } = data || {};
     
     if (!orderId || !vendorId || !amount) {
-      throw new functions.https.HttpsError(
+      throw new HttpsError(
         'invalid-argument',
         'Missing required parameters: orderId, vendorId, and amount are required'
       );
@@ -154,7 +162,7 @@ exports.releaseEscrowFunds = functions.https.onCall(async (data, context) => {
     // Verify the authenticated user is the buyer of the order
     const orderDoc = await db.collection('orders').doc(orderId).get();
     if (!orderDoc.exists) {
-      throw new functions.https.HttpsError(
+      throw new HttpsError(
         'not-found',
         'Order not found'
       );
@@ -164,15 +172,15 @@ exports.releaseEscrowFunds = functions.https.onCall(async (data, context) => {
     const buyerId = order.buyerId;
     
     // Verify the authenticated user is the buyer of the order
-    if (buyerId !== context.auth.uid) {
-      throw new functions.https.HttpsError(
+    if (buyerId !== auth.uid) {
+      throw new HttpsError(
         'permission-denied',
         'Only the buyer of the order can release escrow funds'
       );
     }
     
     if (!buyerId) {
-      throw new functions.https.HttpsError(
+      throw new HttpsError(
         'invalid-argument',
         'Buyer ID not found in order'
       );
@@ -256,7 +264,7 @@ exports.releaseEscrowFunds = functions.https.onCall(async (data, context) => {
 });
 
 // CORS-enabled HTTP endpoint mirroring releaseEscrowFunds callable
-exports.releaseEscrowFundsHttp = functions.https.onRequest(async (req, res) => {
+exports.releaseEscrowFundsHttp = onRequest(async (req, res) => {
   // Whitelist of allowed origins
   const allowedOrigins = [
     'https://ojawa-ecommerce.web.app',
@@ -378,204 +386,206 @@ exports.releaseEscrowFundsHttp = functions.https.onRequest(async (req, res) => {
   }
 });
 
-// ===== NEW NOTIFICATION FUNCTIONS =====
-
 // Send push notification when notification document is created
-exports.sendPushNotification = functions.firestore
-  .document('notifications/{notificationId}')
-  .onCreate(async (snap, context) => {
-    try {
-      const notification = snap.data();
-      const userId = notification.userId;
-      const notificationId = context.params.notificationId;
-      
-      console.log(`Sending push notification to user ${userId}:`, notification.title);
-      
-      // Get user's FCM token
-      const userDoc = await db.collection('users').doc(userId).get();
-      if (!userDoc.exists) {
-        console.log(`User ${userId} not found`);
-        return null;
-      }
-      
-      const userData = userDoc.data();
-      const fcmToken = userData.fcmToken;
-      
-      if (!fcmToken) {
-        console.log(`No FCM token for user ${userId}`);
-        return null;
-      }
-      
-      // Check user's notification preferences
-      const prefs = userData.notificationPreferences || {};
-      const pushPrefs = prefs.push || {};
-      
-      // If push notifications disabled globally, skip
-      if (pushPrefs.enabled === false) {
-        console.log(`Push notifications disabled for user ${userId}`);
-        return null;
-      }
-      
-      // Check category-specific preferences
-      const notificationType = notification.type;
-      if (notificationType === 'order_update' && pushPrefs.orders === false) {
-        console.log(`Order push notifications disabled for user ${userId}`);
-        return null;
-      }
-      if (notificationType === 'payment' && pushPrefs.payments === false) {
-        console.log(`Payment push notifications disabled for user ${userId}`);
-        return null;
-      }
-      if (notificationType === 'dispute' && pushPrefs.disputes === false) {
-        console.log(`Dispute push notifications disabled for user ${userId}`);
-        return null;
-      }
-      if (notificationType === 'marketing' && pushPrefs.marketing === false) {
-        console.log(`Marketing push notifications disabled for user ${userId}`);
-        return null;
-      }
-      
-      // Prepare message payload
-      const message = {
-        token: fcmToken,
+exports.sendPushNotification = onDocumentCreated('notifications/{notificationId}', async (event) => {
+  try {
+    const notification = event.data?.data();
+    if (!notification) {
+      return null;
+    }
+    const userId = notification.userId;
+    const notificationId = event.params.notificationId;
+    
+    console.log(`Sending push notification to user ${userId}:`, notification.title);
+    
+    // Get user's FCM token
+    const userDoc = await db.collection('users').doc(userId).get();
+    if (!userDoc.exists) {
+      console.log(`User ${userId} not found`);
+      return null;
+    }
+    
+    const userData = userDoc.data();
+    const fcmToken = userData.fcmToken;
+    
+    if (!fcmToken) {
+      console.log(`No FCM token for user ${userId}`);
+      return null;
+    }
+    
+    // Check user's notification preferences
+    const prefs = userData.notificationPreferences || {};
+    const pushPrefs = prefs.push || {};
+    
+    // If push notifications disabled globally, skip
+    if (pushPrefs.enabled === false) {
+      console.log(`Push notifications disabled for user ${userId}`);
+      return null;
+    }
+    
+    // Check category-specific preferences
+    const notificationType = notification.type;
+    if (notificationType === 'order_update' && pushPrefs.orders === false) {
+      console.log(`Order push notifications disabled for user ${userId}`);
+      return null;
+    }
+    if (notificationType === 'payment' && pushPrefs.payments === false) {
+      console.log(`Payment push notifications disabled for user ${userId}`);
+      return null;
+    }
+    if (notificationType === 'dispute' && pushPrefs.disputes === false) {
+      console.log(`Dispute push notifications disabled for user ${userId}`);
+      return null;
+    }
+    if (notificationType === 'marketing' && pushPrefs.marketing === false) {
+      console.log(`Marketing push notifications disabled for user ${userId}`);
+      return null;
+    }
+    
+    // Prepare message payload
+    const message = {
+      token: fcmToken,
+      notification: {
+        title: notification.title || 'Ojawa Notification',
+        body: notification.message || ''
+      },
+      data: {
+        notificationId: notificationId,
+        type: notification.type || 'general',
+        orderId: notification.orderId || '',
+        url: notification.link || '',
+        priority: notification.priority || 'normal'
+      },
+      webpush: {
         notification: {
-          title: notification.title || 'Ojawa Notification',
-          body: notification.message || ''
-        },
-        data: {
-          notificationId: notificationId,
-          type: notification.type || 'general',
-          orderId: notification.orderId || '',
-          url: notification.link || '',
-          priority: notification.priority || 'normal'
-        },
-        webpush: {
-          notification: {
-            icon: '/icon-192x192.png',
-            badge: '/badge-72x72.png',
-            requireInteraction: notification.priority === 'urgent'
-          }
+          icon: '/icon-192x192.png',
+          badge: '/badge-72x72.png',
+          requireInteraction: notification.priority === 'urgent'
         }
-      };
-      
-      // Send push notification
-      const response = await messaging.send(message);
-      console.log(`Push notification sent successfully to ${userId}:`, response);
-      
-      // Update notification with sent status
-      await snap.ref.update({
-        pushSent: true,
-        pushSentAt: admin.firestore.FieldValue.serverTimestamp()
-      });
-      
-      return response;
-    } catch (error) {
-      console.error('Error sending push notification:', error);
-      
-      // If token is invalid, remove it from user document
-      if (error.code === 'messaging/invalid-registration-token' ||
-          error.code === 'messaging/registration-token-not-registered') {
-        const notification = snap.data();
+      }
+    };
+    
+    // Send push notification
+    const response = await messaging.send(message);
+    console.log(`Push notification sent successfully to ${userId}:`, response);
+    
+    // Update notification with sent status
+    await event.data?.ref.update({
+      pushSent: true,
+      pushSentAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    
+    return response;
+  } catch (error) {
+    console.error('Error sending push notification:', error);
+    
+    // If token is invalid, remove it from user document
+    if (error.code === 'messaging/invalid-registration-token' ||
+        error.code === 'messaging/registration-token-not-registered') {
+      const notification = event.data?.data();
+      if (notification?.userId) {
         await db.collection('users').doc(notification.userId).update({
           fcmToken: null
         });
         console.log(`Removed invalid FCM token for user ${notification.userId}`);
       }
-      
-      return null;
     }
-  });
+    
+    return null;
+  }
+});
 
 // Trigger email notification when notification document is created
-exports.sendEmailNotification = functions.firestore
-  .document('notifications/{notificationId}')
-  .onCreate(async (snap, context) => {
-    try {
-      const notification = snap.data();
-      const userId = notification.userId;
-      
-      // Check if email should be sent
-      if (!notification.sendEmail) {
-        console.log('Email sending not requested for this notification');
-        return null;
-      }
-      
-      console.log(`Sending email notification to user ${userId}:`, notification.title);
-      
-      // Get user email
-      const userDoc = await db.collection('users').doc(userId).get();
-      if (!userDoc.exists) {
-        console.log(`User ${userId} not found`);
-        return null;
-      }
-      
-      const userData = userDoc.data();
-      const email = userData.email;
-      
-      if (!email) {
-        console.log(`No email for user ${userId}`);
-        return null;
-      }
-      
-      // Check user's email notification preferences
-      const prefs = userData.notificationPreferences || {};
-      const emailPrefs = prefs.email || {};
-      
-      // If email notifications disabled globally, skip
-      if (emailPrefs.enabled === false) {
-        console.log(`Email notifications disabled for user ${userId}`);
-        return null;
-      }
-      
-      // Check category-specific preferences
-      const notificationType = notification.type;
-      if (notificationType === 'order_update' && emailPrefs.orders === false) {
-        console.log(`Order email notifications disabled for user ${userId}`);
-        return null;
-      }
-      if (notificationType === 'payment' && emailPrefs.payments === false) {
-        console.log(`Payment email notifications disabled for user ${userId}`);
-        return null;
-      }
-      if (notificationType === 'dispute' && emailPrefs.disputes === false) {
-        console.log(`Dispute email notifications disabled for user ${userId}`);
-        return null;
-      }
-      if (notificationType === 'marketing' && emailPrefs.marketing === false) {
-        console.log(`Marketing email notifications disabled for user ${userId}`);
-        return null;
-      }
-      
-      // Get email template based on notification type
-      const emailBody = getEmailTemplate(notification, userData);
-      
-      // Create mail document for Firebase Extension to process
-      const mailRef = await db.collection('mail').add({
-        to: email,
-        message: {
-          subject: notification.title || 'Ojawa Notification',
-          text: emailBody
-        },
-        notificationId: context.params.notificationId,
-        userId: userId,
-        createdAt: admin.firestore.FieldValue.serverTimestamp()
-      });
-      
-      console.log(`Email queued for user ${userId}, mail document:`, mailRef.id);
-      
-      // Update notification with email sent status
-      await snap.ref.update({
-        emailQueued: true,
-        emailQueuedAt: admin.firestore.FieldValue.serverTimestamp(),
-        mailDocId: mailRef.id
-      });
-      
-      return mailRef.id;
-    } catch (error) {
-      console.error('Error sending email notification:', error);
+exports.sendEmailNotification = onDocumentCreated('notifications/{notificationId}', async (event) => {
+  try {
+    const notification = event.data?.data();
+    if (!notification) {
       return null;
     }
-  });
+    const userId = notification.userId;
+    
+    // Check if email should be sent
+    if (!notification.sendEmail) {
+      console.log('Email sending not requested for this notification');
+      return null;
+    }
+    
+    console.log(`Sending email notification to user ${userId}:`, notification.title);
+    
+    // Get user email
+    const userDoc = await db.collection('users').doc(userId).get();
+    if (!userDoc.exists) {
+      console.log(`User ${userId} not found`);
+      return null;
+    }
+    
+    const userData = userDoc.data();
+    const email = userData.email;
+    
+    if (!email) {
+      console.log(`No email for user ${userId}`);
+      return null;
+    }
+    
+    // Check user's email notification preferences
+    const prefs = userData.notificationPreferences || {};
+    const emailPrefs = prefs.email || {};
+    
+    // If email notifications disabled globally, skip
+    if (emailPrefs.enabled === false) {
+      console.log(`Email notifications disabled for user ${userId}`);
+      return null;
+    }
+    
+    // Check category-specific preferences
+    const notificationType = notification.type;
+    if (notificationType === 'order_update' && emailPrefs.orders === false) {
+      console.log(`Order email notifications disabled for user ${userId}`);
+      return null;
+    }
+    if (notificationType === 'payment' && emailPrefs.payments === false) {
+      console.log(`Payment email notifications disabled for user ${userId}`);
+      return null;
+    }
+    if (notificationType === 'dispute' && emailPrefs.disputes === false) {
+      console.log(`Dispute email notifications disabled for user ${userId}`);
+      return null;
+    }
+    if (notificationType === 'marketing' && emailPrefs.marketing === false) {
+      console.log(`Marketing email notifications disabled for user ${userId}`);
+      return null;
+    }
+    
+    // Get email template based on notification type
+    const emailBody = getEmailTemplate(notification, userData);
+    
+    // Create mail document for Firebase Extension to process
+    const mailRef = await db.collection('mail').add({
+      to: email,
+      message: {
+        subject: notification.title || 'Ojawa Notification',
+        text: emailBody
+      },
+      notificationId: event.params.notificationId,
+      userId: userId,
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    
+    console.log(`Email queued for user ${userId}, mail document:`, mailRef.id);
+    
+    // Update notification with email sent status
+    await event.data?.ref.update({
+      emailQueued: true,
+      emailQueuedAt: admin.firestore.FieldValue.serverTimestamp(),
+      mailDocId: mailRef.id
+    });
+    
+    return mailRef.id;
+  } catch (error) {
+    console.error('Error sending email notification:', error);
+    return null;
+  }
+});
 
 // Helper function to generate email templates
 function getEmailTemplate(notification, userData) {
@@ -666,21 +676,21 @@ function getEmailTemplate(notification, userData) {
 }
 
 // Send bulk push notifications
-exports.sendBulkPushNotifications = functions.https.onCall(async (data, context) => {
+exports.sendBulkPushNotifications = onCall(async (request) => {
+  const { auth, data } = request;
+  if (!auth) {
+    throw new HttpsError('unauthenticated', 'User must be authenticated');
+  }
+  
   try {
-    // Verify authenticated
-    if (!context.auth) {
-      throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
-    }
-    
-    const { userIds, notification } = data;
+    const { userIds, notification } = data || {};
     
     if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
-      throw new functions.https.HttpsError('invalid-argument', 'userIds must be a non-empty array');
+      throw new HttpsError('invalid-argument', 'userIds must be a non-empty array');
     }
     
     if (!notification || !notification.title || !notification.message) {
-      throw new functions.https.HttpsError('invalid-argument', 'notification must include title and message');
+      throw new HttpsError('invalid-argument', 'notification must include title and message');
     }
     
     console.log(`Sending bulk notifications to ${userIds.length} users`);
@@ -725,17 +735,17 @@ exports.sendBulkPushNotifications = functions.https.onCall(async (data, context)
     return results;
   } catch (error) {
     console.error('Error sending bulk notifications:', error);
-    throw new functions.https.HttpsError('internal', error.message);
+    throw new HttpsError('internal', error.message);
   }
 });
 
 // ===== FLUTTERWAVE PAYMENT FUNCTIONS =====
 
 // Top up wallet with Flutterwave payment
-exports.topupWalletFlutterwave = functions.https.onCall(async (data, context) => {
-  // Verify authentication
-  if (!context.auth) {
-    throw new functions.https.HttpsError(
+exports.topupWalletFlutterwave = onCall(async (request) => {
+  const { auth, data } = request;
+  if (!auth) {
+    throw new HttpsError(
       'unauthenticated',
       'User must be authenticated to top up wallet'
     );
@@ -745,21 +755,21 @@ exports.topupWalletFlutterwave = functions.https.onCall(async (data, context) =>
     const { transactionId, userId, amount } = data || {};
 
     if (!transactionId) {
-      throw new functions.https.HttpsError(
+      throw new HttpsError(
         'invalid-argument',
         'Transaction ID is required'
       );
     }
 
-    if (!userId || userId !== context.auth.uid) {
-      throw new functions.https.HttpsError(
+    if (!userId || userId !== auth.uid) {
+      throw new HttpsError(
         'permission-denied',
         'User ID mismatch'
       );
     }
 
     if (!amount || Number(amount) <= 0) {
-      throw new functions.https.HttpsError(
+      throw new HttpsError(
         'invalid-argument',
         'Valid amount is required'
       );
@@ -768,12 +778,10 @@ exports.topupWalletFlutterwave = functions.https.onCall(async (data, context) =>
     console.log('Verifying Flutterwave payment:', { transactionId, userId, amount });
 
     // Verify transaction with Flutterwave API
-    const config = functions.config();
-    const flutterwaveConfig = config.flutterwave || config.flw || {};
-    const flutterwaveSecretKey = flutterwaveConfig.secret_key || process.env.FLUTTERWAVE_SECRET_KEY;
+    const { secretKey: flutterwaveSecretKey } = getFlutterwaveConfig();
     if (!flutterwaveSecretKey) {
       console.error('Flutterwave secret key not configured');
-      throw new functions.https.HttpsError(
+      throw new HttpsError(
         'failed-precondition',
         'Payment service not configured'
       );
@@ -801,7 +809,7 @@ exports.topupWalletFlutterwave = functions.https.onCall(async (data, context) =>
 
     // Verify transaction status
     if (transaction.status !== 'successful') {
-      throw new functions.https.HttpsError(
+      throw new HttpsError(
         'failed-precondition',
         `Payment not successful. Status: ${transaction.status}`
       );
@@ -810,7 +818,7 @@ exports.topupWalletFlutterwave = functions.https.onCall(async (data, context) =>
     // Verify amount matches
     const paidAmount = Number(transaction.amount);
     if (Math.abs(paidAmount - Number(amount)) > 0.01) {
-      throw new functions.https.HttpsError(
+      throw new HttpsError(
         'failed-precondition',
         `Amount mismatch. Expected: ${amount}, Paid: ${paidAmount}`
       );
@@ -900,15 +908,15 @@ exports.topupWalletFlutterwave = functions.https.onCall(async (data, context) =>
     };
   } catch (error) {
     console.error('Error topping up wallet with Flutterwave:', error);
-    if (error instanceof functions.https.HttpsError) {
+    if (error instanceof HttpsError) {
       throw error;
     }
-    throw new functions.https.HttpsError('internal', error.message);
+    throw new HttpsError('internal', error.message);
   }
 });
 
 // Flutterwave webhook handler
-exports.flutterwaveWebhook = functions.https.onRequest(async (req, res) => {
+exports.flutterwaveWebhook = onRequest(async (req, res) => {
   // Set CORS headers
   res.set('Access-Control-Allow-Origin', '*');
   res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -924,10 +932,7 @@ exports.flutterwaveWebhook = functions.https.onRequest(async (req, res) => {
 
   try {
     const crypto = require('crypto');
-    const config = functions.config();
-    const flutterwaveConfig = config.flutterwave || config.flw || {};
-    const flutterwaveSecretKey = flutterwaveConfig.secret_key || process.env.FLUTTERWAVE_SECRET_KEY;
-    const flutterwaveSecretHash = flutterwaveConfig.secret_hash || flutterwaveConfig.webhook_secret || process.env.FLUTTERWAVE_SECRET_HASH;
+    const { secretKey: flutterwaveSecretKey, secretHash: flutterwaveSecretHash } = getFlutterwaveConfig();
 
     if (!flutterwaveSecretKey) {
       console.error('Flutterwave secret key not configured');

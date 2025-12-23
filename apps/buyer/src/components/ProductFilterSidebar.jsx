@@ -10,7 +10,8 @@ const ProductFilterSidebar = ({
   isOpen = true,
   onClose,
   searchQuery = '',
-  onSearchChange
+  onSearchChange,
+  showSearch = true
 }) => {
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [expressDelivery, setExpressDelivery] = useState(false);
@@ -214,11 +215,11 @@ const ProductFilterSidebar = ({
       initial={{ x: -300, opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
       exit={{ x: -300, opacity: 0 }}
-      className="w-64 bg-slate-900 border-r border-emerald-900/60 h-full overflow-y-auto"
+      className="w-64 bg-slate-900 border-r border-emerald-900/60 h-[calc(100vh-8rem)] overflow-y-auto scrollbar-thin"
     >
-      <div className="p-4 space-y-6">
+      <div className="p-4 space-y-3">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-emerald-900/60 pb-4">
+        <div className="flex items-center justify-between border-b border-emerald-900/60 pb-2 sticky top-0 bg-slate-900 z-10 -mt-4 pt-4 -mx-4 px-4">
           <h2 className="text-lg font-bold text-white">Filters</h2>
           {activeFilterCount > 0 && (
             <button
@@ -238,44 +239,46 @@ const ProductFilterSidebar = ({
           )}
         </div>
 
-        {/* Search Section */}
-        <div>
-          <h3 className="text-xs font-bold text-amber-300 uppercase tracking-wider mb-3">
-            SEARCH PRODUCTS
-          </h3>
-          <div className="relative">
-            <input
-              type="text"
-              value={localSearchQuery}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              placeholder="Search products..."
-              className="w-full px-3 py-2 pl-10 bg-slate-800 border border-emerald-900/60 rounded-lg text-sm text-white placeholder-teal-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            />
-            <svg
-              className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-teal-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            {localSearchQuery && (
-              <button
-                onClick={() => handleSearchChange('')}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-teal-400 hover:text-teal-300"
+        {/* Search Section - conditionally rendered */}
+        {showSearch && (
+          <div>
+            <h3 className="text-xs font-bold text-amber-300 uppercase tracking-wider mb-2">
+              SEARCH PRODUCTS
+            </h3>
+            <div className="relative">
+              <input
+                type="text"
+                value={localSearchQuery}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                placeholder="Search products..."
+                className="w-full px-3 py-2 pl-10 bg-slate-800 border border-emerald-900/60 rounded-lg text-sm text-white placeholder-teal-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+              <svg
+                className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-teal-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
               >
-                ✕
-              </button>
-            )}
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              {localSearchQuery && (
+                <button
+                  onClick={() => handleSearchChange('')}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-teal-400 hover:text-teal-300"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* CATEGORY Section */}
         <div>
-          <h3 className="text-xs font-bold text-amber-300 uppercase tracking-wider mb-3">
+          <h3 className="text-xs font-bold text-amber-300 uppercase tracking-wider mb-2">
             CATEGORY
           </h3>
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             {categories.map((category) => (
               <button
                 key={category}
@@ -294,7 +297,7 @@ const ProductFilterSidebar = ({
 
         {/* EXPRESS DELIVERY Section */}
         <div>
-          <h3 className="text-xs font-bold text-amber-300 uppercase tracking-wider mb-3">
+          <h3 className="text-xs font-bold text-amber-300 uppercase tracking-wider mb-2">
             EXPRESS DELIVERY
           </h3>
           <label className="flex items-center space-x-2 cursor-pointer">
@@ -313,7 +316,7 @@ const ProductFilterSidebar = ({
 
         {/* PRICE Section */}
         <div>
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-2">
             <h3 className="text-xs font-bold text-amber-300 uppercase tracking-wider">
               PRICE (₦)
             </h3>
@@ -326,7 +329,7 @@ const ProductFilterSidebar = ({
           </div>
           
           {/* Price Slider */}
-          <div className="relative mb-4">
+          <div className="relative mb-3">
             <div className="relative h-2 bg-slate-800 rounded-full">
               {/* Active range */}
               <div
@@ -393,10 +396,10 @@ const ProductFilterSidebar = ({
 
         {/* DISCOUNT PERCENTAGE Section */}
         <div>
-          <h3 className="text-xs font-bold text-amber-300 uppercase tracking-wider mb-3">
+          <h3 className="text-xs font-bold text-amber-300 uppercase tracking-wider mb-2">
             DISCOUNT PERCENTAGE
           </h3>
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             {[50, 40, 30, 20, 10].map((percent) => (
               <label key={percent} className="flex items-center space-x-2 cursor-pointer">
                 <input
@@ -415,12 +418,12 @@ const ProductFilterSidebar = ({
         {/* BRAND Section */}
         {availableBrands.length > 0 && (
           <div>
-            <h3 className="text-xs font-bold text-amber-300 uppercase tracking-wider mb-3">
+            <h3 className="text-xs font-bold text-amber-300 uppercase tracking-wider mb-2">
               BRAND
             </h3>
             
             {/* Brand Search */}
-            <div className="relative mb-3">
+            <div className="relative mb-2">
               <input
                 type="text"
                 value={brandSearch}
@@ -439,7 +442,7 @@ const ProductFilterSidebar = ({
             </div>
 
             {/* Brand List */}
-            <div className="max-h-48 overflow-y-auto space-y-2">
+            <div className="max-h-48 overflow-y-auto space-y-1.5 scrollbar-thin">
               {filteredBrands.map((brand) => (
                 <label key={brand} className="flex items-center space-x-2 cursor-pointer">
                   <input
@@ -461,10 +464,10 @@ const ProductFilterSidebar = ({
         {/* SIZE Section */}
         {availableSizes.length > 0 && (
           <div>
-            <h3 className="text-xs font-bold text-amber-300 uppercase tracking-wider mb-3">
+            <h3 className="text-xs font-bold text-amber-300 uppercase tracking-wider mb-2">
               SIZE
             </h3>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {availableSizes.map((size) => (
                 <label key={size} className="flex items-center space-x-2 cursor-pointer">
                   <input

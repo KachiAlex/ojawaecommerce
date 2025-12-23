@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import firebaseService from '../services/firebaseService'
 import { openWalletTopUpCheckout } from '../utils/flutterwave'
+import SupportTicket from '../components/SupportTicket'
 
 const Wallet = () => {
   const { currentUser, userProfile } = useAuth()
@@ -13,6 +14,8 @@ const Wallet = () => {
   const [withdrawAmount, setWithdrawAmount] = useState('')
   const [withdrawAccount, setWithdrawAccount] = useState({ type: 'bank', accountNumber: '', accountName: '', bankName: '' })
   const [submitting, setSubmitting] = useState(false)
+  const [showReportIssue, setShowReportIssue] = useState(false)
+  const [selectedTransaction, setSelectedTransaction] = useState(null)
 
   const load = async () => {
     if (!currentUser) return
@@ -147,32 +150,32 @@ const Wallet = () => {
 
   return (
     <div className="min-h-screen bg-slate-950">
-      <div className="max-w-5xl mx-auto px-4 py-8">
-        <div className="mb-6">
+    <div className="max-w-5xl mx-auto px-4 py-8">
+      <div className="mb-6">
           <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-teal-300 via-amber-300 to-emerald-300 bg-clip-text text-transparent">
             My Wallet
           </h1>
           <p className="text-sm text-teal-200 mt-1">
             Manage your balance, top-up, and withdraw funds securely with Ojawa escrow.
           </p>
-        </div>
+      </div>
 
-        {error && (
+      {error && (
           <div className="p-3 mb-4 bg-rose-900/40 border border-rose-500/60 rounded text-sm text-rose-100">{error}</div>
-        )}
+      )}
 
-        {/* Balance and Actions */}
-        <div className="grid gap-6 md:grid-cols-3 mb-8">
+      {/* Balance and Actions */}
+      <div className="grid gap-6 md:grid-cols-3 mb-8">
           <div className="bg-slate-950 rounded-xl border border-teal-900/70 p-6 md:col-span-1 shadow-soft">
             <p className="text-sm text-teal-200">Current Balance</p>
             <p className="text-3xl font-bold text-amber-300 mt-1">
               ₦{(wallet?.balance || 0).toLocaleString()}
             </p>
             <p className="text-xs text-teal-300/80 mt-1">Wallet ID: {wallet?.id || '—'}</p>
-          </div>
+        </div>
           <div className="bg-slate-950 rounded-xl border border-teal-900/70 p-6 shadow-soft">
             <h3 className="font-semibold text-teal-100 mb-3">Top Up</h3>
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
             <input
               type="number"
               min="1"
@@ -234,15 +237,57 @@ const Wallet = () => {
                   <p className="text-teal-300/80">{tx.description || '—'}</p>
                 </div>
               </div>
-              <div className="text-right text-teal-300/80">
-                <p className="capitalize">{tx.status}</p>
+              <div className="flex items-center gap-4">
+                <div className="text-right text-teal-300/80">
+                  <p className="capitalize">{tx.status}</p>
                 <p className="text-xs">{formatDate(tx.createdAt)}</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setSelectedTransaction(tx);
+                    setShowReportIssue(true);
+                  }}
+                  className="px-3 py-1 text-xs border border-red-500/50 rounded-lg text-red-400 hover:bg-red-500/10 transition-colors"
+                  title="Report an issue with this transaction"
+                >
+                  Report Issue
+                </button>
               </div>
             </div>
           ))}
         </div>
       </div>
       </div>
+
+      {/* Report Issue Modal */}
+      {showReportIssue && selectedTransaction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <SupportTicket
+              initialData={{
+                transactionId: selectedTransaction.id,
+                category: 'payment',
+                priority: 'high',
+                transactionDetails: {
+                  amount: selectedTransaction.amount,
+                  type: selectedTransaction.type,
+                  status: selectedTransaction.status,
+                  description: selectedTransaction.description
+                }
+              }}
+              onTicketCreated={() => {
+                setShowReportIssue(false);
+                setSelectedTransaction(null);
+                alert('Issue reported successfully! Our support team will review it shortly.');
+              }}
+              onClose={() => {
+                setShowReportIssue(false);
+                setSelectedTransaction(null);
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

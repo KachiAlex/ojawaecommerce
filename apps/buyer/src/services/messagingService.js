@@ -10,17 +10,33 @@ import {
   getDocs,
   serverTimestamp,
   limit,
-  startAfter
+  startAfter,
+  writeBatch
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
 // Messaging service for buyer-vendor communication
 export const messagingService = {
+  buildConversationKey(participants = []) {
+    return (participants || [])
+      .filter(Boolean)
+      .map(String)
+      .sort((a, b) => a.localeCompare(b))
+      .join('__');
+  },
+
   // Create a new conversation
   async createConversation(conversationData) {
     try {
+      const sortedParticipants = (conversationData.participants || [])
+        .filter(Boolean)
+        .map(String)
+        .sort((a, b) => a.localeCompare(b));
+      const conversationKey = this.buildConversationKey(sortedParticipants);
       const docRef = await addDoc(collection(db, 'conversations'), {
         ...conversationData,
+        participants: sortedParticipants,
+        conversationKey,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         unreadCount: 0
@@ -37,12 +53,14 @@ export const messagingService = {
   },
 
   // Get user's conversations
-  async getUserConversations(userId) {
+  async getUserConversations(userId, options = {}) {
     try {
+      const { limit: conversationLimit = 50 } = options;
       const q = query(
         collection(db, 'conversations'),
         where('participants', 'array-contains', userId),
-        orderBy('updatedAt', 'desc')
+        orderBy('updatedAt', 'desc'),
+        limit(conversationLimit)
       );
       
       const snapshot = await getDocs(q);
@@ -57,12 +75,14 @@ export const messagingService = {
   },
 
   // Listen to user's conversations in real-time
-  listenToUserConversations(userId, callback) {
+  listenToUserConversations(userId, callback, options = {}) {
     try {
+      const { limit: conversationLimit = 50 } = options;
       const q = query(
         collection(db, 'conversations'),
         where('participants', 'array-contains', userId),
-        orderBy('updatedAt', 'desc')
+        orderBy('updatedAt', 'desc'),
+        limit(conversationLimit)
       );
       
       return onSnapshot(q, (snapshot) => {
@@ -81,26 +101,33 @@ export const messagingService = {
   // Send a message
   async sendMessage(messageData) {
     try {
-      const docRef = await addDoc(collection(db, 'messages'), {
+      const batch = writeBatch(db);
+      const messageRef = doc(collection(db, 'messages'));
+      const timestamp = serverTimestamp();
+      
+      batch.set(messageRef, {
         ...messageData,
-        timestamp: serverTimestamp(),
+        timestamp,
         read: false
       });
-      
-      // Update conversation's last message and timestamp
-      await updateDoc(doc(db, 'conversations', messageData.conversationId), {
+
+      const conversationRef = doc(db, 'conversations', messageData.conversationId);
+      batch.update(conversationRef, {
         lastMessage: {
           content: messageData.content,
           type: messageData.type,
           senderId: messageData.senderId,
-          timestamp: serverTimestamp()
+          timestamp
         },
-        updatedAt: serverTimestamp()
+        updatedAt: timestamp
       });
+
+      await batch.commit();
       
       return {
-        id: docRef.id,
-        ...messageData
+        id: messageRef.id,
+        ...messageData,
+        timestamp: messageData.timestamp || new Date()
       };
     } catch (error) {
       console.error('Error sending message:', error);
@@ -174,6 +201,29 @@ export const messagingService = {
   // Get or create conversation between two users
   async getOrCreateConversation(userId1, userId2, orderId = null) {
     try {
+      const participants = [userId1, userId2].filter(Boolean).map(String);
+      const conversationKey = this.buildConversationKey(participants);
+
+      if (conversationKey) {
+        try {
+          const exactQuery = query(
+            collection(db, 'conversations'),
+            where('conversationKey', '==', conversationKey),
+            limit(1)
+          );
+          const exactSnapshot = await getDocs(exactQuery);
+          if (!exactSnapshot.empty) {
+            const docSnap = exactSnapshot.docs[0];
+            return {
+              id: docSnap.id,
+              ...docSnap.data()
+            };
+          }
+        } catch (keyLookupError) {
+          console.warn('Conversation key lookup failed, falling back to legacy query:', keyLookupError?.message);
+        }
+      }
+
       // First, try to find existing conversation
       const q = query(
         collection(db, 'conversations'),
@@ -195,7 +245,7 @@ export const messagingService = {
       
       // Create new conversation if none exists
       return await this.createConversation({
-        participants: [userId1, userId2],
+        participants,
         orderId,
         createdAt: new Date()
       });

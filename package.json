@@ -2,6 +2,7 @@
   "name": "ojawa-ecommerce",
   "version": "1.0.0",
   "scripts": {
+    "dev:web": "npm run dev --prefix apps/buyer",
     "deploy:prod": "cd apps/buyer && npm run build && cd ../.. && firebase deploy --only hosting:ojawa-ecommerce",
     "deploy:staging": "cd apps/buyer && npm run build && cd ../.. && firebase deploy --only hosting:ojawa-ecommerce-staging",
     "deploy:preview": "cd apps/buyer && npm run build && cd ../.. && firebase hosting:channel:deploy test-channel"

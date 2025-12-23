@@ -120,6 +120,12 @@ const CheckoutLogisticsSelector = ({
     }).format(amount);
   };
 
+  const PillLabel = ({ label }) => (
+    <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-emerald-900/40 text-emerald-200 border border-emerald-800">
+      {label}
+    </span>
+  );
+
   if (!isAddressValid(vendorAddress)) {
     return (
       <div className="bg-slate-900 rounded-lg border border-emerald-900/60 p-6">
@@ -152,19 +158,31 @@ const CheckoutLogisticsSelector = ({
   }
 
   return (
-    <div className="bg-slate-900 rounded-lg border border-emerald-900/60">
-      <div className="p-6 border-b border-emerald-900/60">
-        <h3 className="text-lg font-semibold text-white">Select Delivery Partner</h3>
-        <p className="text-sm text-teal-200 mt-1">Choose a logistics partner to see delivery pricing</p>
-        <div className="mt-2 text-xs text-teal-300">
-          <div><span className="font-medium text-teal-100">Vendor:</span> {vendorAddress}</div>
-          <div><span className="font-medium text-teal-100">Buyer:</span> {buyerAddress}</div>
+    <div className="bg-white text-slate-900 rounded-2xl border border-slate-200 shadow-xl shadow-slate-900/10">
+      <div className="p-6 border-b border-slate-200 bg-gradient-to-r from-white to-slate-50 rounded-t-2xl">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.3em] text-emerald-600 mb-1">Delivery partners</p>
+            <h3 className="text-2xl font-semibold text-slate-900">Select logistics partner</h3>
+            <p className="text-sm text-slate-600 mt-1">Choose a trusted partner to unlock live pricing and ETA.</p>
+          </div>
+          <PillLabel label={`${availablePartners.length || 0} options`} />
+        </div>
+        <div className="mt-4 text-xs sm:text-sm text-slate-600 grid sm:grid-cols-2 gap-3 bg-slate-100 border border-slate-200 rounded-xl p-3">
+          <div>
+            <p className="text-emerald-600 font-medium">Vendor</p>
+            <p className="text-slate-900">{vendorAddress}</p>
+          </div>
+          <div>
+            <p className="text-emerald-600 font-medium">Buyer</p>
+            <p className="text-slate-900">{buyerAddress}</p>
+          </div>
         </div>
       </div>
 
       <div className="p-6 space-y-4">
         {availablePartners.length === 0 && (
-          <div className="text-center text-teal-400 py-4">
+          <div className="text-center text-slate-500 py-4">
             <p>No logistics partners available for this route yet. Try another address or pickup.</p>
           </div>
         )}
@@ -172,41 +190,41 @@ const CheckoutLogisticsSelector = ({
         {availablePartners.map((partner) => (
           <div
             key={partner.id}
-            className={`border rounded-lg p-4 cursor-pointer transition-colors ${
+            className={`border rounded-xl p-4 cursor-pointer transition-all duration-200 ${
               selectedPartner?.id === partner.id
-                ? 'border-emerald-500 bg-emerald-900/40'
-                : 'border-emerald-900/60 hover:border-emerald-700 bg-slate-800'
+                ? 'border-emerald-500 bg-emerald-50 shadow-md shadow-emerald-500/20'
+                : 'border-slate-200 hover:border-emerald-500 bg-white hover:bg-slate-50'
             }`}
             onClick={() => handlePartnerSelect(partner)}
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
-                <div className="w-4 h-4 border-2 border-emerald-700 rounded-full flex items-center justify-center">
+                <div className="w-4 h-4 border-2 border-emerald-600 rounded-full flex items-center justify-center">
                   {selectedPartner?.id === partner.id && (
-                    <div className="w-2 h-2 bg-emerald-400 rounded-full"></div>
+                    <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
                   )}
                 </div>
                 <div>
-                  <h4 className="font-medium text-white">{partner.name}</h4>
-                  <p className="text-xs text-teal-300">
+                  <h4 className="font-medium text-slate-900">{partner.name}</h4>
+                  <p className="text-xs text-slate-500">
                     Rating: {partner.rating?.toFixed ? partner.rating.toFixed(1) : partner.rating || 'N/A'}
                     {calculatingPrice && selectedPartner?.id === partner.id && (
-                      <span className="ml-2 text-emerald-400">Calculating price...</span>
+                      <span className="ml-2 text-emerald-600">Calculating price...</span>
                     )}
                   </p>
                 </div>
               </div>
               <div className="text-right">
                 {calculatingPrice && selectedPartner?.id === partner.id ? (
-                  <div className="animate-pulse text-gray-400">...</div>
+                  <div className="animate-pulse text-emerald-500">Calculating…</div>
                 ) : priceCalculation && selectedPartner?.id === partner.id ? (
                   <div>
-                    <p className="font-semibold text-gray-900">{formatCurrency(priceCalculation.deliveryFee)}</p>
-                    <p className="text-xs text-gray-500">{priceCalculation.eta}</p>
+                    <p className="font-semibold text-emerald-600 text-lg">{formatCurrency(priceCalculation.deliveryFee)}</p>
+                    <p className="text-xs text-slate-500">{priceCalculation.eta}</p>
                   </div>
                 ) : (
                   <div>
-                    <p className="font-semibold text-gray-400">Click to calculate</p>
+                    <p className="font-semibold text-slate-500">Click to calculate</p>
                   </div>
                 )}
               </div>
@@ -223,39 +241,44 @@ const CheckoutLogisticsSelector = ({
 
         {priceCalculation && selectedPartner && (
           <>
-            <div className="bg-gray-50 rounded-lg p-4">
-              <h5 className="font-medium text-gray-900 mb-3">Delivery Details</h5>
+            <div className="bg-slate-50 text-slate-900 rounded-2xl p-5 shadow-inner shadow-emerald-900/20">
+              <h5 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                Delivery details
+                <PillLabel label={priceCalculation.eta || 'ETA'} />
+              </h5>
               <div className="space-y-2 text-sm">
-                <div className="flex justify-between"><span>From:</span><span>{vendorAddress}</span></div>
-                <div className="flex justify-between"><span>To:</span><span>{buyerAddress}</span></div>
-                <div className="flex justify-between"><span>Weight:</span><span>{calculateTotalWeight(cartItems)}kg</span></div>
-                <div className="flex justify-between"><span>Distance:</span><span>{priceCalculation.distanceText || `${priceCalculation.distance}km`}</span></div>
-                <div className="flex justify-between"><span>Partner:</span><span>{priceCalculation.partner.name}</span></div>
-                <div className="flex justify-between font-medium"><span>Total Delivery Fee:</span><span>{formatCurrency(priceCalculation.deliveryFee)}</span></div>
+                <div className="flex justify-between text-slate-600"><span>From:</span><span className="font-medium text-slate-900 text-right">{vendorAddress}</span></div>
+                <div className="flex justify-between text-slate-600"><span>To:</span><span className="font-medium text-slate-900 text-right">{buyerAddress}</span></div>
+                <div className="flex justify-between text-slate-600"><span>Weight:</span><span className="font-medium text-slate-900">{calculateTotalWeight(cartItems)}kg</span></div>
+                <div className="flex justify-between text-slate-600"><span>Distance:</span><span className="font-medium text-slate-900">{priceCalculation.distanceText || `${priceCalculation.distance}km`}</span></div>
+                <div className="flex justify-between text-slate-600"><span>Partner:</span><span className="font-medium text-slate-900">{priceCalculation.partner.name}</span></div>
+                <div className="flex justify-between font-semibold text-lg border-t border-slate-200 pt-2">
+                  <span>Total Delivery Fee:</span><span className="text-emerald-600">{formatCurrency(priceCalculation.deliveryFee)}</span>
+                </div>
               </div>
             </div>
 
             {priceCalculation.breakdown && Object.keys(priceCalculation.breakdown).length > 0 && (
-              <div className="bg-blue-50 rounded-lg p-4">
-                <h5 className="font-medium text-blue-900 mb-3">Fee Breakdown</h5>
+              <div className="bg-teal-50 text-slate-900 rounded-2xl p-5 border border-emerald-100/60 shadow-inner shadow-emerald-900/10">
+                <h5 className="font-semibold text-emerald-900 mb-3">Fee breakdown</h5>
                 <div className="space-y-1 text-sm">
                   {priceCalculation.breakdown.baseFare !== undefined && (
-                    <div className="flex justify-between"><span>Base Fare:</span><span>{formatCurrency(priceCalculation.breakdown.baseFare)}</span></div>
+                    <div className="flex justify-between"><span>Base Fare:</span><span className="font-medium">{formatCurrency(priceCalculation.breakdown.baseFare)}</span></div>
                   )}
                   {priceCalculation.breakdown.distanceFee !== undefined && (
-                    <div className="flex justify-between"><span>Distance Fee:</span><span>{formatCurrency(priceCalculation.breakdown.distanceFee)}</span></div>
+                    <div className="flex justify-between"><span>Distance Fee:</span><span className="font-medium">{formatCurrency(priceCalculation.breakdown.distanceFee)}</span></div>
                   )}
                   {priceCalculation.breakdown.weightFee !== undefined && (
-                    <div className="flex justify-between"><span>Weight Fee:</span><span>{formatCurrency(priceCalculation.breakdown.weightFee)}</span></div>
+                    <div className="flex justify-between"><span>Weight Fee:</span><span className="font-medium">{formatCurrency(priceCalculation.breakdown.weightFee)}</span></div>
                   )}
                   {priceCalculation.breakdown.deliveryTypeMultiplier > 1 && (
-                    <div className="flex justify-between"><span>Express Multiplier:</span><span>{priceCalculation.breakdown.deliveryTypeMultiplier}x</span></div>
+                    <div className="flex justify-between"><span>Express Multiplier:</span><span className="font-medium">{priceCalculation.breakdown.deliveryTypeMultiplier}x</span></div>
                   )}
                   {priceCalculation.breakdown.timeMultiplier > 1 && (
-                    <div className="flex justify-between"><span>Time Multiplier:</span><span>{priceCalculation.breakdown.timeMultiplier}x</span></div>
+                    <div className="flex justify-between"><span>Time Multiplier:</span><span className="font-medium">{priceCalculation.breakdown.timeMultiplier}x</span></div>
                   )}
                   {priceCalculation.breakdown.zoneMultiplier > 1 && (
-                    <div className="flex justify-between"><span>Zone Multiplier:</span><span>{priceCalculation.breakdown.zoneMultiplier}x</span></div>
+                    <div className="flex justify-between"><span>Zone Multiplier:</span><span className="font-medium">{priceCalculation.breakdown.zoneMultiplier}x</span></div>
                   )}
                 </div>
               </div>

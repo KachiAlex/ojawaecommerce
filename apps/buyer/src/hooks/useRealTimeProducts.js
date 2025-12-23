@@ -1,14 +1,29 @@
 import { useState, useEffect, useMemo } from 'react';
-import { collection, query, orderBy, onSnapshot, where } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, where, limit as limitQuery } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { errorLogger } from '../utils/errorLogger';
+import { usePageVisibility } from './usePageVisibility';
 
 export const useRealTimeProducts = (filters = {}) => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const isPageVisible = usePageVisibility();
+
+  const {
+    category,
+    vendorId,
+    status,
+    showActiveOnly,
+    limit: limitCount = 50
+  } = filters;
 
   useEffect(() => {
+    if (!isPageVisible) {
+      setLoading(false);
+      return undefined;
+    }
+
     let unsubscribe = null;
 
     const setupRealTimeListener = () => {
@@ -20,25 +35,29 @@ export const useRealTimeProducts = (filters = {}) => {
         let q = collection(db, 'products');
 
         // Apply filters
-        if (filters.category && filters.category !== 'all') {
-          q = query(q, where('category', '==', filters.category));
+        if (category && category !== 'all') {
+          q = query(q, where('category', '==', category));
         }
 
-        if (filters.vendorId) {
-          q = query(q, where('vendorId', '==', filters.vendorId));
+        if (vendorId) {
+          q = query(q, where('vendorId', '==', vendorId));
         }
 
         // Only show approved (active) products to buyers by default
         // Unless explicitly overridden (e.g., for admin/vendor views)
-        if (filters.status) {
-          q = query(q, where('status', '==', filters.status));
-        } else if (filters.showAll !== true) {
-          // Default: only show active products to buyers
+        if (status && status !== 'all') {
+          q = query(q, where('status', '==', status));
+        } else if (showActiveOnly === true) {
           q = query(q, where('status', '==', 'active'));
         }
 
         // Always order by creation date (newest first)
         q = query(q, orderBy('createdAt', 'desc'));
+
+        // Apply limit to cap snapshot size
+        if (limitCount) {
+          q = query(q, limitQuery(limitCount));
+        }
 
         // Set up real-time listener
         unsubscribe = onSnapshot(
@@ -58,6 +77,11 @@ export const useRealTimeProducts = (filters = {}) => {
               };
             });
 
+            console.log('[useRealTimeProducts] Snapshot update', {
+              total: snapshot.size,
+              afterFiltering: productsData.length,
+              filters
+            });
             setProducts(productsData);
             setLoading(false);
             
@@ -88,7 +112,7 @@ export const useRealTimeProducts = (filters = {}) => {
         console.log('Real-time products listener cleaned up');
       }
     };
-  }, [filters.category, filters.vendorId, filters.status]);
+  }, [category, vendorId, status, showActiveOnly, limitCount, isPageVisible]);
 
   // Memoized filtered products
   const filteredProducts = useMemo(() => {

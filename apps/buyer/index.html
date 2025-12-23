@@ -6,24 +6,6 @@
     <link rel="icon" type="image/png" href="/logos/ojawa-logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' 'unsafe-eval' data: https://checkout.flutterwave.com https://maps.googleapis.com https://*.gstatic.com https://apis.google.com https://accounts.google.com; connect-src 'self' https://api.firebase.com https://*.firebase.com https://*.googleapis.com https://us-central1-ojawa-ecommerce.cloudfunctions.net https://api.flutterwave.com https://api.ravepay.co https://*.myflutterwave.com https://metrics.flutterwave.com https://api.fpjs.io https://api.allorigins.win https://accounts.google.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com; frame-src https://accounts.google.com https://ojawa-ecommerce.firebaseapp.com https://checkout.flutterwave.com https://*.flutterwave.com https://checkout-v3-ui-prod.f4b-flutterwave.com;" />
-    
-    <!-- PWA Manifest -->
-    <link rel="manifest" href="/manifest.json" />
-    
-    <!-- PWA Meta Tags -->
-    <meta name="theme-color" content="#059669" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="Ojawa" />
-    <meta name="msapplication-TileColor" content="#059669" />
-    <meta name="msapplication-tap-highlight" content="no" />
-    
-    <!-- Apple Touch Icons -->
-    <link rel="apple-touch-icon" href="/icons/icon-180x180.png" />
-    <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152x152.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180x180.png" />
-    
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="/logos/ojawa-logo.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="/logos/ojawa-logo.png" />
@@ -51,9 +33,30 @@
     <link rel="modulepreload" href="/src/contexts/AuthContext.jsx" />
     <link rel="modulepreload" href="/src/pages/Home.jsx" />
     
-    <!-- Preload critical fonts -->
-    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <!-- Preconnect to Google Fonts for faster loading -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
+    <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
+    
+    <!-- Load Google Fonts asynchronously with fallback -->
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'" onerror="this.onerror=null;this.remove()">
     <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"></noscript>
+    
+    <!-- Fallback: Use system fonts if Google Fonts fail to load -->
+    <script>
+      // Fallback font loading with error handling
+      (function() {
+        const fontLink = document.querySelector('link[href*="fonts.googleapis.com"]');
+        if (fontLink) {
+          fontLink.onerror = function() {
+            console.warn('⚠️ Google Fonts failed to load - using system fonts');
+            this.remove();
+            // System fonts are already defined in CSS, so no action needed
+          };
+        }
+      })();
+    </script>
     
     <title>Ojawa - Shop Safely Across Africa | Secure E-Commerce with Escrow Protection</title>
     
@@ -209,9 +212,10 @@
       /* Critical CSS for initial page load */
       body {
         margin: 0;
+        /* System fonts first (fastest), Inter as fallback if loaded */
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
           'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-          sans-serif;
+          'Inter', sans-serif;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
         background-color: #ffffff;

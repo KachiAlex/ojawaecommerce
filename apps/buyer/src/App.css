@@ -1,10 +1,55 @@
 /* Custom app styles */
 
+:root {
+  --ojawa-surface-dark: #020617;
+  --ojawa-text-on-dark: #f8fafc;
+  --ojawa-text-on-light: #0f172a;
+}
+
 /* Prevent horizontal scrolling on mobile */
 html, body {
   overflow-x: hidden;
   width: 100%;
   max-width: 100vw;
+}
+
+body {
+  color: var(--ojawa-text-on-dark);
+  background-color: var(--ojawa-surface-dark);
+  background-image: radial-gradient(circle at top, rgba(15, 118, 110, 0.15), transparent 45%);
+}
+
+/* Automatic contrast handling for common dark surfaces */
+:where([class*="bg-slate-9"],
+       [class*="bg-slate-8"],
+       [class*="bg-gray-9"],
+       [class*="bg-gray-8"],
+       [class*="bg-emerald-9"],
+       [class*="bg-teal-9"],
+       [class*="bg-neutral-9"],
+       [class*="bg-zinc-9"],
+       .bg-black,
+       .bg-slate-900,
+       .bg-slate-950,
+       .bg-gray-900,
+       .bg-neutral-900,
+       .bg-emerald-900,
+       .bg-teal-900) {
+  color: var(--ojawa-text-on-dark);
+}
+
+/* Ensure light surfaces keep dark text */
+:where(.bg-white,
+       [class*="bg-white"],
+       .bg-slate-50,
+       [class*="bg-slate-1"],
+       .bg-gray-50,
+       [class*="bg-gray-1"],
+       .bg-emerald-50,
+       .bg-amber-50,
+       .bg-yellow-50,
+       .bg-neutral-50) {
+  color: var(--ojawa-text-on-light);
 }
 
 /* 3D Perspective for 3D Cards */
@@ -49,6 +94,60 @@ a:hover {
 button:active,
 a:active {
   transform: translateY(0);
+}
+
+/* Touch manipulation for better mobile performance */
+.touch-manipulation {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Mobile-specific optimizations */
+@media (max-width: 768px) {
+  /* Ensure all buttons are clickable */
+  button, a, [role="button"], [onclick] {
+    pointer-events: auto !important;
+    touch-action: manipulation !important;
+    -webkit-tap-highlight-color: transparent !important;
+    -webkit-touch-callout: none !important;
+    cursor: pointer !important;
+    min-height: 44px !important;
+    min-width: 44px !important;
+  }
+
+  /* Prevent any overlays from blocking interactions */
+  body > *:not([data-mobile-nav]) {
+    pointer-events: auto;
+  }
+
+  /* Ensure bottom navigation is always on top */
+  [data-mobile-bottom-nav] {
+    z-index: 9999 !important;
+    pointer-events: auto !important;
+  }
+
+  /* Fix for Capacitor WebView */
+  body {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* Allow text selection in inputs and textareas */
+  input, textarea, [contenteditable] {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  /* Prevent double-tap zoom on buttons */
+  button, a {
+    touch-action: manipulation;
+  }
+
+  /* Ensure no element blocks the bottom nav */
+  main {
+    padding-bottom: 80px !important;
+  }
 }
 
 /* Fade-in animation for content */

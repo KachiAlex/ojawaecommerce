@@ -108,13 +108,13 @@ const Navbar = () => {
 
   return (
   <>
-    <nav className="bg-slate-950/95 border-b border-teal-800/60 backdrop-blur-sm shadow-lg relative z-[1000]">
+    <nav className="bg-white border-b border-slate-200 shadow-sm relative z-[1000]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center">
-            <Link to="/" className="flex items-center gap-3">
+            <Link to="/" className="flex items-center gap-3 text-slate-900">
               <SimpleLogo size="large" variant="icon" />
-              <span className="hidden sm:inline text-lg font-semibold bg-gradient-to-r from-teal-300 via-amber-300 to-emerald-300 bg-clip-text text-transparent">
+              <span className="hidden sm:inline text-lg font-semibold text-slate-700">
                 Secure Pan‑African Marketplace
               </span>
             </Link>
@@ -125,26 +125,26 @@ const Navbar = () => {
           <div className="hidden md:flex items-center space-x-8">
             <Link 
               to="/" 
-              className="text-teal-100 hover:text-amber-200 font-medium transition-colors"
+              className="text-slate-700 hover:text-emerald-600 font-medium transition-colors"
             >
               Home
             </Link>
             <Link 
               to="/categories" 
-              className="text-teal-100 hover:text-amber-200 font-medium transition-colors"
+              className="text-slate-700 hover:text-emerald-600 font-medium transition-colors"
             >
               Categories
             </Link>
             <Link 
               to="/how-wallet-works" 
-              className="text-teal-100 hover:text-amber-200 font-medium transition-colors"
+              className="text-slate-700 hover:text-emerald-600 font-medium transition-colors"
             >
               How Wallet Works
             </Link>
             {/* Messages tab removed from public navbar - dashboard only */}
             <Link 
               to="/tracking" 
-              className="text-teal-100 hover:text-amber-200 font-medium transition-colors"
+              className="text-slate-700 hover:text-emerald-600 font-medium transition-colors"
             >
               Track Package
             </Link>
@@ -152,15 +152,15 @@ const Navbar = () => {
             {/* Wishlist Icon - Visible when signed in */}
             {currentUser && (
               <button onClick={() => navigate('/wishlist')} className="relative" title="Wishlist">
-                <span className="text-amber-300 hover:text-amber-200 text-xl">💝</span>
+                <span className="text-emerald-600 hover:text-emerald-500 text-xl">💝</span>
               </button>
             )}
             
             {/* Cart Icon - Visible for all users */}
             <button onClick={() => navigate('/cart')} className="relative">
-                  <span className="text-teal-100 hover:text-amber-200 text-xl">🛒</span>
+                  <span className="text-slate-700 hover:text-emerald-600 text-xl">🛒</span>
               {getCartItemsCount() > 0 && (
-                    <span className="absolute -top-2 -right-2 bg-amber-500 text-slate-950 text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                    <span className="absolute -top-2 -right-2 bg-emerald-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
                   {getCartItemsCount()}
                 </span>
               )}
@@ -171,13 +171,13 @@ const Navbar = () => {
               {currentUser && (
                 <button
                   onClick={() => setIsNotificationOpen(true)}
-                  className="relative text-teal-100 hover:text-amber-200 transition-colors"
+                  className="relative text-slate-700 hover:text-emerald-600 transition-colors"
                 >
                   <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-5 5-5-5h5v-5a7.5 7.5 0 0 0-15 0v5h5l-5 5-5-5h5v-5a7.5 7.5 0 0 1 15 0v5z" />
                   </svg>
                   {unreadCount > 0 && (
-                    <span className="absolute -top-2 -right-2 bg-amber-500 text-slate-950 text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                    <span className="absolute -top-2 -right-2 bg-emerald-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
                       {unreadCount > 9 ? '9+' : unreadCount}
                     </span>
                   )}
@@ -195,35 +195,35 @@ const Navbar = () => {
               >
                 <button
                   onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
-                  className="flex items-center space-x-2 text-teal-100 hover:text-amber-200 font-medium transition-colors"
+                  className="flex items-center space-x-2 text-slate-700 hover:text-emerald-600 font-medium transition-colors"
                   aria-haspopup="menu"
                   aria-expanded={isUserDropdownOpen}
                 >
-                  <div className="w-8 h-8 bg-slate-900 border border-teal-500/60 rounded-full flex items-center justify-center">
-                    <span className="text-amber-300 font-semibold text-sm">
+                  <div className="w-8 h-8 bg-slate-100 border border-emerald-200 rounded-full flex items-center justify-center">
+                    <span className="text-emerald-600 font-semibold text-sm">
                       {currentUser ? getFirstName().charAt(0).toUpperCase() : 'OJ'}
                     </span>
                   </div>
-                  <span className="text-sm text-teal-50">{currentUser ? getFirstName() : 'Account'}</span>
+                  <span className="text-sm text-slate-700">{currentUser ? getFirstName() : 'Account'}</span>
                   <svg className={`w-4 h-4 transition-transform ${isUserDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
                   </svg>
                 </button>
 
                 {isUserDropdownOpen && (
-                  <div className="fixed right-4 md:right-8 top-[64px] w-56 bg-slate-950 border border-teal-800/70 rounded-xl shadow-2xl py-2 z-[2147483647] pointer-events-auto">
+                  <div className="fixed right-4 md:right-8 top-[64px] w-56 bg-white border border-slate-200 rounded-xl shadow-2xl py-2 z-[2147483647] pointer-events-auto">
                     {currentUser ? (
                       <>
-                        <div className="px-4 py-3 border-b border-teal-900/70">
-                          <p className="text-sm font-medium text-teal-50">{currentUser.displayName || 'User'}</p>
-                          <p className="text-sm text-teal-300/80">{currentUser.email}</p>
+                        <div className="px-4 py-3 border-b border-slate-100">
+                          <p className="text-sm font-medium text-slate-900">{currentUser.displayName || 'User'}</p>
+                          <p className="text-sm text-slate-500">{currentUser.email}</p>
                         </div>
                         {/* Dashboard dropdown */}
                         <div className="py-2 relative">
                           <button
                             onMouseEnter={() => setIsDashboardDropdownOpen(true)}
                             onMouseLeave={() => setIsDashboardDropdownOpen(false)}
-                            className="w-full flex items-center justify-between px-4 py-2 text-sm text-teal-100 hover:bg-slate-900/60 transition-colors"
+                            className="w-full flex items-center justify-between px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 transition-colors"
                           >
                             <div className="flex items-center">
                               <span className="mr-3">📊</span>
@@ -236,7 +236,7 @@ const Navbar = () => {
                           
                           {isDashboardDropdownOpen && (
                             <div 
-                              className="absolute right-full top-0 mr-1 w-56 bg-slate-950 rounded-lg shadow-xl border border-teal-900/70 py-2 z-[2147483648]"
+                              className="absolute right-full top-0 mr-1 w-56 bg-white rounded-lg shadow-xl border border-slate-200 py-2 z-[2147483648]"
                               onMouseEnter={() => setIsDashboardDropdownOpen(true)}
                               onMouseLeave={() => setIsDashboardDropdownOpen(false)}
                             >
@@ -248,7 +248,7 @@ const Navbar = () => {
                                     setIsDashboardDropdownOpen(false);
                                     navigate(dashboard.route);
                                   }}
-                                  className="w-full flex items-center px-4 py-2 text-sm text-teal-100 hover:bg-slate-900/70 transition-colors"
+                                  className="w-full flex items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 transition-colors"
                                 >
                                   <span className="mr-3">{dashboard.icon}</span>
                                   {dashboard.name}
@@ -257,20 +257,20 @@ const Navbar = () => {
                             </div>
                           )}
                         </div>
-                        <div className="border-t py-2">
+                        <div className="border-t border-slate-100 py-2">
                           <button
                             onClick={() => {
                               setIsUserDropdownOpen(false);
                               setIsSettingsOpen(true);
                             }}
-                            className="w-full flex items-center px-4 py-2 text-sm text-teal-100 hover:bg-slate-900/70 transition-colors"
+                            className="w-full flex items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 transition-colors"
                           >
                             <span className="mr-3">⚙️</span>
                             Account Settings
                           </button>
                           <button
                             onClick={handleLogout}
-                            className="w-full flex items-center px-4 py-2 text-sm text-amber-300 hover:bg-amber-900/30 transition-colors"
+                            className="w-full flex items-center px-4 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors"
                           >
                             <span className="mr-3">🚪</span>
                             Logout
@@ -281,14 +281,14 @@ const Navbar = () => {
                       <>
                         <button
                           onClick={() => { setIsUserDropdownOpen(false); navigate('/login'); }}
-                          className="w-full flex items-center px-4 py-2 text-sm text-teal-100 hover:bg-slate-900/70 transition-colors"
+                          className="w-full flex items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 transition-colors"
                         >
                           <span className="mr-3">🔐</span>
                           Sign In
                         </button>
                         <button
                           onClick={() => { setIsUserDropdownOpen(false); navigate('/register'); }}
-                          className="w-full flex items-center px-4 py-2 text-sm text-slate-950 bg-amber-400 hover:bg-amber-300 rounded-lg mx-2 transition-colors"
+                          className="w-full flex items-center px-4 py-2 text-sm text-white bg-emerald-500 hover:bg-emerald-400 rounded-lg mx-2 transition-colors"
                         >
                           <span className="mr-3">✨</span>
                           Get Started
@@ -305,7 +305,7 @@ const Navbar = () => {
           <div className="md:hidden flex items-center">
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="text-teal-100 hover:text-amber-300 focus:outline-none"
+              className="text-slate-700 hover:text-emerald-600 focus:outline-none"
             >
               <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
@@ -324,7 +324,7 @@ const Navbar = () => {
               </div>
               <Link 
                 to="/" 
-                className="text-gray-700 hover:text-blue-600 block px-3 py-2 rounded-md text-base font-medium"
+                className="text-slate-700 hover:text-emerald-600 block px-3 py-2 rounded-md text-base font-medium"
                 onClick={() => setIsMenuOpen(false)}
               >
                 Home
@@ -332,7 +332,7 @@ const Navbar = () => {
               <Link 
                 to="/products" 
                 onMouseEnter={prefetchProducts}
-                className="text-gray-700 hover:text-blue-600 block px-3 py-2 rounded-md text-base font-medium"
+                className="text-slate-700 hover:text-emerald-600 block px-3 py-2 rounded-md text-base font-medium"
                 onClick={() => setIsMenuOpen(false)}
               >
                 Products
@@ -340,7 +340,7 @@ const Navbar = () => {
               {currentUser && (
                 <Link 
                   to="/wishlist" 
-                  className="text-gray-700 hover:text-blue-600 block px-3 py-2 rounded-md text-base font-medium"
+                  className="text-slate-700 hover:text-emerald-600 block px-3 py-2 rounded-md text-base font-medium"
                   onClick={() => setIsMenuOpen(false)}
                 >
                   Wishlist 💝
@@ -349,12 +349,12 @@ const Navbar = () => {
               <Link 
                 to="/cart" 
                 onMouseEnter={prefetchCart}
-                className="text-gray-700 hover:text-blue-600 block px-3 py-2 rounded-md text-base font-medium relative"
+                className="text-slate-700 hover:text-emerald-600 block px-3 py-2 rounded-md text-base font-medium relative"
                 onClick={() => setIsMenuOpen(false)}
               >
                 Cart
                 {getCartItemsCount() > 0 && (
-                  <span className="ml-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 inline-flex items-center justify-center">
+                  <span className="ml-2 bg-emerald-500 text-white text-xs rounded-full h-5 w-5 inline-flex items-center justify-center">
                     {getCartItemsCount()}
                   </span>
                 )}
@@ -369,7 +369,7 @@ const Navbar = () => {
                   {userProfile?.role === 'admin' && (
                     <Link 
                       to="/admin" 
-                      className="text-gray-700 hover:text-blue-600 block px-3 py-2 rounded-md text-base font-medium"
+                      className="text-slate-700 hover:text-emerald-600 block px-3 py-2 rounded-md text-base font-medium"
                       onClick={() => setIsMenuOpen(false)}
                     >
                       Admin
@@ -383,7 +383,7 @@ const Navbar = () => {
                       handleLogout();
                       setIsMenuOpen(false);
                     }}
-                    className="w-full text-left bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-md text-base font-medium transition-colors"
+                    className="w-full text-left bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-md text-base font-medium transition-colors"
                   >
                     Logout
                   </button>
@@ -392,14 +392,14 @@ const Navbar = () => {
                 <>
                   <Link 
                     to="/login" 
-                    className="text-gray-700 hover:text-blue-600 block px-3 py-2 rounded-md text-base font-medium"
+                    className="text-slate-700 hover:text-emerald-600 block px-3 py-2 rounded-md text-base font-medium"
                     onClick={() => setIsMenuOpen(false)}
                   >
                     Login
                   </Link>
                   <Link 
                     to="/register" 
-                    className="bg-blue-600 hover:bg-blue-700 text-white block px-3 py-2 rounded-md text-base font-medium transition-colors"
+                    className="bg-emerald-500 hover:bg-emerald-400 text-white block px-3 py-2 rounded-md text-base font-medium transition-colors"
                     onClick={() => setIsMenuOpen(false)}
                   >
                     Sign Up

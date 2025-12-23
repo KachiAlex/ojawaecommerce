@@ -5,6 +5,7 @@ import {
   connectFirestoreEmulator,
   enableIndexedDbPersistence,
   enableMultiTabIndexedDbPersistence,
+  clearIndexedDbPersistence,
   CACHE_SIZE_UNLIMITED
 } from 'firebase/firestore';
 import { getStorage, connectStorageEmulator } from 'firebase/storage';
@@ -53,6 +54,61 @@ if (typeof window !== 'undefined' && !persistenceEnabled) {
       suppressionActive = false;
     }
   };
+
+  const deleteIndexedDb = (dbName) => {
+    return new Promise((resolve) => {
+      if (typeof window === 'undefined' || !window.indexedDB) return resolve(false);
+      const deleteRequest = window.indexedDB.deleteDatabase(dbName);
+      let deleted = true;
+      deleteRequest.onsuccess = () => resolve(deleted);
+      deleteRequest.onerror = () => resolve(false);
+      deleteRequest.onblocked = () => resolve(false);
+    });
+  };
+
+  const clearFirestoreIndexedDb = async () => {
+    try {
+      if (typeof window === 'undefined' || !window.indexedDB) return;
+      const explicitDbNames = [
+        'firestore/[DEFAULT]/ojawa-ecommerce',
+        'firebaseLocalStorageDb',
+        'firebase-installations-database',
+        'firebase-app-check-store',
+        'firebase-heartbeat-database'
+      ];
+      const discoveredNames = new Set();
+
+      if (typeof window.indexedDB.databases === 'function') {
+        try {
+          const dbs = await window.indexedDB.databases();
+          dbs?.forEach((dbInfo) => {
+            if (!dbInfo?.name) return;
+            if (dbInfo.name.startsWith('firestore/')) {
+              discoveredNames.add(dbInfo.name);
+            }
+          });
+        } catch (dbListErr) {
+          originalWarn('⚠️ Firebase: Unable to enumerate IndexedDB databases', dbListErr?.message);
+        }
+      }
+
+      explicitDbNames.forEach((name) => discoveredNames.add(name));
+      if (!discoveredNames.size) return;
+
+      let deletedCount = 0;
+      for (const name of discoveredNames) {
+        const deleted = await deleteIndexedDb(name);
+        if (deleted) {
+          deletedCount += 1;
+        }
+      }
+      if (deletedCount > 0) {
+        originalLog(`🧼 Firebase: Cleared ${deletedCount} IndexedDB caches`);
+      }
+    } catch (err) {
+      originalWarn('⚠️ Firebase: Unable to clear IndexedDB caches', err?.message);
+    }
+  };
   
   // Intercept console.log and console.warn to suppress Firestore lease warnings
   console.log = function(...args) {
@@ -73,13 +129,70 @@ if (typeof window !== 'undefined' && !persistenceEnabled) {
     originalWarn.apply(console, args);
   };
   
+  const clearFirestoreLocalStorage = () => {
+    try {
+      if (typeof window === 'undefined' || !window.localStorage) return;
+      const keysToRemove = [];
+      for (let i = 0; i < window.localStorage.length; i++) {
+        const key = window.localStorage.key(i);
+        if (key && key.startsWith('firestore_')) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach((key) => {
+        try {
+          window.localStorage.removeItem(key);
+        } catch (storageErr) {
+          originalWarn('⚠️ Firebase: Failed to remove localStorage key', key, storageErr?.message);
+        }
+      });
+      if (keysToRemove.length > 0) {
+        originalLog(`🧹 Firebase: Cleared ${keysToRemove.length} cached Firestore localStorage entries`);
+      }
+    } catch (storageError) {
+      originalWarn('⚠️ Firebase: Unable to inspect Firestore localStorage cache', storageError?.message);
+    }
+  };
+
+  const handleQuotaExceeded = async (err) => {
+    const isQuotaError = err?.name === 'QuotaExceededError' || /quota(exceeded)?/i.test(err?.message || '');
+    if (!isQuotaError) return false;
+
+    originalWarn('🔥 Firebase: Firestore persistence quota exceeded - falling back to in-memory cache');
+    clearFirestoreLocalStorage();
+    try {
+      await clearIndexedDbPersistence(db);
+      originalLog('🧼 Firebase: Cleared IndexedDB persistence cache after quota error');
+    } catch (clearErr) {
+      // Ignore if another tab is using persistence
+      originalWarn('⚠️ Firebase: Unable to clear IndexedDB cache', clearErr?.code || clearErr?.message);
+    }
+    persistenceEnabled = false;
+    restoreConsole();
+    return true;
+  };
+
   const initializePersistence = async () => {
     try {
+      const shouldEnablePersistence = import.meta.env.MODE !== 'production';
+      clearFirestoreLocalStorage();
+
+      if (!shouldEnablePersistence) {
+        await clearFirestoreIndexedDb();
+        originalLog('ℹ️ Firebase: Persistence disabled in production to avoid quota issues');
+        restoreConsole();
+        return;
+      }
+
       await enableMultiTabIndexedDbPersistence(db);
       persistenceEnabled = true;
       originalLog('✅ Firebase: Offline persistence enabled (multi-tab)');
       restoreConsole();
     } catch (err) {
+      const quotaHandled = await handleQuotaExceeded(err);
+      if (quotaHandled) {
+        return;
+      }
       if (err.code === 'failed-precondition') {
         // Multiple tabs open, try single-tab persistence as fallback
         originalLog('⚠️ Firebase: Multi-tab persistence unavailable - trying single-tab');
@@ -89,6 +202,10 @@ if (typeof window !== 'undefined' && !persistenceEnabled) {
           originalLog('✅ Firebase: Offline persistence enabled (single-tab)');
           restoreConsole();
         } catch (error) {
+          const fallbackQuotaHandled = await handleQuotaExceeded(error);
+          if (fallbackQuotaHandled) {
+            return;
+          }
           if (error.code === 'failed-precondition') {
             // Another tab already has persistence - this is expected and harmless
             originalLog('ℹ️ Firebase: Persistence handled by another tab');
@@ -102,7 +219,7 @@ if (typeof window !== 'undefined' && !persistenceEnabled) {
         // The current browser doesn't support persistence
         originalWarn('⚠️ Firebase: Persistence not supported in this browser');
         restoreConsole();
-      } else {
+      } else if (!(await handleQuotaExceeded(err))) {
         console.error('❌ Firebase: Persistence error:', err);
         restoreConsole();
       }

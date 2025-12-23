@@ -21,7 +21,7 @@ const SimpleLogo = ({ className = "", size = "default", variant = "full" }) => {
 
   if (variant === "icon") {
     return (
-      <div className={`${sizeClasses[size]} ${className}`}>
+      <div className={`${sizeClasses[size]} ${className} bg-transparent p-0.5 flex items-center justify-center`}>
         <img 
           src={logoSrc}
           alt="Ojawa Logo"
@@ -68,8 +68,11 @@ const SimpleLogo = ({ className = "", size = "default", variant = "full" }) => {
           O
         </div>
       </div>
-      <div className={`${textSizes[size]} font-bold`} style={{ color: '#1e3a8a' }}>
-        Ojawa
+      {/* Wordmark without capsule */}
+      <div className={`${textSizes[size]} font-semibold`}>
+        <span className="inline-flex items-center text-[#0b1f3d] tracking-tight leading-tight">
+          Ojawa
+        </span>
       </div>
     </div>
   );

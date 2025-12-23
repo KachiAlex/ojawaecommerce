@@ -1,8 +1,7 @@
-// Firebase Service Worker for Push Notifications
-importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js')
-importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js')
+// Firebase Messaging Service Worker (kept lightweight post-PWA removal)
+importScripts('https://www.gstatic.com/firebasejs/10.12.3/firebase-app-compat.js')
+importScripts('https://www.gstatic.com/firebasejs/10.12.3/firebase-messaging-compat.js')
 
-// Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyDV7ri3eu2M5apQqhhxoX9yhKXWXuqpsYc",
   authDomain: "ojawa-ecommerce.firebaseapp.com",
@@ -13,32 +12,28 @@ const firebaseConfig = {
   measurementId: "G-W3PF1KBMPN"
 }
 
-// Initialize Firebase
 firebase.initializeApp(firebaseConfig)
-
-// Initialize Firebase Messaging
 const messaging = firebase.messaging()
 
-// Handle background messages
+const DEFAULT_ICON = '/logos/ojawa-logo.png'
+
 messaging.onBackgroundMessage((payload) => {
   console.log('Received background message:', payload)
 
-  const { notification, data } = payload
+  const { notification = {}, data = {} } = payload
 
-  // Customize notification options
   const notificationOptions = {
     body: notification.body,
-    icon: notification.icon || '/icon-192x192.png',
-    badge: '/badge-72x72.png',
-    tag: data?.notificationId || 'default',
-    requireInteraction: data?.priority === 'urgent',
-    actions: getNotificationActions(data?.type),
-    data: data,
-    vibrate: data?.priority === 'urgent' ? [200, 100, 200] : [200],
-    silent: data?.priority === 'low'
+    icon: notification.icon || DEFAULT_ICON,
+    badge: DEFAULT_ICON,
+    tag: data.notificationId || 'default',
+    requireInteraction: data.priority === 'urgent',
+    actions: getNotificationActions(data.type),
+    data,
+    vibrate: data.priority === 'urgent' ? [200, 100, 200] : [200],
+    silent: data.priority === 'low'
   }
 
-  // Show notification
   return self.registration.showNotification(notification.title, notificationOptions)
 })
 
@@ -192,18 +187,18 @@ self.addEventListener('push', (event) => {
 
 // Handle notification push
 function handleNotificationPush(payload) {
-  const { title, body, icon, badge, data, actions } = payload
+  const { title, body, icon, badge, data = {}, actions } = payload
   
   const notificationOptions = {
     body,
-    icon: icon || '/icon-192x192.png',
-    badge: badge || '/badge-72x72.png',
-    tag: data?.notificationId || 'default',
-    requireInteraction: data?.priority === 'urgent',
-    actions: actions || getNotificationActions(data?.type),
+    icon: icon || DEFAULT_ICON,
+    badge: badge || DEFAULT_ICON,
+    tag: data.notificationId || 'default',
+    requireInteraction: data.priority === 'urgent',
+    actions: actions || getNotificationActions(data.type),
     data,
-    vibrate: data?.priority === 'urgent' ? [200, 100, 200] : [200],
-    silent: data?.priority === 'low'
+    vibrate: data.priority === 'urgent' ? [200, 100, 200] : [200],
+    silent: data.priority === 'low'
   }
 
   return self.registration.showNotification(title, notificationOptions)

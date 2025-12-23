@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import firebaseService from '../services/firebaseService';
+import { usePageVisibility } from '../hooks/usePageVisibility';
 
 const NotificationContext = createContext();
 
@@ -14,17 +15,22 @@ export const useNotifications = () => {
 
 export const NotificationProvider = ({ children }) => {
   const { currentUser } = useAuth();
+  const isPageVisible = usePageVisibility();
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const NOTIFICATION_LIMIT = 30;
 
   // Fetch notifications for current user
   const fetchNotifications = async () => {
-    if (!currentUser) return;
+    if (!currentUser || !isPageVisible) return;
     
     try {
       setLoading(true);
-      const userNotifications = await firebaseService.notifications.getByUser(currentUser.uid);
+      const userNotifications = await firebaseService.notifications.getByUser(
+        currentUser.uid,
+        { limit: NOTIFICATION_LIMIT }
+      );
       setNotifications(userNotifications);
       
       // Count unread notifications
@@ -113,7 +119,7 @@ export const NotificationProvider = ({ children }) => {
 
   // Listen for real-time notifications
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser || !isPageVisible) return;
 
     const unsubscribe = firebaseService.notifications.listenToUserNotifications(
       currentUser.uid,
@@ -123,16 +129,17 @@ export const NotificationProvider = ({ children }) => {
         // Count unread notifications
         const unread = newNotifications.filter(n => !n.read).length;
         setUnreadCount(unread);
-      }
+      },
+      { limit: NOTIFICATION_LIMIT }
     );
 
     return () => unsubscribe();
-  }, [currentUser]);
+  }, [currentUser, isPageVisible]);
 
   // Initial fetch
   useEffect(() => {
     fetchNotifications();
-  }, [currentUser]);
+  }, [currentUser, isPageVisible]);
 
   // Handle notification click
   const handleNotificationClick = (notification) => {

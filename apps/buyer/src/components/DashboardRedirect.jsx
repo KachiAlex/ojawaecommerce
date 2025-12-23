@@ -31,20 +31,32 @@ const DashboardRedirect = () => {
       isLogisticsPartner: userProfile?.isLogisticsPartner
     });
 
-    // Determine primary dashboard based on role
-    let primaryDashboard = 'buyer'; // Default
+    // Determine primary dashboard based on role and preference
+    const hasAdminAccess = userProfile?.role === 'admin' || userProfile?.isAdmin;
+    const hasVendorAccess = userProfile?.role === 'vendor' || userProfile?.isVendor;
+    const hasLogisticsAccess = userProfile?.role === 'logistics' || userProfile?.isLogisticsPartner;
 
-    if (userProfile?.role === 'admin' || userProfile?.isAdmin) {
-      primaryDashboard = 'admin';
-      console.log('🎯 DashboardRedirect: Redirecting to ADMIN dashboard');
-    } else if (userProfile?.role === 'vendor' || userProfile?.isVendor) {
-      primaryDashboard = 'vendor';
-      console.log('🎯 DashboardRedirect: Redirecting to VENDOR dashboard');
-    } else if (userProfile?.role === 'logistics' || userProfile?.isLogisticsPartner) {
-      primaryDashboard = 'logistics';
-      console.log('🎯 DashboardRedirect: Redirecting to LOGISTICS dashboard');
+    let primaryDashboard =
+      localStorage.getItem('preferredDashboard') ||
+      sessionStorage.getItem('preferredDashboard') ||
+      'buyer'; // Default landing page
+
+    if (!localStorage.getItem('preferredDashboard') && !sessionStorage.getItem('preferredDashboard')) {
+      if (hasAdminAccess) {
+        // Admins should experience the buyer dashboard first, then manually switch if needed
+        primaryDashboard = 'buyer';
+        console.log('🎯 DashboardRedirect: Admin detected, defaulting to BUYER dashboard');
+      } else if (hasVendorAccess) {
+        primaryDashboard = 'vendor';
+        console.log('🎯 DashboardRedirect: Redirecting to VENDOR dashboard');
+      } else if (hasLogisticsAccess) {
+        primaryDashboard = 'logistics';
+        console.log('🎯 DashboardRedirect: Redirecting to LOGISTICS dashboard');
+      } else {
+        console.log('🎯 DashboardRedirect: Defaulting to BUYER dashboard');
+      }
     } else {
-      console.log('🎯 DashboardRedirect: Defaulting to BUYER dashboard');
+      console.log('🎯 DashboardRedirect: Using stored preferred dashboard', primaryDashboard);
     }
 
     console.log('🚀 DashboardRedirect: Navigating to /', primaryDashboard);

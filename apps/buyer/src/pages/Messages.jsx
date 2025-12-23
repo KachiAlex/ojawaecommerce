@@ -24,6 +24,7 @@ const Messages = () => {
   const bottomRef = useRef(null);
   const [otherParticipantName, setOtherParticipantName] = useState('');
   const [senderNames, setSenderNames] = useState({}); // Cache sender names
+  const [conversationNames, setConversationNames] = useState({});
 
   // Check for pending vendor message from sessionStorage after login
   useEffect(() => {
@@ -68,14 +69,87 @@ const Messages = () => {
 
   useEffect(() => {
     if (activeConversation) {
-      markAsRead(activeConversation.id).catch(() => {});
+      markAsRead(activeConversation).catch(() => {});
     }
-  }, [activeConversation]);
+  }, [activeConversation, markAsRead]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length]);
   
+  const conversationList = useMemo(() => (
+    Array.isArray(conversations)
+      ? conversations
+      : Object.values(conversations || {})
+  ), [conversations]);
+
+  const getConversationKey = (participants = []) => participants.slice().sort().join('__');
+  const toDateValue = (value) => {
+    if (!value) return new Date(0);
+    if (value?.toDate) return value.toDate();
+    return new Date(value);
+  };
+  const toUnreadNumber = (unread, userId) => {
+    if (typeof unread === 'number') return unread;
+    if (unread && typeof unread === 'object' && userId) {
+      return unread[userId] || 0;
+    }
+    return 0;
+  };
+
+  const uniqueConversations = useMemo(() => {
+    const map = new Map();
+    conversationList.forEach(conv => {
+      const key = getConversationKey(conv.participants || []);
+      const convTimestamp = toDateValue(conv.updatedAt || conv.lastMessage?.timestamp || conv.createdAt);
+      const unread = toUnreadNumber(conv.unreadCount, currentUser?.uid);
+      const relatedIds = new Set(conv.relatedConversationIds || []);
+      if (!relatedIds.size && conv.id) relatedIds.add(conv.id);
+
+      if (!map.has(key)) {
+        map.set(key, {
+          conversation: conv,
+          timestamp: convTimestamp,
+          unreadCount: unread,
+          relatedConversationIds: new Set(relatedIds)
+        });
+      } else {
+        const existing = map.get(key);
+        existing.unreadCount += unread;
+        relatedIds.forEach(id => existing.relatedConversationIds.add(id));
+        if (convTimestamp > existing.timestamp) {
+          existing.conversation = conv;
+          existing.timestamp = convTimestamp;
+        }
+      }
+    });
+
+    return Array.from(map.values())
+      .map(({ conversation, timestamp, unreadCount, relatedConversationIds }) => ({
+        ...conversation,
+        updatedAt: timestamp,
+        unreadCount,
+        relatedConversationIds: Array.from(relatedConversationIds)
+      }))
+      .sort((a, b) => toDateValue(b.updatedAt).getTime() - toDateValue(a.updatedAt).getTime());
+  }, [conversationList, currentUser?.uid]);
+
+  useEffect(() => {
+    if (!activeConversation && uniqueConversations.length > 0) {
+      setActiveConversation(uniqueConversations[0]);
+    }
+  }, [activeConversation, uniqueConversations, setActiveConversation]);
+
+  const resolveDisplayName = (data, fallback) => (
+    data?.vendorProfile?.businessName ||
+    data?.vendorProfile?.storeName ||
+    data?.storeName ||
+    data?.displayName ||
+    data?.name ||
+    data?.email?.split?.('@')?.[0] ||
+    fallback
+  );
+
   // Fetch sender names for all messages
   useEffect(() => {
     if (!messages || messages.length === 0 || !currentUser) return;
@@ -97,14 +171,7 @@ const Messages = () => {
               const snap = await getDoc(userRef);
               if (snap.exists()) {
                 const data = snap.data();
-                // Get display name - prioritize vendor/business name, then display name, then email
-                const displayName = data.vendorProfile?.businessName || 
-                                   data.vendorProfile?.storeName ||
-                                   data.displayName || 
-                                   data.name || 
-                                   data.email?.split('@')[0] || 
-                                   senderId;
-                return { senderId, displayName };
+                return { senderId, displayName: resolveDisplayName(data, senderId) };
               }
               return { senderId, displayName: senderId };
             } catch (error) {
@@ -160,8 +227,7 @@ const Messages = () => {
         const snap = await getDoc(userRef);
         if (snap.exists()) {
           const data = snap.data();
-          const vendorName = data.vendorProfile?.businessName || data.storeName || data.displayName || data.name || data.email;
-          setOtherParticipantName(vendorName || otherParticipantId);
+          setOtherParticipantName(resolveDisplayName(data, otherParticipantId));
         } else {
           setOtherParticipantName(otherParticipantId);
         }
@@ -172,6 +238,52 @@ const Messages = () => {
     fetchName();
   }, [otherParticipantId]);
 
+  // Fetch names for conversation list participants
+  useEffect(() => {
+    if (!currentUser || conversationList.length === 0) return;
+
+    const otherParticipantIds = uniqueConversations
+      .map(conv => (conv.participants || []).find((p) => p !== currentUser.uid))
+      .filter(Boolean);
+
+    setConversationNames(prev => {
+      const idsToFetch = otherParticipantIds.filter(id => !prev[id]);
+      if (idsToFetch.length === 0) return prev;
+
+      (async () => {
+        const fetches = idsToFetch.map(async (participantId) => {
+          try {
+            const ref = doc(db, 'users', participantId);
+            const snap = await getDoc(ref);
+            if (snap.exists()) {
+              const data = snap.data();
+              return { participantId, displayName: resolveDisplayName(data, participantId) };
+            }
+          } catch (error) {
+            console.warn('Error fetching conversation participant name:', error);
+          }
+          return { participantId, displayName: participantId };
+        });
+
+        const results = await Promise.all(fetches);
+        setConversationNames(current => {
+          const updated = { ...current };
+          results.forEach(({ participantId, displayName }) => {
+            updated[participantId] = displayName;
+          });
+          return updated;
+        });
+      })();
+
+      return prev;
+    });
+  }, [conversationList, currentUser?.uid]);
+
+  const showConversationList = uniqueConversations.length > 1;
+  const getOtherParticipantId = (conv) => (
+    (conv.participants || []).find((p) => p !== currentUser?.uid) || null
+  );
+
   return (
     <motion.div className="min-h-screen bg-gray-50" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 py-4 sm:py-8">
@@ -180,8 +292,9 @@ const Messages = () => {
           <p className="text-gray-600 text-sm">Chat with vendors and buyers in real-time</p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
+        <div className={`grid grid-cols-1 gap-4 lg:gap-6 ${showConversationList ? 'lg:grid-cols-3' : ''}`}>
           {/* Conversations list */}
+          {showConversationList && (
           <div className="bg-white rounded-xl shadow-sm border lg:col-span-1 overflow-hidden">
             <div className="p-4 border-b flex items-center justify-between">
               <div className="font-semibold">Conversations</div>
@@ -197,7 +310,15 @@ const Messages = () => {
                 <div className="p-6 text-center text-gray-500 text-sm">No conversations yet</div>
               )}
               <ul>
-                {conversations.map((conv) => (
+                {uniqueConversations.map((conv) => {
+                  const participantId = getOtherParticipantId(conv);
+                  const participantName = participantId
+                    ? (conversationNames[participantId] || 'Chat')
+                    : 'Chat';
+                  const unreadForUser = typeof conv.unreadCount === 'object'
+                    ? conv.unreadCount[currentUser?.uid] || 0
+                    : (conv.unreadCount || 0);
+                  return (
                   <li key={conv.id}>
                     <button
                       onClick={() => setActiveConversation(conv)}
@@ -206,25 +327,31 @@ const Messages = () => {
                       <div className="shrink-0 w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700">💬</div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between">
-                          <div className="font-medium text-gray-900 truncate">Conversation</div>
+                          <div className="font-medium text-gray-900 truncate">
+                            {participantName}
+                          </div>
                           {conv.updatedAt && <div className="text-xs text-gray-500">{new Date(conv.updatedAt.toDate?.() || conv.updatedAt).toLocaleDateString()}</div>}
                         </div>
-                        <div className="text-sm text-gray-600 truncate">{conv.lastMessage?.content || 'Tap to start chatting'}</div>
+                        <div className="text-xs text-gray-500">
+                          {conv.lastMessage?.senderId === currentUser?.uid ? 'You: ' : ''}
+                          <span className="text-sm text-gray-600 truncate">{conv.lastMessage?.content || 'Tap to start chatting'}</span>
+                        </div>
                       </div>
-                      {!!conv.unreadCount && (
+                      {!!unreadForUser && (
                         <span className="ml-2 bg-emerald-600 text-white text-xs rounded-full h-5 px-2 flex items-center justify-center">
-                          {conv.unreadCount}
+                          {unreadForUser}
                         </span>
                       )}
                     </button>
                   </li>
-                ))}
+                )})}
               </ul>
             </div>
           </div>
+          )}
 
           {/* Chat pane */}
-          <div className="bg-white rounded-xl shadow-sm border lg:col-span-2 flex flex-col min-h-[60vh] lg:min-h-[70vh]">
+          <div className={`bg-white rounded-xl shadow-sm border flex flex-col min-h-[60vh] lg:min-h-[70vh] ${showConversationList ? 'lg:col-span-2' : 'lg:col-span-3'}`}>
             {activeConversation ? (
               <>
                 <div className="p-4 border-b flex items-center gap-3">

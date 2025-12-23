@@ -370,5 +370,19 @@ service cloud.firestore {
              // Allow list for admins and vendors
              allow list: if isAdmin() || isAuthenticated();
            }
+
+           // Support tickets collection - users can create and read their own tickets, admins can read/update all
+           match /support_tickets/{ticketId} {
+             // Allow authenticated users to create tickets
+             allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+             // Allow users to read their own tickets, admins to read all
+             allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+             // Allow users to update their own tickets (for adding replies), admins to update all
+             allow update: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+             // Only admins can delete tickets
+             allow delete: if isAdmin();
+             // Allow list for authenticated users (filtered by userId in queries)
+             allow list: if isAuthenticated();
+           }
          }
        }

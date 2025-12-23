@@ -1,52 +1,18 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLocation } from 'react-router-dom';
 
 const AnimatedPage = ({ children, className = "" }) => {
   const location = useLocation();
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    setIsVisible(true);
-    return () => setIsVisible(false);
-  }, [location.pathname]);
-
-  const pageVariants = {
-    initial: { 
-      opacity: 0, 
-      y: 30,
-      scale: 0.96,
-      filter: 'blur(10px)'
-    },
-    in: { 
-      opacity: 1, 
-      y: 0,
-      scale: 1,
-      filter: 'blur(0px)'
-    },
-    out: { 
-      opacity: 0, 
-      y: -30,
-      scale: 1.04,
-      filter: 'blur(10px)'
-    }
-  };
-
-  const pageTransition = {
-    type: "tween",
-    ease: [0.4, 0, 0.2, 1], // Custom cubic-bezier for smoother animations
-    duration: 0.5
-  };
 
   return (
-    <AnimatePresence mode="wait">
+    <AnimatePresence mode="sync" initial={false}>
       <motion.div
         key={location.pathname}
-        initial="initial"
-        animate="in"
-        exit="out"
-        variants={pageVariants}
-        transition={pageTransition}
+        initial={{ opacity: 0, y: 30, scale: 0.96, filter: 'blur(10px)' }}
+        animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
+        exit={{ opacity: 0, y: -30, scale: 1.04, filter: 'blur(10px)' }}
+        transition={{ type: "tween", ease: [0.4, 0, 0.2, 1], duration: 0.35 }}
         className={`min-h-screen ${className}`}
       >
         {children}

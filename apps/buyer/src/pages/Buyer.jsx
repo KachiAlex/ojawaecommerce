@@ -11,6 +11,7 @@ import OrderConfirmationModal from '../components/OrderConfirmationModal';
 import Receipt from '../components/Receipt';
 import ProductCard from '../components/ProductCard';
 import WishlistButton from '../components/WishlistButton';
+import SupportTicket from '../components/SupportTicket';
 import { ProductListSkeleton } from '../components/SkeletonLoaders';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
@@ -49,6 +50,11 @@ const Buyer = () => {
   const [wishlistItems, setWishlistItems] = useState([]);
   const [wishlistProducts, setWishlistProducts] = useState([]);
   const [loadingWishlist, setLoadingWishlist] = useState(false);
+  const [supportTickets, setSupportTickets] = useState([]);
+  const [loadingTickets, setLoadingTickets] = useState(false);
+  const [showTicketModal, setShowTicketModal] = useState(false);
+  const [selectedTicket, setSelectedTicket] = useState(null);
+  const [ticketInitialData, setTicketInitialData] = useState(null);
 
   // Check for receipt request from URL after orders are loaded
   useEffect(() => {
@@ -131,6 +137,32 @@ const Buyer = () => {
       window.removeEventListener('wishlistUpdated', handleWishlistUpdate);
     };
   }, [activeTab, currentUser]);
+
+  // Fetch support tickets when support tab is active
+  useEffect(() => {
+    if (activeTab === 'support' && currentUser) {
+      loadSupportTickets();
+    }
+  }, [activeTab, currentUser]);
+
+  const loadSupportTickets = async () => {
+    if (!currentUser) return;
+    
+    try {
+      setLoadingTickets(true);
+      const tickets = await firebaseService.supportTickets.getByUser(currentUser.uid);
+      setSupportTickets(tickets);
+    } catch (error) {
+      console.error('Error loading support tickets:', error);
+    } finally {
+      setLoadingTickets(false);
+    }
+  };
+
+  const handleTicketCreated = async (ticketId) => {
+    setShowTicketModal(false);
+    await loadSupportTickets();
+  };
 
   const loadWishlist = async () => {
     if (!currentUser) return;
@@ -611,6 +643,7 @@ const Buyer = () => {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date & Time</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -625,6 +658,26 @@ const Buyer = () => {
                           <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
                             {txn.status}
                           </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <button
+                            onClick={() => {
+                              setTicketInitialData({
+                                transactionId: txn.id,
+                                category: 'payment',
+                                transactionDetails: {
+                                  amount: txn.amount,
+                                  type: txn.type,
+                                  status: txn.status,
+                                  order: txn.order
+                                }
+                              });
+                              setShowTicketModal(true);
+                            }}
+                            className="text-red-600 hover:text-red-700 font-medium text-xs"
+                          >
+                            Report Issue
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -736,80 +789,96 @@ const Buyer = () => {
 
           {activeTab === 'support' && (
             <div className="space-y-6">
-              <div className="bg-white rounded-xl border">
-                <div className="p-6 border-b border-gray-200">
-                  <h2 className="text-lg font-semibold text-gray-900">Help & Support</h2>
-                  <p className="text-sm text-gray-600 mt-1">Get help with your orders and account</p>
+              <div className="bg-slate-900 rounded-xl border border-teal-800/50">
+                <div className="p-6 border-b border-teal-800/50">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h2 className="text-lg font-semibold text-white">Help & Support</h2>
+                      <p className="text-sm text-teal-200 mt-1">Create a support ticket or view your existing tickets</p>
+                    </div>
+                    <button
+                      onClick={() => setShowTicketModal(true)}
+                      className="px-6 py-2 rounded-lg font-semibold bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:from-emerald-400 hover:to-teal-400 transition-all"
+                    >
+                      + New Ticket
+                    </button>
+                  </div>
                 </div>
                 
                 <div className="p-6">
-                  <div className="grid gap-6 md:grid-cols-2">
-                    <div className="border rounded-lg p-6">
-                      <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
-                        <span className="text-blue-600 text-xl">💬</span>
-                      </div>
-                      <h3 className="font-semibold text-gray-900 mb-2">Live Chat</h3>
-                      <p className="text-sm text-gray-600 mb-4">Chat with our support team in real-time</p>
-                      <button className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700">
-                        Start Chat
+                  {loadingTickets ? (
+                    <div className="text-center py-12">
+                      <div className="text-teal-400">Loading tickets...</div>
+                    </div>
+                  ) : supportTickets.length === 0 ? (
+                    <div className="text-center py-12">
+                      <div className="text-6xl mb-4">🎫</div>
+                      <h3 className="text-xl font-bold text-white mb-2">No Support Tickets</h3>
+                      <p className="text-teal-200 mb-6">You haven't created any support tickets yet.</p>
+                      <button
+                        onClick={() => setShowTicketModal(true)}
+                        className="px-6 py-3 rounded-lg font-semibold bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:from-emerald-400 hover:to-teal-400 transition-all"
+                      >
+                        Create Your First Ticket
                       </button>
                     </div>
-                    
-                    <div className="border rounded-lg p-6">
-                      <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
-                        <span className="text-green-600 text-xl">📧</span>
-                      </div>
-                      <h3 className="font-semibold text-gray-900 mb-2">Email Support</h3>
-                      <p className="text-sm text-gray-600 mb-4">Send us an email and we'll respond within 24 hours</p>
-                      <button className="border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50">
-                        Send Email
-                      </button>
+                  ) : (
+                    <div className="space-y-4">
+                      {supportTickets.map((ticket) => {
+                        const statusColors = {
+                          open: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50',
+                          in_progress: 'bg-amber-500/20 text-amber-400 border-amber-500/50',
+                          waiting_for_admin: 'bg-blue-500/20 text-blue-400 border-blue-500/50',
+                          resolved: 'bg-teal-500/20 text-teal-400 border-teal-500/50',
+                          closed: 'bg-slate-700 text-slate-300 border-slate-600'
+                        };
+                        const priorityColors = {
+                          low: 'text-blue-400',
+                          medium: 'text-amber-400',
+                          high: 'text-orange-400',
+                          urgent: 'text-red-400'
+                        };
+                        return (
+                          <div
+                            key={ticket.id}
+                            className="bg-slate-800 rounded-lg border border-teal-700/30 p-6 hover:border-teal-600 transition-all cursor-pointer"
+                            onClick={() => setSelectedTicket(ticket)}
+                          >
+                            <div className="flex justify-between items-start mb-3">
+                              <div className="flex-1">
+                                <h3 className="text-lg font-semibold text-white mb-1">{ticket.subject}</h3>
+                                <p className="text-sm text-teal-200 line-clamp-2">{ticket.description}</p>
+                              </div>
+                              <span className={`px-3 py-1 rounded-full text-xs font-medium border ${statusColors[ticket.status] || statusColors.open}`}>
+                                {ticket.status.replace('_', ' ').toUpperCase()}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between text-sm">
+                              <div className="flex items-center gap-4 text-teal-300">
+                                <span className="capitalize">{ticket.category}</span>
+                                <span className={`font-medium ${priorityColors[ticket.priority] || priorityColors.medium}`}>
+                                  {ticket.priority} priority
+                                </span>
+                                {ticket.orderId && (
+                                  <span className="text-amber-400">Order: {ticket.orderId.slice(-8)}</span>
+                                )}
+                              </div>
+                              <span className="text-teal-400">
+                                {ticket.createdAt?.toDate ? ticket.createdAt.toDate().toLocaleDateString() : 'Recently'}
+                              </span>
+                            </div>
+                            {ticket.replies && ticket.replies.length > 0 && (
+                              <div className="mt-3 pt-3 border-t border-teal-700/30">
+                                <span className="text-sm text-teal-300">
+                                  {ticket.replies.length} {ticket.replies.length === 1 ? 'reply' : 'replies'}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
-                    
-                    <div className="border rounded-lg p-6">
-                      <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center mb-4">
-                        <span className="text-yellow-600 text-xl">⚖️</span>
-                      </div>
-                      <h3 className="font-semibold text-gray-900 mb-2">Dispute Resolution</h3>
-                      <p className="text-sm text-gray-600 mb-4">File a dispute for order issues</p>
-                      <button className="border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50">
-                        File Dispute
-                      </button>
-                    </div>
-                    
-                    <div className="border rounded-lg p-6">
-                      <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
-                        <span className="text-purple-600 text-xl">📚</span>
-                      </div>
-                      <h3 className="font-semibold text-gray-900 mb-2">Help Center</h3>
-                      <p className="text-sm text-gray-600 mb-4">Browse our FAQ and guides</p>
-                      <button className="border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50">
-                        Browse FAQ
-                      </button>
-                    </div>
-                  </div>
-                  
-                  <div className="mt-8 bg-gray-50 rounded-lg p-6">
-                    <h3 className="font-semibold text-gray-900 mb-4">Quick Actions</h3>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">Track an order</span>
-                        <button className="text-emerald-600 hover:text-emerald-700 text-sm font-medium">Track →</button>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">Request refund</span>
-                        <button className="text-emerald-600 hover:text-emerald-700 text-sm font-medium">Request →</button>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">Report vendor</span>
-                        <button className="text-emerald-600 hover:text-emerald-700 text-sm font-medium">Report →</button>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">Update payment method</span>
-                        <button className="text-emerald-600 hover:text-emerald-700 text-sm font-medium">Update →</button>
-                      </div>
-                    </div>
-                  </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -855,6 +924,91 @@ const Buyer = () => {
               setReceiptOrder(null);
             }}
           />
+
+          {/* Support Ticket Creation Modal */}
+          {showTicketModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+              <div className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                <SupportTicket
+                  initialData={ticketInitialData}
+                  onTicketCreated={() => {
+                    setTicketInitialData(null);
+                    handleTicketCreated();
+                  }}
+                  onClose={() => {
+                    setTicketInitialData(null);
+                    setShowTicketModal(false);
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Ticket Details Modal */}
+          {selectedTicket && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+              <div className="max-w-3xl w-full max-h-[90vh] overflow-y-auto bg-slate-900 rounded-xl border border-teal-800/50 p-6">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-bold text-white">Ticket Details</h2>
+                  <button
+                    onClick={() => setSelectedTicket(null)}
+                    className="text-teal-300 hover:text-white transition-colors"
+                  >
+                    ✕
+                  </button>
+                </div>
+                
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="text-xl font-semibold text-white mb-2">{selectedTicket.subject}</h3>
+                    <div className="flex items-center gap-4 text-sm mb-4">
+                      <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/50">
+                        {selectedTicket.status.replace('_', ' ').toUpperCase()}
+                      </span>
+                      <span className="text-teal-300 capitalize">{selectedTicket.category}</span>
+                      <span className="text-amber-400">{selectedTicket.priority} priority</span>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-slate-800 rounded-lg p-4">
+                    <p className="text-teal-200 whitespace-pre-wrap">{selectedTicket.description}</p>
+                  </div>
+                  
+                  {selectedTicket.orderId && (
+                    <div className="bg-slate-800 rounded-lg p-4">
+                      <span className="text-sm text-teal-300">Related Order: </span>
+                      <span className="text-amber-400 font-mono">{selectedTicket.orderId}</span>
+                    </div>
+                  )}
+                  
+                  {selectedTicket.replies && selectedTicket.replies.length > 0 && (
+                    <div>
+                      <h4 className="text-lg font-semibold text-white mb-4">Replies ({selectedTicket.replies.length})</h4>
+                      <div className="space-y-4">
+                        {selectedTicket.replies.map((reply, index) => (
+                          <div key={index} className="bg-slate-800 rounded-lg p-4 border-l-4 border-teal-500">
+                            <div className="flex justify-between items-center mb-2">
+                              <span className="text-sm font-semibold text-teal-300">
+                                {reply.isAdminReply ? 'Admin' : selectedTicket.userName}
+                              </span>
+                              <span className="text-xs text-teal-400">
+                                {reply.createdAt?.toDate ? reply.createdAt.toDate().toLocaleString() : 'Recently'}
+                              </span>
+                            </div>
+                            <p className="text-teal-200">{reply.message}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="text-sm text-teal-300">
+                    Created: {selectedTicket.createdAt?.toDate ? selectedTicket.createdAt.toDate().toLocaleString() : 'Recently'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

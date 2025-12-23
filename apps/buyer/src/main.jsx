@@ -26,24 +26,25 @@ window.addEventListener('unhandledrejection', (event) => {
   }
 });
 
-// Register service worker for PWA after first paint/idle
+// Ensure legacy Ojawa PWA service workers are removed while allowing other SW usage (e.g. Firebase messaging)
 if ('serviceWorker' in navigator) {
-  const register = () => {
-    navigator.serviceWorker.register('/sw.js')
-      .then((registration) => {
-        console.log('SW registered: ', registration);
-      })
-      .catch((registrationError) => {
-        console.log('SW registration failed: ', registrationError);
+  navigator.serviceWorker.getRegistrations()
+    .then((registrations) => {
+      let removed = false;
+      registrations.forEach((registration) => {
+        const scriptUrl = registration.active?.scriptURL || registration.installing?.scriptURL || registration.waiting?.scriptURL;
+        if (scriptUrl?.includes('/sw.js')) {
+          registration.unregister();
+          removed = true;
+        }
       });
-  };
-
-  // Delay service worker registration to improve LCP
-  if ('requestIdleCallback' in window) {
-    requestIdleCallback(register, { timeout: 5000 });
-  } else {
-    setTimeout(register, 3000);
-  }
+      if (removed) {
+        console.log('Removed legacy Ojawa PWA service worker');
+      }
+    })
+    .catch((err) => {
+      console.warn('Unable to inspect service worker registrations', err);
+    });
 }
 
 createRoot(document.getElementById('root')).render(

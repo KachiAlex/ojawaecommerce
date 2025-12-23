@@ -41,7 +41,7 @@ class AnalyticsService {
       
       // Update product view count (optional - don't fail if permission denied)
       try {
-        await this.incrementProductViews(productId);
+      await this.incrementProductViews(productId);
       } catch (incrementError) {
         // Silently ignore view count increment errors (permission issues)
         // The analytics event is already tracked, which is the main goal
