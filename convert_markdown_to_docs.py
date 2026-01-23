@@ -109,7 +109,8 @@ def main():
     md_files = [
         'ESCROW_INTEGRATION_SUMMARY.md',
         'BANKING_PARTNER_ESCROW_INTEGRATION.md',
-        'ESCROW_INTEGRATION_DIAGRAMS.md'
+        'ESCROW_INTEGRATION_DIAGRAMS.md',
+        'BANK_PAYMENT_FLOW_OVERVIEW.md'
     ]
     
     base_dir = Path(__file__).parent

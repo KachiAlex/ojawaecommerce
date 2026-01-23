@@ -58,7 +58,7 @@ class NetworkMonitor {
         this.connectionQuality = 'good';
       }
       
-    } catch (error) {
+    } catch {
       // Silently handle - not critical
       this.metrics.errors++;
       this.connectionQuality = 'unknown';
@@ -76,7 +76,7 @@ class NetworkMonitor {
     return await getDoc(testRef);
   }
 
-  updateConnectionQuality(latency) {
+  updateConnectionQuality() {
     const avgLatency = this.getAverageLatency();
     
     if (avgLatency < 100) {

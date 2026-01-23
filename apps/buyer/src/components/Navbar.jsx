@@ -8,6 +8,8 @@ import NotificationCenter from './NotificationCenter';
 import DashboardSwitcher from './DashboardSwitcher';
 import SimpleLogo from './SimpleLogo';
 
+const testModeEnabled = import.meta.env?.VITE_TEST_MODE === 'true';
+
 const Navbar = () => {
   const { currentUser, logout, userProfile } = useAuth();
   const { getCartItemsCount } = useCart();
@@ -105,6 +107,13 @@ const Navbar = () => {
       document.removeEventListener('click', handleClickOutside);
     };
   }, []);
+  
+  useEffect(() => {
+    if (testModeEnabled && currentUser) {
+      setIsUserDropdownOpen(true);
+      setIsMenuOpen(true);
+    }
+  }, [currentUser]);
 
   return (
   <>
@@ -271,6 +280,8 @@ const Navbar = () => {
                           <button
                             onClick={handleLogout}
                             className="w-full flex items-center px-4 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors"
+                            data-testid="navbar-logout-button"
+                            type="button"
                           >
                             <span className="mr-3">🚪</span>
                             Logout
@@ -384,6 +395,8 @@ const Navbar = () => {
                       setIsMenuOpen(false);
                     }}
                     className="w-full text-left bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-md text-base font-medium transition-colors"
+                    data-testid="navbar-mobile-logout-button"
+                    type="button"
                   >
                     Logout
                   </button>

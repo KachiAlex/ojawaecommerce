@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { useState, useEffect, useMemo, useCallback, Suspense, lazy } from 'react';
+import { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import firebaseService from '../services/firebaseService';
 
@@ -61,10 +61,6 @@ const VendorOptimized = () => {
   const [disputes, setDisputes] = useState([]);
 
   // Modal states
-  const [selectedOrder, setSelectedOrder] = useState(null);
-  const [isOrderDetailsOpen, setIsOrderDetailsOpen] = useState(false);
-  const [isShipOpen, setIsShipOpen] = useState(false);
-  const [isPayoutOpen, setIsPayoutOpen] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);

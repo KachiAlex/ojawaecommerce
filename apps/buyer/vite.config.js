@@ -1,6 +1,11 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+const isTestMode = process.env.VITE_TEST_MODE === 'true'
+const securityHeaders = {
+  'Content-Security-Policy': "default-src 'self'; img-src 'self' data: https:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://firestore.googleapis.com https://firebase.googleapis.com; frame-ancestors 'none'; form-action 'self'"
+}
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
@@ -82,5 +87,7 @@ export default defineConfig({
       'firebase/auth',
       'firebase/firestore'
     ]
-  }
+  },
+  server: isTestMode ? { headers: securityHeaders } : undefined,
+  preview: isTestMode ? { headers: securityHeaders } : undefined
 })

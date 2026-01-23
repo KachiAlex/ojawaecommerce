@@ -1,7 +1,6 @@
 import { 
   collection, 
   doc, 
-  addDoc, 
   updateDoc, 
   getDoc, 
   getDocs, 
@@ -294,7 +293,8 @@ export const pricingService = {
           orderBy('rating', 'desc')
         );
         snapshot = await getDocs(q);
-      } catch (err) {
+      } catch (fallbackError) {
+        console.warn('Falling back to unordered logistics query:', fallbackError.message)
         // Fallback without orderBy to avoid index requirement
         const q = query(
           collection(db, 'logistics_companies'),

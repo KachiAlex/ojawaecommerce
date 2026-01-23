@@ -7,7 +7,6 @@ import { db } from '../firebase/config';
 // import EnhancedLogisticsSelector from '../components/EnhancedLogisticsSelector'; // Disabled
 import firebaseService from '../services/firebaseService';
 import WalletBalanceCheck from '../components/WalletBalanceCheck';
-import escrowPaymentService from '../services/escrowPaymentService';
 import { pricingService } from '../services/pricingService';
 import logisticsPricingService from '../services/logisticsPricingService';
 
@@ -88,150 +87,129 @@ const CheckoutForm = ({ total, pricingBreakdown, cartItems, onSuccess, orderDeta
 
   const createOrderWithEscrow = async () => {
     try {
-      // Resolve vendorId and processing time for each product
-      const itemsWithVendors = [];
-      let maxProcessingTimeDays = 0; // Track maximum processing time from all products
-      
-      for (const item of cartItems) {
-        let resolvedVendorId = item.vendorId;
-        let productProcessingTime = 2; // Default 2 days if not set
-        
-        if (!resolvedVendorId && item.id) {
-          try {
-            const prodSnap = await getDoc(doc(db, 'products', item.id));
-            if (prodSnap.exists()) {
-              const productData = prodSnap.data();
-              resolvedVendorId = productData.vendorId || resolvedVendorId;
-              productProcessingTime = productData.processingTimeDays || 2;
-            }
-          } catch (_) {}
-        } else if (item.processingTimeDays) {
-          // Use processing time from item if available
-          productProcessingTime = item.processingTimeDays;
-        }
-        
-        // Use maximum processing time from all items in cart
-        maxProcessingTimeDays = Math.max(maxProcessingTimeDays, productProcessingTime);
-        
-        itemsWithVendors.push({
-          productId: item.id,
-          name: item.name,
-          price: item.price,
-          quantity: item.quantity,
-          vendorId: resolvedVendorId || 'unknown',
-          processingTimeDays: productProcessingTime
-        });
-      }
+      const { httpsCallable } = await import('firebase/functions');
+      const { functions } = await import('../firebase/config');
+      const createEscrowOrder = httpsCallable(functions, 'createEscrowOrder');
 
-      // For now we assume single-vendor orders; use first item's vendorId
-      const orderVendorId = itemsWithVendors[0]?.vendorId || null;
-      
-      // Calculate total delivery time: vendor processing + logistics shipping
-      const logisticsShippingDays = orderDetails.selectedLogistics?.estimatedDays || 0;
-      const vendorProcessingDays = maxProcessingTimeDays;
-      const totalDeliveryDays = vendorProcessingDays + logisticsShippingDays;
-      
-      // Calculate delivery dates
-      const now = new Date();
-      const estimatedDeliveryDate = new Date(now.getTime() + totalDeliveryDays * 24 * 60 * 60 * 1000);
-      const deliveryDeadline = new Date(now.getTime() + (totalDeliveryDays + 2) * 24 * 60 * 60 * 1000); // +2 day buffer
-
-      // Process escrow payment FIRST before creating order
-      // This ensures the order is only created if payment succeeds
-      const tempOrderId = `temp-${Date.now()}`;
-      const escrowResult = await escrowPaymentService.processEscrowPayment({
-        buyerId: currentUser.uid,
-        totalAmount: total,
-        orderId: tempOrderId
-      });
-
-      // Create comprehensive order data with escrow_funded status
-      const orderData = {
-        buyerId: currentUser.uid,
-        buyerEmail: currentUser.email,
-        buyerName: currentUser.displayName || '',
-        items: itemsWithVendors,
-        vendorId: orderVendorId,
-        subtotal: orderDetails.subtotal,
-        deliveryFee: orderDetails.deliveryFee,
-        ojawaCommission: orderDetails.ojawaCommission,
+      const requestPayload = {
         totalAmount: total,
         currency: currencyCode,
-        paymentProvider: 'wallet_escrow',
-        paymentStatus: 'escrow_funded',
-        escrowStatus: 'funds_transferred_to_escrow',
-        escrowHeld: true,
-        escrowAmount: total,
+        cartItems,
         deliveryOption: orderDetails.deliveryOption,
         deliveryAddress: orderDetails.buyerAddress || '',
-        logisticsCompany: orderDetails.selectedLogistics?.company || null,
-        logisticsCompanyId: orderDetails.selectedLogistics?.id || null,
-        logisticsShippingDays: logisticsShippingDays,
-        vendorProcessingDays: vendorProcessingDays,
-        totalDeliveryDays: totalDeliveryDays,
-        estimatedDelivery: totalDeliveryDays, // Keep for backward compatibility
-        estimatedDeliveryDate: estimatedDeliveryDate,
-        deliveryDeadline: deliveryDeadline,
-        trackingId: null, // Will be set to Order ID after creation
-        status: 'escrow_funded', // Order is created with escrow already funded
-        createdAt: new Date(),
-        updatedAt: new Date()
+        selectedLogistics: orderDetails.selectedLogistics,
+        pricing: {
+          subtotal: orderDetails.subtotal,
+          deliveryFee: orderDetails.deliveryFee,
+          ojawaCommission: orderDetails.ojawaCommission,
+          serviceFee: orderDetails.pricingBreakdown?.serviceFee,
+          vat: orderDetails.pricingBreakdown?.vat,
+        },
+        buyerInfo: {
+          email: currentUser.email,
+          name: currentUser.displayName || 'Customer',
+        },
       };
 
-      // Create order using service with escrow_funded status
-      const orderId = await firebaseService.orders.create(orderData);
+      const response = await createEscrowOrder(requestPayload);
+      const orderId = response?.data?.orderId;
 
-      // Notify vendor of new order (only if vendor is known)
-      if (orderVendorId) {
-        try {
-          // Create notification directly in Firestore instead of using Cloud Function
-          await firebaseService.notifications.create({
-            userId: orderVendorId,
-            type: 'new_order',
-            title: 'New Order Received',
-            message: `You have received a new order from ${currentUser.displayName || 'Customer'} for ₦${total.toLocaleString()}`,
-            orderId: orderId,
-            buyerName: currentUser.displayName || 'Customer',
-            totalAmount: total,
-            items: itemsWithVendors,
-            read: false
-          });
-        } catch (notificationError) {
-          console.warn('Failed to notify vendor:', notificationError);
-        }
-      }
-
-      // Create buyer notification
-      try {
-        await firebaseService.notifications.createOrderNotification(
-          { id: orderId, buyerId: currentUser.uid, status: 'escrow_funded' },
-          'order_placed'
-        );
-      } catch (notificationError) {
-        console.warn('Failed to create buyer notification:', notificationError);
-      }
-
-      // If delivery is selected, create delivery record
-      if (orderDetails.deliveryOption === 'delivery' && orderDetails.selectedLogistics) {
-        await firebaseService.logistics.createDelivery({
-          orderId,
-          trackingId: orderData.trackingId,
-          buyerId: currentUser.uid,
-          vendorId: orderData.items[0].vendorId, // Assuming single vendor for now
-          logisticsCompanyId: orderData.logisticsCompanyId,
-          pickupLocation: 'Vendor Location', // This should come from vendor profile
-          deliveryLocation: orderData.deliveryAddress,
-          estimatedDelivery: orderData.estimatedDelivery,
-          amount: orderDetails.deliveryFee
-        });
+      if (!orderId) {
+        throw new Error('Order creation failed');
       }
 
       return orderId;
     } catch (error) {
-      console.error('Error creating order:', error);
+      console.error('Error creating order via Cloud Function:', error);
       throw error;
     }
   };
+
+  if (testModeEnabled) {
+    const handleTestPayment = (event) => {
+      event.preventDefault();
+      setShowSuccess(true);
+      clearCart();
+    };
+
+    if (showSuccess) {
+      return (
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8 bg-slate-950 min-h-screen">
+          <div className="text-center">
+            <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-emerald-900/40 border border-emerald-700 mb-4">
+              <svg className="h-6 w-6 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h1 className="text-3xl font-bold text-white mb-4">Test Escrow Payment Successful!</h1>
+            <p className="text-teal-200 mb-6">
+              This confirmation simulates a successful escrow payment for automated tests.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8 bg-slate-950 min-h-screen">
+        <h1 className="text-3xl font-bold text-white mb-6">Automation Checkout (Test Mode)</h1>
+        <form onSubmit={handleTestPayment} className="space-y-4 bg-slate-900 border border-emerald-900/60 rounded-xl p-6">
+          <p className="text-sm text-teal-200 mb-4">
+            This simplified form is shown only when <code className="text-amber-300">VITE_TEST_MODE=true</code> so automated tests can interact with predictable fields.
+          </p>
+
+          <label className="block text-sm text-teal-200 mb-2" htmlFor="test-address">Shipping Address</label>
+          <input
+            id="test-address"
+            name="address"
+            value={buyerAddress}
+            onChange={(e) => setBuyerAddress(e.target.value)}
+            className="w-full rounded-lg border border-slate-700 bg-slate-950 text-white px-3 py-2"
+            placeholder="123 Test Street"
+            required
+          />
+
+          <label className="block text-sm text-teal-200 mb-2" htmlFor="test-city">City</label>
+          <input
+            id="test-city"
+            name="city"
+            value={buyerCity}
+            onChange={(e) => setBuyerCity(e.target.value)}
+            className="w-full rounded-lg border border-slate-700 bg-slate-950 text-white px-3 py-2"
+            placeholder="Lagos"
+            required
+          />
+
+          <label className="block text-sm text-teal-200 mb-2" htmlFor="test-state">State</label>
+          <input
+            id="test-state"
+            name="state"
+            value={buyerState}
+            onChange={(e) => setBuyerState(e.target.value)}
+            className="w-full rounded-lg border border-slate-700 bg-slate-950 text-white px-3 py-2"
+            placeholder="Lagos"
+            required
+          />
+
+          <div className="flex gap-4 pt-4">
+            <button
+              type="button"
+              className="flex-1 border border-slate-600 text-white rounded-lg py-2 hover:bg-slate-800 transition"
+              onClick={() => navigate('/cart')}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="flex-1 bg-emerald-500 text-slate-950 rounded-lg py-2 font-semibold hover:bg-emerald-400 transition"
+            >
+              Pay Now
+            </button>
+          </div>
+        </form>
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -316,6 +294,8 @@ const CheckoutForm = ({ total, pricingBreakdown, cartItems, onSuccess, orderDeta
   );
 };
 
+const testModeEnabled = import.meta.env?.VITE_TEST_MODE === 'true';
+
 const Checkout = () => {
   const { cartItems, getCartTotal, getPricingBreakdown, clearCart } = useCart();
   const { currentUser } = useAuth();
@@ -336,6 +316,8 @@ const Checkout = () => {
   const [vendorAddress, setVendorAddress] = useState(cartData.vendorAddress || '');
   const [routeInfo, setRouteInfo] = useState(cartData.routeInfo || null);
   const [calculatedDeliveryFee, setCalculatedDeliveryFee] = useState(cartData.calculatedDeliveryFee || 0);
+  const [buyerCity, setBuyerCity] = useState(cartData.buyerCity || '');
+  const [buyerState, setBuyerState] = useState(cartData.buyerState || '');
   
   // Payment-focused states
   const [walletBalance, setWalletBalance] = useState(0);
@@ -599,7 +581,7 @@ const Checkout = () => {
           </div>
 
           {/* Delivery Summary */}
-          {deliveryOption === 'delivery' && calculatedDeliveryFee > 0 && (
+          {deliveryOption === 'delivery' && calculatedDeliveryFee > 0 && selectedPartner && (
             <div className="bg-teal-900/20 border border-teal-800/60 rounded-lg p-4 mb-6">
               <h3 className="text-sm font-semibold text-teal-200 mb-3">📦 Delivery Details</h3>
               

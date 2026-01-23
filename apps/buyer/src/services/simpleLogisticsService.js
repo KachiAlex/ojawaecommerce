@@ -104,7 +104,6 @@ class SimpleLogisticsService {
         'delta': 350,
         'edo': 300,
         'anambra': 450,
-        'enugu': 500,
         'ebonyi': 550,
         'abia': 400,
         'imo': 450,

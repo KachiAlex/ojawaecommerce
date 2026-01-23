@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from 'react'
+
 // Animation Utilities and Constants
 export const ANIMATION_DURATION = {
   fast: 150,
@@ -207,6 +209,7 @@ export const useScrollAnimation = (threshold = 0.1) => {
   const ref = useRef(null);
 
   useEffect(() => {
+    const target = ref.current;
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
@@ -216,13 +219,13 @@ export const useScrollAnimation = (threshold = 0.1) => {
       { threshold }
     );
 
-    if (ref.current) {
-      observer.observe(ref.current);
+    if (target) {
+      observer.observe(target);
     }
 
     return () => {
-      if (ref.current) {
-        observer.unobserve(ref.current);
+      if (target) {
+        observer.unobserve(target);
       }
     };
   }, [threshold]);

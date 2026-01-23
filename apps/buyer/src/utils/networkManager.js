@@ -147,21 +147,6 @@ class NetworkManager {
     }, `firebase-${context}`);
   }
 
-  // Flutterwave-specific network handling
-  async withFlutterwaveRetry(flutterwaveOperation, context) {
-    return this.retryWithBackoff(async () => {
-      try {
-        return await flutterwaveOperation();
-      } catch (error) {
-        if (this.isNetworkError(error)) {
-          console.warn(`💳 Flutterwave: Network error in ${context}:`, error.message);
-          throw error;
-        }
-        throw error;
-      }
-    }, `flutterwave-${context}`);
-  }
-
   getConnectionInfo() {
     if ('connection' in navigator) {
       const connection = navigator.connection;

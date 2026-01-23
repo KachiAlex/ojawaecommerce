@@ -10,7 +10,7 @@ export const setupFirebaseMocks = () => {
         appVerificationDisabledForTesting: false,
       },
     })),
-    onAuthStateChanged: vi.fn((auth, callback) => {
+    onAuthStateChanged: vi.fn(() => {
       // Return unsubscribe function
       return vi.fn()
     }),

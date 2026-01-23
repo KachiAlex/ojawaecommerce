@@ -4,6 +4,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import { Navigate, useLocation } from 'react-router-dom';
 
+const verificationBypassed = typeof import.meta !== 'undefined' && import.meta.env?.VITE_BYPASS_EMAIL_VERIFICATION === 'true';
+
 const ProtectedRoute = ({ children, requireCompleteProfile = false, requireVerifiedEmail = false }) => {
   const { currentUser, isProfileComplete, loading, refreshUser, sendVerificationEmail, lastVerificationEmailSentAt } = useAuth();
   const { saveIntendedDestination } = useCart();
@@ -70,12 +72,12 @@ const ProtectedRoute = ({ children, requireCompleteProfile = false, requireVerif
   };
 
   useEffect(() => {
-    if (requireVerifiedEmail && currentUser && !currentUser.emailVerified) {
+    if (requireVerifiedEmail && !verificationBypassed && currentUser && !currentUser.emailVerified) {
       saveIntendedDestination(location.pathname);
     }
   }, [requireVerifiedEmail, currentUser, location.pathname, saveIntendedDestination]);
 
-  if (requireVerifiedEmail && currentUser && !currentUser.emailVerified) {
+  if (requireVerifiedEmail && !verificationBypassed && currentUser && !currentUser.emailVerified) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
         <div className="max-w-md w-full bg-white shadow-lg rounded-2xl p-8">

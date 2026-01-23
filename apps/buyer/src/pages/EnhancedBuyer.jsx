@@ -19,7 +19,7 @@ import { useMessaging } from '../contexts/MessagingContext'
 import { ORDER_STATUS } from '../services/orderWorkflow'
 import { errorLogger } from '../utils/errorLogger'
 import firebaseService from '../services/firebaseService'
-import { openWalletTopUpCheckout } from '../utils/flutterwave'
+import { openWalletTopUpCheckout } from '../utils/paystack'
 
 const EnhancedBuyer = () => {
   const { currentUser } = useAuth()
@@ -95,7 +95,7 @@ const EnhancedBuyer = () => {
 
     try {
       const amount = parseFloat(topUpAmount)
-      // Launch Flutterwave Checkout
+      // Launch Paystack Checkout
       await openWalletTopUpCheckout({ user: currentUser, amount, currency: wallet?.currency || 'NGN' })
       
       // Refresh wallet data

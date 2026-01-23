@@ -9,7 +9,6 @@ import {
   where, 
   orderBy, 
   serverTimestamp,
-  writeBatch,
   arrayUnion
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
@@ -239,7 +238,7 @@ export const logisticsTrackingService = {
       await updateDoc(trackingRef, updatePayload);
 
       // Send notifications if needed
-      await this.sendStageNotifications(trackingId, stage, currentTracking);
+      await this.sendStageNotifications(trackingId, stage);
 
       return { success: true, newStage: stage, trackingId };
     } catch (error) {
@@ -414,7 +413,7 @@ export const logisticsTrackingService = {
   },
 
   // Send stage notifications
-  async sendStageNotifications(trackingId, stage, trackingData) {
+  async sendStageNotifications(trackingId, stage) {
     try {
       // This would integrate with your notification service
       // For now, we'll just log the notification
@@ -451,7 +450,7 @@ export const logisticsTrackingService = {
   },
 
   // Get delivery statistics for logistics partner
-  async getDeliveryStatistics(partnerId, dateRange = null) {
+  async getDeliveryStatistics(partnerId) {
     try {
       let q = query(
         collection(db, 'delivery_tracking'),

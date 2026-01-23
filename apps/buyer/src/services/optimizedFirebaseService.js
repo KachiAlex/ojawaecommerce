@@ -7,9 +7,7 @@ import {
   startAfter, 
   getDocs, 
   doc, 
-  getDoc,
-  onSnapshot,
-  serverTimestamp 
+  getDoc
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
@@ -149,29 +147,27 @@ export const getVendorDataOptimized = async (vendorId, dataType = 'overview') =>
     let result = {};
     
     switch (dataType) {
-      case 'overview':
-        // Load only essential stats for overview
+      case 'overview': {
         const [ordersCount, productsCount, statsData] = await Promise.all([
           getOrdersCount(vendorId),
           getProductsCount(vendorId),
           getVendorStats(vendorId)
         ]);
-        
         result = {
           ordersCount,
           productsCount,
           stats: statsData
         };
         break;
-        
-      case 'orders':
+      }
+      case 'orders': {
         result = await getOrdersByVendor(vendorId, { pageSize: 10 });
         break;
-        
-      case 'products':
+      }
+      case 'products': {
         result = await getProductsByVendor(vendorId, { pageSize: 10 });
         break;
-        
+      }
       default:
         throw new Error(`Unknown data type: ${dataType}`);
     }
@@ -217,8 +213,8 @@ const getProductsCount = async (vendorId) => {
         const emailSnap = await getDocs(emailQuery);
         if (emailSnap.size > 0) return emailSnap.size;
       }
-    } catch (_) {
-      // ignore and continue
+    } catch (error) {
+      console.warn('Unable to fetch vendor email for product count fallback:', error);
     }
 
     return 0;
@@ -232,6 +228,7 @@ const getVendorStats = async (vendorId) => {
   // This would typically involve aggregation queries
   // For now, return basic stats
   return {
+    vendorId,
     totalSales: 0,
     activeOrders: 0,
     totalProducts: 0

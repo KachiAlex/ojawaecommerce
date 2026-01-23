@@ -175,6 +175,7 @@ const ProductCard = ({ product, onAddToCart, onClick }) => {
   return (
     <AnimatedCard 
       className="overflow-hidden cursor-pointer"
+      data-testid="product-card"
       hover={true}
       clickable={true}
       onClick={handleCardClick}

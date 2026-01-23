@@ -273,6 +273,9 @@ class OsoahiaService {
 
   // Try error recovery
   async tryErrorRecovery(message, error) {
+    if (error) {
+      console.warn('Attempting error recovery after failure:', error)
+    }
     // Try to use conversation context
     if (this.conversationContext.lastIntent) {
       const lastIntent = this.conversationContext.lastIntent;
@@ -542,7 +545,7 @@ class OsoahiaService {
   }
 
   // Handle price filter requests (new)
-  async handlePriceFilter(intent, message) {
+  async handlePriceFilter(intent) {
     try {
       const priceEntities = intent.entities.filter(e => 
         e.type === 'price' || e.type === 'price_min' || e.type === 'price_max' || e.type === 'price_range'
@@ -893,7 +896,7 @@ class OsoahiaService {
   }
 
   // Handle product information requests
-  async handleProductInfo(intent, message) {
+  async handleProductInfo(intent) {
     try {
       const productTerms = intent.entities.filter(e => e.type === 'product').map(e => e.value);
       
@@ -1081,7 +1084,7 @@ class OsoahiaService {
   }
 
   // Handle product comparison requests
-  async handleProductComparison(intent, message) {
+  async handleProductComparison(intent) {
     try {
       const productTerms = intent.entities.filter(e => e.type === 'product').map(e => e.value);
       
@@ -1203,7 +1206,7 @@ class OsoahiaService {
   }
 
   // Handle greeting requests
-  async handleGreeting(intent, message) {
+  async handleGreeting() {
     const timeOfDay = this.getTimeOfDay();
     const personalizedGreeting = this.getPersonalizedGreeting();
     
@@ -1220,7 +1223,7 @@ class OsoahiaService {
   }
 
   // Handle general assistance requests
-  async handleGeneralAssistance(intent, message) {
+  async handleGeneralAssistance() {
     return {
       message: "I'm here to help you with your shopping experience! I can help you find products, manage your cart, get recommendations, and answer questions. What would you like to do?",
       type: 'general_assistance',

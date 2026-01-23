@@ -5,7 +5,7 @@
     <link rel="icon" type="image/svg+xml" href="/logos/ojawa-logo.svg" />
     <link rel="icon" type="image/png" href="/logos/ojawa-logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' 'unsafe-eval' data: https://checkout.flutterwave.com https://maps.googleapis.com https://*.gstatic.com https://apis.google.com https://accounts.google.com; connect-src 'self' https://api.firebase.com https://*.firebase.com https://*.googleapis.com https://us-central1-ojawa-ecommerce.cloudfunctions.net https://api.flutterwave.com https://api.ravepay.co https://*.myflutterwave.com https://metrics.flutterwave.com https://api.fpjs.io https://api.allorigins.win https://accounts.google.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com; frame-src https://accounts.google.com https://ojawa-ecommerce.firebaseapp.com https://checkout.flutterwave.com https://*.flutterwave.com https://checkout-v3-ui-prod.f4b-flutterwave.com;" />
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' 'unsafe-eval' data: https://js.paystack.co https://maps.googleapis.com https://*.gstatic.com https://apis.google.com https://accounts.google.com; connect-src 'self' https://api.firebase.com https://*.firebase.com https://*.googleapis.com https://us-central1-ojawa-ecommerce.cloudfunctions.net https://api.paystack.co https://api.fpjs.io https://api.allorigins.win https://accounts.google.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com; frame-src https://accounts.google.com https://ojawa-ecommerce.firebaseapp.com https://js.paystack.co https://checkout.paystack.com https://paystack.com;" />
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="/logos/ojawa-logo.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="/logos/ojawa-logo.png" />
@@ -17,14 +17,14 @@
     <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin />
     <link rel="preconnect" href="https://firebase.googleapis.com" crossorigin />
     <link rel="preconnect" href="https://firebasestorage.googleapis.com" crossorigin />
-    <link rel="preconnect" href="https://checkout.flutterwave.com" crossorigin />
+    <link rel="preconnect" href="https://js.paystack.co" crossorigin />
     <link rel="preconnect" href="https://accounts.google.com" crossorigin />
     <link rel="preconnect" href="https://apis.google.com" crossorigin />
     <link rel="dns-prefetch" href="https://www.gstatic.com" />
     <link rel="dns-prefetch" href="https://firestore.googleapis.com" />
     <link rel="dns-prefetch" href="https://firebase.googleapis.com" />
     <link rel="dns-prefetch" href="https://firebasestorage.googleapis.com" />
-    <link rel="dns-prefetch" href="https://checkout.flutterwave.com" />
+    <link rel="dns-prefetch" href="https://js.paystack.co" />
     <link rel="dns-prefetch" href="https://accounts.google.com" />
     <link rel="dns-prefetch" href="https://apis.google.com" />
     
@@ -274,19 +274,8 @@
       </div>
     </div>
     
-    <!-- Load Flutterwave script asynchronously with error handling -->
+    <!-- Network status indicator -->
     <script>
-      // Load Flutterwave asynchronously to avoid blocking
-      (function() {
-        const script = document.createElement('script');
-        script.src = 'https://checkout.flutterwave.com/v3.js';
-        script.async = true;
-        script.onerror = function() {
-          console.warn('⚠️ Flutterwave script failed to load - payment features may be limited');
-        };
-        document.head.appendChild(script);
-      })();
-      
       // Network status indicator
       window.addEventListener('load', function() {
         if (!navigator.onLine) {

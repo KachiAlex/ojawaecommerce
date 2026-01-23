@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 // Generate a unique tracking number
 const generateTrackingNumber = () => {
@@ -15,7 +15,7 @@ const ShipOrderModal = ({ open, order, onClose, onConfirm }) => {
   const [eta, setEta] = useState('');
 
   // Generate new tracking number when modal opens
-  React.useEffect(() => {
+  useEffect(() => {
     if (open && order) {
       setTrackingNumber(generateTrackingNumber());
       setCarrier(order?.logisticsCompany || order?.logisticsPartnerName || '');

@@ -174,7 +174,7 @@ const VendorStoreDisplay = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <div className="w-16 h-16 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+              <div className="w-16 h-16 rounded-full flex items-center justify-center bg-white/10 border border-white/30 backdrop-blur">
                 {vendor?.photoURL ? (
                   <img 
                     src={vendor.photoURL} 
@@ -200,16 +200,16 @@ const VendorStoreDisplay = () => {
               </div>
             </div>
             
-            <div className="flex space-x-3">
+            <div className="flex flex-wrap gap-3 justify-end">
               <button
                 onClick={() => copyToClipboard(window.location.href, 'store')}
-                className="bg-white bg-opacity-20 text-white px-4 py-2 rounded-lg hover:bg-opacity-30 transition-colors"
+                className="ojawa-pill text-sm font-semibold px-4 py-2 rounded-lg"
               >
                 📋 Copy Link
               </button>
               <button
                 onClick={shareStore}
-                className="bg-white bg-opacity-20 text-white px-4 py-2 rounded-lg hover:bg-opacity-30 transition-colors"
+                className="ojawa-pill text-sm font-semibold px-4 py-2 rounded-lg"
               >
                 📱 Share Store
               </button>

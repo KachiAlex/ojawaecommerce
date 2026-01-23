@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import firebaseService from '../services/firebaseService'
-import { openWalletTopUpCheckout } from '../utils/flutterwave'
+import { openWalletTopUpCheckout } from '../utils/paystack'
 import SupportTicket from '../components/SupportTicket'
 
 const Wallet = () => {
@@ -42,7 +42,9 @@ const Wallet = () => {
       const url = new URL(window.location.href)
       const t = url.searchParams.get('topup')
       if (t) setTopupAmount(t)
-    } catch {}
+    } catch (err) {
+      console.warn('Unable to parse topup amount from URL:', err)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.uid])
 
@@ -65,7 +67,7 @@ const Wallet = () => {
       const amountNgn = Number(topupAmount)
       if (!amountNgn || amountNgn <= 0) throw new Error('Enter a valid amount')
 
-      // Launch Flutterwave Checkout and let the Cloud Function credit the wallet
+      // Launch Paystack Checkout and let the Cloud Function credit the wallet
       await openWalletTopUpCheckout({ user: currentUser, amount: amountNgn, currency: wallet?.currency || 'NGN' })
       
       // Refresh wallet data

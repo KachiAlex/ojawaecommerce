@@ -359,9 +359,10 @@ const MobileNavigation = () => {
               <div className="p-4 border-t border-teal-900/70">
                 <div className="text-xs text-teal-300/80 text-center">
                   <p>© 2024 Ojawa. All rights reserved.</p>
-                  <div className="flex justify-center space-x-4 mt-2">
+                  <div className="flex flex-wrap justify-center gap-4 mt-2">
                     <Link to="/privacy" className="hover:text-amber-300">Privacy</Link>
                     <Link to="/terms" className="hover:text-amber-300">Terms</Link>
+                    <Link to="/refund-policy" className="hover:text-amber-300">Refunds</Link>
                     <Link to="/help" className="hover:text-amber-300">Help</Link>
                   </div>
                 </div>

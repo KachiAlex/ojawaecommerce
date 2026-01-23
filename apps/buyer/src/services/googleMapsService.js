@@ -1,3 +1,5 @@
+/* global google */
+
 // Global flag to prevent multiple loads
 let isGoogleMapsLoading = false;
 let googleMapsLoadPromise = null;
@@ -95,6 +97,7 @@ class GoogleMapsService {
       if (!this.loadAttempted) {
         console.warn('Failed to initialize Google Maps service. Maps features will be disabled.');
       }
+      console.error('Google Maps initialization error:', error);
       this.isLoaded = false;
       return false;
     } finally {
@@ -507,13 +510,14 @@ class GoogleMapsService {
     try {
       // This would typically query your database for logistics partners
       // For now, return mock data
-      return [
+      const searchRadius = Math.max(radius, 1);
+      const nearbyPartners = [
         {
           id: 'partner1',
           name: 'Lagos Express',
           location: 'Lagos, Nigeria',
           rating: 4.5,
-          distance: '2.5 km',
+          distance: `${Math.min(searchRadius * 0.05, 5).toFixed(1)} km`,
           specialties: ['intracity', 'express'],
           baseRate: 500,
           perKmRate: 100
@@ -529,9 +533,11 @@ class GoogleMapsService {
           perKmRate: 150
         }
       ];
+
+      return nearbyPartners;
     } catch (error) {
       console.error('Error fetching nearby logistics partners:', error);
-      throw error;
+      return [];
     }
   }
 }

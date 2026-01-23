@@ -166,34 +166,6 @@ exports.getRefundStatus = onCall(async (request) => {
   }
 });
 
-// Verify Flutterwave payment
-exports.verifyFlutterwavePayment = onCall(async (request) => {
-  try {
-    const {transactionId, flwRef, userId} = request.data;
-
-    if (!transactionId) {
-      throw new Error("Transaction ID is required");
-    }
-
-    // For now, just return success since we don't have Flutterwave API integration
-    // In production, you would verify with Flutterwave's API
-    logger.info("Flutterwave payment verification", {
-      transactionId,
-      flwRef,
-      userId,
-    });
-
-    return {
-      success: true,
-      transactionId,
-      status: "verified",
-    };
-  } catch (error) {
-    logger.error("Error verifying Flutterwave payment:", error);
-    throw new Error(`Failed to verify Flutterwave payment: ${error.message}`);
-  }
-});
-
 // Send payment confirmation email
 exports.sendPaymentConfirmation = onCall(async (request) => {
   try {

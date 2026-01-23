@@ -1,3 +1,5 @@
+import { memo } from 'react'
+
 // Performance optimization utilities
 export const debounce = (func, wait) => {
     let timeout;

@@ -1,7 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
+
+const testModeEnabled = import.meta.env?.VITE_TEST_MODE === 'true';
+const defaultTestEmail = 'onyedika.akoma@gmail.com';
+const defaultTestPassword = 'dikaoliver2660';
+const testCredentials = testModeEnabled
+  ? {
+      email: import.meta.env?.VITE_E2E_TEST_EMAIL || defaultTestEmail,
+      password: import.meta.env?.VITE_E2E_TEST_PASSWORD || defaultTestPassword,
+    }
+  : null;
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -11,7 +21,8 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   // Default to role selection (centralized login/signup chooser)
-  const [userType, setUserType] = useState('');
+  const [userType, setUserType] = useState(testModeEnabled ? 'existing' : '');
+  const [autoLoginTriggered, setAutoLoginTriggered] = useState(false);
   const [verificationState, setVerificationState] = useState({
     pending: false,
     email: '',
@@ -51,8 +62,8 @@ const Login = () => {
     return Date.now() - lastSent > 60000; // 1 minute cooldown
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = useCallback(async (e) => {
+    if (e?.preventDefault) e.preventDefault();
     setVerificationState({ pending: false, email: '', provider: null });
     setResendStatus('idle');
     
@@ -133,7 +144,7 @@ const Login = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [email, password, signin, getIntendedDestination, navigate, from]);
 
   const handleResendVerification = async () => {
     if (!verificationState.pending || resendStatus === 'sending') return;
@@ -271,6 +282,22 @@ const Login = () => {
     if (resendStatus === 'verified') return 'Email verified! Sign in again.';
     return 'Resend verification email';
   })();
+
+  useEffect(() => {
+    if (!testModeEnabled || autoLoginTriggered) return;
+    if (userType !== 'existing') return;
+    if (!testCredentials?.email || !testCredentials?.password) return;
+
+    setEmail(testCredentials.email);
+    setPassword(testCredentials.password);
+
+    const timer = setTimeout(() => {
+      setAutoLoginTriggered(true);
+      handleSubmit({ preventDefault: () => {} });
+    }, 150);
+
+    return () => clearTimeout(timer);
+  }, [autoLoginTriggered, userType, setEmail, setPassword, handleSubmit]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-950 py-8 px-4">

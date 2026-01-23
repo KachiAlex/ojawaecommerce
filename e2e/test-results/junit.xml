@@ -1,0 +1,1838 @@
+<testsuites id="" name="" tests="60" failures="49" skipped="5" errors="0" time="1174.17397">
+<testsuite name="authFlow.e2e.spec.js" timestamp="2025-12-26T11:31:33.041Z" hostname="chromium" tests="4" failures="3" skipped="1" time="180.057" errors="0">
+<testcase name="Authentication Flow E2E › should complete user registration" classname="authFlow.e2e.spec.js" time="0">
+<properties>
+<property name="skip" value="">
+</property>
+</properties>
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Authentication Flow E2E › should login with valid credentials" classname="authFlow.e2e.spec.js" time="60.023">
+<failure message="authFlow.e2e.spec.js:36:7 should login with valid credentials" type="FAILURE">
+<![CDATA[  [chromium] › authFlow.e2e.spec.js:36:7 › Authentication Flow E2E › should login with valid credentials 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.goto: Test timeout of 30000ms exceeded.
+    Call log:
+      - navigating to "http://localhost:5173/login", waiting until "load"
+
+
+      35 |
+      36 |   test('should login with valid credentials', async ({ page }) => {
+    > 37 |     await page.goto('/login');
+         |                ^
+      38 |     
+      39 |     // Fill login form
+      40 |     await page.fill('input[name="email"]', TEST_EMAIL);
+        at D:\ojawaecommerce-main\e2e\tests\authFlow.e2e.spec.js:37:16
+
+    Tearing down "context" exceeded the test timeout of 30000ms.
+
+    Error Context: ..\..\test-results\authFlow.e2e-Authenticatio-d51cf-ogin-with-valid-credentials-chromium\error-context.md
+]]>
+</failure>
+<system-err>
+<![CDATA[
+Warning: attachment ..\..\test-results\authFlow.e2e-Authenticatio-d51cf-ogin-with-valid-credentials-chromium\error-context.md is missing]]>
+</system-err>
+</testcase>
+<testcase name="Authentication Flow E2E › should reject invalid credentials" classname="authFlow.e2e.spec.js" time="60.021">
+<failure message="authFlow.e2e.spec.js:50:7 should reject invalid credentials" type="FAILURE">
+<![CDATA[  [chromium] › authFlow.e2e.spec.js:50:7 › Authentication Flow E2E › should reject invalid credentials 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.goto: Test timeout of 30000ms exceeded.
+    Call log:
+      - navigating to "http://localhost:5173/login", waiting until "load"
+
+
+      49 |
+      50 |   test('should reject invalid credentials', async ({ page }) => {
+    > 51 |     await page.goto('/login');
+         |                ^
+      52 |     
+      53 |     await page.fill('input[name="email"]', 'wrong@example.com');
+      54 |     await page.fill('input[name="password"]', 'wrongpassword');
+        at D:\ojawaecommerce-main\e2e\tests\authFlow.e2e.spec.js:51:16
+
+    Tearing down "context" exceeded the test timeout of 30000ms.
+
+    Error Context: ..\..\test-results\authFlow.e2e-Authenticatio-c8a5f--reject-invalid-credentials-chromium\error-context.md
+]]>
+</failure>
+<system-err>
+<![CDATA[
+Warning: attachment ..\..\test-results\authFlow.e2e-Authenticatio-c8a5f--reject-invalid-credentials-chromium\error-context.md is missing]]>
+</system-err>
+</testcase>
+<testcase name="Authentication Flow E2E › should logout successfully" classname="authFlow.e2e.spec.js" time="60.013">
+<failure message="authFlow.e2e.spec.js:61:7 should logout successfully" type="FAILURE">
+<![CDATA[  [chromium] › authFlow.e2e.spec.js:61:7 › Authentication Flow E2E › should logout successfully ────
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.goto: Test timeout of 30000ms exceeded.
+    Call log:
+      - navigating to "http://localhost:5173/login", waiting until "load"
+
+
+       9 |
+      10 | const loginWithValidCredentials = async (page) => {
+    > 11 |   await page.goto('/login');
+         |              ^
+      12 |   await page.fill('input[name="email"]', TEST_EMAIL);
+      13 |   await page.fill('input[name="password"]', TEST_PASSWORD);
+      14 |   await page.click('button[type="submit"]');
+        at loginWithValidCredentials (D:\ojawaecommerce-main\e2e\tests\authFlow.e2e.spec.js:11:14)
+        at D:\ojawaecommerce-main\e2e\tests\authFlow.e2e.spec.js:63:11
+
+    Tearing down "context" exceeded the test timeout of 30000ms.
+
+    Error Context: ..\..\test-results\authFlow.e2e-Authenticatio-dc8c4--should-logout-successfully-chromium\error-context.md
+]]>
+</failure>
+<system-err>
+<![CDATA[
+Warning: attachment ..\..\test-results\authFlow.e2e-Authenticatio-dc8c4--should-logout-successfully-chromium\error-context.md is missing]]>
+</system-err>
+</testcase>
+</testsuite>
+<testsuite name="paymentFlow.e2e.spec.js" timestamp="2025-12-26T11:31:33.041Z" hostname="chromium" tests="2" failures="2" skipped="0" time="110.848" errors="0">
+<testcase name="Payment Flow E2E › should complete full purchase flow" classname="paymentFlow.e2e.spec.js" time="60.024">
+<failure message="paymentFlow.e2e.spec.js:8:7 should complete full purchase flow" type="FAILURE">
+<![CDATA[  [chromium] › paymentFlow.e2e.spec.js:8:7 › Payment Flow E2E › should complete full purchase flow ─
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.goto: Test timeout of 30000ms exceeded.
+    Call log:
+      - navigating to "http://localhost:5173/products", waiting until "load"
+
+
+       8 |   test('should complete full purchase flow', async ({ page }) => {
+       9 |     // 1. Browse products
+    > 10 |     await page.goto('/products');
+         |                ^
+      11 |     await page.waitForSelector('[data-testid="product-card"]', { timeout: 10000 });
+      12 |     
+      13 |     // 2. Add product to cart
+        at D:\ojawaecommerce-main\e2e\tests\paymentFlow.e2e.spec.js:10:16
+
+    Tearing down "context" exceeded the test timeout of 30000ms.
+
+    Error Context: ..\..\test-results\paymentFlow.e2e-Payment-Fl-6d7b9-complete-full-purchase-flow-chromium\error-context.md
+]]>
+</failure>
+<system-err>
+<![CDATA[
+Warning: attachment ..\..\test-results\paymentFlow.e2e-Payment-Fl-6d7b9-complete-full-purchase-flow-chromium\error-context.md is missing]]>
+</system-err>
+</testcase>
+<testcase name="Payment Flow E2E › should handle payment cancellation" classname="paymentFlow.e2e.spec.js" time="50.824">
+<failure message="paymentFlow.e2e.spec.js:41:7 should handle payment cancellation" type="FAILURE">
+<![CDATA[  [chromium] › paymentFlow.e2e.spec.js:41:7 › Payment Flow E2E › should handle payment cancellation 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.fill: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for locator('input[name="address"]')
+
+
+      43 |     
+      44 |     // Fill form
+    > 45 |     await page.fill('input[name="address"]', '123 Test Street');
+         |                ^
+      46 |     
+      47 |     // Cancel payment
+      48 |     await page.click('button:has-text("Cancel")');
+        at D:\ojawaecommerce-main\e2e\tests\paymentFlow.e2e.spec.js:45:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\..\test-results\paymentFlow.e2e-Payment-Fl-8cac2-handle-payment-cancellation-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\paymentFlow.e2e-Payment-Fl-8cac2-handle-payment-cancellation-chromium\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\paymentFlow.e2e-Payment-Fl-8cac2-handle-payment-cancellation-chromium\error-context.md
+]]>
+</failure>
+<system-err>
+<![CDATA[
+Warning: attachment ..\..\test-results\paymentFlow.e2e-Payment-Fl-8cac2-handle-payment-cancellation-chromium\test-failed-1.png is missing
+Warning: attachment ..\..\test-results\paymentFlow.e2e-Payment-Fl-8cac2-handle-payment-cancellation-chromium\video.webm is missing
+Warning: attachment ..\..\test-results\paymentFlow.e2e-Payment-Fl-8cac2-handle-payment-cancellation-chromium\error-context.md is missing]]>
+</system-err>
+</testcase>
+</testsuite>
+<testsuite name="security.e2e.spec.js" timestamp="2025-12-26T11:31:33.041Z" hostname="chromium" tests="6" failures="3" skipped="0" time="192.218" errors="0">
+<testcase name="Security E2E Tests › should not expose API keys in browser console" classname="security.e2e.spec.js" time="49.797">
+<failure message="security.e2e.spec.js:13:7 should not expose API keys in browser console" type="FAILURE">
+<![CDATA[  [chromium] › security.e2e.spec.js:13:7 › Security E2E Tests › should not expose API keys in browser console 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.waitForLoadState: Test timeout of 30000ms exceeded.
+
+      16 |
+      17 |     await page.goto('/');
+    > 18 |     await page.waitForLoadState('networkidle');
+         |                ^
+      19 |
+      20 |     const allowPrefixes = [
+      21 |       'VITE',
+        at D:\ojawaecommerce-main\e2e\tests\security.e2e.spec.js:18:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\..\test-results\security.e2e-Security-E2E--27cfa-API-keys-in-browser-console-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\security.e2e-Security-E2E--27cfa-API-keys-in-browser-console-chromium\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\security.e2e-Security-E2E--27cfa-API-keys-in-browser-console-chromium\error-context.md
+]]>
+</failure>
+<system-err>
+<![CDATA[
+Warning: attachment ..\..\test-results\security.e2e-Security-E2E--27cfa-API-keys-in-browser-console-chromium\test-failed-1.png is missing
+Warning: attachment ..\..\test-results\security.e2e-Security-E2E--27cfa-API-keys-in-browser-console-chromium\video.webm is missing
+Warning: attachment ..\..\test-results\security.e2e-Security-E2E--27cfa-API-keys-in-browser-console-chromium\error-context.md is missing]]>
+</system-err>
+</testcase>
+<testcase name="Security E2E Tests › should require authentication for protected routes" classname="security.e2e.spec.js" time="50.229">
+</testcase>
+<testcase name="Security E2E Tests › should prevent unauthorized file access" classname="security.e2e.spec.js" time="32.784">
+</testcase>
+<testcase name="Security E2E Tests › should enforce CSP headers" classname="security.e2e.spec.js" time="15.081">
+<failure message="security.e2e.spec.js:56:7 should enforce CSP headers" type="FAILURE">
+<![CDATA[  [chromium] › security.e2e.spec.js:56:7 › Security E2E Tests › should enforce CSP headers ─────────
+
+    Error: expect(received).toBeDefined()
+
+    Received: undefined
+
+      58 |     const cspHeader = response?.headers()['content-security-policy'];
+      59 |     
+    > 60 |     expect(cspHeader).toBeDefined();
+         |                       ^
+      61 |     expect(cspHeader).toContain("default-src 'self'");
+      62 |   });
+      63 |
+        at D:\ojawaecommerce-main\e2e\tests\security.e2e.spec.js:60:23
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\..\test-results\security.e2e-Security-E2E-Tests-should-enforce-CSP-headers-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\security.e2e-Security-E2E-Tests-should-enforce-CSP-headers-chromium\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\security.e2e-Security-E2E-Tests-should-enforce-CSP-headers-chromium\error-context.md
+]]>
+</failure>
+<system-err>
+<![CDATA[
+Warning: attachment ..\..\test-results\security.e2e-Security-E2E-Tests-should-enforce-CSP-headers-chromium\test-failed-1.png is missing
+Warning: attachment ..\..\test-results\security.e2e-Security-E2E-Tests-should-enforce-CSP-headers-chromium\video.webm is missing
+Warning: attachment ..\..\test-results\security.e2e-Security-E2E-Tests-should-enforce-CSP-headers-chromium\error-context.md is missing]]>
+</system-err>
+</testcase>
+<testcase name="Security E2E Tests › should prevent XSS in user input" classname="security.e2e.spec.js" time="30.559">
+<failure message="security.e2e.spec.js:64:7 should prevent XSS in user input" type="FAILURE">
+<![CDATA[  [chromium] › security.e2e.spec.js:64:7 › Security E2E Tests › should prevent XSS in user input ───
+
+    Test timeout of 30000ms exceeded while running "beforeEach" hook.
+
+       7 |
+       8 | test.describe('Security E2E Tests', () => {
+    >  9 |   test.beforeEach(async ({ page }) => {
+         |        ^
+      10 |     await page.goto('/');
+      11 |   });
+      12 |
+        at D:\ojawaecommerce-main\e2e\tests\security.e2e.spec.js:9:8
+
+    Error: browserContext.newPage: Test timeout of 30000ms exceeded.
+]]>
+</failure>
+</testcase>
+<testcase name="Security E2E Tests › should validate file uploads" classname="security.e2e.spec.js" time="13.768">
+</testcase>
+</testsuite>
+<testsuite name="authFlow.e2e.spec.js" timestamp="2025-12-26T11:31:33.041Z" hostname="firefox" tests="4" failures="3" skipped="1" time="133.104" errors="0">
+<testcase name="Authentication Flow E2E › should complete user registration" classname="authFlow.e2e.spec.js" time="0">
+<properties>
+<property name="skip" value="">
+</property>
+</properties>
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Authentication Flow E2E › should login with valid credentials" classname="authFlow.e2e.spec.js" time="45.076">
+<failure message="authFlow.e2e.spec.js:36:7 should login with valid credentials" type="FAILURE">
+<![CDATA[  [firefox] › authFlow.e2e.spec.js:36:7 › Authentication Flow E2E › should login with valid credentials 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.fill: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for locator('input[name="email"]')
+
+
+      38 |     
+      39 |     // Fill login form
+    > 40 |     await page.fill('input[name="email"]', TEST_EMAIL);
+         |                ^
+      41 |     await page.fill('input[name="password"]', TEST_PASSWORD);
+      42 |     
+      43 |     // Submit
+        at D:\ojawaecommerce-main\e2e\tests\authFlow.e2e.spec.js:40:16
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\authFlow.e2e-Authenticatio-d51cf-ogin-with-valid-credentials-firefox\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\authFlow.e2e-Authenticatio-d51cf-ogin-with-valid-credentials-firefox\error-context.md
+]]>
+</failure>
+<system-err>
+<![CDATA[
+Warning: attachment ..\..\test-results\authFlow.e2e-Authenticatio-d51cf-ogin-with-valid-credentials-firefox\video.webm is missing
+Warning: attachment ..\..\test-results\authFlow.e2e-Authenticatio-d51cf-ogin-with-valid-credentials-firefox\error-context.md is missing]]>
+</system-err>
+</testcase>
+<testcase name="Authentication Flow E2E › should reject invalid credentials" classname="authFlow.e2e.spec.js" time="43.665">
+<failure message="authFlow.e2e.spec.js:50:7 should reject invalid credentials" type="FAILURE">
+<![CDATA[  [firefox] › authFlow.e2e.spec.js:50:7 › Authentication Flow E2E › should reject invalid credentials 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.goto: Test timeout of 30000ms exceeded.
+    Call log:
+      - navigating to "http://localhost:5173/login", waiting until "load"
+
+
+      49 |
+      50 |   test('should reject invalid credentials', async ({ page }) => {
+    > 51 |     await page.goto('/login');
+         |                ^
+      52 |     
+      53 |     await page.fill('input[name="email"]', 'wrong@example.com');
+      54 |     await page.fill('input[name="password"]', 'wrongpassword');
+        at D:\ojawaecommerce-main\e2e\tests\authFlow.e2e.spec.js:51:16
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\authFlow.e2e-Authenticatio-c8a5f--reject-invalid-credentials-firefox\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-err>
+<![CDATA[
+Warning: attachment ..\..\test-results\authFlow.e2e-Authenticatio-c8a5f--reject-invalid-credentials-firefox\video.webm is missing]]>
+</system-err>
+</testcase>
+<testcase name="Authentication Flow E2E › should logout successfully" classname="authFlow.e2e.spec.js" time="44.363">
+<failure message="authFlow.e2e.spec.js:61:7 should logout successfully" type="FAILURE">
+<![CDATA[  [firefox] › authFlow.e2e.spec.js:61:7 › Authentication Flow E2E › should logout successfully ─────
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.goto: Test timeout of 30000ms exceeded.
+    Call log:
+      - navigating to "http://localhost:5173/login", waiting until "load"
+
+
+       9 |
+      10 | const loginWithValidCredentials = async (page) => {
+    > 11 |   await page.goto('/login');
+         |              ^
+      12 |   await page.fill('input[name="email"]', TEST_EMAIL);
+      13 |   await page.fill('input[name="password"]', TEST_PASSWORD);
+      14 |   await page.click('button[type="submit"]');
+        at loginWithValidCredentials (D:\ojawaecommerce-main\e2e\tests\authFlow.e2e.spec.js:11:14)
+        at D:\ojawaecommerce-main\e2e\tests\authFlow.e2e.spec.js:63:11
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\authFlow.e2e-Authenticatio-dc8c4--should-logout-successfully-firefox\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-err>
+<![CDATA[
+Warning: attachment ..\..\test-results\authFlow.e2e-Authenticatio-dc8c4--should-logout-successfully-firefox\video.webm is missing]]>
+</system-err>
+</testcase>
+</testsuite>
+<testsuite name="paymentFlow.e2e.spec.js" timestamp="2025-12-26T11:31:33.041Z" hostname="firefox" tests="2" failures="2" skipped="0" time="92.273" errors="0">
+<testcase name="Payment Flow E2E › should complete full purchase flow" classname="paymentFlow.e2e.spec.js" time="47.278">
+<failure message="paymentFlow.e2e.spec.js:8:7 should complete full purchase flow" type="FAILURE">
+<![CDATA[  [firefox] › paymentFlow.e2e.spec.js:8:7 › Payment Flow E2E › should complete full purchase flow ──
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.goto: Test timeout of 30000ms exceeded.
+    Call log:
+      - navigating to "http://localhost:5173/products", waiting until "load"
+
+
+       8 |   test('should complete full purchase flow', async ({ page }) => {
+       9 |     // 1. Browse products
+    > 10 |     await page.goto('/products');
+         |                ^
+      11 |     await page.waitForSelector('[data-testid="product-card"]', { timeout: 10000 });
+      12 |     
+      13 |     // 2. Add product to cart
+        at D:\ojawaecommerce-main\e2e\tests\paymentFlow.e2e.spec.js:10:16
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\paymentFlow.e2e-Payment-Fl-6d7b9-complete-full-purchase-flow-firefox\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-err>
+<![CDATA[
+Warning: attachment ..\..\test-results\paymentFlow.e2e-Payment-Fl-6d7b9-complete-full-purchase-flow-firefox\video.webm is missing]]>
+</system-err>
+</testcase>
+<testcase name="Payment Flow E2E › should handle payment cancellation" classname="paymentFlow.e2e.spec.js" time="44.995">
+<failure message="paymentFlow.e2e.spec.js:41:7 should handle payment cancellation" type="FAILURE">
+<![CDATA[  [firefox] › paymentFlow.e2e.spec.js:41:7 › Payment Flow E2E › should handle payment cancellation ─
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.goto: Test timeout of 30000ms exceeded.
+    Call log:
+      - navigating to "http://localhost:5173/checkout", waiting until "load"
+
+
+      40 |
+      41 |   test('should handle payment cancellation', async ({ page }) => {
+    > 42 |     await page.goto('/checkout');
+         |                ^
+      43 |     
+      44 |     // Fill form
+      45 |     await page.fill('input[name="address"]', '123 Test Street');
+        at D:\ojawaecommerce-main\e2e\tests\paymentFlow.e2e.spec.js:42:16
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\paymentFlow.e2e-Payment-Fl-8cac2-handle-payment-cancellation-firefox\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\paymentFlow.e2e-Payment-Fl-8cac2-handle-payment-cancellation-firefox\error-context.md
+]]>
+</failure>
+<system-err>
+<![CDATA[
+Warning: attachment ..\..\test-results\paymentFlow.e2e-Payment-Fl-8cac2-handle-payment-cancellation-firefox\video.webm is missing
+Warning: attachment ..\..\test-results\paymentFlow.e2e-Payment-Fl-8cac2-handle-payment-cancellation-firefox\error-context.md is missing]]>
+</system-err>
+</testcase>
+</testsuite>
+<testsuite name="security.e2e.spec.js" timestamp="2025-12-26T11:31:33.041Z" hostname="firefox" tests="6" failures="6" skipped="0" time="269.141" errors="0">
+<testcase name="Security E2E Tests › should not expose API keys in browser console" classname="security.e2e.spec.js" time="52.555">
+<failure message="security.e2e.spec.js:13:7 should not expose API keys in browser console" type="FAILURE">
+<![CDATA[  [firefox] › security.e2e.spec.js:13:7 › Security E2E Tests › should not expose API keys in browser console 
+
+    Test timeout of 30000ms exceeded while running "beforeEach" hook.
+
+       7 |
+       8 | test.describe('Security E2E Tests', () => {
+    >  9 |   test.beforeEach(async ({ page }) => {
+         |        ^
+      10 |     await page.goto('/');
+      11 |   });
+      12 |
+        at D:\ojawaecommerce-main\e2e\tests\security.e2e.spec.js:9:8
+
+    Error: page.goto: Test timeout of 30000ms exceeded.
+    Call log:
+      - navigating to "http://localhost:5173/", waiting until "load"
+
+
+       8 | test.describe('Security E2E Tests', () => {
+       9 |   test.beforeEach(async ({ page }) => {
+    > 10 |     await page.goto('/');
+         |                ^
+      11 |   });
+      12 |
+      13 |   test('should not expose API keys in browser console', async ({ page }) => {
+        at D:\ojawaecommerce-main\e2e\tests\security.e2e.spec.js:10:16
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\security.e2e-Security-E2E--27cfa-API-keys-in-browser-console-firefox\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-err>
+<![CDATA[
+Warning: attachment ..\..\test-results\security.e2e-Security-E2E--27cfa-API-keys-in-browser-console-firefox\video.webm is missing]]>
+</system-err>
+</testcase>
+<testcase name="Security E2E Tests › should require authentication for protected routes" classname="security.e2e.spec.js" time="49.503">
+<failure message="security.e2e.spec.js:40:7 should require authentication for protected routes" type="FAILURE">
+<![CDATA[  [firefox] › security.e2e.spec.js:40:7 › Security E2E Tests › should require authentication for protected routes 
+
+    Test timeout of 30000ms exceeded while running "beforeEach" hook.
+
+       7 |
+       8 | test.describe('Security E2E Tests', () => {
+    >  9 |   test.beforeEach(async ({ page }) => {
+         |        ^
+      10 |     await page.goto('/');
+      11 |   });
+      12 |
+        at D:\ojawaecommerce-main\e2e\tests\security.e2e.spec.js:9:8
+
+    Error: page.goto: Test timeout of 30000ms exceeded.
+    Call log:
+      - navigating to "http://localhost:5173/", waiting until "load"
+
+
+       8 | test.describe('Security E2E Tests', () => {
+       9 |   test.beforeEach(async ({ page }) => {
+    > 10 |     await page.goto('/');
+         |                ^
+      11 |   });
+      12 |
+      13 |   test('should not expose API keys in browser console', async ({ page }) => {
+        at D:\ojawaecommerce-main\e2e\tests\security.e2e.spec.js:10:16
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\security.e2e-Security-E2E--08930-cation-for-protected-routes-firefox\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\security.e2e-Security-E2E--08930-cation-for-protected-routes-firefox\error-context.md
+]]>
+</failure>
+<system-err>
+<![CDATA[
+Warning: attachment ..\..\test-results\security.e2e-Security-E2E--08930-cation-for-protected-routes-firefox\video.webm is missing
+Warning: attachment ..\..\test-results\security.e2e-Security-E2E--08930-cation-for-protected-routes-firefox\error-context.md is missing]]>
+</system-err>
+</testcase>
+<testcase name="Security E2E Tests › should prevent unauthorized file access" classname="security.e2e.spec.js" time="38.072">
+<failure message="security.e2e.spec.js:48:7 should prevent unauthorized file access" type="FAILURE">
+<![CDATA[  [firefox] › security.e2e.spec.js:48:7 › Security E2E Tests › should prevent unauthorized file access 
+
+    Test timeout of 30000ms exceeded while running "beforeEach" hook.
+
+       7 |
+       8 | test.describe('Security E2E Tests', () => {
+    >  9 |   test.beforeEach(async ({ page }) => {
+         |        ^
+      10 |     await page.goto('/');
+      11 |   });
+      12 |
+        at D:\ojawaecommerce-main\e2e\tests\security.e2e.spec.js:9:8
+
+    Error: page.goto: Test timeout of 30000ms exceeded.
+    Call log:
+      - navigating to "http://localhost:5173/", waiting until "load"
+
+
+       8 | test.describe('Security E2E Tests', () => {
+       9 |   test.beforeEach(async ({ page }) => {
+    > 10 |     await page.goto('/');
+         |                ^
+      11 |   });
+      12 |
+      13 |   test('should not expose API keys in browser console', async ({ page }) => {
+        at D:\ojawaecommerce-main\e2e\tests\security.e2e.spec.js:10:16
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\security.e2e-Security-E2E--7cc3d-nt-unauthorized-file-access-firefox\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\security.e2e-Security-E2E--7cc3d-nt-unauthorized-file-access-firefox\error-context.md
+]]>
+</failure>
+<system-err>
+<![CDATA[
+Warning: attachment ..\..\test-results\security.e2e-Security-E2E--7cc3d-nt-unauthorized-file-access-firefox\video.webm is missing
+Warning: attachment ..\..\test-results\security.e2e-Security-E2E--7cc3d-nt-unauthorized-file-access-firefox\error-context.md is missing]]>
+</system-err>
+</testcase>
+<testcase name="Security E2E Tests › should enforce CSP headers" classname="security.e2e.spec.js" time="40.747">
+<failure message="security.e2e.spec.js:56:7 should enforce CSP headers" type="FAILURE">
+<![CDATA[  [firefox] › security.e2e.spec.js:56:7 › Security E2E Tests › should enforce CSP headers ──────────
+
+    Test timeout of 30000ms exceeded while running "beforeEach" hook.
+
+       7 |
+       8 | test.describe('Security E2E Tests', () => {
+    >  9 |   test.beforeEach(async ({ page }) => {
+         |        ^
+      10 |     await page.goto('/');
+      11 |   });
+      12 |
+        at D:\ojawaecommerce-main\e2e\tests\security.e2e.spec.js:9:8
+
+    Error: page.goto: Test timeout of 30000ms exceeded.
+    Call log:
+      - navigating to "http://localhost:5173/", waiting until "load"
+
+
+       8 | test.describe('Security E2E Tests', () => {
+       9 |   test.beforeEach(async ({ page }) => {
+    > 10 |     await page.goto('/');
+         |                ^
+      11 |   });
+      12 |
+      13 |   test('should not expose API keys in browser console', async ({ page }) => {
+        at D:\ojawaecommerce-main\e2e\tests\security.e2e.spec.js:10:16
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\security.e2e-Security-E2E-Tests-should-enforce-CSP-headers-firefox\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\security.e2e-Security-E2E-Tests-should-enforce-CSP-headers-firefox\error-context.md
+]]>
+</failure>
+<system-err>
+<![CDATA[
+Warning: attachment ..\..\test-results\security.e2e-Security-E2E-Tests-should-enforce-CSP-headers-firefox\video.webm is missing
+Warning: attachment ..\..\test-results\security.e2e-Security-E2E-Tests-should-enforce-CSP-headers-firefox\error-context.md is missing]]>
+</system-err>
+</testcase>
+<testcase name="Security E2E Tests › should prevent XSS in user input" classname="security.e2e.spec.js" time="44.816">
+<failure message="security.e2e.spec.js:64:7 should prevent XSS in user input" type="FAILURE">
+<![CDATA[  [firefox] › security.e2e.spec.js:64:7 › Security E2E Tests › should prevent XSS in user input ────
+
+    Test timeout of 30000ms exceeded while running "beforeEach" hook.
+
+       7 |
+       8 | test.describe('Security E2E Tests', () => {
+    >  9 |   test.beforeEach(async ({ page }) => {
+         |        ^
+      10 |     await page.goto('/');
+      11 |   });
+      12 |
+        at D:\ojawaecommerce-main\e2e\tests\security.e2e.spec.js:9:8
+
+    Error: page.goto: Test timeout of 30000ms exceeded.
+    Call log:
+      - navigating to "http://localhost:5173/", waiting until "load"
+
+
+       8 | test.describe('Security E2E Tests', () => {
+       9 |   test.beforeEach(async ({ page }) => {
+    > 10 |     await page.goto('/');
+         |                ^
+      11 |   });
+      12 |
+      13 |   test('should not expose API keys in browser console', async ({ page }) => {
+        at D:\ojawaecommerce-main\e2e\tests\security.e2e.spec.js:10:16
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\security.e2e-Security-E2E--a8c5d-d-prevent-XSS-in-user-input-firefox\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-err>
+<![CDATA[
+Warning: attachment ..\..\test-results\security.e2e-Security-E2E--a8c5d-d-prevent-XSS-in-user-input-firefox\video.webm is missing]]>
+</system-err>
+</testcase>
+<testcase name="Security E2E Tests › should validate file uploads" classname="security.e2e.spec.js" time="43.448">
+<failure message="security.e2e.spec.js:76:7 should validate file uploads" type="FAILURE">
+<![CDATA[  [firefox] › security.e2e.spec.js:76:7 › Security E2E Tests › should validate file uploads ────────
+
+    Test timeout of 30000ms exceeded while running "beforeEach" hook.
+
+       7 |
+       8 | test.describe('Security E2E Tests', () => {
+    >  9 |   test.beforeEach(async ({ page }) => {
+         |        ^
+      10 |     await page.goto('/');
+      11 |   });
+      12 |
+        at D:\ojawaecommerce-main\e2e\tests\security.e2e.spec.js:9:8
+
+    Error: page.goto: Test timeout of 30000ms exceeded.
+    Call log:
+      - navigating to "http://localhost:5173/", waiting until "load"
+
+
+       8 | test.describe('Security E2E Tests', () => {
+       9 |   test.beforeEach(async ({ page }) => {
+    > 10 |     await page.goto('/');
+         |                ^
+      11 |   });
+      12 |
+      13 |   test('should not expose API keys in browser console', async ({ page }) => {
+        at D:\ojawaecommerce-main\e2e\tests\security.e2e.spec.js:10:16
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\security.e2e-Security-E2E-Tests-should-validate-file-uploads-firefox\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-err>
+<![CDATA[
+Warning: attachment ..\..\test-results\security.e2e-Security-E2E-Tests-should-validate-file-uploads-firefox\video.webm is missing]]>
+</system-err>
+</testcase>
+</testsuite>
+<testsuite name="authFlow.e2e.spec.js" timestamp="2025-12-26T11:31:33.041Z" hostname="webkit" tests="4" failures="3" skipped="1" time="121.368" errors="0">
+<testcase name="Authentication Flow E2E › should complete user registration" classname="authFlow.e2e.spec.js" time="0">
+<properties>
+<property name="skip" value="">
+</property>
+</properties>
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Authentication Flow E2E › should login with valid credentials" classname="authFlow.e2e.spec.js" time="40.512">
+<failure message="authFlow.e2e.spec.js:36:7 should login with valid credentials" type="FAILURE">
+<![CDATA[  [webkit] › authFlow.e2e.spec.js:36:7 › Authentication Flow E2E › should login with valid credentials 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.goto: Test timeout of 30000ms exceeded.
+    Call log:
+      - navigating to "http://localhost:5173/login", waiting until "load"
+
+
+      35 |
+      36 |   test('should login with valid credentials', async ({ page }) => {
+    > 37 |     await page.goto('/login');
+         |                ^
+      38 |     
+      39 |     // Fill login form
+      40 |     await page.fill('input[name="email"]', TEST_EMAIL);
+        at D:\ojawaecommerce-main\e2e\tests\authFlow.e2e.spec.js:37:16
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\authFlow.e2e-Authenticatio-d51cf-ogin-with-valid-credentials-webkit\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\authFlow.e2e-Authenticatio-d51cf-ogin-with-valid-credentials-webkit\error-context.md
+]]>
+</failure>
+<system-err>
+<![CDATA[
+Warning: attachment ..\..\test-results\authFlow.e2e-Authenticatio-d51cf-ogin-with-valid-credentials-webkit\video.webm is missing
+Warning: attachment ..\..\test-results\authFlow.e2e-Authenticatio-d51cf-ogin-with-valid-credentials-webkit\error-context.md is missing]]>
+</system-err>
+</testcase>
+<testcase name="Authentication Flow E2E › should reject invalid credentials" classname="authFlow.e2e.spec.js" time="40.386">
+<failure message="authFlow.e2e.spec.js:50:7 should reject invalid credentials" type="FAILURE">
+<![CDATA[  [webkit] › authFlow.e2e.spec.js:50:7 › Authentication Flow E2E › should reject invalid credentials 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.goto: Test timeout of 30000ms exceeded.
+    Call log:
+      - navigating to "http://localhost:5173/login", waiting until "load"
+
+
+      49 |
+      50 |   test('should reject invalid credentials', async ({ page }) => {
+    > 51 |     await page.goto('/login');
+         |                ^
+      52 |     
+      53 |     await page.fill('input[name="email"]', 'wrong@example.com');
+      54 |     await page.fill('input[name="password"]', 'wrongpassword');
+        at D:\ojawaecommerce-main\e2e\tests\authFlow.e2e.spec.js:51:16
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\authFlow.e2e-Authenticatio-c8a5f--reject-invalid-credentials-webkit\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\authFlow.e2e-Authenticatio-c8a5f--reject-invalid-credentials-webkit\error-context.md
+]]>
+</failure>
+<system-err>
+<![CDATA[
+Warning: attachment ..\..\test-results\authFlow.e2e-Authenticatio-c8a5f--reject-invalid-credentials-webkit\video.webm is missing
+Warning: attachment ..\..\test-results\authFlow.e2e-Authenticatio-c8a5f--reject-invalid-credentials-webkit\error-context.md is missing]]>
+</system-err>
+</testcase>
+<testcase name="Authentication Flow E2E › should logout successfully" classname="authFlow.e2e.spec.js" time="40.47">
+<failure message="authFlow.e2e.spec.js:61:7 should logout successfully" type="FAILURE">
+<![CDATA[  [webkit] › authFlow.e2e.spec.js:61:7 › Authentication Flow E2E › should logout successfully ──────
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.goto: Test timeout of 30000ms exceeded.
+    Call log:
+      - navigating to "http://localhost:5173/login", waiting until "load"
+
+
+       9 |
+      10 | const loginWithValidCredentials = async (page) => {
+    > 11 |   await page.goto('/login');
+         |              ^
+      12 |   await page.fill('input[name="email"]', TEST_EMAIL);
+      13 |   await page.fill('input[name="password"]', TEST_PASSWORD);
+      14 |   await page.click('button[type="submit"]');
+        at loginWithValidCredentials (D:\ojawaecommerce-main\e2e\tests\authFlow.e2e.spec.js:11:14)
+        at D:\ojawaecommerce-main\e2e\tests\authFlow.e2e.spec.js:63:11
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\authFlow.e2e-Authenticatio-dc8c4--should-logout-successfully-webkit\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\authFlow.e2e-Authenticatio-dc8c4--should-logout-successfully-webkit\error-context.md
+]]>
+</failure>
+<system-err>
+<![CDATA[
+Warning: attachment ..\..\test-results\authFlow.e2e-Authenticatio-dc8c4--should-logout-successfully-webkit\video.webm is missing
+Warning: attachment ..\..\test-results\authFlow.e2e-Authenticatio-dc8c4--should-logout-successfully-webkit\error-context.md is missing]]>
+</system-err>
+</testcase>
+</testsuite>
+<testsuite name="paymentFlow.e2e.spec.js" timestamp="2025-12-26T11:31:33.041Z" hostname="webkit" tests="2" failures="2" skipped="0" time="73.132" errors="0">
+<testcase name="Payment Flow E2E › should complete full purchase flow" classname="paymentFlow.e2e.spec.js" time="35.563">
+<failure message="paymentFlow.e2e.spec.js:8:7 should complete full purchase flow" type="FAILURE">
+<![CDATA[  [webkit] › paymentFlow.e2e.spec.js:8:7 › Payment Flow E2E › should complete full purchase flow ───
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.goto: Test timeout of 30000ms exceeded.
+    Call log:
+      - navigating to "http://localhost:5173/products", waiting until "load"
+
+
+       8 |   test('should complete full purchase flow', async ({ page }) => {
+       9 |     // 1. Browse products
+    > 10 |     await page.goto('/products');
+         |                ^
+      11 |     await page.waitForSelector('[data-testid="product-card"]', { timeout: 10000 });
+      12 |     
+      13 |     // 2. Add product to cart
+        at D:\ojawaecommerce-main\e2e\tests\paymentFlow.e2e.spec.js:10:16
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\paymentFlow.e2e-Payment-Fl-6d7b9-complete-full-purchase-flow-webkit\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\paymentFlow.e2e-Payment-Fl-6d7b9-complete-full-purchase-flow-webkit\error-context.md
+]]>
+</failure>
+<system-err>
+<![CDATA[
+Warning: attachment ..\..\test-results\paymentFlow.e2e-Payment-Fl-6d7b9-complete-full-purchase-flow-webkit\video.webm is missing
+Warning: attachment ..\..\test-results\paymentFlow.e2e-Payment-Fl-6d7b9-complete-full-purchase-flow-webkit\error-context.md is missing]]>
+</system-err>
+</testcase>
+<testcase name="Payment Flow E2E › should handle payment cancellation" classname="paymentFlow.e2e.spec.js" time="37.569">
+<failure message="paymentFlow.e2e.spec.js:41:7 should handle payment cancellation" type="FAILURE">
+<![CDATA[  [webkit] › paymentFlow.e2e.spec.js:41:7 › Payment Flow E2E › should handle payment cancellation ──
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.goto: Test timeout of 30000ms exceeded.
+    Call log:
+      - navigating to "http://localhost:5173/checkout", waiting until "load"
+
+
+      40 |
+      41 |   test('should handle payment cancellation', async ({ page }) => {
+    > 42 |     await page.goto('/checkout');
+         |                ^
+      43 |     
+      44 |     // Fill form
+      45 |     await page.fill('input[name="address"]', '123 Test Street');
+        at D:\ojawaecommerce-main\e2e\tests\paymentFlow.e2e.spec.js:42:16
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\paymentFlow.e2e-Payment-Fl-8cac2-handle-payment-cancellation-webkit\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\paymentFlow.e2e-Payment-Fl-8cac2-handle-payment-cancellation-webkit\error-context.md
+]]>
+</failure>
+<system-err>
+<![CDATA[
+Warning: attachment ..\..\test-results\paymentFlow.e2e-Payment-Fl-8cac2-handle-payment-cancellation-webkit\video.webm is missing
+Warning: attachment ..\..\test-results\paymentFlow.e2e-Payment-Fl-8cac2-handle-payment-cancellation-webkit\error-context.md is missing]]>
+</system-err>
+</testcase>
+</testsuite>
+<testsuite name="security.e2e.spec.js" timestamp="2025-12-26T11:31:33.041Z" hostname="webkit" tests="6" failures="6" skipped="0" time="227.392" errors="0">
+<testcase name="Security E2E Tests › should not expose API keys in browser console" classname="security.e2e.spec.js" time="36.054">
+<failure message="security.e2e.spec.js:13:7 should not expose API keys in browser console" type="FAILURE">
+<![CDATA[  [webkit] › security.e2e.spec.js:13:7 › Security E2E Tests › should not expose API keys in browser console 
+
+    Test timeout of 30000ms exceeded while running "beforeEach" hook.
+
+       7 |
+       8 | test.describe('Security E2E Tests', () => {
+    >  9 |   test.beforeEach(async ({ page }) => {
+         |        ^
+      10 |     await page.goto('/');
+      11 |   });
+      12 |
+        at D:\ojawaecommerce-main\e2e\tests\security.e2e.spec.js:9:8
+
+    Error: page.goto: Test timeout of 30000ms exceeded.
+    Call log:
+      - navigating to "http://localhost:5173/", waiting until "load"
+
+
+       8 | test.describe('Security E2E Tests', () => {
+       9 |   test.beforeEach(async ({ page }) => {
+    > 10 |     await page.goto('/');
+         |                ^
+      11 |   });
+      12 |
+      13 |   test('should not expose API keys in browser console', async ({ page }) => {
+        at D:\ojawaecommerce-main\e2e\tests\security.e2e.spec.js:10:16
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\security.e2e-Security-E2E--27cfa-API-keys-in-browser-console-webkit\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\security.e2e-Security-E2E--27cfa-API-keys-in-browser-console-webkit\error-context.md
+]]>
+</failure>
+<system-err>
+<![CDATA[
+Warning: attachment ..\..\test-results\security.e2e-Security-E2E--27cfa-API-keys-in-browser-console-webkit\video.webm is missing
+Warning: attachment ..\..\test-results\security.e2e-Security-E2E--27cfa-API-keys-in-browser-console-webkit\error-context.md is missing]]>
+</system-err>
+</testcase>
+<testcase name="Security E2E Tests › should require authentication for protected routes" classname="security.e2e.spec.js" time="35.265">
+<failure message="security.e2e.spec.js:40:7 should require authentication for protected routes" type="FAILURE">
+<![CDATA[  [webkit] › security.e2e.spec.js:40:7 › Security E2E Tests › should require authentication for protected routes 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: expect(page).toHaveURL(expected) failed
+
+    Expected pattern: /.*login/
+    Received string:  "http://localhost:5173/admin"
+
+    Call log:
+      - Expect "toHaveURL" with timeout 5000ms
+        4 × unexpected value "http://localhost:5173/admin"
+
+
+      43 |     
+      44 |     // Should redirect to login
+    > 45 |     await expect(page).toHaveURL(/.*login/);
+         |                        ^
+      46 |   });
+      47 |
+      48 |   test('should prevent unauthorized file access', async ({ page }) => {
+        at D:\ojawaecommerce-main\e2e\tests\security.e2e.spec.js:45:24
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\..\test-results\security.e2e-Security-E2E--08930-cation-for-protected-routes-webkit\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\security.e2e-Security-E2E--08930-cation-for-protected-routes-webkit\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\security.e2e-Security-E2E--08930-cation-for-protected-routes-webkit\error-context.md
+]]>
+</failure>
+<system-err>
+<![CDATA[
+Warning: attachment ..\..\test-results\security.e2e-Security-E2E--08930-cation-for-protected-routes-webkit\test-failed-1.png is missing
+Warning: attachment ..\..\test-results\security.e2e-Security-E2E--08930-cation-for-protected-routes-webkit\video.webm is missing
+Warning: attachment ..\..\test-results\security.e2e-Security-E2E--08930-cation-for-protected-routes-webkit\error-context.md is missing]]>
+</system-err>
+</testcase>
+<testcase name="Security E2E Tests › should prevent unauthorized file access" classname="security.e2e.spec.js" time="36.271">
+<failure message="security.e2e.spec.js:48:7 should prevent unauthorized file access" type="FAILURE">
+<![CDATA[  [webkit] › security.e2e.spec.js:48:7 › Security E2E Tests › should prevent unauthorized file access 
+
+    Test timeout of 30000ms exceeded while running "beforeEach" hook.
+
+       7 |
+       8 | test.describe('Security E2E Tests', () => {
+    >  9 |   test.beforeEach(async ({ page }) => {
+         |        ^
+      10 |     await page.goto('/');
+      11 |   });
+      12 |
+        at D:\ojawaecommerce-main\e2e\tests\security.e2e.spec.js:9:8
+
+    Error: page.goto: Test timeout of 30000ms exceeded.
+    Call log:
+      - navigating to "http://localhost:5173/", waiting until "load"
+
+
+       8 | test.describe('Security E2E Tests', () => {
+       9 |   test.beforeEach(async ({ page }) => {
+    > 10 |     await page.goto('/');
+         |                ^
+      11 |   });
+      12 |
+      13 |   test('should not expose API keys in browser console', async ({ page }) => {
+        at D:\ojawaecommerce-main\e2e\tests\security.e2e.spec.js:10:16
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\security.e2e-Security-E2E--7cc3d-nt-unauthorized-file-access-webkit\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\security.e2e-Security-E2E--7cc3d-nt-unauthorized-file-access-webkit\error-context.md
+]]>
+</failure>
+<system-err>
+<![CDATA[
+Warning: attachment ..\..\test-results\security.e2e-Security-E2E--7cc3d-nt-unauthorized-file-access-webkit\video.webm is missing
+Warning: attachment ..\..\test-results\security.e2e-Security-E2E--7cc3d-nt-unauthorized-file-access-webkit\error-context.md is missing]]>
+</system-err>
+</testcase>
+<testcase name="Security E2E Tests › should enforce CSP headers" classname="security.e2e.spec.js" time="41.646">
+<failure message="security.e2e.spec.js:56:7 should enforce CSP headers" type="FAILURE">
+<![CDATA[  [webkit] › security.e2e.spec.js:56:7 › Security E2E Tests › should enforce CSP headers ───────────
+
+    Test timeout of 30000ms exceeded while running "beforeEach" hook.
+
+       7 |
+       8 | test.describe('Security E2E Tests', () => {
+    >  9 |   test.beforeEach(async ({ page }) => {
+         |        ^
+      10 |     await page.goto('/');
+      11 |   });
+      12 |
+        at D:\ojawaecommerce-main\e2e\tests\security.e2e.spec.js:9:8
+
+    Error: page.goto: Test timeout of 30000ms exceeded.
+    Call log:
+      - navigating to "http://localhost:5173/", waiting until "load"
+
+
+       8 | test.describe('Security E2E Tests', () => {
+       9 |   test.beforeEach(async ({ page }) => {
+    > 10 |     await page.goto('/');
+         |                ^
+      11 |   });
+      12 |
+      13 |   test('should not expose API keys in browser console', async ({ page }) => {
+        at D:\ojawaecommerce-main\e2e\tests\security.e2e.spec.js:10:16
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\security.e2e-Security-E2E-Tests-should-enforce-CSP-headers-webkit\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\security.e2e-Security-E2E-Tests-should-enforce-CSP-headers-webkit\error-context.md
+]]>
+</failure>
+<system-err>
+<![CDATA[
+Warning: attachment ..\..\test-results\security.e2e-Security-E2E-Tests-should-enforce-CSP-headers-webkit\video.webm is missing
+Warning: attachment ..\..\test-results\security.e2e-Security-E2E-Tests-should-enforce-CSP-headers-webkit\error-context.md is missing]]>
+</system-err>
+</testcase>
+<testcase name="Security E2E Tests › should prevent XSS in user input" classname="security.e2e.spec.js" time="38.79">
+<failure message="security.e2e.spec.js:64:7 should prevent XSS in user input" type="FAILURE">
+<![CDATA[  [webkit] › security.e2e.spec.js:64:7 › Security E2E Tests › should prevent XSS in user input ─────
+
+    Test timeout of 30000ms exceeded while running "beforeEach" hook.
+
+       7 |
+       8 | test.describe('Security E2E Tests', () => {
+    >  9 |   test.beforeEach(async ({ page }) => {
+         |        ^
+      10 |     await page.goto('/');
+      11 |   });
+      12 |
+        at D:\ojawaecommerce-main\e2e\tests\security.e2e.spec.js:9:8
+
+    Error: page.goto: Test timeout of 30000ms exceeded.
+    Call log:
+      - navigating to "http://localhost:5173/", waiting until "load"
+
+
+       8 | test.describe('Security E2E Tests', () => {
+       9 |   test.beforeEach(async ({ page }) => {
+    > 10 |     await page.goto('/');
+         |                ^
+      11 |   });
+      12 |
+      13 |   test('should not expose API keys in browser console', async ({ page }) => {
+        at D:\ojawaecommerce-main\e2e\tests\security.e2e.spec.js:10:16
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\security.e2e-Security-E2E--a8c5d-d-prevent-XSS-in-user-input-webkit\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\security.e2e-Security-E2E--a8c5d-d-prevent-XSS-in-user-input-webkit\error-context.md
+]]>
+</failure>
+<system-err>
+<![CDATA[
+Warning: attachment ..\..\test-results\security.e2e-Security-E2E--a8c5d-d-prevent-XSS-in-user-input-webkit\video.webm is missing
+Warning: attachment ..\..\test-results\security.e2e-Security-E2E--a8c5d-d-prevent-XSS-in-user-input-webkit\error-context.md is missing]]>
+</system-err>
+</testcase>
+<testcase name="Security E2E Tests › should validate file uploads" classname="security.e2e.spec.js" time="39.366">
+<failure message="security.e2e.spec.js:76:7 should validate file uploads" type="FAILURE">
+<![CDATA[  [webkit] › security.e2e.spec.js:76:7 › Security E2E Tests › should validate file uploads ─────────
+
+    Test timeout of 30000ms exceeded while running "beforeEach" hook.
+
+       7 |
+       8 | test.describe('Security E2E Tests', () => {
+    >  9 |   test.beforeEach(async ({ page }) => {
+         |        ^
+      10 |     await page.goto('/');
+      11 |   });
+      12 |
+        at D:\ojawaecommerce-main\e2e\tests\security.e2e.spec.js:9:8
+
+    Error: page.goto: Test timeout of 30000ms exceeded.
+    Call log:
+      - navigating to "http://localhost:5173/", waiting until "load"
+
+
+       8 | test.describe('Security E2E Tests', () => {
+       9 |   test.beforeEach(async ({ page }) => {
+    > 10 |     await page.goto('/');
+         |                ^
+      11 |   });
+      12 |
+      13 |   test('should not expose API keys in browser console', async ({ page }) => {
+        at D:\ojawaecommerce-main\e2e\tests\security.e2e.spec.js:10:16
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\security.e2e-Security-E2E-Tests-should-validate-file-uploads-webkit\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\security.e2e-Security-E2E-Tests-should-validate-file-uploads-webkit\error-context.md
+]]>
+</failure>
+<system-err>
+<![CDATA[
+Warning: attachment ..\..\test-results\security.e2e-Security-E2E-Tests-should-validate-file-uploads-webkit\video.webm is missing
+Warning: attachment ..\..\test-results\security.e2e-Security-E2E-Tests-should-validate-file-uploads-webkit\error-context.md is missing]]>
+</system-err>
+</testcase>
+</testsuite>
+<testsuite name="authFlow.e2e.spec.js" timestamp="2025-12-26T11:31:33.041Z" hostname="Mobile Chrome" tests="4" failures="3" skipped="1" time="135.33" errors="0">
+<testcase name="Authentication Flow E2E › should complete user registration" classname="authFlow.e2e.spec.js" time="0">
+<properties>
+<property name="skip" value="">
+</property>
+</properties>
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Authentication Flow E2E › should login with valid credentials" classname="authFlow.e2e.spec.js" time="45.112">
+<failure message="authFlow.e2e.spec.js:36:7 should login with valid credentials" type="FAILURE">
+<![CDATA[  [Mobile Chrome] › authFlow.e2e.spec.js:36:7 › Authentication Flow E2E › should login with valid credentials 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.fill: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for locator('input[name="email"]')
+
+
+      38 |     
+      39 |     // Fill login form
+    > 40 |     await page.fill('input[name="email"]', TEST_EMAIL);
+         |                ^
+      41 |     await page.fill('input[name="password"]', TEST_PASSWORD);
+      42 |     
+      43 |     // Submit
+        at D:\ojawaecommerce-main\e2e\tests\authFlow.e2e.spec.js:40:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\..\test-results\authFlow.e2e-Authenticatio-d51cf-ogin-with-valid-credentials-Mobile-Chrome\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\authFlow.e2e-Authenticatio-d51cf-ogin-with-valid-credentials-Mobile-Chrome\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\authFlow.e2e-Authenticatio-d51cf-ogin-with-valid-credentials-Mobile-Chrome\error-context.md
+]]>
+</failure>
+<system-err>
+<![CDATA[
+Warning: attachment ..\..\test-results\authFlow.e2e-Authenticatio-d51cf-ogin-with-valid-credentials-Mobile-Chrome\test-failed-1.png is missing
+Warning: attachment ..\..\test-results\authFlow.e2e-Authenticatio-d51cf-ogin-with-valid-credentials-Mobile-Chrome\video.webm is missing
+Warning: attachment ..\..\test-results\authFlow.e2e-Authenticatio-d51cf-ogin-with-valid-credentials-Mobile-Chrome\error-context.md is missing]]>
+</system-err>
+</testcase>
+<testcase name="Authentication Flow E2E › should reject invalid credentials" classname="authFlow.e2e.spec.js" time="44.542">
+<failure message="authFlow.e2e.spec.js:50:7 should reject invalid credentials" type="FAILURE">
+<![CDATA[  [Mobile Chrome] › authFlow.e2e.spec.js:50:7 › Authentication Flow E2E › should reject invalid credentials 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.fill: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for locator('input[name="email"]')
+
+
+      51 |     await page.goto('/login');
+      52 |     
+    > 53 |     await page.fill('input[name="email"]', 'wrong@example.com');
+         |                ^
+      54 |     await page.fill('input[name="password"]', 'wrongpassword');
+      55 |     await page.click('button[type="submit"]');
+      56 |     
+        at D:\ojawaecommerce-main\e2e\tests\authFlow.e2e.spec.js:53:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\..\test-results\authFlow.e2e-Authenticatio-c8a5f--reject-invalid-credentials-Mobile-Chrome\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\authFlow.e2e-Authenticatio-c8a5f--reject-invalid-credentials-Mobile-Chrome\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\authFlow.e2e-Authenticatio-c8a5f--reject-invalid-credentials-Mobile-Chrome\error-context.md
+]]>
+</failure>
+<system-err>
+<![CDATA[
+Warning: attachment ..\..\test-results\authFlow.e2e-Authenticatio-c8a5f--reject-invalid-credentials-Mobile-Chrome\test-failed-1.png is missing
+Warning: attachment ..\..\test-results\authFlow.e2e-Authenticatio-c8a5f--reject-invalid-credentials-Mobile-Chrome\video.webm is missing
+Warning: attachment ..\..\test-results\authFlow.e2e-Authenticatio-c8a5f--reject-invalid-credentials-Mobile-Chrome\error-context.md is missing]]>
+</system-err>
+</testcase>
+<testcase name="Authentication Flow E2E › should logout successfully" classname="authFlow.e2e.spec.js" time="45.676">
+<failure message="authFlow.e2e.spec.js:61:7 should logout successfully" type="FAILURE">
+<![CDATA[  [Mobile Chrome] › authFlow.e2e.spec.js:61:7 › Authentication Flow E2E › should logout successfully 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.fill: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for locator('input[name="email"]')
+
+
+      10 | const loginWithValidCredentials = async (page) => {
+      11 |   await page.goto('/login');
+    > 12 |   await page.fill('input[name="email"]', TEST_EMAIL);
+         |              ^
+      13 |   await page.fill('input[name="password"]', TEST_PASSWORD);
+      14 |   await page.click('button[type="submit"]');
+      15 |   await page.waitForLoadState('networkidle');
+        at loginWithValidCredentials (D:\ojawaecommerce-main\e2e\tests\authFlow.e2e.spec.js:12:14)
+        at D:\ojawaecommerce-main\e2e\tests\authFlow.e2e.spec.js:63:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\..\test-results\authFlow.e2e-Authenticatio-dc8c4--should-logout-successfully-Mobile-Chrome\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\authFlow.e2e-Authenticatio-dc8c4--should-logout-successfully-Mobile-Chrome\error-context.md
+]]>
+</failure>
+<system-err>
+<![CDATA[
+Warning: attachment ..\..\test-results\authFlow.e2e-Authenticatio-dc8c4--should-logout-successfully-Mobile-Chrome\test-failed-1.png is missing
+Warning: attachment ..\..\test-results\authFlow.e2e-Authenticatio-dc8c4--should-logout-successfully-Mobile-Chrome\error-context.md is missing]]>
+</system-err>
+</testcase>
+</testsuite>
+<testsuite name="paymentFlow.e2e.spec.js" timestamp="2025-12-26T11:31:33.041Z" hostname="Mobile Chrome" tests="2" failures="2" skipped="0" time="83.609" errors="0">
+<testcase name="Payment Flow E2E › should complete full purchase flow" classname="paymentFlow.e2e.spec.js" time="27.794">
+<failure message="paymentFlow.e2e.spec.js:8:7 should complete full purchase flow" type="FAILURE">
+<![CDATA[  [Mobile Chrome] › paymentFlow.e2e.spec.js:8:7 › Payment Flow E2E › should complete full purchase flow 
+
+    TimeoutError: page.waitForSelector: Timeout 10000ms exceeded.
+    Call log:
+      - waiting for locator('[data-testid="product-card"]') to be visible
+
+
+       9 |     // 1. Browse products
+      10 |     await page.goto('/products');
+    > 11 |     await page.waitForSelector('[data-testid="product-card"]', { timeout: 10000 });
+         |                ^
+      12 |     
+      13 |     // 2. Add product to cart
+      14 |     const firstProduct = page.locator('[data-testid="product-card"]').first();
+        at D:\ojawaecommerce-main\e2e\tests\paymentFlow.e2e.spec.js:11:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\..\test-results\paymentFlow.e2e-Payment-Fl-6d7b9-complete-full-purchase-flow-Mobile-Chrome\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\paymentFlow.e2e-Payment-Fl-6d7b9-complete-full-purchase-flow-Mobile-Chrome\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\paymentFlow.e2e-Payment-Fl-6d7b9-complete-full-purchase-flow-Mobile-Chrome\error-context.md
+]]>
+</failure>
+<system-err>
+<![CDATA[
+Warning: attachment ..\..\test-results\paymentFlow.e2e-Payment-Fl-6d7b9-complete-full-purchase-flow-Mobile-Chrome\test-failed-1.png is missing
+Warning: attachment ..\..\test-results\paymentFlow.e2e-Payment-Fl-6d7b9-complete-full-purchase-flow-Mobile-Chrome\video.webm is missing
+Warning: attachment ..\..\test-results\paymentFlow.e2e-Payment-Fl-6d7b9-complete-full-purchase-flow-Mobile-Chrome\error-context.md is missing]]>
+</system-err>
+</testcase>
+<testcase name="Payment Flow E2E › should handle payment cancellation" classname="paymentFlow.e2e.spec.js" time="55.815">
+<failure message="paymentFlow.e2e.spec.js:41:7 should handle payment cancellation" type="FAILURE">
+<![CDATA[  [Mobile Chrome] › paymentFlow.e2e.spec.js:41:7 › Payment Flow E2E › should handle payment cancellation 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.fill: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for locator('input[name="address"]')
+
+
+      43 |     
+      44 |     // Fill form
+    > 45 |     await page.fill('input[name="address"]', '123 Test Street');
+         |                ^
+      46 |     
+      47 |     // Cancel payment
+      48 |     await page.click('button:has-text("Cancel")');
+        at D:\ojawaecommerce-main\e2e\tests\paymentFlow.e2e.spec.js:45:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\..\test-results\paymentFlow.e2e-Payment-Fl-8cac2-handle-payment-cancellation-Mobile-Chrome\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\paymentFlow.e2e-Payment-Fl-8cac2-handle-payment-cancellation-Mobile-Chrome\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\paymentFlow.e2e-Payment-Fl-8cac2-handle-payment-cancellation-Mobile-Chrome\error-context.md
+]]>
+</failure>
+<system-err>
+<![CDATA[
+Warning: attachment ..\..\test-results\paymentFlow.e2e-Payment-Fl-8cac2-handle-payment-cancellation-Mobile-Chrome\test-failed-1.png is missing
+Warning: attachment ..\..\test-results\paymentFlow.e2e-Payment-Fl-8cac2-handle-payment-cancellation-Mobile-Chrome\video.webm is missing
+Warning: attachment ..\..\test-results\paymentFlow.e2e-Payment-Fl-8cac2-handle-payment-cancellation-Mobile-Chrome\error-context.md is missing]]>
+</system-err>
+</testcase>
+</testsuite>
+<testsuite name="security.e2e.spec.js" timestamp="2025-12-26T11:31:33.041Z" hostname="Mobile Chrome" tests="6" failures="3" skipped="0" time="176.71" errors="0">
+<testcase name="Security E2E Tests › should not expose API keys in browser console" classname="security.e2e.spec.js" time="42.423">
+<failure message="security.e2e.spec.js:13:7 should not expose API keys in browser console" type="FAILURE">
+<![CDATA[  [Mobile Chrome] › security.e2e.spec.js:13:7 › Security E2E Tests › should not expose API keys in browser console 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.waitForLoadState: Test timeout of 30000ms exceeded.
+
+      16 |
+      17 |     await page.goto('/');
+    > 18 |     await page.waitForLoadState('networkidle');
+         |                ^
+      19 |
+      20 |     const allowPrefixes = [
+      21 |       'VITE',
+        at D:\ojawaecommerce-main\e2e\tests\security.e2e.spec.js:18:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\..\test-results\security.e2e-Security-E2E--27cfa-API-keys-in-browser-console-Mobile-Chrome\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\security.e2e-Security-E2E--27cfa-API-keys-in-browser-console-Mobile-Chrome\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\security.e2e-Security-E2E--27cfa-API-keys-in-browser-console-Mobile-Chrome\error-context.md
+]]>
+</failure>
+<system-err>
+<![CDATA[
+Warning: attachment ..\..\test-results\security.e2e-Security-E2E--27cfa-API-keys-in-browser-console-Mobile-Chrome\test-failed-1.png is missing
+Warning: attachment ..\..\test-results\security.e2e-Security-E2E--27cfa-API-keys-in-browser-console-Mobile-Chrome\video.webm is missing
+Warning: attachment ..\..\test-results\security.e2e-Security-E2E--27cfa-API-keys-in-browser-console-Mobile-Chrome\error-context.md is missing]]>
+</system-err>
+</testcase>
+<testcase name="Security E2E Tests › should require authentication for protected routes" classname="security.e2e.spec.js" time="33.974">
+</testcase>
+<testcase name="Security E2E Tests › should prevent unauthorized file access" classname="security.e2e.spec.js" time="28.717">
+</testcase>
+<testcase name="Security E2E Tests › should enforce CSP headers" classname="security.e2e.spec.js" time="23.954">
+<failure message="security.e2e.spec.js:56:7 should enforce CSP headers" type="FAILURE">
+<![CDATA[  [Mobile Chrome] › security.e2e.spec.js:56:7 › Security E2E Tests › should enforce CSP headers ────
+
+    Error: expect(received).toBeDefined()
+
+    Received: undefined
+
+      58 |     const cspHeader = response?.headers()['content-security-policy'];
+      59 |     
+    > 60 |     expect(cspHeader).toBeDefined();
+         |                       ^
+      61 |     expect(cspHeader).toContain("default-src 'self'");
+      62 |   });
+      63 |
+        at D:\ojawaecommerce-main\e2e\tests\security.e2e.spec.js:60:23
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\..\test-results\security.e2e-Security-E2E-Tests-should-enforce-CSP-headers-Mobile-Chrome\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\security.e2e-Security-E2E-Tests-should-enforce-CSP-headers-Mobile-Chrome\error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|..\..\test-results\security.e2e-Security-E2E-Tests-should-enforce-CSP-headers-Mobile-Chrome\test-failed-1.png]]
+
+[[ATTACHMENT|..\..\test-results\security.e2e-Security-E2E-Tests-should-enforce-CSP-headers-Mobile-Chrome\error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Security E2E Tests › should prevent XSS in user input" classname="security.e2e.spec.js" time="35.404">
+<failure message="security.e2e.spec.js:64:7 should prevent XSS in user input" type="FAILURE">
+<![CDATA[  [Mobile Chrome] › security.e2e.spec.js:64:7 › Security E2E Tests › should prevent XSS in user input 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.fill: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for locator('input[name="displayName"]')
+
+
+      67 |     // Try to inject script
+      68 |     const xssPayload = '<script>alert("xss")</script>';
+    > 69 |     await page.fill('input[name="displayName"]', xssPayload);
+         |                ^
+      70 |     
+      71 |     // Check that script is not executed
+      72 |     const content = await page.content();
+        at D:\ojawaecommerce-main\e2e\tests\security.e2e.spec.js:69:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\..\test-results\security.e2e-Security-E2E--a8c5d-d-prevent-XSS-in-user-input-Mobile-Chrome\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\security.e2e-Security-E2E--a8c5d-d-prevent-XSS-in-user-input-Mobile-Chrome\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\security.e2e-Security-E2E--a8c5d-d-prevent-XSS-in-user-input-Mobile-Chrome\error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|..\..\test-results\security.e2e-Security-E2E--a8c5d-d-prevent-XSS-in-user-input-Mobile-Chrome\test-failed-1.png]]
+
+[[ATTACHMENT|..\..\test-results\security.e2e-Security-E2E--a8c5d-d-prevent-XSS-in-user-input-Mobile-Chrome\video.webm]]
+
+[[ATTACHMENT|..\..\test-results\security.e2e-Security-E2E--a8c5d-d-prevent-XSS-in-user-input-Mobile-Chrome\error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Security E2E Tests › should validate file uploads" classname="security.e2e.spec.js" time="12.238">
+</testcase>
+</testsuite>
+<testsuite name="authFlow.e2e.spec.js" timestamp="2025-12-26T11:31:33.041Z" hostname="Mobile Safari" tests="4" failures="3" skipped="1" time="111.254" errors="0">
+<testcase name="Authentication Flow E2E › should complete user registration" classname="authFlow.e2e.spec.js" time="0">
+<properties>
+<property name="skip" value="">
+</property>
+</properties>
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Authentication Flow E2E › should login with valid credentials" classname="authFlow.e2e.spec.js" time="36.654">
+<failure message="authFlow.e2e.spec.js:36:7 should login with valid credentials" type="FAILURE">
+<![CDATA[  [Mobile Safari] › authFlow.e2e.spec.js:36:7 › Authentication Flow E2E › should login with valid credentials 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.fill: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for locator('input[name="email"]')
+
+
+      38 |     
+      39 |     // Fill login form
+    > 40 |     await page.fill('input[name="email"]', TEST_EMAIL);
+         |                ^
+      41 |     await page.fill('input[name="password"]', TEST_PASSWORD);
+      42 |     
+      43 |     // Submit
+        at D:\ojawaecommerce-main\e2e\tests\authFlow.e2e.spec.js:40:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\..\test-results\authFlow.e2e-Authenticatio-d51cf-ogin-with-valid-credentials-Mobile-Safari\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\authFlow.e2e-Authenticatio-d51cf-ogin-with-valid-credentials-Mobile-Safari\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\authFlow.e2e-Authenticatio-d51cf-ogin-with-valid-credentials-Mobile-Safari\error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|..\..\test-results\authFlow.e2e-Authenticatio-d51cf-ogin-with-valid-credentials-Mobile-Safari\test-failed-1.png]]
+
+[[ATTACHMENT|..\..\test-results\authFlow.e2e-Authenticatio-d51cf-ogin-with-valid-credentials-Mobile-Safari\video.webm]]
+
+[[ATTACHMENT|..\..\test-results\authFlow.e2e-Authenticatio-d51cf-ogin-with-valid-credentials-Mobile-Safari\error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Authentication Flow E2E › should reject invalid credentials" classname="authFlow.e2e.spec.js" time="39.548">
+<failure message="authFlow.e2e.spec.js:50:7 should reject invalid credentials" type="FAILURE">
+<![CDATA[  [Mobile Safari] › authFlow.e2e.spec.js:50:7 › Authentication Flow E2E › should reject invalid credentials 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.goto: Test timeout of 30000ms exceeded.
+    Call log:
+      - navigating to "http://localhost:5173/login", waiting until "load"
+
+
+      49 |
+      50 |   test('should reject invalid credentials', async ({ page }) => {
+    > 51 |     await page.goto('/login');
+         |                ^
+      52 |     
+      53 |     await page.fill('input[name="email"]', 'wrong@example.com');
+      54 |     await page.fill('input[name="password"]', 'wrongpassword');
+        at D:\ojawaecommerce-main\e2e\tests\authFlow.e2e.spec.js:51:16
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\authFlow.e2e-Authenticatio-c8a5f--reject-invalid-credentials-Mobile-Safari\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\authFlow.e2e-Authenticatio-c8a5f--reject-invalid-credentials-Mobile-Safari\error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|..\..\test-results\authFlow.e2e-Authenticatio-c8a5f--reject-invalid-credentials-Mobile-Safari\video.webm]]
+
+[[ATTACHMENT|..\..\test-results\authFlow.e2e-Authenticatio-c8a5f--reject-invalid-credentials-Mobile-Safari\error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Authentication Flow E2E › should logout successfully" classname="authFlow.e2e.spec.js" time="35.052">
+<failure message="authFlow.e2e.spec.js:61:7 should logout successfully" type="FAILURE">
+<![CDATA[  [Mobile Safari] › authFlow.e2e.spec.js:61:7 › Authentication Flow E2E › should logout successfully 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.fill: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for locator('input[name="email"]')
+
+
+      10 | const loginWithValidCredentials = async (page) => {
+      11 |   await page.goto('/login');
+    > 12 |   await page.fill('input[name="email"]', TEST_EMAIL);
+         |              ^
+      13 |   await page.fill('input[name="password"]', TEST_PASSWORD);
+      14 |   await page.click('button[type="submit"]');
+      15 |   await page.waitForLoadState('networkidle');
+        at loginWithValidCredentials (D:\ojawaecommerce-main\e2e\tests\authFlow.e2e.spec.js:12:14)
+        at D:\ojawaecommerce-main\e2e\tests\authFlow.e2e.spec.js:63:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\..\test-results\authFlow.e2e-Authenticatio-dc8c4--should-logout-successfully-Mobile-Safari\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\authFlow.e2e-Authenticatio-dc8c4--should-logout-successfully-Mobile-Safari\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\authFlow.e2e-Authenticatio-dc8c4--should-logout-successfully-Mobile-Safari\error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|..\..\test-results\authFlow.e2e-Authenticatio-dc8c4--should-logout-successfully-Mobile-Safari\test-failed-1.png]]
+
+[[ATTACHMENT|..\..\test-results\authFlow.e2e-Authenticatio-dc8c4--should-logout-successfully-Mobile-Safari\video.webm]]
+
+[[ATTACHMENT|..\..\test-results\authFlow.e2e-Authenticatio-dc8c4--should-logout-successfully-Mobile-Safari\error-context.md]]
+]]>
+</system-out>
+</testcase>
+</testsuite>
+<testsuite name="paymentFlow.e2e.spec.js" timestamp="2025-12-26T11:31:33.041Z" hostname="Mobile Safari" tests="2" failures="2" skipped="0" time="83.16" errors="0">
+<testcase name="Payment Flow E2E › should complete full purchase flow" classname="paymentFlow.e2e.spec.js" time="42.48">
+<failure message="paymentFlow.e2e.spec.js:8:7 should complete full purchase flow" type="FAILURE">
+<![CDATA[  [Mobile Safari] › paymentFlow.e2e.spec.js:8:7 › Payment Flow E2E › should complete full purchase flow 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.goto: Test timeout of 30000ms exceeded.
+    Call log:
+      - navigating to "http://localhost:5173/products", waiting until "load"
+
+
+       8 |   test('should complete full purchase flow', async ({ page }) => {
+       9 |     // 1. Browse products
+    > 10 |     await page.goto('/products');
+         |                ^
+      11 |     await page.waitForSelector('[data-testid="product-card"]', { timeout: 10000 });
+      12 |     
+      13 |     // 2. Add product to cart
+        at D:\ojawaecommerce-main\e2e\tests\paymentFlow.e2e.spec.js:10:16
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\paymentFlow.e2e-Payment-Fl-6d7b9-complete-full-purchase-flow-Mobile-Safari\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\paymentFlow.e2e-Payment-Fl-6d7b9-complete-full-purchase-flow-Mobile-Safari\error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|..\..\test-results\paymentFlow.e2e-Payment-Fl-6d7b9-complete-full-purchase-flow-Mobile-Safari\video.webm]]
+
+[[ATTACHMENT|..\..\test-results\paymentFlow.e2e-Payment-Fl-6d7b9-complete-full-purchase-flow-Mobile-Safari\error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Payment Flow E2E › should handle payment cancellation" classname="paymentFlow.e2e.spec.js" time="40.68">
+<failure message="paymentFlow.e2e.spec.js:41:7 should handle payment cancellation" type="FAILURE">
+<![CDATA[  [Mobile Safari] › paymentFlow.e2e.spec.js:41:7 › Payment Flow E2E › should handle payment cancellation 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.goto: Test timeout of 30000ms exceeded.
+    Call log:
+      - navigating to "http://localhost:5173/checkout", waiting until "load"
+
+
+      40 |
+      41 |   test('should handle payment cancellation', async ({ page }) => {
+    > 42 |     await page.goto('/checkout');
+         |                ^
+      43 |     
+      44 |     // Fill form
+      45 |     await page.fill('input[name="address"]', '123 Test Street');
+        at D:\ojawaecommerce-main\e2e\tests\paymentFlow.e2e.spec.js:42:16
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\paymentFlow.e2e-Payment-Fl-8cac2-handle-payment-cancellation-Mobile-Safari\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|..\..\test-results\paymentFlow.e2e-Payment-Fl-8cac2-handle-payment-cancellation-Mobile-Safari\video.webm]]
+]]>
+</system-out>
+</testcase>
+</testsuite>
+<testsuite name="security.e2e.spec.js" timestamp="2025-12-26T11:31:33.041Z" hostname="Mobile Safari" tests="6" failures="6" skipped="0" time="229.974" errors="0">
+<testcase name="Security E2E Tests › should not expose API keys in browser console" classname="security.e2e.spec.js" time="41.119">
+<failure message="security.e2e.spec.js:13:7 should not expose API keys in browser console" type="FAILURE">
+<![CDATA[  [Mobile Safari] › security.e2e.spec.js:13:7 › Security E2E Tests › should not expose API keys in browser console 
+
+    Test timeout of 30000ms exceeded while running "beforeEach" hook.
+
+       7 |
+       8 | test.describe('Security E2E Tests', () => {
+    >  9 |   test.beforeEach(async ({ page }) => {
+         |        ^
+      10 |     await page.goto('/');
+      11 |   });
+      12 |
+        at D:\ojawaecommerce-main\e2e\tests\security.e2e.spec.js:9:8
+
+    Error: page.goto: Test timeout of 30000ms exceeded.
+    Call log:
+      - navigating to "http://localhost:5173/", waiting until "load"
+
+
+       8 | test.describe('Security E2E Tests', () => {
+       9 |   test.beforeEach(async ({ page }) => {
+    > 10 |     await page.goto('/');
+         |                ^
+      11 |   });
+      12 |
+      13 |   test('should not expose API keys in browser console', async ({ page }) => {
+        at D:\ojawaecommerce-main\e2e\tests\security.e2e.spec.js:10:16
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\security.e2e-Security-E2E--27cfa-API-keys-in-browser-console-Mobile-Safari\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\security.e2e-Security-E2E--27cfa-API-keys-in-browser-console-Mobile-Safari\error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|..\..\test-results\security.e2e-Security-E2E--27cfa-API-keys-in-browser-console-Mobile-Safari\video.webm]]
+
+[[ATTACHMENT|..\..\test-results\security.e2e-Security-E2E--27cfa-API-keys-in-browser-console-Mobile-Safari\error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Security E2E Tests › should require authentication for protected routes" classname="security.e2e.spec.js" time="40.264">
+<failure message="security.e2e.spec.js:40:7 should require authentication for protected routes" type="FAILURE">
+<![CDATA[  [Mobile Safari] › security.e2e.spec.js:40:7 › Security E2E Tests › should require authentication for protected routes 
+
+    Test timeout of 30000ms exceeded while running "beforeEach" hook.
+
+       7 |
+       8 | test.describe('Security E2E Tests', () => {
+    >  9 |   test.beforeEach(async ({ page }) => {
+         |        ^
+      10 |     await page.goto('/');
+      11 |   });
+      12 |
+        at D:\ojawaecommerce-main\e2e\tests\security.e2e.spec.js:9:8
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\security.e2e-Security-E2E--08930-cation-for-protected-routes-Mobile-Safari\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\security.e2e-Security-E2E--08930-cation-for-protected-routes-Mobile-Safari\error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|..\..\test-results\security.e2e-Security-E2E--08930-cation-for-protected-routes-Mobile-Safari\video.webm]]
+
+[[ATTACHMENT|..\..\test-results\security.e2e-Security-E2E--08930-cation-for-protected-routes-Mobile-Safari\error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Security E2E Tests › should prevent unauthorized file access" classname="security.e2e.spec.js" time="38.297">
+<failure message="security.e2e.spec.js:48:7 should prevent unauthorized file access" type="FAILURE">
+<![CDATA[  [Mobile Safari] › security.e2e.spec.js:48:7 › Security E2E Tests › should prevent unauthorized file access 
+
+    Test timeout of 30000ms exceeded while running "beforeEach" hook.
+
+       7 |
+       8 | test.describe('Security E2E Tests', () => {
+    >  9 |   test.beforeEach(async ({ page }) => {
+         |        ^
+      10 |     await page.goto('/');
+      11 |   });
+      12 |
+        at D:\ojawaecommerce-main\e2e\tests\security.e2e.spec.js:9:8
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\..\test-results\security.e2e-Security-E2E--7cc3d-nt-unauthorized-file-access-Mobile-Safari\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\security.e2e-Security-E2E--7cc3d-nt-unauthorized-file-access-Mobile-Safari\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\security.e2e-Security-E2E--7cc3d-nt-unauthorized-file-access-Mobile-Safari\error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|..\..\test-results\security.e2e-Security-E2E--7cc3d-nt-unauthorized-file-access-Mobile-Safari\test-failed-1.png]]
+
+[[ATTACHMENT|..\..\test-results\security.e2e-Security-E2E--7cc3d-nt-unauthorized-file-access-Mobile-Safari\video.webm]]
+
+[[ATTACHMENT|..\..\test-results\security.e2e-Security-E2E--7cc3d-nt-unauthorized-file-access-Mobile-Safari\error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Security E2E Tests › should enforce CSP headers" classname="security.e2e.spec.js" time="37.006">
+<failure message="security.e2e.spec.js:56:7 should enforce CSP headers" type="FAILURE">
+<![CDATA[  [Mobile Safari] › security.e2e.spec.js:56:7 › Security E2E Tests › should enforce CSP headers ────
+
+    Test timeout of 30000ms exceeded while running "beforeEach" hook.
+
+       7 |
+       8 | test.describe('Security E2E Tests', () => {
+    >  9 |   test.beforeEach(async ({ page }) => {
+         |        ^
+      10 |     await page.goto('/');
+      11 |   });
+      12 |
+        at D:\ojawaecommerce-main\e2e\tests\security.e2e.spec.js:9:8
+
+    Error: page.goto: Test timeout of 30000ms exceeded.
+    Call log:
+      - navigating to "http://localhost:5173/", waiting until "load"
+
+
+       8 | test.describe('Security E2E Tests', () => {
+       9 |   test.beforeEach(async ({ page }) => {
+    > 10 |     await page.goto('/');
+         |                ^
+      11 |   });
+      12 |
+      13 |   test('should not expose API keys in browser console', async ({ page }) => {
+        at D:\ojawaecommerce-main\e2e\tests\security.e2e.spec.js:10:16
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\security.e2e-Security-E2E-Tests-should-enforce-CSP-headers-Mobile-Safari\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\security.e2e-Security-E2E-Tests-should-enforce-CSP-headers-Mobile-Safari\error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|..\..\test-results\security.e2e-Security-E2E-Tests-should-enforce-CSP-headers-Mobile-Safari\video.webm]]
+
+[[ATTACHMENT|..\..\test-results\security.e2e-Security-E2E-Tests-should-enforce-CSP-headers-Mobile-Safari\error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Security E2E Tests › should prevent XSS in user input" classname="security.e2e.spec.js" time="39.474">
+<failure message="security.e2e.spec.js:64:7 should prevent XSS in user input" type="FAILURE">
+<![CDATA[  [Mobile Safari] › security.e2e.spec.js:64:7 › Security E2E Tests › should prevent XSS in user input 
+
+    Test timeout of 30000ms exceeded while running "beforeEach" hook.
+
+       7 |
+       8 | test.describe('Security E2E Tests', () => {
+    >  9 |   test.beforeEach(async ({ page }) => {
+         |        ^
+      10 |     await page.goto('/');
+      11 |   });
+      12 |
+        at D:\ojawaecommerce-main\e2e\tests\security.e2e.spec.js:9:8
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\security.e2e-Security-E2E--a8c5d-d-prevent-XSS-in-user-input-Mobile-Safari\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\security.e2e-Security-E2E--a8c5d-d-prevent-XSS-in-user-input-Mobile-Safari\error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|..\..\test-results\security.e2e-Security-E2E--a8c5d-d-prevent-XSS-in-user-input-Mobile-Safari\video.webm]]
+
+[[ATTACHMENT|..\..\test-results\security.e2e-Security-E2E--a8c5d-d-prevent-XSS-in-user-input-Mobile-Safari\error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Security E2E Tests › should validate file uploads" classname="security.e2e.spec.js" time="33.814">
+<failure message="security.e2e.spec.js:76:7 should validate file uploads" type="FAILURE">
+<![CDATA[  [Mobile Safari] › security.e2e.spec.js:76:7 › Security E2E Tests › should validate file uploads ──
+
+    Test timeout of 30000ms exceeded.
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\..\test-results\security.e2e-Security-E2E-Tests-should-validate-file-uploads-Mobile-Safari\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\security.e2e-Security-E2E-Tests-should-validate-file-uploads-Mobile-Safari\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\security.e2e-Security-E2E-Tests-should-validate-file-uploads-Mobile-Safari\error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|..\..\test-results\security.e2e-Security-E2E-Tests-should-validate-file-uploads-Mobile-Safari\test-failed-1.png]]
+
+[[ATTACHMENT|..\..\test-results\security.e2e-Security-E2E-Tests-should-validate-file-uploads-Mobile-Safari\video.webm]]
+
+[[ATTACHMENT|..\..\test-results\security.e2e-Security-E2E-Tests-should-validate-file-uploads-Mobile-Safari\error-context.md]]
+]]>
+</system-out>
+</testcase>
+</testsuite>
+</testsuites>

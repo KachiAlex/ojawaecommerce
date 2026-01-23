@@ -308,7 +308,7 @@ class OnboardingService {
     let totalCompletionTime = 0
     let completedCount = 0
 
-    for (const [userId, data] of this.onboardingData.entries()) {
+    for (const data of this.onboardingData.values()) {
       if (data.isCompleted) {
         analytics.completedUsers++
         completedCount++

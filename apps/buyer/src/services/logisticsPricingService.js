@@ -387,7 +387,9 @@ class LogisticsPricingService {
           );
           return { id: bestPartner.id, name: bestPartner.name, rating: bestPartner.rating || 4.0 };
         }
-      } catch (_) {}
+      } catch (error) {
+        console.warn('Failed to query legacy logistics partners:', error)
+      }
 
       // Fallback: use logistics_companies (status == 'active'), prefer highest rating
       try {
@@ -406,7 +408,9 @@ class LogisticsPricingService {
           );
           return { id: best.id, name: best.name || best.companyName || 'Logistics Partner', rating: best.rating || 4.0 };
         }
-      } catch (_) {}
+      } catch (error) {
+        console.warn('Failed to query logistics companies:', error)
+      }
 
       // No partner available
       return null;
@@ -437,7 +441,9 @@ class LogisticsPricingService {
           const p = docSnap.data();
           partners.push({ id: p.id, name: p.name, rating: p.rating || 0, zones: p.zones || [] });
         });
-      } catch (_) {}
+      } catch (error) {
+        console.warn('Failed to collect zone-based partners:', error)
+      }
 
       // add from logistics_companies (status active)
       try {
@@ -451,7 +457,9 @@ class LogisticsPricingService {
             partners.push({ id: c.id, name: c.name || c.companyName || 'Logistics Partner', rating: c.rating || 0, zones: c.zones || [] });
           }
         });
-      } catch (_) {}
+      } catch (error) {
+        console.warn('Failed to collect logistics companies:', error)
+      }
 
       // Deduplicate by id
       const dedup = [];

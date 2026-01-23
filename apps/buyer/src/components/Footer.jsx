@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import SimpleLogo from './SimpleLogo';
 
@@ -59,6 +59,11 @@ const Footer = () => {
         </div>
         <div className="md:text-right">
           <p>© {year} All rights reserved.</p>
+          <div className="flex md:justify-end gap-4 mt-2 text-slate-500">
+            <Link to="/privacy" className="hover:text-slate-900">Privacy</Link>
+            <Link to="/terms" className="hover:text-slate-900">Terms</Link>
+            <Link to="/refund-policy" className="hover:text-slate-900">Refunds</Link>
+          </div>
         </div>
       </div>
     </footer>

@@ -1,42 +1,36 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import firebaseService from '../services/firebaseService';
 import ProductCard from '../components/ProductCard';
 import { ProductListSkeleton } from '../components/SkeletonLoaders';
 import WishlistButton from '../components/WishlistButton';
-import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
 const Wishlist = () => {
   const { currentUser } = useAuth();
-  const [wishlistItems, setWishlistItems] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    if (currentUser) {
-      loadWishlist();
-    } else {
+  const loadWishlist = useCallback(async () => {
+    if (!currentUser) {
       setLoading(false);
+      return;
     }
-  }, [currentUser]);
 
-  const loadWishlist = async () => {
     try {
       setLoading(true);
       setError(null);
 
       // Get wishlist items
       const items = await firebaseService.wishlist.getWishlist(currentUser.uid);
-      setWishlistItems(items);
 
       // Fetch full product details
       if (items.length > 0) {
         const productIds = items.map(item => item.productId);
-        const productsRef = collection(db, 'products');
-        
+
         // Fetch products by their IDs
         const fetchedProducts = [];
         for (const productId of productIds) {
@@ -64,17 +58,11 @@ const Wishlist = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentUser]);
 
-  const handleRemoveFromWishlist = async (productId) => {
-    try {
-      await firebaseService.wishlist.removeFromWishlist(currentUser.uid, productId);
-      setProducts(products.filter(p => p.id !== productId));
-      setWishlistItems(wishlistItems.filter(item => item.productId !== productId));
-    } catch (err) {
-      console.error('Error removing from wishlist:', err);
-    }
-  };
+  useEffect(() => {
+    loadWishlist();
+  }, [loadWishlist]);
 
   if (!currentUser) {
     return (

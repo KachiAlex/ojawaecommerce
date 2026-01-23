@@ -1,5 +1,3 @@
-import { errorLogger } from '../utils/errorLogger'
-
 // Recommendation types
 export const RECOMMENDATION_TYPES = {
   COLLABORATIVE: 'collaborative',
@@ -56,7 +54,7 @@ class RecommendationService {
 
     // Analyze interactions
     interactions.forEach(interaction => {
-      const { type, product, timestamp, duration, value } = interaction
+      const { type, product, duration } = interaction
 
       // Update preferences based on interaction type
       switch (type) {

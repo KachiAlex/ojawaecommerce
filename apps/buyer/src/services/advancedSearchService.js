@@ -248,19 +248,23 @@ class AdvancedSearchService {
 
     // Apply search algorithm
     switch (algorithm) {
-      case SEARCH_ALGORITHMS.FUZZY:
+      case SEARCH_ALGORITHMS.FUZZY: {
         results = this.fuzzySearch(query, products)
         break
-      case SEARCH_ALGORITHMS.SEMANTIC:
+      }
+      case SEARCH_ALGORITHMS.SEMANTIC: {
         results = this.semanticSearch(query, products)
         break
-      case SEARCH_ALGORITHMS.FUZZY_SEMANTIC:
+      }
+      case SEARCH_ALGORITHMS.FUZZY_SEMANTIC: {
         const fuzzyResults = this.fuzzySearch(query, products, 0.4)
         const semanticResults = this.semanticSearch(query, products)
         results = this.mergeSearchResults(fuzzyResults, semanticResults)
         break
-      default:
+      }
+      default: {
         results = products
+      }
     }
 
     // Apply filters

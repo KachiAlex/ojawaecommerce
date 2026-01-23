@@ -53,7 +53,7 @@ const MessageComponent = React.memo(({ message, onSuggestionClick, onActionClick
               <button
                 key={index}
                 onClick={() => onActionClick(action)}
-                className="bg-emerald-600 text-white px-2 py-1 rounded text-xs hover:bg-emerald-700 transition-colors no-drag"
+                className="ojawa-pill ojawa-pill--glow text-xs font-semibold px-3 py-1 no-drag transition-transform hover:-translate-y-0.5"
                 aria-label={action.label}
               >
                 {action.label}
@@ -69,7 +69,7 @@ const MessageComponent = React.memo(({ message, onSuggestionClick, onActionClick
               <button
                 key={index}
                 onClick={() => onSuggestionClick(suggestion)}
-                className="bg-gray-200 text-gray-700 px-2 py-1 rounded text-xs hover:bg-gray-300 transition-colors no-drag"
+                className="ojawa-pill ojawa-pill--light text-xs font-medium px-3 py-1 no-drag transition-transform hover:-translate-y-0.5"
                 aria-label={`Suggestion: ${suggestion}`}
               >
                 {suggestion}

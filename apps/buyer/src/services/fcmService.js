@@ -168,7 +168,7 @@ const saveFCMToken = async (userId, token) => {
  * @param {string} token - FCM token
  * @returns {Promise<void>}
  */
-export const subscribeToTopic = async (topic, token) => {
+export const subscribeToTopic = async (topic) => {
   try {
     console.log(`Subscribing to topic: ${topic}`);
     
@@ -188,7 +188,7 @@ export const subscribeToTopic = async (topic, token) => {
  * @param {string} token - FCM token
  * @returns {Promise<void>}
  */
-export const unsubscribeFromTopic = async (topic, token) => {
+export const unsubscribeFromTopic = async (topic) => {
   try {
     console.log(`Unsubscribing from topic: ${topic}`);
     

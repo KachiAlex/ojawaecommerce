@@ -223,7 +223,7 @@ const Receipt = ({ order, isOpen, onClose }) => {
                 <p className="text-sm text-gray-600 mb-1">Payment Method</p>
                 <p className="font-semibold text-emerald-700">
                   {order.paymentProvider === 'wallet_escrow' ? 'Wallet Escrow (Protected)' :
-                   order.paymentProvider === 'flutterwave' ? 'Flutterwave Payment' :
+                   order.paymentProvider === 'paystack' ? 'Paystack Payment' :
                    order.paymentProvider || 'Not specified'}
                 </p>
                 {order.paymentProvider === 'wallet_escrow' && (

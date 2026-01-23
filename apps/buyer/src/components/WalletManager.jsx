@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import firebaseService from '../services/firebaseService';
-import { openWalletTopUpCheckout } from '../utils/flutterwave';
+import { openWalletTopUpCheckout } from '../utils/paystack';
 
 const WalletManager = ({ userType = 'buyer' }) => {
   const [wallet, setWallet] = useState(null);
@@ -63,7 +63,7 @@ const WalletManager = ({ userType = 'buyer' }) => {
 
     try {
       const amount = parseFloat(topUpAmount);
-      // Launch Flutterwave Checkout
+      // Launch Paystack Checkout
       await openWalletTopUpCheckout({ user: currentUser, amount, currency: wallet?.currency || 'NGN' });
       
       // Refresh wallet data
@@ -233,7 +233,7 @@ const WalletManager = ({ userType = 'buyer' }) => {
             </p>
           </div>
           <div className="text-right">
-            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mb-2">
+            <div className="w-16 h-16 rounded-full flex items-center justify-center mb-2 bg-white/10 border border-white/30 backdrop-blur">
               <span className="text-2xl">💳</span>
             </div>
             <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
@@ -244,16 +244,16 @@ const WalletManager = ({ userType = 'buyer' }) => {
           </div>
         </div>
         
-        <div className="flex gap-3 mt-6">
+        <div className="flex gap-3 mt-6 flex-wrap">
           <button
             onClick={() => setShowTopUp(true)}
-            className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+            className="ojawa-pill text-sm font-semibold px-4 py-2 rounded-lg hover:-translate-y-0.5"
           >
             💰 Top Up Wallet
           </button>
           <button
             onClick={() => setShowTransfer(true)}
-            className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+            className="ojawa-pill text-sm font-semibold px-4 py-2 rounded-lg hover:-translate-y-0.5"
           >
             🏦 Transfer Funds
           </button>

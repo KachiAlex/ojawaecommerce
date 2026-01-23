@@ -1,11 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { BrowserRouter, MemoryRouter } from 'react-router-dom'
+import { screen, fireEvent, waitFor } from '@testing-library/react'
 import { renderWithProviders } from '../../test/helpers'
 import Checkout from '../Checkout'
 import Cart from '../Cart'
-import firebaseService from '../../services/firebaseService'
-import escrowPaymentService from '../../services/escrowPaymentService'
 import * as firestore from 'firebase/firestore'
 
 // Mock Firebase

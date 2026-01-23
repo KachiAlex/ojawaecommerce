@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react'
+import { describe, test, expect } from 'vitest'
 import { BrowserRouter } from 'react-router-dom'
 import { AuthProvider } from '../contexts/AuthContext'
 import { CartProvider } from '../contexts/CartContext'
@@ -41,7 +42,7 @@ vi.mock('firebase/firestore', async () => {
   where: vi.fn(),
   orderBy: vi.fn(),
   limit: vi.fn(),
-    onSnapshot: vi.fn((query, onNext, onError) => {
+    onSnapshot: vi.fn((query, onNext) => {
       // Immediately call onNext with empty snapshot
       if (onNext) {
         setTimeout(() => {

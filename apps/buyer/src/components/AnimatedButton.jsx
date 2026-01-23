@@ -1,6 +1,10 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 
+const MotionButton = motion.button
+const MotionSpan = motion.span
+const MotionDiv = motion.div
+
 const AnimatedButton = ({ 
   children, 
   onClick, 
@@ -86,7 +90,7 @@ const AnimatedButton = ({
   };
 
   return (
-    <motion.button
+    <MotionButton
       className={`${baseClasses} ${variants[variant]} ${sizes[size]} ${className}`}
       onClick={handleClick}
       disabled={disabled || loading}
@@ -97,7 +101,7 @@ const AnimatedButton = ({
     >
       {/* Ripple effects */}
       {ripples.map(ripple => (
-        <motion.span
+        <MotionSpan
           key={ripple.id}
           className="absolute bg-white rounded-full pointer-events-none"
           style={{
@@ -114,7 +118,7 @@ const AnimatedButton = ({
       
       {/* Loading spinner */}
       {loading && (
-        <motion.div
+        <MotionDiv
           className="mr-2"
           animate={{ rotate: 360 }}
           transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
@@ -134,30 +138,30 @@ const AnimatedButton = ({
               d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
             />
           </svg>
-        </motion.div>
+        </MotionDiv>
       )}
       
       {/* Icon */}
       {icon && !loading && (
-        <motion.span 
+        <MotionSpan 
           className="mr-2"
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
           transition={{ delay: 0.1, type: "spring", stiffness: 200 }}
         >
           {icon}
-        </motion.span>
+        </MotionSpan>
       )}
       
       {/* Button content */}
-      <motion.span
+      <MotionSpan
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
       >
         {children}
-      </motion.span>
-    </motion.button>
+      </MotionSpan>
+    </MotionButton>
   );
 };
 

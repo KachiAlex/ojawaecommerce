@@ -2,10 +2,8 @@
  * Unit Tests for Authentication Components
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { AuthProvider, useAuth } from '../../contexts/AuthContext'
+import { describe, it, expect, vi } from 'vitest'
+import { validators } from '../../utils/formValidation.js'
 
 // Mock Firebase Auth
 vi.mock('firebase/auth', () => ({
@@ -96,7 +94,6 @@ describe('Authentication Unit Tests', () => {
   })
 
   describe('Password Validation', () => {
-    const { validators } = require('../../utils/formValidation')
 
     it('should require minimum 8 characters', () => {
       expect(validators.password('short')).not.toBeNull()
@@ -120,7 +117,6 @@ describe('Authentication Unit Tests', () => {
   })
 
   describe('Email Validation', () => {
-    const { validators } = require('../../utils/formValidation')
 
     it('should accept valid email formats', () => {
       const validEmails = [

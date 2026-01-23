@@ -13,8 +13,23 @@ const formatCurrency = (amount, currencyValue) => {
   return `${symbol}${numAmount.toLocaleString()}`;
 };
 
+const formatLabel = (label) => {
+  if (!label) return '';
+  return label
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/_/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (match) => match.toUpperCase());
+};
+
 const VendorOrderDetailsModal = ({ open, order, onClose, onShip }) => {
   if (!open || !order) return null;
+
+  const logisticsDetails = order.logisticsMeta || order.selectedLogistics || null;
+  const logisticsBreakdownEntries = Object.entries(logisticsDetails?.breakdown || {}).filter(
+    ([, value]) => typeof value === 'number' && !Number.isNaN(value)
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -74,7 +89,50 @@ const VendorOrderDetailsModal = ({ open, order, onClose, onShip }) => {
                         <span className="font-medium text-blue-900">{order.trackingId}</span>
                       </div>
                     )}
+                    {logisticsDetails?.eta && (
+                      <div className="flex justify-between">
+                        <span className="text-blue-700">ETA:</span>
+                        <span className="font-medium text-blue-900">
+                          {typeof logisticsDetails.eta === 'number'
+                            ? `${logisticsDetails.eta} day${logisticsDetails.eta === 1 ? '' : 's'}`
+                            : logisticsDetails.eta}
+                        </span>
+                      </div>
+                    )}
+                    {typeof order.logisticsShippingDays === 'number' && order.logisticsShippingDays > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-blue-700">Shipping Days:</span>
+                        <span className="font-medium text-blue-900">{order.logisticsShippingDays} days</span>
+                      </div>
+                    )}
+                    {logisticsDetails?.distanceText && (
+                      <div className="flex justify-between">
+                        <span className="text-blue-700">Distance:</span>
+                        <span className="font-medium text-blue-900">{logisticsDetails.distanceText}</span>
+                      </div>
+                    )}
+                    {typeof logisticsDetails?.deliveryFee === 'number' && (
+                      <div className="flex justify-between">
+                        <span className="text-blue-700">Delivery Fee:</span>
+                        <span className="font-medium text-blue-900">
+                          {formatCurrency(logisticsDetails.deliveryFee, order.currency)}
+                        </span>
+                      </div>
+                    )}
                   </div>
+                  {logisticsBreakdownEntries.length > 0 && (
+                    <div className="mt-3 rounded-lg bg-white/70 p-3">
+                      <p className="text-xs font-semibold text-blue-800 mb-2">Cost Breakdown</p>
+                      <ul className="space-y-1 text-xs text-blue-900">
+                        {logisticsBreakdownEntries.map(([key, value]) => (
+                          <li key={key} className="flex justify-between">
+                            <span>{formatLabel(key)}</span>
+                            <span className="font-medium">{formatCurrency(value, order.currency)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                   <p className="text-xs text-blue-600 mt-3">
                     💡 The logistics partner will be notified when you mark this order as "Ready for Shipment"
                   </p>

@@ -11,6 +11,7 @@ const ProductFilterSidebar = ({
   onClose,
   searchQuery = '',
   onSearchChange,
+  onSearchSubmit,
   showSearch = true
 }) => {
   const [selectedCategories, setSelectedCategories] = useState([]);
@@ -23,6 +24,16 @@ const ProductFilterSidebar = ({
   const [brandSearch, setBrandSearch] = useState('');
   const [isPriceApplied, setIsPriceApplied] = useState(false);
   const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery);
+
+  const buildFiltersPayload = () => ({
+    searchQuery: localSearchQuery,
+    categories: selectedCategories,
+    expressDelivery,
+    priceRange: isPriceApplied ? priceRange : null,
+    discountPercentage,
+    brands: selectedBrands,
+    sizes: selectedSizes
+  });
 
   // Calculate min/max prices from products
   const calculatedPriceRange = useMemo(() => {
@@ -100,26 +111,38 @@ const ProductFilterSidebar = ({
 
   // Apply filters and notify parent
   useEffect(() => {
-    const filters = {
-      searchQuery: localSearchQuery,
-      categories: selectedCategories,
-      expressDelivery,
-      priceRange: isPriceApplied ? priceRange : null,
-      discountPercentage,
-      brands: selectedBrands,
-      sizes: selectedSizes
-    };
-    
     if (onFilterChange) {
-      onFilterChange(filters);
+      onFilterChange(buildFiltersPayload());
     }
-  }, [localSearchQuery, selectedCategories, expressDelivery, priceRange, isPriceApplied, discountPercentage, selectedBrands, selectedSizes, onFilterChange]);
+  }, [
+    localSearchQuery,
+    selectedCategories,
+    expressDelivery,
+    priceRange,
+    isPriceApplied,
+    discountPercentage,
+    selectedBrands,
+    selectedSizes,
+    onFilterChange
+  ]);
 
   // Handle search input change
   const handleSearchChange = (value) => {
     setLocalSearchQuery(value);
     if (onSearchChange) {
       onSearchChange(value);
+    }
+  };
+
+  const handleSearchSubmit = () => {
+    if (onSearchChange) {
+      onSearchChange(localSearchQuery);
+    }
+    if (onSearchSubmit) {
+      onSearchSubmit(localSearchQuery);
+    }
+    if (onFilterChange) {
+      onFilterChange(buildFiltersPayload());
     }
   };
 
@@ -245,30 +268,46 @@ const ProductFilterSidebar = ({
             <h3 className="text-xs font-bold text-amber-300 uppercase tracking-wider mb-2">
               SEARCH PRODUCTS
             </h3>
-            <div className="relative">
-              <input
-                type="text"
-                value={localSearchQuery}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                placeholder="Search products..."
-                className="w-full px-3 py-2 pl-10 bg-slate-800 border border-emerald-900/60 rounded-lg text-sm text-white placeholder-teal-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              />
-              <svg
-                className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-teal-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              {localSearchQuery && (
-                <button
-                  onClick={() => handleSearchChange('')}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-teal-400 hover:text-teal-300"
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  value={localSearchQuery}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleSearchSubmit();
+                    }
+                  }}
+                  placeholder="Search products..."
+                  className="w-full px-3 py-2 pl-10 pr-9 bg-slate-800 border border-emerald-900/60 rounded-lg text-sm text-white placeholder-teal-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+                <svg
+                  className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-teal-400 pointer-events-none"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
                 >
-                  ✕
-                </button>
-              )}
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                {localSearchQuery && (
+                  <button
+                    onClick={() => handleSearchChange('')}
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-teal-400 hover:text-teal-300"
+                    aria-label="Clear search"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+              <button
+                onClick={handleSearchSubmit}
+                className="px-3 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-500 transition-colors"
+                aria-label="Apply search"
+              >
+                Search
+              </button>
             </div>
           </div>
         )}

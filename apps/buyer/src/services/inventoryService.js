@@ -3,7 +3,6 @@ import {
   doc, 
   addDoc, 
   updateDoc, 
-  deleteDoc, 
   getDoc, 
   getDocs, 
   query, 
@@ -11,7 +10,6 @@ import {
   orderBy, 
   serverTimestamp,
   writeBatch,
-  increment,
   arrayUnion,
   arrayRemove
 } from 'firebase/firestore'
@@ -557,7 +555,10 @@ export const inventoryService = {
         })
       })
 
-      return analytics
+      return {
+        ...analytics,
+        period
+      }
     } catch (error) {
       errorLogger.error('Failed to get inventory analytics', error)
       throw error
@@ -603,7 +604,7 @@ export const inventoryService = {
       }
 
       inventories.forEach(inventory => {
-        const { currentStock, lowStockThreshold, highStockThreshold, reorderPoint, reorderQuantity } = inventory
+        const { currentStock, highStockThreshold, reorderPoint, reorderQuantity } = inventory
 
         // Restock recommendations
         if (currentStock <= reorderPoint) {

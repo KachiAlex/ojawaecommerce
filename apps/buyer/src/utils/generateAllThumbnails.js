@@ -1,4 +1,4 @@
-import { collection, getDocs, updateDoc, doc, getDoc, query, where, limit } from 'firebase/firestore';
+import { collection, getDocs, updateDoc, doc, getDoc, query, limit } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../firebase/config';
 import { generateThumbnail } from './thumbnailGenerator';

@@ -13,7 +13,6 @@ import { LanguageProvider } from '../contexts/LanguageContext'
 export const renderWithProviders = (
   ui,
   {
-    preloadedState = {},
     route = '/',
     ...renderOptions
   } = {}
@@ -128,6 +127,7 @@ export const createMockQuerySnapshot = (docs) => ({
   forEach: (callback) => docs.forEach(callback),
 })
 
-// Re-export everything from @testing-library/react
+// Re-export everything from @testing-library/react (utility module, not a component)
+// eslint-disable-next-line react-refresh/only-export-components
 export * from '@testing-library/react'
 

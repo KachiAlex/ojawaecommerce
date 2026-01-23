@@ -3,8 +3,11 @@ import { expect, afterEach, vi } from 'vitest'
 import { cleanup } from '@testing-library/react'
 import * as matchers from '@testing-library/jest-dom/matchers'
 
-// extends Vitest's expect with jest-dom matchers
-expect.extend(matchers)
+// extends Vitest's expect with jest-dom matchers (avoid redefining in other runners)
+const jestMatchersKey = Symbol.for('$$jest-matchers-object')
+if (!Object.prototype.hasOwnProperty.call(expect, jestMatchersKey)) {
+  expect.extend(matchers)
+}
 
 // Mock Firebase before any imports
 vi.mock('firebase/firestore', async () => {

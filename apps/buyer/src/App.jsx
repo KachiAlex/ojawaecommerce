@@ -3,12 +3,12 @@ import { useEffect, Suspense, lazy, useState } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { CartProvider } from './contexts/CartContext';
 import { NotificationProvider } from './contexts/NotificationContext';
-import { MessagingProvider } from './contexts/MessagingContext';
 import { LanguageProvider } from './contexts/LanguageContext';
+import { MessagingProvider } from './contexts/MessagingContext';
 // OnboardingContext removed - causing initialization flow issues
 import ErrorBoundary from './components/ErrorBoundary';
 import ProtectedRoute from './components/ProtectedRoute';
-import RoleGuard from './components/RoleGuard';
+import Navbar from './components/Navbar';
 import { RouteLoadingSpinner, ComponentLoadingSpinner } from './components/OptimizedLoadingSpinner';
 import PerformanceMonitor from './components/PerformanceMonitor';
 // import AnimatedPage from './components/AnimatedPage';
@@ -21,7 +21,6 @@ import setupMobileTouchFix from './utils/mobileTouchFix';
 // Console protection disabled during testing - will be enabled for production
 // import { setupConsoleProtection } from './utils/consoleProtection';
 // import logger from './utils/logger';
-import './utils/clearFlutterwaveScripts';
 import './App.css';
 
 // Core pages (loaded immediately for better performance)
@@ -47,7 +46,6 @@ const lazyLoad = (componentImport) => {
 };
 
 // Lazy load non-critical components
-const Navbar = lazyLoad(() => import('./components/Navbar'));
 const MobileBottomNavigation = lazyLoad(() => import('./components/MobileBottomNavigation'));
 const NotificationToastContainer = lazyLoad(() => import('./components/NotificationToast').then(m => ({ default: m.NotificationToastContainer })));
 const WalletEducation = lazyLoad(() => import('./components/EscrowEducation'));
@@ -98,6 +96,8 @@ const EnhancedTrackingStatus = lazyLoad(() => import('./components/EnhancedTrack
 
 // Help page
 const Help = lazyLoad(() => import('./pages/Help'));
+const Terms = lazyLoad(() => import('./pages/Terms'));
+const RefundPolicy = lazyLoad(() => import('./pages/RefundPolicy'));
 const Wishlist = lazyLoad(() => import('./pages/Wishlist'));
 const Referrals = lazyLoad(() => import('./pages/Referrals'));
 
@@ -105,7 +105,6 @@ const Referrals = lazyLoad(() => import('./pages/Referrals'));
 const ForgotPassword = lazyLoad(() => import('./pages/ForgotPassword'));
 
 // Test/Development pages (separate chunk for production builds)
-const FlutterwaveTest = lazyLoad(() => import('./pages/FlutterwaveTest'));
 const FunctionTest = lazyLoad(() => import('./pages/FunctionTest'));
 const CloudTest = lazyLoad(() => import('./pages/CloudTest'));
 const ModalTest = lazyLoad(() => import('./pages/ModalTest'));
@@ -124,25 +123,23 @@ const ProductDebug = lazyLoad(() => import('./pages/ProductDebug'));
 // const GoogleMapsTest = lazyWithRetry(() => import('./pages/GoogleMapsTest')); // Disabled
 
 // Admin Route Protection Component - Simplified (No Initialization)
-const AdminRoute = ({ children }) => {
-  const { userProfile, currentUser, loading } = useAuth();
-  
-  // Debug logging
+function AdminRoute({ children }) {
+  const { loading, currentUser, userProfile } = useAuth();
+  const testModeEnabled = import.meta.env?.VITE_TEST_MODE === 'true';
   console.log('🔍 AdminRoute Debug:', {
     currentUser: !!currentUser,
-    userProfile: !!userProfile,
-    role: userProfile?.role,
     loading
   });
   
   // Show loading while auth is being checked
-  if (loading) {
+  if (loading && !testModeEnabled) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="mt-4 text-gray-600">Verifying admin access...</p>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950 text-white">
+        <div className="relative w-20 h-20">
+          <div className="absolute inset-0 rounded-full border-4 border-emerald-500 opacity-30"></div>
+          <div className="absolute inset-0 rounded-full border-t-4 border-white animate-spin"></div>
         </div>
+        <p className="mt-6 text-lg font-medium text-emerald-100">Securing your wallet...</p>
       </div>
     );
   }
@@ -176,11 +173,11 @@ const AppContent = () => {
             <Router>
               <ScrollToTop />
               <ErrorBoundary componentName="Router">
-                <div className="min-h-screen" style={{ paddingBottom: '80px' }}>
+                <div className="app-shell" style={{ paddingBottom: '80px' }}>
                   <Suspense fallback={<ComponentLoadingSpinner />}>
                     <Navbar />
                   </Suspense>
-                  <main style={{ minHeight: 'calc(100vh - 80px)', paddingBottom: '80px' }}>
+                  <main className="app-content">
                     <AppRoutes />
                   </main>
                   <Suspense fallback={null}>
@@ -312,6 +309,16 @@ const AppRoutes = () => {
           <Help />
         </Suspense>
       } />
+      <Route path="/terms" element={
+        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+          <Terms />
+        </Suspense>
+      } />
+      <Route path="/refund-policy" element={
+        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+          <RefundPolicy />
+        </Suspense>
+      } />
       <Route path="/profile" element={
         <ProtectedRoute requireVerifiedEmail>
           <Suspense fallback={<RouteLoadingSpinner route="default" />}>
@@ -352,19 +359,25 @@ const AppRoutes = () => {
       } />
       <Route path="/dashboard" element={<DashboardRedirect />} />
       <Route path="/vendor" element={
-        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
-          <Vendor />
-        </Suspense>
+        <ProtectedRoute requireVerifiedEmail>
+          <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+            <Vendor />
+          </Suspense>
+        </ProtectedRoute>
       } />
       <Route path="/buyer" element={
-        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
-          <Buyer />
-        </Suspense>
+        <ProtectedRoute requireVerifiedEmail>
+          <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+            <Buyer />
+          </Suspense>
+        </ProtectedRoute>
       } />
       <Route path="/enhanced-buyer" element={
-        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
-          <EnhancedBuyer />
-        </Suspense>
+        <ProtectedRoute requireVerifiedEmail>
+          <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+            <EnhancedBuyer />
+          </Suspense>
+        </ProtectedRoute>
       } />
       <Route path="/logistics" element={<Logistics />} />
       <Route path="/store/:storeSlug" element={

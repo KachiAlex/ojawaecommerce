@@ -35,12 +35,13 @@ const EnhancedCheckoutForm = ({ total, cartItems, onSuccess, orderDetails }) => 
 
     try {
       const paymentData = {
-        tx_ref: `FLW-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        tx_ref: `PSTACK-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         amount: total,
         customer: {
           email: currentUser?.email || 'customer@example.com',
           name: currentUser?.displayName || 'Customer',
         },
+        user: currentUser,
         customizations: {
           title: 'Ojawa eCommerce',
           description: 'Payment for items in cart',
@@ -85,7 +86,7 @@ const EnhancedCheckoutForm = ({ total, cartItems, onSuccess, orderDetails }) => 
             onSuccess({
               id: successResult.transactionId,
               status: 'succeeded',
-              provider: 'flutterwave'
+              provider: 'paystack'
             })
 
           } catch (orderError) {
@@ -133,7 +134,7 @@ const EnhancedCheckoutForm = ({ total, cartItems, onSuccess, orderDetails }) => 
     onSuccess({
       id: result.transactionId,
       status: 'succeeded',
-      provider: 'flutterwave'
+      provider: 'paystack'
     })
   }
 
@@ -206,7 +207,7 @@ const EnhancedCheckoutForm = ({ total, cartItems, onSuccess, orderDetails }) => 
         totalAmount: total,
         status: ORDER_STATUS.CONFIRMED, // Start with confirmed status
         paymentStatus: 'completed',
-        paymentMethod: 'flutterwave',
+        paymentMethod: 'paystack',
         paymentReference: txnId,
         shippingAddress: orderDetails?.shippingAddress || {},
         logisticsPartnerId: orderDetails?.logisticsPartnerId || null,
@@ -314,7 +315,7 @@ const EnhancedCheckoutForm = ({ total, cartItems, onSuccess, orderDetails }) => 
                   Payment Method
                 </label>
                 <div className="flex items-center space-x-2">
-                  <span className="text-sm text-gray-600">Flutterwave</span>
+                  <span className="text-sm text-gray-600">Paystack</span>
                   <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
                     Secure
                   </span>
@@ -354,7 +355,7 @@ const EnhancedCheckoutForm = ({ total, cartItems, onSuccess, orderDetails }) => 
                 Secure Payment
               </h3>
               <div className="mt-2 text-sm text-blue-700">
-                <p>Your payment is processed securely through Flutterwave. We support multiple payment methods including cards, bank transfers, and mobile money.</p>
+                <p>Your payment is processed securely through Paystack. We support multiple payment methods including cards, bank transfers, and USSD.</p>
               </div>
             </div>
           </div>

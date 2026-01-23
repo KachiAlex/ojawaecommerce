@@ -4,6 +4,71 @@
   --ojawa-surface-dark: #020617;
   --ojawa-text-on-dark: #f8fafc;
   --ojawa-text-on-light: #0f172a;
+  --ojawa-pill-bg: rgba(15, 23, 42, 0.65);
+  --ojawa-pill-border: rgba(226, 232, 240, 0.35);
+  --ojawa-max-width: 90rem;
+  --ojawa-page-padding: clamp(1rem, 4vw, 2.5rem);
+  --ojawa-section-gap: clamp(2rem, 4vw, 4.5rem);
+  --ojawa-card-gap: clamp(1rem, 3vw, 2rem);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.app-shell {
+  min-height: 100vh;
+  background: radial-gradient(circle at top, rgba(16, 185, 129, 0.1), transparent 45%) var(--ojawa-surface-dark);
+  color: var(--ojawa-text-on-light);
+}
+
+.app-shell nav,
+.app-shell main,
+.app-shell footer,
+.app-shell section {
+  width: 100%;
+}
+
+.app-content {
+  max-width: var(--ojawa-max-width);
+  margin: 0 auto;
+  width: 100%;
+  padding-left: var(--ojawa-page-padding);
+  padding-right: var(--ojawa-page-padding);
+  padding-bottom: clamp(4rem, 8vw, 6rem);
+}
+
+.responsive-section {
+  margin-top: var(--ojawa-section-gap);
+  margin-bottom: var(--ojawa-section-gap);
+}
+
+.responsive-section__header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: clamp(1.5rem, 4vw, 2.5rem);
+}
+
+@media (min-width: 768px) {
+  .responsive-section__header {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+}
+
+.responsive-grid {
+  display: grid;
+  gap: var(--ojawa-card-gap);
+}
+
+.responsive-grid--auto {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.app-shell main {
+  min-height: calc(100vh - 80px);
 }
 
 /* Prevent horizontal scrolling on mobile */
@@ -50,6 +115,23 @@ body {
        .bg-yellow-50,
        .bg-neutral-50) {
   color: var(--ojawa-text-on-light);
+}
+
+/* Utility pills for high-contrast buttons on gradients */
+.ojawa-pill {
+  background-color: var(--ojawa-pill-bg);
+  border: 1px solid var(--ojawa-pill-border);
+  color: var(--ojawa-text-on-dark);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.35);
+}
+.ojawa-pill--light {
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--ojawa-text-on-light);
+  border: 1px solid rgba(15, 23, 42, 0.12);
+}
+.ojawa-pill--glow {
+  border: 1px solid rgba(250, 204, 21, 0.35);
+  box-shadow: 0 10px 25px rgba(250, 204, 21, 0.25);
 }
 
 /* 3D Perspective for 3D Cards */

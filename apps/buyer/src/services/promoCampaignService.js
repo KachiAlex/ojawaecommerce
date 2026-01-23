@@ -3,7 +3,7 @@
  * Handles campaign creation, vendor participation, and discount application
  */
 
-import { collection, doc, getDocs, query, where, addDoc, updateDoc, deleteDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collection, doc, getDocs, query, where, addDoc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
 export const CAMPAIGN_TYPES = {
@@ -302,7 +302,7 @@ export const promoCampaignService = {
       const originalPrice = product.originalPrice || product.price;
 
       // Remove this campaign from promoCampaigns
-      const promoCampaigns = { ...product.promoCampaigns } || {};
+      const promoCampaigns = { ...(product.promoCampaigns || {}) };
       delete promoCampaigns[campaignId];
 
       // If no more campaigns, restore original price; otherwise keep current price

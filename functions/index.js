@@ -1,18 +1,149 @@
 const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const admin = require("firebase-admin");
+const axios = require("axios");
+const crypto = require("crypto");
 
 // Initialize Firebase Admin
 admin.initializeApp();
 const db = admin.firestore();
 const messaging = admin.messaging();
+const FieldValue = admin.firestore.FieldValue;
+const Timestamp = admin.firestore.Timestamp;
 
-const getFlutterwaveConfig = () => {
+const getPaystackConfig = () => {
   return {
-    secretKey: process.env.FLUTTERWAVE_SECRET_KEY || process.env.FLW_SECRET_KEY,
-    secretHash: process.env.FLUTTERWAVE_SECRET_HASH || process.env.FLW_SECRET_HASH || process.env.FLW_WEBHOOK_SECRET
+    secretKey:
+      process.env.PAYSTACK_SECRET_KEY ||
+      process.env.PSTACK_SECRET_KEY ||
+      process.env.PAYSTACK_SK ||
+      process.env.SK_TEST_PAYSTACK,
+    webhookSecret:
+      process.env.PAYSTACK_WEBHOOK_SECRET ||
+      process.env.PSTACK_WEBHOOK_SECRET ||
+      process.env.PAYSTACK_SECRET_HASH ||
+      process.env.PSTACK_SECRET_HASH,
   };
 };
+
+const VENDOR_SUBSCRIPTION_PLANS = {
+  basic: { price: 0, commissionRate: 5.0, productLimit: 50, analyticsLevel: 'basic', supportLevel: 'email' },
+  pro: { price: 5000, commissionRate: 3.0, productLimit: 500, analyticsLevel: 'advanced', supportLevel: 'priority' },
+  premium: { price: 15000, commissionRate: 2.0, productLimit: -1, analyticsLevel: 'premium', supportLevel: 'dedicated' },
+};
+
+const VENDOR_SUBSCRIPTION_DURATION_DAYS = 30;
+
+const addDays = (date, days) => {
+  return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
+};
+
+const normalizePlanKey = (plan) => (typeof plan === 'string' ? plan.trim().toLowerCase() : '');
+
+const parsePaystackMetadata = (metadata) => {
+  if (!metadata) return {};
+  if (typeof metadata === 'object') return metadata;
+  try {
+    return JSON.parse(metadata);
+  } catch (error) {
+    console.warn('Unable to parse Paystack metadata payload:', error?.message);
+    return {};
+  }
+};
+
+async function applyVendorSubscription({
+  userId,
+  plan,
+  paystackReference,
+  transactionId,
+  amountPaid,
+  metadata = {},
+  status = 'active',
+}) {
+  if (!userId) {
+    throw new Error('User ID is required to apply subscription');
+  }
+
+  const planKey = normalizePlanKey(plan);
+  const planConfig = VENDOR_SUBSCRIPTION_PLANS[planKey];
+
+  if (!planConfig) {
+    throw new Error(`Unknown vendor subscription plan: ${plan}`);
+  }
+
+  const nowDate = new Date();
+  const endDate = addDays(nowDate, VENDOR_SUBSCRIPTION_DURATION_DAYS);
+  const startTimestamp = Timestamp.fromDate(nowDate);
+  const endTimestamp = Timestamp.fromDate(endDate);
+
+  const userRef = db.collection('users').doc(userId);
+  await userRef.set(
+    {
+      subscriptionPlan: planKey,
+      subscriptionStatus: status,
+      subscriptionStartDate: startTimestamp,
+      subscriptionEndDate: endTimestamp,
+      commissionRate: planConfig.commissionRate,
+      productLimit: planConfig.productLimit,
+      analyticsLevel: planConfig.analyticsLevel,
+      supportLevel: planConfig.supportLevel,
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true },
+  );
+
+  let subscriptionRef = null;
+  if (paystackReference) {
+    const existingSubscription = await db
+      .collection('subscriptions')
+      .where('paystackReference', '==', paystackReference)
+      .limit(1)
+      .get();
+    if (!existingSubscription.empty) {
+      subscriptionRef = existingSubscription.docs[0].ref;
+    }
+  }
+
+  if (!subscriptionRef) {
+    subscriptionRef = db.collection('subscriptions').doc();
+  }
+
+  const subscriptionPayload = {
+    userId,
+    plan: planKey,
+    price: planConfig.price,
+    amountPaid: typeof amountPaid === 'number' ? amountPaid : planConfig.price,
+    currency: 'NGN',
+    status,
+    startDate: startTimestamp,
+    endDate: endTimestamp,
+    commissionRate: planConfig.commissionRate,
+    productLimit: planConfig.productLimit,
+    analyticsLevel: planConfig.analyticsLevel,
+    supportLevel: planConfig.supportLevel,
+    paymentMethod: 'paystack',
+    paystackReference: paystackReference || null,
+    transactionId: transactionId || null,
+    metadata,
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+
+  if (!subscriptionRef.id || !(await subscriptionRef.get()).exists) {
+    subscriptionPayload.createdAt = FieldValue.serverTimestamp();
+    await subscriptionRef.set(subscriptionPayload);
+  } else {
+    await subscriptionRef.set(subscriptionPayload, { merge: true });
+  }
+
+  return {
+    subscriptionId: subscriptionRef.id,
+    plan: planKey,
+    startDate: startTimestamp,
+    endDate: endTimestamp,
+    commissionRate: planConfig.commissionRate,
+    productLimit: planConfig.productLimit,
+  };
+}
 
 // Routes optimization (Gen2 HTTPS onRequest)
 // Note: optimizeRoute is handled by the 'routes' codebase in functions-routes
@@ -136,6 +267,159 @@ exports.sendOrderStatusUpdate = onCall(async (request) => {
   } catch (error) {
     console.error("Error sending status update:", error);
     throw new Error(`Failed to send status update: ${error.message}`);
+  }
+});
+
+// Create escrow-backed order (wallet funds held in escrow)
+exports.createEscrowOrder = onCall(async (request) => {
+  const { auth, data } = request;
+
+  if (!auth) {
+    throw new HttpsError('unauthenticated', 'User must be authenticated to create an order');
+  }
+
+  try {
+    const buyerId = auth.uid;
+    const {
+      totalAmount,
+      currency = 'NGN',
+      cartItems = [],
+      deliveryOption = 'standard',
+      deliveryAddress = '',
+      deliveryInstructions = '',
+      selectedLogistics = null,
+      pricing = {},
+      buyerInfo = {},
+      metadata = {},
+    } = data || {};
+
+    if (!totalAmount || Number(totalAmount) <= 0) {
+      throw new HttpsError('invalid-argument', 'totalAmount must be a positive number');
+    }
+
+    if (!Array.isArray(cartItems) || cartItems.length === 0) {
+      throw new HttpsError('invalid-argument', 'cartItems must include at least one item');
+    }
+
+    const walletQuery = await db.collection('wallets')
+      .where('userId', '==', buyerId)
+      .limit(1)
+      .get();
+
+    if (walletQuery.empty) {
+      throw new HttpsError('failed-precondition', 'Wallet not found. Please fund your wallet first.');
+    }
+
+    const walletRef = walletQuery.docs[0].ref;
+
+    const orderResult = await db.runTransaction(async (transaction) => {
+      const walletSnapshot = await transaction.get(walletRef);
+      if (!walletSnapshot.exists) {
+        throw new HttpsError('failed-precondition', 'Wallet not found');
+      }
+
+      const walletData = walletSnapshot.data() || {};
+      const currentBalance = Number(walletData.balance || 0);
+      const amountToDebit = Number(totalAmount);
+
+      if (currentBalance < amountToDebit) {
+        throw new HttpsError('failed-precondition', 'Insufficient wallet balance');
+      }
+
+      const orderRef = db.collection('orders').doc();
+      const walletTxnRef = db.collection('wallet_transactions').doc();
+      const newBalance = currentBalance - amountToDebit;
+
+      const normalizedItems = cartItems.map((item) => ({
+        id: item.id || item.productId || null,
+        name: item.name || 'Item',
+        price: Number(item.price || 0),
+        quantity: Number(item.quantity || 1),
+        vendorId: item.vendorId || null,
+        currency: item.currency || currency,
+        metadata: item.metadata || null,
+      }));
+
+      const orderPayload = {
+        id: orderRef.id,
+        buyerId,
+        buyerEmail: buyerInfo.email || auth.token?.email || null,
+        buyerName: buyerInfo.name || auth.token?.name || null,
+        cartItems: normalizedItems,
+        deliveryOption,
+        deliveryAddress,
+        deliveryInstructions,
+        selectedLogistics: selectedLogistics || null,
+        pricingBreakdown: pricing,
+        totalAmount: amountToDebit,
+        currency,
+        status: 'pending_vendor_confirmation',
+        fulfillmentStatus: 'pending',
+        paymentStatus: 'escrow_hold',
+        paymentMethod: 'wallet_escrow',
+        escrowStatus: 'funds_on_hold',
+        escrowAmount: amountToDebit,
+        walletTransactionId: walletTxnRef.id,
+        metadata,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+
+      transaction.set(orderRef, orderPayload);
+      transaction.update(walletRef, {
+        balance: newBalance,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+
+      transaction.set(walletTxnRef, {
+        walletId: walletRef.id,
+        userId: buyerId,
+        type: 'debit',
+        orderId: orderRef.id,
+        amount: amountToDebit,
+        description: `Escrow hold for order ${orderRef.id}`,
+        status: 'completed',
+        balanceBefore: currentBalance,
+        balanceAfter: newBalance,
+        currency,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+
+      return {
+        orderId: orderRef.id,
+        walletTransactionId: walletTxnRef.id,
+        balanceAfter: newBalance,
+      };
+    });
+
+    // Notify buyer that their order was created (best-effort, outside transaction)
+    try {
+      await db.collection('notifications').add({
+        userId: buyerId,
+        type: 'order_created',
+        title: 'Order Created',
+        message: `Your order ${orderResult.orderId} has been created and funds are held in escrow.`,
+        orderId: orderResult.orderId,
+        read: false,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    } catch (notifyError) {
+      console.warn('createEscrowOrder notification failed:', notifyError);
+    }
+
+    return {
+      success: true,
+      orderId: orderResult.orderId,
+      walletTransactionId: orderResult.walletTransactionId,
+      escrowStatus: 'funds_on_hold',
+      remainingBalance: orderResult.balanceAfter,
+    };
+  } catch (error) {
+    console.error('Error creating escrow order:', error);
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+    throw new HttpsError('internal', error?.message || 'Failed to create escrow order');
   }
 });
 
@@ -739,10 +1023,10 @@ exports.sendBulkPushNotifications = onCall(async (request) => {
   }
 });
 
-// ===== FLUTTERWAVE PAYMENT FUNCTIONS =====
+// ===== PAYSTACK PAYMENT FUNCTIONS =====
 
-// Top up wallet with Flutterwave payment
-exports.topupWalletFlutterwave = onCall(async (request) => {
+// Top up wallet with Paystack payment
+exports.topupWalletPaystack = onCall(async (request) => {
   const { auth, data } = request;
   if (!auth) {
     throw new HttpsError(
@@ -752,12 +1036,12 @@ exports.topupWalletFlutterwave = onCall(async (request) => {
   }
 
   try {
-    const { transactionId, userId, amount } = data || {};
+    const { reference, userId, amount } = data || {};
 
-    if (!transactionId) {
+    if (!reference) {
       throw new HttpsError(
         'invalid-argument',
-        'Transaction ID is required'
+        'Reference is required'
       );
     }
 
@@ -775,40 +1059,43 @@ exports.topupWalletFlutterwave = onCall(async (request) => {
       );
     }
 
-    console.log('Verifying Flutterwave payment:', { transactionId, userId, amount });
+    console.log('Verifying Paystack payment:', { reference, userId, amount });
 
-    // Verify transaction with Flutterwave API
-    const { secretKey: flutterwaveSecretKey } = getFlutterwaveConfig();
-    if (!flutterwaveSecretKey) {
-      console.error('Flutterwave secret key not configured');
+    // Verify transaction with Paystack API
+    const { secretKey: paystackSecretKey } = getPaystackConfig();
+    if (!paystackSecretKey) {
+      console.error('Paystack secret key not configured');
       throw new HttpsError(
         'failed-precondition',
         'Payment service not configured'
       );
     }
 
-    // Verify transaction with Flutterwave
-    const axios = require('axios');
+    // Verify transaction with Paystack
     const verifyResponse = await axios.get(
-      `https://api.flutterwave.com/v3/transactions/${transactionId}/verify`,
+      `https://api.paystack.co/transaction/verify/${reference}`,
       {
         headers: {
-          'Authorization': `Bearer ${flutterwaveSecretKey}`,
-          'Content-Type': 'application/json'
-        }
+          Authorization: `Bearer ${paystackSecretKey}`,
+          'Content-Type': 'application/json',
+        },
       }
     );
 
-    const transaction = verifyResponse.data.data;
-    console.log('Flutterwave transaction verified:', {
-      id: transaction.id,
-      status: transaction.status,
-      amount: transaction.amount,
-      currency: transaction.currency
+    const transaction = verifyResponse.data?.data;
+    console.log('Paystack transaction verified:', {
+      reference: transaction?.reference,
+      status: transaction?.status,
+      amount: transaction?.amount,
+      currency: transaction?.currency,
     });
 
+    if (!transaction) {
+      throw new HttpsError('not-found', 'Transaction could not be verified');
+    }
+
     // Verify transaction status
-    if (transaction.status !== 'successful') {
+    if (transaction.status !== 'success') {
       throw new HttpsError(
         'failed-precondition',
         `Payment not successful. Status: ${transaction.status}`
@@ -816,7 +1103,7 @@ exports.topupWalletFlutterwave = onCall(async (request) => {
     }
 
     // Verify amount matches
-    const paidAmount = Number(transaction.amount);
+    const paidAmount = Number(transaction.amount) / 100;
     if (Math.abs(paidAmount - Number(amount)) > 0.01) {
       throw new HttpsError(
         'failed-precondition',
@@ -826,13 +1113,13 @@ exports.topupWalletFlutterwave = onCall(async (request) => {
 
     // Check if transaction was already processed
     const existingTx = await db.collection('wallet_transactions')
-      .where('paymentIntentId', '==', transactionId)
+      .where('paymentIntentId', '==', transaction.reference)
       .where('status', '==', 'completed')
       .limit(1)
       .get();
 
     if (!existingTx.empty) {
-      console.log('Transaction already processed:', transactionId);
+      console.log('Transaction already processed:', transaction.reference);
       return {
         success: true,
         message: 'Transaction already processed',
@@ -881,9 +1168,9 @@ exports.topupWalletFlutterwave = onCall(async (request) => {
       userId: userId,
       type: 'credit',
       amount: paidAmount,
-      description: 'Wallet top-up via Flutterwave',
-      paymentIntentId: transactionId,
-      flutterwaveTxRef: transaction.tx_ref,
+      description: 'Wallet top-up via Paystack',
+      paymentIntentId: transaction.reference,
+      paystackReference: transaction.reference,
       balanceBefore: currentBalance,
       balanceAfter: newBalance,
       status: 'completed',
@@ -897,7 +1184,8 @@ exports.topupWalletFlutterwave = onCall(async (request) => {
       userId,
       amount: paidAmount,
       newBalance,
-      transactionId: transactionRef.id
+      transactionId: transactionRef.id,
+      reference: transaction.reference,
     });
 
     return {
@@ -907,7 +1195,7 @@ exports.topupWalletFlutterwave = onCall(async (request) => {
       amount: paidAmount
     };
   } catch (error) {
-    console.error('Error topping up wallet with Flutterwave:', error);
+    console.error('Error topping up wallet with Paystack:', error);
     if (error instanceof HttpsError) {
       throw error;
     }
@@ -915,8 +1203,87 @@ exports.topupWalletFlutterwave = onCall(async (request) => {
   }
 });
 
-// Flutterwave webhook handler
-exports.flutterwaveWebhook = onRequest(async (req, res) => {
+// Create vendor subscription record after Paystack payment
+exports.createPaystackSubscriptionRecord = onCall(async (request) => {
+  const { auth, data } = request;
+  if (!auth) {
+    throw new HttpsError('unauthenticated', 'User must be authenticated to create subscription records');
+  }
+
+  try {
+    const { reference, plan: requestedPlan } = data || {};
+
+    if (!reference) {
+      throw new HttpsError('invalid-argument', 'Paystack reference is required');
+    }
+
+    const { secretKey: paystackSecretKey } = getPaystackConfig();
+    if (!paystackSecretKey) {
+      throw new HttpsError('failed-precondition', 'Payment service not configured');
+    }
+
+    const verifyResponse = await axios.get(
+      `https://api.paystack.co/transaction/verify/${reference}`,
+      {
+        headers: {
+          Authorization: `Bearer ${paystackSecretKey}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    const transaction = verifyResponse.data?.data;
+    if (!transaction) {
+      throw new HttpsError('not-found', 'Transaction could not be verified');
+    }
+
+    if (transaction.status !== 'success') {
+      throw new HttpsError('failed-precondition', `Payment not successful. Status: ${transaction.status}`);
+    }
+
+    const metadata = parsePaystackMetadata(transaction.metadata || transaction.meta);
+    const plan = normalizePlanKey(requestedPlan || metadata.subscription_plan || metadata.plan);
+
+    if (!plan) {
+      throw new HttpsError('invalid-argument', 'Subscription plan could not be determined');
+    }
+
+    const userId = metadata.userId || metadata.user_id || data?.userId || auth.uid;
+    if (!userId) {
+      throw new HttpsError('invalid-argument', 'User ID missing from payment metadata');
+    }
+
+    if (userId !== auth.uid) {
+      throw new HttpsError('permission-denied', 'Authenticated user does not match subscription owner');
+    }
+
+    const result = await applyVendorSubscription({
+      userId,
+      plan,
+      paystackReference: transaction.reference,
+      transactionId: String(transaction.id),
+      amountPaid: Number(transaction.amount || 0) / 100,
+      metadata,
+    });
+
+    return {
+      success: true,
+      plan: result.plan,
+      subscriptionId: result.subscriptionId,
+      startDate: result.startDate,
+      endDate: result.endDate,
+    };
+  } catch (error) {
+    console.error('Error creating Paystack subscription record:', error);
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+    throw new HttpsError('internal', error.message);
+  }
+});
+
+// Paystack webhook handler
+exports.paystackWebhook = onRequest(async (req, res) => {
   // Set CORS headers
   res.set('Access-Control-Allow-Origin', '*');
   res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -931,32 +1298,35 @@ exports.flutterwaveWebhook = onRequest(async (req, res) => {
   }
 
   try {
-    const crypto = require('crypto');
-    const { secretKey: flutterwaveSecretKey, secretHash: flutterwaveSecretHash } = getFlutterwaveConfig();
+    const { secretKey: paystackSecretKey, webhookSecret } = getPaystackConfig();
+    const signingSecret = webhookSecret || paystackSecretKey;
 
-    if (!flutterwaveSecretKey) {
-      console.error('Flutterwave secret key not configured');
+    if (!signingSecret) {
+      console.error('Paystack webhook secret not configured');
       return res.status(500).json({ error: 'Webhook not configured' });
     }
 
     // Verify webhook signature
-    const signature = req.headers['verif-hash'];
-    if (flutterwaveSecretHash && signature !== flutterwaveSecretHash) {
-      console.error('Invalid webhook signature');
+    const signature = req.headers['x-paystack-signature'];
+    const computedSignature = crypto
+      .createHmac('sha512', signingSecret)
+      .update(JSON.stringify(req.body))
+      .digest('hex');
+
+    if (!signature || signature !== computedSignature) {
+      console.error('Invalid Paystack webhook signature');
       return res.status(401).json({ error: 'Invalid signature' });
     }
 
     const event = req.body;
-    console.log('Flutterwave webhook received:', {
+    console.log('Paystack webhook received:', {
       event: event.event,
-      transactionId: event.data?.id,
-      txRef: event.data?.tx_ref
+      reference: event.data?.reference,
     });
 
     // Handle different event types
     switch (event.event) {
-      case 'charge.completed':
-      case 'charge.successful':
+      case 'charge.success':
         await handleSuccessfulPayment(event.data);
         break;
 
@@ -965,17 +1335,17 @@ exports.flutterwaveWebhook = onRequest(async (req, res) => {
         break;
 
       default:
-        console.log('Unhandled webhook event:', event.event);
+        console.log('Unhandled Paystack webhook event:', event.event);
     }
 
     // Always return 200 to acknowledge receipt
     return res.status(200).json({ status: 'success', message: 'Webhook processed' });
   } catch (error) {
-    console.error('Error processing Flutterwave webhook:', error);
-    // Still return 200 to prevent Flutterwave from retrying
-    return res.status(200).json({ 
-      status: 'error', 
-      message: error.message 
+    console.error('Error processing Paystack webhook:', error);
+    // Still return 200 to prevent excessive retries
+    return res.status(200).json({
+      status: 'error',
+      message: error.message,
     });
   }
 });
@@ -983,36 +1353,42 @@ exports.flutterwaveWebhook = onRequest(async (req, res) => {
 // Handle successful payment webhook
 async function handleSuccessfulPayment(data) {
   try {
-    const transaction = data;
-    const transactionId = transaction.id;
-    const txRef = transaction.tx_ref;
-    const amount = Number(transaction.amount);
+    const transaction = data || {};
+    const transactionId = transaction.id ? String(transaction.id) : undefined;
+    const reference = transaction.reference || transaction.tx_ref || transaction?.data?.reference || transactionId;
+    const amountKobo = Number(transaction.amount || transaction.amount_kobo || transaction.amount_in_kobo || 0);
+    const amount = amountKobo / 100;
     const status = transaction.status;
+    const metadata = parsePaystackMetadata(transaction.metadata || transaction.meta);
+    const purpose = metadata.purpose || metadata.payment_type || '';
+    const userId = metadata.userId || metadata.user_id || metadata.customer_id || '';
+    const orderId = metadata.orderId || metadata.order_id || '';
 
     console.log('Processing successful payment:', {
       transactionId,
-      txRef,
+      reference,
       amount,
-      status
+      status,
+      purpose,
+      userId,
     });
 
     // Check if transaction was already processed
-    const existingTx = await db.collection('wallet_transactions')
-      .where('paymentIntentId', '==', String(transactionId))
-      .where('status', '==', 'completed')
+    const existingTx = await db
+      .collection('wallet_transactions')
+      .where('paystackReference', '==', reference)
       .limit(1)
       .get();
 
     if (!existingTx.empty) {
-      console.log('Transaction already processed:', transactionId);
+      console.log('Transaction already processed:', reference);
       return;
     }
 
-    // Extract metadata to determine payment type
-    const meta = transaction.meta || {};
-    const purpose = meta.purpose || '';
-    const userId = meta.userId || '';
-    const orderId = meta.orderId || '';
+    if (!reference) {
+      console.warn('Successful payment missing reference, skipping.');
+      return;
+    }
 
     if (purpose === 'wallet_topup' && userId) {
       // Handle wallet top-up
@@ -1043,9 +1419,9 @@ async function handleSuccessfulPayment(data) {
         userId: userId,
         type: 'credit',
         amount: amount,
-        description: 'Wallet top-up via Flutterwave (webhook)',
-        paymentIntentId: String(transactionId),
-        flutterwaveTxRef: txRef,
+        description: 'Wallet top-up via Paystack (webhook)',
+        paymentIntentId: reference,
+        paystackReference: reference,
         balanceBefore: currentBalance,
         balanceAfter: newBalance,
         status: 'completed',
@@ -1060,12 +1436,46 @@ async function handleSuccessfulPayment(data) {
         userId: userId,
         type: 'payment_success',
         title: 'Wallet Topped Up',
-        message: `Your wallet has been credited with ₦${amount.toLocaleString()}`,
+        message: `Your wallet has been credited with ₦${amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}`,
         read: false,
         createdAt: admin.firestore.FieldValue.serverTimestamp()
       });
 
       console.log('Wallet topped up via webhook:', { userId, amount, newBalance });
+    } else if ((purpose === 'subscription' || metadata.subscription_plan) && userId) {
+      const plan = metadata.subscription_plan || metadata.plan;
+      if (!plan) {
+        console.warn('Subscription payment missing plan metadata, skipping.');
+        return;
+      }
+
+      try {
+        const result = await applyVendorSubscription({
+          userId,
+          plan,
+          paystackReference: reference,
+          transactionId,
+          amountPaid: amount,
+          metadata,
+        });
+
+        await db.collection('notifications').add({
+          userId,
+          type: 'subscription',
+          title: 'Subscription Activated',
+          message: `Your ${result.plan.toUpperCase()} vendor plan is now active.`,
+          read: false,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        console.log('Vendor subscription applied via Paystack webhook:', {
+          userId,
+          plan: result.plan,
+          subscriptionId: result.subscriptionId,
+        });
+      } catch (subError) {
+        console.error('Error applying subscription from webhook:', subError);
+      }
     } else if (orderId) {
       // Handle order payment
       const orderRef = db.collection('orders').doc(orderId);
@@ -1081,8 +1491,8 @@ async function handleSuccessfulPayment(data) {
       // Update order status
       await orderRef.update({
         paymentStatus: 'paid',
-        paymentMethod: 'flutterwave',
-        paymentTransactionId: String(transactionId),
+        paymentMethod: 'paystack',
+        paymentTransactionId: reference,
         paymentCompletedAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
@@ -1116,16 +1526,17 @@ async function handleSuccessfulPayment(data) {
 // Handle failed payment webhook
 async function handleFailedPayment(data) {
   try {
-    const transaction = data;
-    const transactionId = transaction.id;
-    const txRef = transaction.tx_ref;
-    const meta = transaction.meta || {};
-    const userId = meta.userId || '';
-    const orderId = meta.orderId || '';
+    const transaction = data || {};
+    const transactionId = transaction.id ? String(transaction.id) : undefined;
+    const reference = transaction.reference || transaction.tx_ref || transactionId;
+    const metadata = parsePaystackMetadata(transaction.metadata || transaction.meta);
+    const userId = metadata.userId || metadata.user_id || '';
+    const orderId = metadata.orderId || metadata.order_id || '';
+    const amount = Number(transaction.amount || transaction.amount_kobo || 0) / 100;
 
     console.log('Processing failed payment:', {
       transactionId,
-      txRef,
+      reference,
       userId,
       orderId
     });
@@ -1136,7 +1547,7 @@ async function handleFailedPayment(data) {
         userId: userId,
         type: 'payment_failed',
         title: 'Payment Failed',
-        message: `Your payment of ₦${Number(transaction.amount).toLocaleString()} was not successful. Please try again.`,
+        message: `Your payment of ₦${amount.toLocaleString(undefined, { maximumFractionDigits: 2 })} was not successful. Please try again.`,
         orderId: orderId || null,
         read: false,
         createdAt: admin.firestore.FieldValue.serverTimestamp()

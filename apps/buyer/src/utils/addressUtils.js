@@ -110,26 +110,25 @@ export const determineRouteCategory = (fromAddress, toAddress) => {
 export const estimateDistance = (fromAddress, toAddress, category) => {
   // This is a simplified estimation
   // In production, you'd use Google Maps Distance Matrix API
+  const knownRoutes = {
+    'Lagos-Abuja': 750,
+    'Lagos-Port Harcourt': 630,
+    'Lagos-Ibadan': 130,
+    'Abuja-Kano': 360,
+    'Lagos-Kano': 1050
+  };
   
   switch (category) {
     case 'intracity':
       return Math.floor(Math.random() * 30) + 5; // 5-35 km
-    case 'intercity':
-      // Known route distances
-      const knownRoutes = {
-        'Lagos-Abuja': 750,
-        'Lagos-Port Harcourt': 630,
-        'Lagos-Ibadan': 130,
-        'Abuja-Kano': 360,
-        'Lagos-Kano': 1050
-      };
-      
+    case 'intercity': {
       const from = parseAddress(fromAddress);
       const to = parseAddress(toAddress);
       const routeKey = `${from?.city || from?.state}-${to?.city || to?.state}`;
       const reverseKey = `${to?.city || to?.state}-${from?.city || from?.state}`;
       
       return knownRoutes[routeKey] || knownRoutes[reverseKey] || 500;
+    }
     case 'international':
       return 2000; // Default for international
     default:

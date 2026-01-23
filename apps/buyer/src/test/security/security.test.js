@@ -3,9 +3,7 @@
  * Tests for authentication, authorization, input validation, and security vulnerabilities
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
+import { describe, it, expect } from 'vitest'
 
 describe('Security Tests', () => {
   describe('Authentication Security', () => {
@@ -14,8 +12,8 @@ describe('Security Tests', () => {
         const config = await import('../../config/env.js')
         const envConfig = config.config || config.default?.config || {}
         // Check that no hardcoded keys are present
-        if (envConfig.payments?.flutterwave?.publicKey) {
-          expect(envConfig.payments.flutterwave.publicKey).not.toContain('FLWPUBK_TEST-04fa9716ef05b43e581444120c688399-X')
+        if (envConfig.payments?.paystack?.publicKey) {
+          expect(envConfig.payments.paystack.publicKey).not.toContain('pk_test_')
         }
         if (envConfig.googleMaps?.apiKey) {
           expect(envConfig.googleMaps.apiKey).not.toContain('AIzaSyCw_5hgEojEOW1hAIewyb4TkyHTN2od-Yk')
@@ -47,11 +45,8 @@ describe('Security Tests', () => {
       ]
 
       testCases.forEach(({ role, hasAccess }) => {
-        const userProfile = role ? { role } : null
-        // RoleGuard should check role correctly
-        if (role === 'admin') {
-          expect(hasAccess).toBe(true)
-        }
+        const canAccess = role === 'admin'
+        expect(canAccess).toBe(hasAccess)
       })
     })
   })
@@ -195,22 +190,20 @@ describe('Security Tests', () => {
 
   describe('Authorization Security', () => {
     it('should prevent unauthorized wallet access', () => {
-      const userA = { uid: 'user-a', role: 'buyer' }
-      const userB = { uid: 'user-b', role: 'buyer' }
-      const walletA = { userId: 'user-a', balance: 1000 }
+      const wallet = { userId: 'user-a', balance: 1000 }
+      const otherUserId = 'user-b'
 
-      // User B should not be able to access User A's wallet
-      const canAccess = walletA.userId === userB.uid
+      // Other users should not be able to access someone else's wallet
+      const canAccess = wallet.userId === otherUserId
       expect(canAccess).toBe(false)
     })
 
     it('should prevent unauthorized order access', () => {
-      const buyerA = { uid: 'buyer-a' }
-      const buyerB = { uid: 'buyer-b' }
       const order = { buyerId: 'buyer-a', orderId: 'order-1' }
+      const otherBuyerId = 'buyer-b'
 
-      // Buyer B should not access Buyer A's order
-      const canAccess = order.buyerId === buyerB.uid
+      // Another buyer should not access the order
+      const canAccess = order.buyerId === otherBuyerId
       expect(canAccess).toBe(false)
     })
 
@@ -219,14 +212,10 @@ describe('Security Tests', () => {
       const vendor = { uid: 'vendor-1', role: 'vendor' }
       const buyer = { uid: 'buyer-1', role: 'buyer' }
 
-      const adminOperations = ['deleteOrder', 'manageUsers', 'viewAnalytics']
-      
-      adminOperations.forEach(operation => {
-        // Only admin should have access
-        expect(admin.role).toBe('admin')
-        expect(vendor.role).not.toBe('admin')
-        expect(buyer.role).not.toBe('admin')
-      })
+      // Only admin should have access
+      expect(admin.role).toBe('admin')
+      expect(vendor.role).not.toBe('admin')
+      expect(buyer.role).not.toBe('admin')
     })
   })
 
@@ -239,7 +228,7 @@ describe('Security Tests', () => {
         const config = await import('../../config/env.js')
         const envConfig = config.config || config.default?.config || {}
         // Secret key should not be accessible in client config
-        expect(envConfig.payments?.flutterwave?.secretKey).toBeUndefined()
+        expect(envConfig.payments?.paystack?.secretKey).toBeUndefined()
       } catch (error) {
         // If config can't be imported, that's okay - keys are externalized
         expect(error).toBeDefined()
@@ -276,7 +265,7 @@ describe('Security Tests', () => {
 
       maliciousPaths.forEach(path => {
         // Should sanitize path
-        const sanitized = path.replace(/\.\./g, '').replace(/[\/\\]/g, '_')
+        const sanitized = path.replace(/\.{2}/g, '').replace(/[\\/]/g, '_')
         expect(sanitized).not.toContain('../')
         expect(sanitized).not.toContain('..\\')
       })
@@ -310,7 +299,7 @@ describe('Security Tests', () => {
         const config = await import('../../config/env.js')
         const envConfig = config.config || config.default?.config || {}
         // Secret key should not be in client config
-        expect(envConfig.payments?.flutterwave?.secretKey).toBeUndefined()
+        expect(envConfig.payments?.paystack?.secretKey).toBeUndefined()
       } catch (error) {
         // If config can't be imported, that's okay
         expect(error).toBeDefined()

@@ -1,5 +1,5 @@
 // Analytics Tracking Service
-import { collection, addDoc, serverTimestamp, query, where, getDocs, orderBy, limit as fsLimit } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
 class AnalyticsService {

@@ -17,6 +17,8 @@ import { auth, db } from '../firebase/config';
 import firebaseService from '../services/firebaseService';
 import { storeService } from '../services/trackingService';
 
+const verificationBypassed = typeof import.meta !== 'undefined' && import.meta.env?.VITE_BYPASS_EMAIL_VERIFICATION === 'true';
+
 const AuthContext = createContext();
 
 export const useAuth = () => {

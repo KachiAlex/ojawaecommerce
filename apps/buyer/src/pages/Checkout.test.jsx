@@ -1,10 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import React from 'react'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { renderWithProviders, mockProduct } from '../test/helpers'
-import Checkout from './Checkout'
-import firebaseService from '../services/firebaseService'
-import escrowPaymentService from '../services/escrowPaymentService'
+import React, { useEffect } from 'react'
+import { screen, fireEvent, waitFor } from '@testing-library/react'
+import { renderWithProviders } from '../test/helpers'
 
 // Mock Firebase
 vi.mock('firebase/firestore', async () => {
@@ -23,20 +20,37 @@ vi.mock('firebase/firestore', async () => {
   }
 })
 
+const { mockCreateEscrowOrder, mockSendPaymentConfirmation, mockHttpsCallable } = vi.hoisted(() => {
+  const mockCreateEscrowOrder = vi.fn()
+  const mockSendPaymentConfirmation = vi.fn()
+  const mockHttpsCallable = vi.fn((_, name) => {
+    if (name === 'createEscrowOrder') {
+      return mockCreateEscrowOrder
+    }
+    if (name === 'sendPaymentConfirmation') {
+      return mockSendPaymentConfirmation
+    }
+    return vi.fn()
+  })
+
+  return {
+    mockCreateEscrowOrder,
+    mockSendPaymentConfirmation,
+    mockHttpsCallable,
+  }
+})
+
 vi.mock('firebase/functions', () => ({
-  httpsCallable: vi.fn(() => vi.fn()),
+  httpsCallable: (...args) => mockHttpsCallable(...args),
   getFunctions: vi.fn(() => ({})),
 }))
 
 // Create mock objects using vi.hoisted() to avoid hoisting issues
-const { mockFirebaseService, mockEscrowPaymentService } = vi.hoisted(() => {
+const { mockFirebaseService } = vi.hoisted(() => {
   return {
     mockFirebaseService: {
       wallet: {
         getUserWallet: vi.fn(),
-      },
-      orders: {
-        create: vi.fn(),
       },
       notifications: {
         createOrderNotification: vi.fn(),
@@ -50,9 +64,6 @@ const { mockFirebaseService, mockEscrowPaymentService } = vi.hoisted(() => {
         createDelivery: vi.fn(),
       },
     },
-    mockEscrowPaymentService: {
-      processEscrowPayment: vi.fn(),
-    },
   }
 })
 
@@ -61,10 +72,6 @@ vi.mock('../services/firebaseService', () => ({
   default: mockFirebaseService,
 }))
 
-// Mock escrowPaymentService
-vi.mock('../services/escrowPaymentService', () => ({
-  default: mockEscrowPaymentService,
-}))
 vi.mock('../services/pricingService', () => ({
   pricingService: {
     calculatePrice: vi.fn(() => ({ total: 20000, breakdown: {} })),
@@ -107,11 +114,11 @@ const walletBalanceCheckMockState = {
   balance: 50000,
 }
 
-vi.mock('../components/WalletBalanceCheck', () => ({
-  default: ({ children, onBalanceCheck, onInsufficientFunds, totalAmount }) => {
+vi.mock('../components/WalletBalanceCheck', () => {
+  const MockWalletBalanceCheck = ({ children, onBalanceCheck, onInsufficientFunds, totalAmount }) => {
     // Call onBalanceCheck or onInsufficientFunds based on mock state
     // Also call getUserWallet to simulate real behavior for the test
-    React.useEffect(() => {
+    useEffect(() => {
       // Call getUserWallet to simulate the real component behavior
       // This allows the test to verify getUserWallet was called
       const checkWallet = async () => {
@@ -119,7 +126,7 @@ vi.mock('../components/WalletBalanceCheck', () => ({
         if (firebaseService?.wallet?.getUserWallet) {
           try {
             await firebaseService.wallet.getUserWallet('test-user-id')
-          } catch (e) {
+          } catch {
             // Ignore errors in mock
           }
         }
@@ -142,8 +149,10 @@ vi.mock('../components/WalletBalanceCheck', () => ({
         {children}
       </div>
     )
-  },
-}))
+  }
+
+  return { default: MockWalletBalanceCheck }
+})
 
 const mockCartItems = [
   {
@@ -190,15 +199,11 @@ describe('Checkout Component', () => {
       userId: 'test-user-id',
       balance: 50000,
     })
-    
-    // Mock order creation - Checkout uses firebaseService.orders.create()
-    mockFirebaseService.orders.create = vi.fn().mockResolvedValue('order-123')
-    
-    // Mock escrow payment - Checkout uses processEscrowPayment
-    mockEscrowPaymentService.processEscrowPayment = vi.fn().mockResolvedValue({
-      success: true,
-      paymentId: 'payment-123',
-    })
+
+    mockCreateEscrowOrder.mockReset()
+    mockCreateEscrowOrder.mockResolvedValue({ data: { orderId: 'order-123' } })
+    mockSendPaymentConfirmation.mockReset()
+    mockSendPaymentConfirmation.mockResolvedValue({ data: { success: true } })
     
     // Mock product fetch
     const { getDoc } = await import('firebase/firestore')
@@ -291,13 +296,13 @@ describe('Checkout Component', () => {
     const submitButton = screen.getByRole('button', { name: /pay.*wallet escrow/i })
     fireEvent.click(submitButton)
 
-    // Order creation happens on form submit
+    // Order creation happens via Cloud Function
     await waitFor(() => {
-      expect(mockFirebaseService.orders.create).toHaveBeenCalled()
+      expect(mockCreateEscrowOrder).toHaveBeenCalled()
     }, { timeout: 10000 })
   })
 
-  it('creates escrow payment when order is placed', async () => {
+  it('calls the escrow Cloud Function when order is placed', async () => {
     renderWithProviders(<Checkout />)
 
     await waitFor(() => {
@@ -313,22 +318,15 @@ describe('Checkout Component', () => {
     const submitButton = screen.getByRole('button', { name: /pay.*wallet escrow/i })
     fireEvent.click(submitButton)
 
-    // Escrow payment creation happens during order creation
+    // Escrow Cloud Function is called during order creation
     await waitFor(() => {
-      expect(mockEscrowPaymentService.processEscrowPayment).toHaveBeenCalled()
+      expect(mockCreateEscrowOrder).toHaveBeenCalled()
     }, { timeout: 10000 })
   })
 
   it('handles order creation errors', async () => {
-    // Set up error mock before rendering
-    mockFirebaseService.orders.create = vi.fn().mockRejectedValue(
-      new Error('Order creation failed')
-    )
-    // Ensure escrow payment succeeds so we can test order creation failure
-    mockEscrowPaymentService.processEscrowPayment = vi.fn().mockResolvedValue({
-      success: true,
-      paymentId: 'payment-123',
-    })
+    // Set up Cloud Function error before rendering
+    mockCreateEscrowOrder.mockRejectedValueOnce(new Error('Order creation failed'))
 
     renderWithProviders(<Checkout />)
 

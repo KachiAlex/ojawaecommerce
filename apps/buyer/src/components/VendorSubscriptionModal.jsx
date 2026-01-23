@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import firebaseService from '../services/firebaseService';
-import flutterwaveSubscription from '../utils/flutterwaveSubscription';
+import { openSubscriptionCheckout } from '../utils/paystack';
 
 const VendorSubscriptionModal = ({ isOpen, onClose, onUpgrade }) => {
   const { currentUser, userProfile } = useAuth();
@@ -80,51 +80,42 @@ const VendorSubscriptionModal = ({ isOpen, onClose, onUpgrade }) => {
         return;
       }
 
-      // For paid plans, process payment (this will open Flutterwave checkout modal)
-      console.log('💳 Starting payment process for plan:', selectedPlan, 'Price:', plan.price);
-      
-      // Open Flutterwave payment modal immediately
-      // The modal opens synchronously, and we don't block on the promise
-      flutterwaveSubscription.processSubscriptionPayment({
+      console.log('💳 Starting Paystack payment for plan:', selectedPlan, 'Price:', plan.price);
+
+      const paymentResult = await openSubscriptionCheckout({
+        user: currentUser,
         plan: selectedPlan,
         price: plan.price,
-        userEmail: currentUser.email,
-        userName: currentUser.displayName || userProfile?.businessName || 'Vendor',
-        userId: currentUser.uid,
-        planName: plan.name,
-        commissionRate: plan.commission,
-        productLimit: plan.limits.products,
-        analyticsLevel: plan.limits.analytics,
-        supportLevel: plan.limits.support
-      })
-      .then((paymentData) => {
-        // With redirect_url, this callback may not fire, but handle it if it does
-        console.log('💳 Payment completed (callback fired):', paymentData);
-        // Don't close modal here - redirect will happen
-      })
-      .catch((paymentError) => {
-        // Handle errors (modal closed, payment failed, etc.)
-        // Only show error if modal actually closed (not redirect)
-        if (paymentError.message?.includes('cancelled') || paymentError.message?.includes('close')) {
-          console.log('💳 Payment cancelled by user');
-          setError('Payment was cancelled. Please try again.');
-          setLoading(false);
-          // Keep modal open so user can try again
-        } else {
-          console.error('❌ Payment error:', paymentError);
-          setError(`Payment failed: ${paymentError.message}`);
-          setLoading(false);
-        }
+        metadata: {
+          purpose: 'subscription',
+          subscription_plan: selectedPlan,
+          commissionRate: plan.commission,
+          productLimit: plan.limits.products,
+          analyticsLevel: plan.limits.analytics,
+          supportLevel: plan.limits.support,
+        },
+        description: `${plan.name} Plan Subscription`,
       });
-      
-      // Close subscription modal immediately - Flutterwave modal should now be open
-      // Clear loading state since modal is opening
-      console.log('💳 Flutterwave checkout modal opening...');
-      setLoading(false);
+
+      const redirectUrl = new URL(`${window.location.origin}/vendor`);
+      redirectUrl.searchParams.set('tab', 'billing');
+      redirectUrl.searchParams.set('payment', 'success');
+      redirectUrl.searchParams.set('plan', selectedPlan);
+      if (paymentResult?.reference) {
+        redirectUrl.searchParams.set('reference', paymentResult.reference);
+      }
+
       onClose();
+      window.location.href = redirectUrl.toString();
     } catch (error) {
-      console.error('Error upgrading subscription:', error);
-      setError(`Failed to upgrade subscription: ${error.message}`);
+      if (error?.message?.toLowerCase?.().includes('window closed')) {
+        setError('Payment window closed. Please try again.');
+      } else if (error?.message?.toLowerCase?.().includes('cancel')) {
+        setError('Payment was cancelled. Please try again.');
+      } else {
+        console.error('Error upgrading subscription:', error);
+        setError(`Failed to upgrade subscription: ${error.message}`);
+      }
     } finally {
       setLoading(false);
     }

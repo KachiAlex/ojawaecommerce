@@ -239,7 +239,6 @@ export const productService = {
           const duplicateSnapshot = await getDocs(duplicateQuery);
           
           if (!duplicateSnapshot.empty) {
-            const existingProduct = duplicateSnapshot.docs[0].data();
             throw new Error(`A product with the name "${productData.name}" already exists. Please use a different name or edit the existing product.`);
           }
         } catch (duplicateError) {
@@ -579,11 +578,13 @@ export const productService = {
       console.error('Error deleting product:', error);
       throw error;
     }
-  }
+  },
+
+  // ===============================
+  // ORDER OPERATIONS
+  // ===============================
 };
 
-// ===============================
-// ORDER OPERATIONS
 // ===============================
 
 export const orderService = {
@@ -1349,6 +1350,80 @@ export async function getOrderTransactions(orderId, userId) {
 // import googleMapsService from './googleMapsService'; // Disabled
 
 export const logisticsService = {
+  // Create logistics partner profile (used when applying)
+  async createProfile(profileData) {
+    try {
+      const docRef = await addDoc(collection(db, 'logistics_profiles'), {
+        ...profileData,
+        status: profileData?.status || 'pending',
+        verificationStatus: profileData?.verificationStatus || 'pending',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      return docRef.id;
+    } catch (error) {
+      console.error('Error creating logistics profile:', error)
+      throw error
+    }
+  },
+
+  async updateProfile(profileId, updates) {
+    try {
+      const profileRef = doc(db, 'logistics_profiles', profileId)
+      await updateDoc(profileRef, {
+        ...updates,
+        updatedAt: serverTimestamp()
+      })
+      return true
+    } catch (error) {
+      console.error('Error updating logistics profile:', error)
+      throw error
+    }
+  },
+
+  async getProfile(userId) {
+    try {
+      if (!userId) return null
+      const q = query(
+        collection(db, 'logistics_profiles'),
+        where('userId', '==', userId),
+        fsLimit(1)
+      )
+      const snapshot = await getDocs(q)
+      if (snapshot.empty) return null
+      const docSnap = snapshot.docs[0]
+      return { id: docSnap.id, ...docSnap.data() }
+    } catch (error) {
+      console.error('Error fetching logistics profile:', error)
+      throw error
+    }
+  },
+
+  async getProfileByUserId(userId) {
+    return this.getProfile(userId)
+  },
+
+  async getAllPartners() {
+    try {
+      const snapshot = await getDocs(collection(db, 'logistics_profiles'))
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+    } catch (error) {
+      console.error('Error fetching logistics partners:', error)
+      throw error
+    }
+  },
+
+  async getAvailablePartners(deliveryData) {
+    try {
+      const partners = await this.getAllPartners()
+      if (!Array.isArray(partners)) return []
+      return partners.filter(partner => partner.status === 'approved' || partner.status === 'active')
+    } catch (error) {
+      console.error('Error fetching available logistics partners:', error)
+      return []
+    }
+  },
+
   // Create logistics company
   async createCompany(companyData, ownerId) {
     try {
@@ -1595,21 +1670,30 @@ export const logisticsService = {
     }
   },
 
-  // Helper: Calculate average delivery time
-  calculateAverageDeliveryTime(deliveries) {
-    const completedDeliveries = deliveries.filter(d => 
-      d.status === 'delivered' && d.deliveredAt && d.pickedUpAt
+  // Helper: Calculate average delivery time (hours)
+  calculateAverageDeliveryTime(deliveries = []) {
+    const completedDeliveries = deliveries.filter(delivery =>
+      delivery?.status === 'delivered' && delivery.deliveredAt && (delivery.pickedUpAt || delivery.createdAt)
     );
 
-    if (completedDeliveries.length === 0) return 0;
+    if (completedDeliveries.length === 0) {
+      return 0;
+    }
 
-    const totalTime = completedDeliveries.reduce((sum, delivery) => {
-      const pickupTime = delivery.pickedUpAt?.toDate?.() || new Date(delivery.pickedUpAt);
+    const totalTimeMs = completedDeliveries.reduce((sum, delivery) => {
+      const pickupTime = delivery.pickedUpAt?.toDate?.()
+        || delivery.createdAt?.toDate?.()
+        || new Date(delivery.pickedUpAt || delivery.createdAt || 0);
       const deliveryTime = delivery.deliveredAt?.toDate?.() || new Date(delivery.deliveredAt);
-      return sum + (deliveryTime - pickupTime);
+      return sum + Math.max(0, deliveryTime - pickupTime);
     }, 0);
 
-    return Math.round(totalTime / completedDeliveries.length / (1000 * 60 * 60)); // Hours
+    return Math.round(totalTimeMs / completedDeliveries.length / (1000 * 60 * 60));
+  },
+
+  // Helper: Calculate average time for a specific route
+  calculateRouteAverageTime(deliveries = []) {
+    return this.calculateAverageDeliveryTime(deliveries);
   },
 
   // Helper: Get top performing routes
@@ -1637,873 +1721,37 @@ export const logisticsService = {
   getRoutePerformance(routes, deliveries) {
     return routes.map(route => {
       const routeDeliveries = deliveries.filter(d => d.routeId === route.id);
-      const completedDeliveries = routeDeliveries.filter(d => d.status === 'delivered');
-      
+      const averageTime = this.calculateRouteAverageTime(routeDeliveries);
       return {
         routeId: route.id,
         from: route.from,
         to: route.to,
-        status: route.status,
-        totalDeliveries: routeDeliveries.length,
-        completedDeliveries: completedDeliveries.length,
-        completionRate: routeDeliveries.length > 0 
-          ? (completedDeliveries.length / routeDeliveries.length) * 100 
-          : 0,
+        averageTime,
+        deliveries: routeDeliveries.length,
         revenue: routeDeliveries.reduce((sum, d) => sum + (d.price || 0), 0),
-        averageDeliveryTime: this.calculateRouteAverageTime(routeDeliveries)
+        completionRate: routeDeliveries.length > 0 
+          ? (routeDeliveries.filter(d => d.status === 'delivered').length / routeDeliveries.length) * 100
+          : 0
       };
     });
   },
 
-  // Helper: Calculate average time for a specific route
-  calculateRouteAverageTime(deliveries) {
-    const completedDeliveries = deliveries.filter(d => 
-      d.status === 'delivered' && d.deliveredAt && d.pickedUpAt
-    );
-
-    if (completedDeliveries.length === 0) return 0;
-
-    const totalTime = completedDeliveries.reduce((sum, delivery) => {
-      const pickupTime = delivery.pickedUpAt?.toDate?.() || new Date(delivery.pickedUpAt);
-      const deliveryTime = delivery.deliveredAt?.toDate?.() || new Date(delivery.deliveredAt);
-      return sum + (deliveryTime - pickupTime);
-    }, 0);
-
-    return Math.round(totalTime / completedDeliveries.length / (1000 * 60 * 60)); // Hours
-  },
-
-  // Create delivery
-  async createDelivery(deliveryData) {
+  // Add tracking event
+  async addTrackingEvent(deliveryId, eventData) {
     try {
-      const docRef = await addDoc(collection(db, 'deliveries'), {
-        ...deliveryData,
-        status: 'pending_pickup',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
-      return docRef.id;
-    } catch (error) {
-      console.error('Error creating delivery:', error);
-      throw error;
-    }
-  },
-
-  // Update delivery status
-  async updateDeliveryStatus(deliveryId, status, location = null) {
-    try {
-      const updateData = {
-        status,
-        updatedAt: serverTimestamp()
-      };
-      
-      if (location) {
-        updateData.currentLocation = location;
-      }
-      
-      // Add to tracking history
-      const trackingUpdate = {
-        status,
-        timestamp: serverTimestamp(),
-        location: location || 'Unknown'
-      };
-      
       const docRef = doc(db, 'deliveries', deliveryId);
+
       await updateDoc(docRef, {
-        ...updateData,
-        trackingHistory: [...(await getDoc(docRef)).data().trackingHistory || [], trackingUpdate]
-      });
-    } catch (error) {
-      console.error('Error updating delivery status:', error);
-      throw error;
-    }
-  },
-
-  // Create logistics partner profile
-  async createProfile(profileData) {
-    try {
-      const docRef = await addDoc(collection(db, 'logistics_profiles'), {
-        ...profileData,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
-      return docRef.id;
-    } catch (error) {
-      console.error('Error creating logistics profile:', error);
-      throw error;
-    }
-  },
-
-  // Get logistics profile by user ID
-  async getProfileByUserId(userId) {
-    try {
-      const q = query(
-        collection(db, 'logistics_profiles'),
-        where('userId', '==', userId)
-      );
-      const snapshot = await getDocs(q);
-      if (snapshot.empty) return null;
-      
-      const doc = snapshot.docs[0];
-      return {
-        id: doc.id,
-        ...doc.data()
-      };
-    } catch (error) {
-      console.error('Error getting logistics profile:', error);
-      throw error;
-    }
-  },
-
-  // Alias for getProfileByUserId for consistency
-  async getProfile(userId) {
-    return this.getProfileByUserId(userId);
-  },
-
-  // Update logistics profile
-  async updateProfile(profileId, updateData) {
-    try {
-      const profileRef = doc(db, 'logistics_profiles', profileId);
-      await updateDoc(profileRef, {
-        ...updateData,
-        updatedAt: serverTimestamp()
-      });
-    } catch (error) {
-      console.error('Error updating logistics profile:', error);
-      throw error;
-    }
-  },
-
-  // Get all logistics partners
-  async getAllPartners() {
-    try {
-      const q = query(
-        collection(db, 'logistics_profiles'),
-        orderBy('createdAt', 'desc')
-      );
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-    } catch (error) {
-      console.error('Error fetching logistics partners:', error);
-      throw error;
-    }
-  },
-
-  // Get available logistics partners for delivery
-  async getAvailablePartners(deliveryData) {
-    try {
-      const { pickupLocation, deliveryLocation, weight, distance } = deliveryData;
-      
-      const q = query(
-        collection(db, 'logistics_profiles'),
-        where('status', '==', 'approved'),
-        where('serviceAreas', 'array-contains-any', [pickupLocation, deliveryLocation])
-      );
-      
-      const snapshot = await getDocs(q);
-      const partners = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-
-      // Filter by weight and distance capabilities
-      return partners.filter(partner => 
-        partner.maxWeight >= weight && 
-        partner.maxDistance >= distance
-      );
-    } catch (error) {
-      console.error('Error fetching available partners:', error);
-      throw error;
-    }
-  },
-
-  // Get deliveries for logistics partner
-  async getDeliveriesByPartner(partnerId) {
-    try {
-      // Try with orderBy first (requires index)
-      const q = query(
-        collection(db, 'deliveries'),
-        where('logisticsPartnerId', '==', partnerId),
-        orderBy('createdAt', 'desc')
-      );
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-    } catch (error) {
-      // If index doesn't exist yet, try without orderBy and sort client-side
-      if (error.code === 'failed-precondition' && error.message.includes('index')) {
-        console.warn('Index not ready yet, fetching without orderBy and sorting client-side');
-        try {
-          const q = query(
-            collection(db, 'deliveries'),
-            where('logisticsPartnerId', '==', partnerId)
-          );
-          const snapshot = await getDocs(q);
-          const deliveries = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-          }));
-          
-          // Sort client-side by createdAt descending
-          return deliveries.sort((a, b) => {
-            const aTime = a.createdAt?.toDate?.() || new Date(a.createdAt || 0);
-            const bTime = b.createdAt?.toDate?.() || new Date(b.createdAt || 0);
-            return bTime - aTime;
-          });
-        } catch (fallbackError) {
-          console.error('Error fetching deliveries (fallback):', fallbackError);
-          return []; // Return empty array instead of throwing
-        }
-      }
-      console.error('Error fetching deliveries:', error);
-      throw error;
-    }
-  },
-
-  // Enhanced dynamic pricing calculation with Google Maps integration
-  async calculateCostWithMaps(partner, deliveryData) {
-    try {
-      const {
-        pickupLocation,
-        deliveryLocation,
-        weight = 1,
-        deliveryType = 'standard',
-        urgency = 'normal',
-        itemValue = 0,
-        isFragile = false,
-        requiresSignature = false,
-        timeOfDay = 'business'
-      } = deliveryData;
-
-      // Get optimized pricing using Google Maps - DISABLED
-      // Use fallback calculation instead
-      console.warn('Maps pricing unavailable, using fallback calculation');
-      return this.calculateCost(partner, deliveryData);
-
-      // Apply partner-specific adjustments
-      const partnerAdjustment = partner.priceAdjustment || 1.0;
-      const adjustedCost = Math.round(optimizedPricing.cost * partnerAdjustment);
-
-      return {
-        cost: adjustedCost,
-        routeAnalysis: optimizedPricing.routeAnalysis,
-        breakdown: {
-          ...optimizedPricing.breakdown,
-          partnerAdjustment,
-          finalCost: adjustedCost
+        trackingHistory: {
+          ...eventData,
+          timestamp: serverTimestamp()
         },
-        partner: {
-          id: partner.id,
-          name: partner.name,
-          adjustment: partnerAdjustment
-        }
-      };
-    } catch (error) {
-      console.error('Error calculating cost with Maps:', error);
-      // Fallback to legacy calculation
-      return this.calculateCost(partner, deliveryData);
-    }
-  },
-
-  // Legacy pricing calculation (fallback)
-  calculateCost(partner, deliveryData) {
-    const {
-      distance,
-      weight,
-      deliveryType = 'standard',
-      pickupLocation,
-      deliveryLocation,
-      urgency = 'normal',
-      itemValue = 0,
-      isFragile = false,
-      requiresSignature = false,
-      timeOfDay = 'business'
-    } = deliveryData;
-
-    // Base pricing components
-    const baseRate = partner.baseRate || 0;
-    const perKmRate = partner.perKmRate || 0;
-    
-    // Distance-based pricing with intracity optimization
-    let distanceCost = 0;
-    if (distance <= 5) {
-      // Intracity short distance (0-5km) - flat rate with small per-km
-      distanceCost = Math.max(baseRate, 500) + (distance * 50);
-    } else if (distance <= 15) {
-      // Intracity medium distance (5-15km) - standard per-km rate
-      distanceCost = baseRate + (distance * perKmRate);
-    } else if (distance <= 30) {
-      // Intracity long distance (15-30km) - premium rate
-      distanceCost = baseRate + (distance * perKmRate * 1.2);
-    } else {
-      // Intercity (30km+) - standard rate
-      distanceCost = baseRate + (distance * perKmRate);
-    }
-
-    // Weight-based pricing tiers
-    let weightMultiplier = 1;
-    if (weight <= 1) {
-      weightMultiplier = 0.8; // Light items discount
-    } else if (weight <= 5) {
-      weightMultiplier = 1; // Standard weight
-    } else if (weight <= 10) {
-      weightMultiplier = 1.3; // Heavy items
-    } else if (weight <= 20) {
-      weightMultiplier = 1.6; // Very heavy items
-    } else {
-      weightMultiplier = 2.0; // Oversized items
-    }
-
-    // Delivery type multipliers
-    const deliveryTypeMultipliers = {
-      'same_day': 2.5,
-      'express': 2.0,
-      'standard': 1.0,
-      'economy': 0.8,
-      'overnight': 1.5
-    };
-
-    // Urgency multipliers
-    const urgencyMultipliers = {
-      'urgent': 1.8,
-      'normal': 1.0,
-      'flexible': 0.9
-    };
-
-    // Time of day multipliers
-    const timeMultipliers = {
-      'business': 1.0,
-      'after_hours': 1.3,
-      'weekend': 1.2,
-      'holiday': 1.5
-    };
-
-    // Special service charges
-    let specialCharges = 0;
-    if (isFragile) specialCharges += 200; // Fragile handling fee
-    if (requiresSignature) specialCharges += 100; // Signature confirmation fee
-    if (itemValue > 10000) specialCharges += 300; // High-value insurance fee
-
-    // Route complexity analysis
-    let routeComplexityMultiplier = 1;
-    const isIntracity = this.isIntracityRoute(pickupLocation, deliveryLocation);
-    const isSameCity = this.isSameCity(pickupLocation, deliveryLocation);
-    
-    if (isIntracity) {
-      // Intracity routes get volume discounts
-      routeComplexityMultiplier = 0.9;
-    } else if (isSameCity) {
-      // Same city but different areas
-      routeComplexityMultiplier = 1.1;
-    } else {
-      // Intercity routes
-      routeComplexityMultiplier = 1.3;
-    }
-
-    // Calculate final cost
-    const baseCost = distanceCost * weightMultiplier;
-    const deliveryMultiplier = deliveryTypeMultipliers[deliveryType] || 1;
-    const urgencyMultiplier = urgencyMultipliers[urgency] || 1;
-    const timeMultiplier = timeMultipliers[timeOfDay] || 1;
-    
-    const finalCost = (baseCost * deliveryMultiplier * urgencyMultiplier * timeMultiplier * routeComplexityMultiplier) + specialCharges;
-
-    // Minimum and maximum cost limits
-    const minCost = 300; // Minimum ₦300
-    const maxCost = 50000; // Maximum ₦50,000
-
-    return Math.max(minCost, Math.min(maxCost, Math.round(finalCost)));
-  },
-
-  // Helper function to determine if route is intracity
-  isIntracityRoute(pickupLocation, deliveryLocation) {
-    if (!pickupLocation || !deliveryLocation) return false;
-    
-    // Extract city names (simple implementation)
-    const pickupCity = pickupLocation.split(',')[0].trim().toLowerCase();
-    const deliveryCity = deliveryLocation.split(',')[0].trim().toLowerCase();
-    
-    return pickupCity === deliveryCity;
-  },
-
-  // Helper function to determine if route is same city
-  isSameCity(pickupLocation, deliveryLocation) {
-    if (!pickupLocation || !deliveryLocation) return false;
-    
-    const pickupCity = pickupLocation.split(',')[0].trim().toLowerCase();
-    const deliveryCity = deliveryLocation.split(',')[0].trim().toLowerCase();
-    
-    return pickupCity === deliveryCity;
-  },
-
-  // Get dynamic pricing options for a route
-  async getPricingOptions(partner, deliveryData) {
-    const baseCost = this.calculateCost(partner, deliveryData);
-    
-    return {
-      standard: {
-        name: 'Standard Delivery',
-        cost: baseCost,
-        estimatedDays: partner.estimatedDeliveryDays || 2,
-        features: ['Regular handling', 'Standard tracking']
-      },
-      express: {
-        name: 'Express Delivery',
-        cost: Math.round(baseCost * 1.8),
-        estimatedDays: 1,
-        features: ['Priority handling', 'Real-time tracking', 'SMS notifications']
-      },
-      same_day: {
-        name: 'Same Day Delivery',
-        cost: Math.round(baseCost * 2.5),
-        estimatedDays: 0.5,
-        features: ['Immediate dispatch', 'Live tracking', 'Guaranteed delivery']
-      },
-      economy: {
-        name: 'Economy Delivery',
-        cost: Math.round(baseCost * 0.8),
-        estimatedDays: 3,
-        features: ['Standard handling', 'Basic tracking']
-      }
-    };
-  },
-
-  // Search products with enhanced functionality for Osoahia
-  async searchProducts(searchTerm, options = {}) {
-    try {
-      const { pageSize = 20, category, minPrice, maxPrice, sortBy = 'relevance' } = options;
-      
-      let q = query(collection(db, 'products'));
-      
-      // Add search filters
-      if (category) {
-        q = query(q, where('category', '==', category));
-      }
-      
-      if (minPrice !== undefined) {
-        q = query(q, where('price', '>=', minPrice));
-      }
-      
-      if (maxPrice !== undefined) {
-        q = query(q, where('price', '<=', maxPrice));
-      }
-      
-      // Add sorting
-      if (sortBy === 'price_low') {
-        q = query(q, orderBy('price', 'asc'));
-      } else if (sortBy === 'price_high') {
-        q = query(q, orderBy('price', 'desc'));
-      } else if (sortBy === 'newest') {
-        q = query(q, orderBy('createdAt', 'desc'));
-      } else if (sortBy === 'rating') {
-        q = query(q, orderBy('rating', 'desc'));
-      }
-      
-      const snapshot = await getDocs(q);
-      let products = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      
-      // Filter by search term if provided
-      if (searchTerm) {
-        const searchLower = searchTerm.toLowerCase();
-        products = products.filter(product => 
-          product.name.toLowerCase().includes(searchLower) ||
-          product.description.toLowerCase().includes(searchLower) ||
-          product.category.toLowerCase().includes(searchLower)
-        );
-      }
-      
-      return products.slice(0, pageSize);
-    } catch (error) {
-      console.error('Error searching products:', error);
-      return [];
-    }
-  },
-
-  // Get popular products for recommendations
-  async getPopular(options = {}) {
-    try {
-      const { pageSize = 10 } = options;
-      
-      // In a real app, this would be based on actual sales data
-      // For now, we'll return products with high ratings
-      let q = query(
-        collection(db, 'products'),
-        where('status', '==', 'active'),
-        where('rating', '>=', 4.0),
-        orderBy('rating', 'desc')
-      );
-      
-      const snapshot = await getDocs(q);
-      const products = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      
-      return products.slice(0, pageSize);
-    } catch (error) {
-      console.error('Error getting popular products:', error);
-      return [];
-    }
-  },
-
-  // Get trending products
-  async getTrending(options = {}) {
-    try {
-      const { pageSize = 10 } = options;
-      
-      // In a real app, this would be based on recent views/sales
-      // For now, we'll return recently created products
-      const q = query(
-        collection(db, 'products'),
-        where('status', '==', 'active'),
-        orderBy('createdAt', 'desc')
-      );
-      
-      const snapshot = await getDocs(q);
-      const products = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      
-      return products.slice(0, pageSize);
-    } catch (error) {
-      console.error('Error getting trending products:', error);
-      return [];
-    }
-  },
-
-  // Get featured products
-  async getFeatured(options = {}) {
-    try {
-      const { pageSize = 10 } = options;
-      
-      // Return a mix of popular and new products
-      const [popular, trending] = await Promise.all([
-        this.getPopular({ pageSize: Math.ceil(pageSize / 2) }),
-        this.getTrending({ pageSize: Math.floor(pageSize / 2) })
-      ]);
-      
-      // Combine and shuffle
-      const combined = [...popular, ...trending];
-      return combined.slice(0, pageSize);
-    } catch (error) {
-      console.error('Error getting featured products:', error);
-      return [];
-    }
-  },
-
-  // Get products by category
-  async getByCategory(category, options = {}) {
-    try {
-      const { pageSize = 20 } = options;
-      
-      const q = query(
-        collection(db, 'products'),
-        where('status', '==', 'active'),
-        where('category', '==', category),
-        orderBy('createdAt', 'desc')
-      );
-      
-      const snapshot = await getDocs(q);
-      const products = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      
-      return products.slice(0, pageSize);
-    } catch (error) {
-      console.error('Error getting products by category:', error);
-      return [];
-    }
-  },
-
-  // Get similar products
-  async getSimilar(productId, options = {}) {
-    try {
-      const { pageSize = 6 } = options;
-      
-      // Get the original product
-      const product = await this.getById(productId);
-      if (!product) return [];
-      
-      // Find similar products by category
-      const q = query(
-        collection(db, 'products'),
-        where('category', '==', product.category),
-        where('__name__', '!=', productId)
-      );
-      
-      const snapshot = await getDocs(q);
-      const products = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      
-      return products.slice(0, pageSize);
-    } catch (error) {
-      console.error('Error getting similar products:', error);
-      return [];
-    }
-  },
-
-  // Get all categories
-  async getCategories() {
-    try {
-      const q = query(
-        collection(db, 'products'),
-        where('isActive', '==', true)
-      );
-      
-      const snapshot = await getDocs(q);
-      const categories = new Set();
-      
-      snapshot.docs.forEach(doc => {
-        const data = doc.data();
-        if (data.category) {
-          categories.add(data.category);
-        }
-      });
-      
-      return Array.from(categories).sort();
-    } catch (error) {
-      console.error('Error fetching categories:', error);
-      return [];
-    }
-  },
-
-  // Get delivery analytics
-  async getAnalytics(partnerId, startDate, endDate) {
-    try {
-      // Try with date range filters (requires index)
-      const q = query(
-        collection(db, 'deliveries'),
-        where('logisticsPartnerId', '==', partnerId),
-        where('createdAt', '>=', startDate),
-        where('createdAt', '<=', endDate)
-      );
-      
-      const snapshot = await getDocs(q);
-      const deliveries = snapshot.docs.map(doc => doc.data());
-      
-      const analytics = {
-        totalDeliveries: deliveries.length,
-        completedDeliveries: deliveries.filter(d => d.status === 'delivered').length,
-        pendingDeliveries: deliveries.filter(d => d.status === 'pending').length,
-        inTransitDeliveries: deliveries.filter(d => d.status === 'in_transit').length,
-        totalEarnings: deliveries
-          .filter(d => d.status === 'delivered')
-          .reduce((sum, d) => sum + (d.amount || 0), 0),
-        averageDeliveryTime: this.calculateAverageDeliveryTime(deliveries)
-      };
-      
-      return analytics;
-    } catch (error) {
-      // If index doesn't exist yet, try without date range and filter client-side
-      if (error.code === 'failed-precondition' && error.message.includes('index')) {
-        console.warn('Analytics index not ready yet, fetching without date filters and filtering client-side');
-        try {
-          const q = query(
-            collection(db, 'deliveries'),
-            where('logisticsPartnerId', '==', partnerId)
-          );
-          
-          const snapshot = await getDocs(q);
-          const allDeliveries = snapshot.docs.map(doc => doc.data());
-          
-          // Filter by date range client-side
-          const deliveries = allDeliveries.filter(delivery => {
-            const createdAt = delivery.createdAt?.toDate?.() || new Date(delivery.createdAt || 0);
-            return createdAt >= startDate && createdAt <= endDate;
-          });
-          
-          const analytics = {
-            totalDeliveries: deliveries.length,
-            completedDeliveries: deliveries.filter(d => d.status === 'delivered').length,
-            pendingDeliveries: deliveries.filter(d => d.status === 'pending').length,
-            inTransitDeliveries: deliveries.filter(d => d.status === 'in_transit').length,
-            totalEarnings: deliveries
-              .filter(d => d.status === 'delivered')
-              .reduce((sum, d) => sum + (d.amount || 0), 0),
-            averageDeliveryTime: this.calculateAverageDeliveryTime(deliveries)
-          };
-          
-          return analytics;
-        } catch (fallbackError) {
-          console.error('Error fetching analytics (fallback):', fallbackError);
-          // Return empty analytics instead of throwing
-          return {
-            totalDeliveries: 0,
-            completedDeliveries: 0,
-            pendingDeliveries: 0,
-            inTransitDeliveries: 0,
-            totalEarnings: 0,
-            averageDeliveryTime: 0
-          };
-        }
-      }
-      console.error('Error fetching analytics:', error);
-      throw error;
-    }
-  },
-
-  calculateAverageDeliveryTime(deliveries) {
-    const completedDeliveries = deliveries.filter(d => 
-      d.status === 'delivered' && d.deliveredAt && d.createdAt
-    );
-    
-    if (completedDeliveries.length === 0) return 0;
-    
-    const totalHours = completedDeliveries.reduce((sum, delivery) => {
-      const created = delivery.createdAt.toDate();
-      const delivered = delivery.deliveredAt.toDate();
-      return sum + (delivered - created) / (1000 * 60 * 60); // Convert to hours
-    }, 0);
-    
-    return totalHours / completedDeliveries.length;
-  },
-
-  // Get enhanced logistics partners with route analysis
-  async getEnhancedLogisticsPartners(pickupLocation, deliveryLocation, deliveryData = {}) {
-    try {
-      // Get nearby logistics partners - DISABLED
-      // const nearbyPartners = await googleMapsService.getNearbyLogisticsPartners(pickupLocation);
-      const nearbyPartners = []; // Fallback to empty array
-      
-      // Calculate pricing for each partner
-      const partnersWithPricing = await Promise.all(
-        nearbyPartners.map(async (partner) => {
-          try {
-            const pricing = await this.calculateCostWithMaps(partner, {
-              pickupLocation,
-              deliveryLocation,
-              ...deliveryData
-            });
-            
-            // Safely access route analysis properties
-            const routeAnalysis = pricing?.routeAnalysis || {};
-            const duration = routeAnalysis.duration || {};
-            const distance = routeAnalysis.distance || {};
-            
-            return {
-              ...partner,
-              pricing,
-              estimatedDelivery: duration.text || 'Calculating...',
-              routeType: routeAnalysis.routeType || 'standard',
-              distance: distance.text || 'N/A'
-            };
-          } catch (error) {
-            console.error(`Error calculating pricing for partner ${partner.id}:`, error);
-            return {
-              ...partner,
-              pricing: { cost: 0, error: 'Pricing unavailable' },
-              estimatedDelivery: 'N/A',
-              routeType: 'unknown',
-              distance: 'N/A'
-            };
-          }
-        })
-      );
-
-      // Sort by cost and rating
-      return partnersWithPricing.sort((a, b) => {
-        if (a.pricing.error || b.pricing.error) return 0;
-        const costA = a.pricing.cost;
-        const costB = b.pricing.cost;
-        const ratingA = a.rating || 0;
-        const ratingB = b.rating || 0;
-        
-        // Primary sort by cost, secondary by rating
-        if (costA !== costB) return costA - costB;
-        return ratingB - ratingA;
-      });
-    } catch (error) {
-      console.error('Error getting enhanced logistics partners:', error);
-      throw error;
-    }
-  },
-
-  // Create delivery with enhanced route analysis
-  async createDeliveryWithAnalysis(deliveryData) {
-    try {
-      const {
-        pickupLocation,
-        deliveryLocation,
-        orderId,
-        buyerId,
-        vendorId,
-        logisticsPartnerId,
-        ...otherData
-      } = deliveryData;
-
-      // Analyze route - DISABLED
-      // const routeAnalysis = await googleMapsService.analyzeRouteType(pickupLocation, deliveryLocation);
-      const routeAnalysis = { type: 'standard', difficulty: 'normal' }; // Fallback
-      
-      // Create delivery record with route analysis
-      const docRef = await addDoc(collection(db, 'deliveries'), {
-        ...otherData,
-        orderId,
-        buyerId,
-        vendorId,
-        logisticsPartnerId,
-        pickupLocation,
-        deliveryLocation,
-        routeAnalysis: {
-          routeType: routeAnalysis.routeType,
-          distance: routeAnalysis.distance,
-          duration: routeAnalysis.duration,
-          isSameCity: routeAnalysis.isSameCity,
-          isSameState: routeAnalysis.isSameState,
-          distanceKm: routeAnalysis.distanceKm,
-          pickupCoordinates: routeAnalysis.pickup,
-          deliveryCoordinates: routeAnalysis.delivery
-        },
-        status: 'pending_pickup',
-        createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
-
-      return docRef.id;
-    } catch (error) {
-      console.error('Error creating delivery with analysis:', error);
-      throw error;
-    }
-  },
-
-  // Update delivery status with location tracking
-  async updateDeliveryStatus(deliveryId, status, locationData = null) {
-    try {
-      const deliveryRef = doc(db, 'deliveries', deliveryId);
-      const updateData = {
-        status,
-        updatedAt: serverTimestamp()
-      };
-
-      if (locationData) {
-        updateData.currentLocation = locationData;
-        updateData.lastLocationUpdate = serverTimestamp();
-      }
-
-      await updateDoc(deliveryRef, updateData);
       
-      // Log status change
-      await addDoc(collection(db, 'delivery_status_logs'), {
-        deliveryId,
-        status,
-        location: locationData,
-        timestamp: serverTimestamp()
-      });
-
-      return true;
+      return { success: true };
     } catch (error) {
-      console.error('Error updating delivery status:', error);
+      console.error('Error adding tracking event:', error);
       throw error;
     }
   }
@@ -2591,11 +1839,7 @@ export const deliveriesService = {
   async addTrackingEvent(deliveryId, eventData) {
     try {
       const docRef = doc(db, 'deliveries', deliveryId);
-      const trackingEvent = {
-        ...eventData,
-        timestamp: serverTimestamp()
-      };
-      
+
       await updateDoc(docRef, {
         trackingHistory: {
           ...eventData,
@@ -3948,6 +3192,14 @@ export const notifications = {
 // MESSAGING OPERATIONS
 // ===============================
 
+const messagingStorageHelper = {
+  async uploadFile(file, storagePath) {
+    const storageRef = ref(storage, storagePath);
+    await uploadBytes(storageRef, file);
+    return getDownloadURL(storageRef);
+  }
+};
+
 export const messagingService = {
   // Create a new conversation
   async createConversation(conversationData) {
@@ -4143,7 +3395,7 @@ export const messagingService = {
     try {
       // Upload file to Firebase Storage
       const fileName = `messages/${conversationId}/${Date.now()}-${file.name}`;
-      const downloadURL = await firebaseService.storage.uploadFile(file, fileName);
+      const downloadURL = await messagingStorageHelper.uploadFile(file, fileName);
       
       // Create message with file attachment
       return await this.sendMessage({
@@ -4218,7 +3470,7 @@ export const authService = {
   },
 
   // Disable 2FA
-  async disable2FA(userId, password) {
+  async disable2FA(userId) {
     try {
       await updateDoc(doc(db, 'users', userId), {
         twoFactorEnabled: false,
@@ -4344,7 +3596,7 @@ export const fraudService = {
   },
 
   // Check location risk
-  async checkLocationRisk(buyerId, vendorId) {
+  async checkLocationRisk() {
     try {
       // In a real implementation, this would check IP geolocation
       // For demo purposes, we'll return a random risk score
@@ -4744,7 +3996,6 @@ export const referralService = {
       
       // Update referrer's stats
       const referrerRef = doc(db, 'users', referrerId);
-      const referrerData = referrerDoc.data();
       await updateDoc(referrerRef, {
         totalReferrals: increment(1),
         updatedAt: serverTimestamp()

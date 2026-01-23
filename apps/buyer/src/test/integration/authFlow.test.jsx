@@ -2,7 +2,7 @@
  * Integration Tests for Authentication Flow
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 
 describe('Authentication Flow Integration Tests', () => {
   describe('Registration Flow', () => {

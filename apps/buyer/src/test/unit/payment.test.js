@@ -2,16 +2,14 @@
  * Unit Tests for Payment Components
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 
 describe('Payment Unit Tests', () => {
   describe('Payment Service', () => {
-    it('should not expose secret keys in client', () => {
-      const config = import('../../config/env')
-      return config.then(({ config: envConfig }) => {
-        // Secret key should not be accessible in client
-        expect(envConfig.payments.flutterwave.secretKey).toBeUndefined()
-      })
+    it('should not expose secret keys in client', async () => {
+      const { config: envConfig } = await import('../../config/env.js')
+      // Secret key should not be accessible in client
+      expect(envConfig.payments?.paystack?.secretKey).toBeUndefined()
     })
 
     it('should validate payment amounts', () => {
@@ -42,8 +40,8 @@ describe('Payment Unit Tests', () => {
 
   describe('Payment Validation', () => {
     it('should validate payment method', () => {
-      const validMethods = ['flutterwave', 'stripe', 'wallet']
-      const invalidMethods = ['cash', 'bitcoin', 'invalid']
+      const validMethods = ['paystack', 'stripe', 'wallet']
+      const invalidMethods = ['cash', 'bitcoin', 'flutterwave']
 
       validMethods.forEach(method => {
         expect(validMethods.includes(method)).toBe(true)
@@ -55,16 +53,15 @@ describe('Payment Unit Tests', () => {
     })
 
     it('should validate transaction reference format', () => {
-      const validRef = 'FLW-1234567890'
+      const validRef = 'PSK-1234567890'
       const invalidRefs = ['', null, undefined, 'short']
 
-      expect(validRef.length).toBeGreaterThan(5)
+      expect(validRef).toMatch(/^PSK-[0-9]{10}$/)
       invalidRefs.forEach(ref => {
-        // Check if ref is invalid (falsy or too short)
-        if (ref === null || ref === undefined || ref === '') {
+        if (!ref) {
           expect(ref).toBeFalsy()
-        } else if (typeof ref === 'string') {
-          expect(ref.length).toBeLessThanOrEqual(5)
+        } else {
+          expect(/^PSK-[0-9]{10}$/.test(ref)).toBe(false)
         }
       })
     })

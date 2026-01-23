@@ -10,10 +10,10 @@ import {
   getDocs,
   serverTimestamp,
   limit,
-  startAfter,
   writeBatch
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
+import firebaseService from './firebaseService';
 
 // Messaging service for buyer-vendor communication
 export const messagingService = {

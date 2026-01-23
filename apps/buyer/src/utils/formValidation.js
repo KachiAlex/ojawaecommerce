@@ -1,3 +1,5 @@
+import { useState } from 'react'
+
 // Form validation utilities
 export const validators = {
   // Required field validation
@@ -39,8 +41,8 @@ export const validators = {
   // Phone number validation (international format)
   phone: (value) => {
     if (!value) return null
-    const phoneRegex = /^[\+]?[1-9][\d]{0,15}$/
-    if (!phoneRegex.test(value.replace(/[\s\-\(\)]/g, ''))) {
+    const phoneRegex = /^\+?[1-9][\d]{0,15}$/
+    if (!phoneRegex.test(value.replace(/[\s()-]/g, ''))) {
       return 'Please enter a valid phone number'
     }
     return null
@@ -117,7 +119,7 @@ export const validators = {
     if (!value) return null
     const birthDate = new Date(value)
     const today = new Date()
-    const age = today.getFullYear() - birthDate.getFullYear()
+    let age = today.getFullYear() - birthDate.getFullYear()
     const monthDiff = today.getMonth() - birthDate.getMonth()
     
     if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
@@ -133,9 +135,9 @@ export const validators = {
 
 // Form validation hook
 export const useFormValidation = (initialValues = {}, validationRules = {}) => {
-  const [values, setValues] = React.useState(initialValues)
-  const [errors, setErrors] = React.useState({})
-  const [touched, setTouched] = React.useState({})
+  const [values, setValues] = useState(initialValues)
+  const [errors, setErrors] = useState({})
+  const [touched, setTouched] = useState({})
 
   const validateField = (name, value) => {
     const rules = validationRules[name] || []

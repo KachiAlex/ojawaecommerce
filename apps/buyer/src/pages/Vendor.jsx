@@ -1,9 +1,10 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useState, useEffect, useMemo, useCallback, lazy, Suspense, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useMessaging } from '../contexts/MessagingContext';
 import firebaseService from '../services/firebaseService';
 import { getVendorDataOptimized } from '../services/optimizedFirebaseService';
+import { createSubscriptionRecord } from '../utils/paystack';
 import WalletManager from '../components/WalletManager';
 import VendorOrdersFilterBar from '../components/VendorOrdersFilterBar';
 import VendorOrderDetailsModal from '../components/VendorOrderDetailsModal';
@@ -26,6 +27,12 @@ const VendorAnalyticsDashboard = lazy(() => import('../components/VendorAnalytic
 // const VendorProductManager = lazy(() => import('../components/VendorProductManager'));
 
 // Vendor Messages Tab Component
+const planDetails = {
+  basic: { price: 0, commission: 5.0, productLimit: 50, analytics: 'basic', support: 'email' },
+  pro: { price: 5000, commission: 3.0, productLimit: 500, analytics: 'advanced', support: 'priority' },
+  premium: { price: 15000, commission: 2.0, productLimit: -1, analytics: 'premium', support: 'dedicated' }
+};
+
 const VendorMessagesTabContent = ({
   currentUser,
   conversations,
@@ -183,36 +190,36 @@ const VendorMessagesTabContent = ({
                 if (!conv || typeof conv !== 'object') return null;
                 const convId = typeof conv.id === 'string' ? conv.id : String(conv?.id || Math.random());
                 return (
-                <li key={convId}>
-                  <button
-                    onClick={() => setActiveConversation(conv)}
-                    className={`w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-gray-100 transition ${
-                      activeConversation?.id === convId ? 'bg-emerald-50 border-l-4 border-emerald-600' : ''
-                    }`}
-                  >
-                    <div className="shrink-0 w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700">
-                      💬
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between">
-                        <div className="font-medium text-gray-900 truncate">Conversation</div>
-                        {conv.updatedAt && (
-                          <div className="text-xs text-gray-500">
-                            {new Date(conv.updatedAt.toDate?.() || conv.updatedAt).toLocaleDateString()}
-                          </div>
-                        )}
+                  <li key={convId}>
+                    <button
+                      onClick={() => setActiveConversation(conv)}
+                      className={`w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-gray-100 transition ${
+                        activeConversation?.id === convId ? 'bg-emerald-50 border-l-4 border-emerald-600' : ''
+                      }`}
+                    >
+                      <div className="shrink-0 w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700">
+                        💬
                       </div>
-                      <div className="text-sm text-gray-600 truncate">
-                        {typeof conv.lastMessage?.content === 'string' ? conv.lastMessage.content : 'Tap to start chatting'}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between">
+                          <div className="font-medium text-gray-900 truncate">Conversation</div>
+                          {conv.updatedAt && (
+                            <div className="text-xs text-gray-500">
+                              {new Date(conv.updatedAt.toDate?.() || conv.updatedAt).toLocaleDateString()}
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-sm text-gray-600 truncate">
+                          {typeof conv.lastMessage?.content === 'string' ? conv.lastMessage.content : 'Tap to start chatting'}
+                        </div>
                       </div>
-                    </div>
-                    {typeof conv.unreadCount === 'number' && conv.unreadCount > 0 && (
-                      <span className="ml-2 bg-emerald-600 text-white text-xs rounded-full h-5 px-2 flex items-center justify-center">
-                        {conv.unreadCount}
-                      </span>
-                    )}
-                  </button>
-                </li>
+                      {typeof conv.unreadCount === 'number' && conv.unreadCount > 0 && (
+                        <span className="ml-2 bg-emerald-600 text-white text-xs rounded-full h-5 px-2 flex items-center justify-center">
+                          {conv.unreadCount}
+                        </span>
+                      )}
+                    </button>
+                  </li>
                 );
               })}
             </ul>
@@ -329,7 +336,6 @@ const Vendor = () => {
     markAsRead,
     unreadCount,
     loading: messagesLoading,
-    startConversation,
   } = useMessaging();
 
   // Redirect to login if not authenticated
@@ -347,41 +353,15 @@ const Vendor = () => {
   }, [currentUser, authLoading, navigate]);
 
   const [activeTab, setActiveTab] = useState('overview');
-  const [showAddProductForm, setShowAddProductForm] = useState(false);
-  const [orders, setOrders] = useState([]);
-  const [products, setProducts] = useState([]);
   const [ordersCursor, setOrdersCursor] = useState(null);
-  const [productsCursor, setProductsCursor] = useState(null);
   const [ordersCount, setOrdersCount] = useState(0);
-  const [productsCount, setProductsCount] = useState(0);
   const [ordersPages, setOrdersPages] = useState([]);
-  const [productsPages, setProductsPages] = useState([]);
   const [ordersPageIndex, setOrdersPageIndex] = useState(0);
-  const [productsPageIndex, setProductsPageIndex] = useState(0);
-  const pageSize = 10;
-  const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ status: '', buyer: '', from: '', to: '' });
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [isOrderDetailsOpen, setIsOrderDetailsOpen] = useState(false);
   const [isShipOpen, setIsShipOpen] = useState(false);
-  const [editorOpen, setEditorOpen] = useState(false);
-  const [editingProduct, setEditingProduct] = useState(null);
-  const [disputes, setDisputes] = useState([]);
-  const [disputesCursor, setDisputesCursor] = useState(null);
-  const [disputesPages, setDisputesPages] = useState([]);
-  const [disputesPageIndex, setDisputesPageIndex] = useState(0);
-  const [disputesCount, setDisputesCount] = useState(0);
-  const [loadingDisputesNext, setLoadingDisputesNext] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState({ open: false, product: null });
-  const [uploadProgress, setUploadProgress] = useState(null);
-  const [updatingProductId, setUpdatingProductId] = useState(null);
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-  const [deletingProductId, setDeletingProductId] = useState(null);
-  const [productStatusFilter, setProductStatusFilter] = useState('all');
-  const [upgradeSuccessBanner, setUpgradeSuccessBanner] = useState(null);
-  const processingUpgradeRef = useRef(false); // Prevent duplicate upgrade processing
-  // Logistics modal state removed - logistics partners work independently
 
   // Load only essential data first for fast initial load
   const fetchInitialData = useCallback(async () => {
@@ -394,55 +374,11 @@ const Vendor = () => {
       const vendorData = await getVendorDataOptimized(currentUser.uid, 'overview');
       
       setOrdersCount(vendorData.ordersCount);
-      setProductsCount(vendorData.productsCount);
-      setStats(vendorData.stats);
-      
-      // Also load products and orders arrays for overview tab to display accurate data
-      // Load in parallel for better performance
-      console.log('📊 Initial load: Fetching products and orders arrays for overview...');
-      try {
-        const [productsData, ordersDataResult] = await Promise.all([
-          firebaseService.products.getByVendor(currentUser.uid).catch(err => {
-            console.warn('⚠️ Error loading products for overview:', err);
-            // Try fallback with email if vendorId query fails
-            if (currentUser.email) {
-              return firebaseService.products.getByVendorEmail(currentUser.email).catch(() => []);
-            }
-            return [];
-          }),
-          getVendorDataOptimized(currentUser.uid, 'orders').catch(err => {
-            console.warn('⚠️ Error loading orders for overview:', err);
-            return { orders: [] };
-          })
-        ]);
-        
-        // Set products (always set, even if empty, so overview displays correct count)
-        if (Array.isArray(productsData)) {
-          setProducts(productsData);
-          setProductsCount(productsData.length);
-          console.log('✅ Initial load: Loaded', productsData.length, 'products');
-        }
-        
-        // Set orders (handle the structure from getVendorDataOptimized)
-        const ordersArray = ordersDataResult?.orders || (Array.isArray(ordersDataResult) ? ordersDataResult : []);
-        if (Array.isArray(ordersArray)) {
-          setOrders(ordersArray);
-          setOrdersCount(ordersArray.length);
-          if (ordersDataResult?.lastDoc) {
-            setOrdersCursor(ordersDataResult.lastDoc);
-          }
-          console.log('✅ Initial load: Loaded', ordersArray.length, 'orders');
-        }
-        
-        console.log('✅ Initial load complete: Products:', productsData?.length || 0, 'Orders:', ordersArray?.length || 0);
-      } catch (loadError) {
-        console.error('❌ Error loading products/orders for overview:', loadError);
-        // Continue with counts from optimized service - arrays remain empty but counts are set
-      }
+      setOrdersPages([{ items: vendorData.orders, cursor: vendorData.lastDoc }]);
+      setOrdersPageIndex(0);
       
     } catch (error) {
       console.error('Error loading initial vendor data:', error);
-      setStats({ totalSales: 0, activeOrders: 0 });
     } finally {
       setLoading(false);
     }
@@ -454,46 +390,15 @@ const Vendor = () => {
 
     try {
       switch (tab) {
-        case 'store':
-          // Always load products when store tab is clicked, so VendorStoreManager has them
-          console.log('📦 Store tab clicked, loading ALL products...');
-          try {
-            // Try to get ALL products (non-paged) first
-            const allProducts = await firebaseService.products.getByVendor(currentUser.uid);
-            console.log('📦 Store tab: Loaded all products:', allProducts.length);
-            if (allProducts.length > 0) {
-              setProducts(allProducts);
-              setProductsCursor(null);
-              setProductsPages([{ items: allProducts, cursor: null }]);
-              setProductsPageIndex(0);
-              setProductsCount(allProducts.length);
-            } else if (currentUser.email) {
-              // Try email fallback
-              const emailProducts = await firebaseService.products.getByVendorEmail(currentUser.email);
-              console.log('📦 Store tab: Loaded products by email:', emailProducts.length);
-              if (emailProducts.length > 0) {
-                setProducts(emailProducts);
-                setProductsCursor(null);
-                setProductsPages([{ items: emailProducts, cursor: null }]);
-                setProductsPageIndex(0);
-                setProductsCount(emailProducts.length);
-              }
-            }
-          } catch (error) {
-            console.error('❌ Error loading products for store tab:', error);
-          }
-          break;
-        case 'orders':
-          if (orders.length === 0) {
+        case 'orders': {
+          if (ordersPages.length === 0) {
             const ordersData = await getVendorDataOptimized(currentUser.uid, 'orders');
-            setOrders(ordersData.orders);
-            setOrdersCursor(ordersData.lastDoc);
             setOrdersPages([{ items: ordersData.orders, cursor: ordersData.lastDoc }]);
-      setOrdersPageIndex(0);
+            setOrdersPageIndex(0);
           }
           break;
-          
-        case 'products':
+        }
+        case 'products': {
           // Always reload products when products tab is accessed to ensure fresh data
           console.log('📦 Loading products for vendor:', currentUser.uid);
           console.log('📦 Current user email:', currentUser.email);
@@ -695,7 +600,7 @@ const Vendor = () => {
             setProductsPageIndex(0);
           }
           break;
-          
+        }
         case 'disputes':
           if (disputes.length === 0) {
             const disputesPage = await firebaseService.disputes.getByVendorPaged({ 
@@ -796,27 +701,6 @@ const Vendor = () => {
     }
   }, [activeTab, currentUser, loadTabData]); // Always refresh when tab changes
 
-  // Derived product filters and counts
-  const safeProducts = Array.isArray(products) ? products : [];
-  const productCountsByStatus = useMemo(() => {
-    const counts = { all: safeProducts.length, pending: 0, active: 0, rejected: 0, outofstock: 0, draft: 0 };
-    safeProducts.forEach(p => {
-      const status = (p.status || '').toLowerCase();
-      if (status === 'pending') counts.pending += 1;
-      else if (status === 'active') counts.active += 1;
-      else if (status === 'rejected') counts.rejected += 1;
-      else if (status === 'out of stock') counts.outofstock += 1;
-      else if (status === 'draft') counts.draft += 1;
-    });
-    return counts;
-  }, [safeProducts]);
-
-  const displayedProducts = useMemo(() => {
-    if (productStatusFilter === 'all') return safeProducts;
-    if (productStatusFilter === 'outofstock') return safeProducts.filter(p => (p.status || '').toLowerCase() === 'out of stock');
-    return safeProducts.filter(p => (p.status || '').toLowerCase() === productStatusFilter);
-  }, [safeProducts, productStatusFilter]);
-
   // Removed real-time listeners for better performance
   // Data will be refreshed when user switches tabs or manually refreshes
 
@@ -905,18 +789,29 @@ const Vendor = () => {
       // Process upgrade immediately
       (async () => {
         try {
-          console.log('🚀 UPGRADE FLOW: Starting subscription upgrade for', plan);
+          const reference =
+            urlParams.get('reference') ||
+            urlParams.get('paystack_reference') ||
+            urlParams.get('paystack_ref');
+
+          console.log('🚀 UPGRADE FLOW: Starting subscription upgrade for', plan, 'ref:', reference);
           
-          // Plan configuration
-              const planDetails = {
-                basic: { price: 0, commission: 5.0, productLimit: 50, analytics: 'basic', support: 'email' },
-                pro: { price: 5000, commission: 3.0, productLimit: 500, analytics: 'advanced', support: 'priority' },
-                premium: { price: 15000, commission: 2.0, productLimit: -1, analytics: 'premium', support: 'dedicated' }
-              };
-              
               const selectedPlan = planDetails[plan] || planDetails.basic;
               
-          // STEP 1: Update user profile FIRST (most important)
+          // STEP 1: Verify payment and create subscription record in backend
+          if (reference) {
+            try {
+              await createSubscriptionRecord({ reference, plan });
+              console.log('✅ Paystack subscription record verified');
+            } catch (recordError) {
+              console.error('❌ Failed to verify subscription with Paystack reference:', recordError);
+              throw recordError;
+            }
+          } else {
+            console.warn('⚠️ No Paystack reference found in URL; skipping server verification');
+          }
+
+          // STEP 2: Update user profile to reflect new subscription locally
           const profileUpdates = {
             subscriptionPlan: plan,
             subscriptionStatus: 'active',
@@ -928,34 +823,11 @@ const Vendor = () => {
             supportLevel: selectedPlan.support
           };
           
-          console.log('📝 Step 1: Updating user profile...');
+          console.log('📝 Step 2: Updating user profile...');
           
           // Update context (this also updates Firebase)
           await updateUserProfile(profileUpdates);
           console.log('✅ Profile updated in Firebase and context');
-          
-          // STEP 2: Try to create subscription record (non-critical)
-          const txRef = urlParams.get('tx_ref') || urlParams.get('transaction_id') || urlParams.get('flw_ref');
-          if (txRef) {
-            try {
-              const flutterwaveSubscription = await import('../utils/flutterwaveSubscription').then(m => m.default);
-              await flutterwaveSubscription.createSubscriptionRecord(
-                { transactionId: txRef, txRef: txRef },
-                {
-                  userId: currentUser.uid,
-                  plan: plan,
-                  price: selectedPlan.price,
-                  commissionRate: selectedPlan.commission,
-                  productLimit: selectedPlan.productLimit,
-                  analyticsLevel: selectedPlan.analytics,
-                  supportLevel: selectedPlan.support
-                }
-              );
-              console.log('✅ Subscription record created');
-            } catch (subError) {
-              console.warn('⚠️ Subscription record creation failed (non-critical):', subError);
-            }
-          }
           
           // STEP 3: Show success banner
           setUpgradeSuccessBanner({
@@ -1225,6 +1097,137 @@ const Vendor = () => {
     });
   }, [orders, filters]);
 
+  const ordersList = Array.isArray(filteredOrders) ? filteredOrders : [];
+
+  const formatOrderDate = (order) => {
+    const orderDate = order.createdAt?.toDate
+      ? order.createdAt.toDate()
+      : order.date
+        ? new Date(order.date)
+        : null;
+
+    if (!orderDate || Number.isNaN(orderDate.getTime())) {
+      return {
+        formattedDate: 'N/A',
+        formattedTime: ''
+      };
+    }
+
+    return {
+      formattedDate: orderDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      formattedTime: orderDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+    };
+  };
+
+  const renderStatusPill = (order) => {
+    const statusClass =
+      order.statusColor ||
+      (order.status === 'completed'
+        ? 'bg-green-100 text-green-800'
+        : order.status === 'escrow_funded'
+          ? 'bg-yellow-100 text-yellow-800'
+          : order.status === 'shipped'
+            ? 'bg-blue-100 text-blue-800'
+            : 'bg-gray-100 text-gray-800');
+
+    return (
+      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusClass}`}>
+        {order.status}
+      </span>
+    );
+  };
+
+  const renderOrderActions = (order, className = 'flex flex-col gap-2') => (
+    <div className={className}>
+      <button onClick={() => openOrderDetails(order)} className="text-emerald-600 hover:text-emerald-700 font-medium text-left">
+        View Details
+      </button>
+      {order.status === 'escrow_funded' && (
+        <button
+          onClick={async () => {
+            try {
+              await firebaseService.orders.updateStatus(order.id, 'processing', { vendorStartedAt: new Date() });
+              await firebaseService.notifications.create({
+                userId: order.buyerId,
+                type: 'order_processing',
+                title: 'Order is Being Processed',
+                message: `Your order #${order.id.slice(-8)} is now being processed by the vendor.`,
+                orderId: order.id,
+                read: false
+              });
+              await loadTabData('products');
+              alert('Order moved to Processing');
+            } catch (err) {
+              console.error('Failed to update order', err);
+              alert('Failed to update order status');
+            }
+          }}
+          className="text-blue-600 hover:text-blue-700 font-medium text-left"
+        >
+          Start Processing
+        </button>
+      )}
+      {order.status === 'processing' && (
+        <button
+          onClick={async () => {
+            try {
+              await firebaseService.orders.updateStatus(order.id, 'ready_for_shipment', { readyForShipmentAt: new Date() });
+              await firebaseService.notifications.create({
+                userId: order.buyerId,
+                type: 'order_ready',
+                title: 'Order Ready for Shipment',
+                message: `Your order #${order.id.slice(-8)} is ready for pickup by logistics.`,
+                orderId: order.id,
+                read: false
+              });
+              if (order.logisticsCompanyId) {
+                await firebaseService.notifications.create({
+                  userId: order.logisticsCompanyId,
+                  type: 'pickup_required',
+                  title: 'Pickup Required',
+                  message: `Order #${order.id.slice(-8)} is ready for pickup from vendor.`,
+                  orderId: order.id,
+                  read: false
+                });
+              }
+              await loadTabData('products');
+              alert('Order ready for shipment');
+            } catch (err) {
+              console.error('Failed to update order', err);
+              alert('Failed to update order status');
+            }
+          }}
+          className="text-purple-600 hover:text-purple-700 font-medium text-left"
+        >
+          Mark Ready
+        </button>
+      )}
+      {order.status === 'ready_for_shipment' && (
+        <button onClick={() => openShipModal(order)} className="text-blue-600 hover:text-blue-700 font-medium text-left">
+          Ship Order
+        </button>
+      )}
+      {order.status === 'shipped' && (
+        <button onClick={() => handleCompleteOrder(order.id)} className="text-green-600 hover:text-green-700 font-medium text-left">
+          Complete
+        </button>
+      )}
+      {order.status === 'completed' && (
+        <button
+          onClick={() =>
+            handleCreateDispute(order.id, {
+              reason: 'Product not as described',
+              description: 'Customer complaint about product quality'
+            })
+          }
+          className="text-red-600 hover:text-red-700 font-medium text-left"
+        >
+          Dispute
+        </button>
+      )}
+    </div>
+  );
+
   const openOrderDetails = (order) => {
     setSelectedOrder(order);
     setIsOrderDetailsOpen(true);
@@ -1243,7 +1246,7 @@ const Vendor = () => {
       
       // Send order status update email
       try {
-        const { getFunctions, httpsCallable } = await import('firebase/functions');
+        const { httpsCallable } = await import('firebase/functions');
         const { functions } = await import('../firebase/config');
         const sendOrderStatusUpdate = httpsCallable(functions, 'sendOrderStatusUpdate');
         
@@ -1597,6 +1600,58 @@ const Vendor = () => {
                     </span>
                   </div>
                 </div>
+              </div>
+              <div className="lg:hidden divide-y border-t">
+                {ordersList.length === 0 && (
+                  <p className="p-4 text-sm text-gray-500">No orders match the selected filters.</p>
+                )}
+                {ordersList.map((order) => {
+                  const { formattedDate, formattedTime } = formatOrderDate(order);
+                  return (
+                    <div key={order.id} className="p-4 space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-mono font-semibold text-gray-900">#{order.id?.slice(-8) || 'N/A'}</p>
+                          <p className="text-xs text-gray-500">
+                            {formattedDate}
+                            {formattedTime ? ` • ${formattedTime}` : ''}
+                          </p>
+                        </div>
+                        {renderStatusPill(order)}
+                      </div>
+                      <div className="text-sm text-gray-700 space-y-2">
+                        <div>
+                          <p className="text-xs text-gray-500">Buyer</p>
+                          <p className="font-medium text-gray-900">{order.buyerName || order.buyer || 'Unknown buyer'}</p>
+                          {order.buyerEmail && <p className="text-xs text-gray-500">{order.buyerEmail}</p>}
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500">Items</p>
+                          <div className="space-y-1">
+                            {(order.items || []).slice(0, 2).map((item, idx) => (
+                              <p key={idx} className="text-xs text-gray-600">
+                                {item.name} • Qty {item.quantity}
+                              </p>
+                            ))}
+                            {Array.isArray(order.items) && order.items.length > 2 && (
+                              <p className="text-xs text-gray-400">+{order.items.length - 2} more</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
+                          <span className="font-semibold text-gray-900 text-sm">
+                            {order.currency || '₦'}{(order.totalAmount || 0).toLocaleString()}
+                          </span>
+                          {order.logisticsCompany && <span>🚚 {order.logisticsCompany}</span>}
+                          {order.trackingNumber && <span className="font-mono">Tracking: {order.trackingNumber}</span>}
+                        </div>
+                      </div>
+                      <div className="pt-3 border-t">
+                        {renderOrderActions(order, 'flex flex-wrap gap-2')}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -2106,7 +2161,7 @@ const Vendor = () => {
                 </div>
               </div>
               
-              <div className="overflow-x-auto">
+              <div className="hidden lg:block overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gray-50">
                     <tr>
@@ -2121,10 +2176,8 @@ const Vendor = () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {(Array.isArray(filteredOrders) ? filteredOrders : []).map((order) => {
-                      const orderDate = order.createdAt?.toDate ? order.createdAt.toDate() : (order.date ? new Date(order.date) : new Date());
-                      const formattedDate = orderDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-                      const formattedTime = orderDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                    {ordersList.map((order) => {
+                      const { formattedDate, formattedTime } = formatOrderDate(order);
                       
                       return (
                       <tr key={order.id} className="hover:bg-gray-50">
@@ -2169,19 +2222,11 @@ const Vendor = () => {
                           {/* Status */}
                           <td className="px-6 py-4">
                             <div className="space-y-1">
-                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                order.statusColor || 
-                                (order.status === 'completed' ? 'bg-green-100 text-green-800' :
-                                 order.status === 'escrow_funded' ? 'bg-yellow-100 text-yellow-800' :
-                                 order.status === 'shipped' ? 'bg-blue-100 text-blue-800' :
-                                 'bg-gray-100 text-gray-800')
-                              }`}>
-                            {order.status}
-                          </span>
-                              {order.paymentStatus && (
-                                <p className="text-xs text-gray-500">Pay: {order.paymentStatus}</p>
-                              )}
-                            </div>
+                            {renderStatusPill(order)}
+                            {order.paymentStatus && (
+                              <p className="text-xs text-gray-500">Pay: {order.paymentStatus}</p>
+                            )}
+                          </div>
                         </td>
                           
                           {/* Amount Details */}
@@ -2234,94 +2279,8 @@ const Vendor = () => {
                           
                           {/* Actions */}
                           <td className="px-6 py-4 text-sm">
-                            <div className="flex flex-col gap-2">
-                              <button onClick={() => openOrderDetails(order)} className="text-emerald-600 hover:text-emerald-700 font-medium text-left">View Details</button>
-                            {order.status === 'escrow_funded' && (
-                              <button 
-                                onClick={async () => {
-                                  try {
-                                    await firebaseService.orders.updateStatus(order.id, 'processing', { vendorStartedAt: new Date() });
-                                    // Notify buyer
-                                    await firebaseService.notifications.create({
-                                      userId: order.buyerId,
-                                      type: 'order_processing',
-                                      title: 'Order is Being Processed',
-                                      message: `Your order #${order.id.slice(-8)} is now being processed by the vendor.`,
-                                      orderId: order.id,
-                                      read: false
-                                    });
-                                    await loadTabData('products');
-                                    alert('Order moved to Processing');
-                                  } catch (err) {
-                                    console.error('Failed to update order', err);
-                                    alert('Failed to update order status');
-                                  }
-                                }}
-                                  className="text-blue-600 hover:text-blue-700 font-medium text-left"
-                              >
-                                Start Processing
-                              </button>
-                            )}
-                            {order.status === 'processing' && (
-                              <button 
-                                onClick={async () => {
-                                  try {
-                                    await firebaseService.orders.updateStatus(order.id, 'ready_for_shipment', { readyForShipmentAt: new Date() });
-                                    // Notify buyer and logistics
-                                    await firebaseService.notifications.create({
-                                      userId: order.buyerId,
-                                      type: 'order_ready',
-                                      title: 'Order Ready for Shipment',
-                                      message: `Your order #${order.id.slice(-8)} is ready for pickup by logistics.`,
-                                      orderId: order.id,
-                                      read: false
-                                    });
-                                    if (order.logisticsCompanyId) {
-                                      await firebaseService.notifications.create({
-                                        userId: order.logisticsCompanyId,
-                                        type: 'pickup_required',
-                                        title: 'Pickup Required',
-                                        message: `Order #${order.id.slice(-8)} is ready for pickup from vendor.`,
-                                        orderId: order.id,
-                                        read: false
-                                      });
-                                    }
-                                    await loadTabData('products');
-                                    alert('Order ready for shipment');
-                                  } catch (err) {
-                                    console.error('Failed to update order', err);
-                                    alert('Failed to update order status');
-                                  }
-                                }}
-                                  className="text-purple-600 hover:text-purple-700 font-medium text-left"
-                              >
-                                Mark Ready
-                              </button>
-                            )}
-                            {order.status === 'ready_for_shipment' && (
-                                <button onClick={() => openShipModal(order)} className="text-blue-600 hover:text-blue-700 font-medium text-left">Ship Order</button>
-                            )}
-                            {order.status === 'shipped' && (
-                              <button 
-                                onClick={() => handleCompleteOrder(order.id)} 
-                                  className="text-green-600 hover:text-green-700 font-medium text-left"
-                              >
-                                Complete
-                              </button>
-                            )}
-                            {order.status === 'completed' && (
-                              <button 
-                                onClick={() => handleCreateDispute(order.id, {
-                                  reason: 'Product not as described',
-                                  description: 'Customer complaint about product quality'
-                                })} 
-                                  className="text-red-600 hover:text-red-700 font-medium text-left"
-                              >
-                                Dispute
-                              </button>
-                            )}
-                          </div>
-                        </td>
+                            {renderOrderActions(order)}
+                          </td>
                       </tr>
                       );
                     })}
@@ -2364,198 +2323,57 @@ const Vendor = () => {
                   </button>
                 </div>
                 </div>
-            </div>
-          )}
-
-          {/* Logistics tab removed - logistics partners work independently */}
-          {false && activeTab === 'logistics' && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-gray-900">Logistics Management</h2>
-                <div className="flex gap-3">
-                  <button className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700">
-                    Add Logistics Partner
-                  </button>
-                </div>
-              </div>
-
-              {/* Logistics Overview Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div className="bg-white p-6 rounded-xl border">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Active Partners</p>
-                      <p className="text-2xl font-bold text-gray-900">3</p>
-                    </div>
-                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <span className="text-blue-600 text-xl">🚚</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="bg-white p-6 rounded-xl border">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Deliveries This Month</p>
-                      <p className="text-2xl font-bold text-gray-900">47</p>
-                    </div>
-                    <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                      <span className="text-green-600 text-xl">📦</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="bg-white p-6 rounded-xl border">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Avg. Delivery Time</p>
-                      <p className="text-2xl font-bold text-gray-900">2.3 days</p>
-                    </div>
-                    <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                      <span className="text-yellow-600 text-xl">⏱️</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="bg-white p-6 rounded-xl border">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Success Rate</p>
-                      <p className="text-2xl font-bold text-gray-900">98.5%</p>
-                    </div>
-                    <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                      <span className="text-purple-600 text-xl">📈</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Logistics Partners Table */}
-              <div className="bg-white rounded-xl border">
-                <div className="p-6 border-b border-gray-200">
-                  <h3 className="text-lg font-semibold text-gray-900">Logistics Partners</h3>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Partner</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Service Areas</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Delivery Time</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rating</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      <tr className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center mr-3">
-                              <span className="text-lg">🚚</span>
-                            </div>
-                            <div>
-                              <div className="text-sm font-medium text-gray-900">Swift Logistics</div>
-                              <div className="text-sm text-gray-500">swift@logistics.com</div>
-                            </div>
+              <div className="lg:hidden divide-y border-t">
+                {ordersList.length === 0 && (
+                  <p className="p-4 text-sm text-gray-500">No orders match the selected filters.</p>
+                )}
+                {ordersList.map((order) => {
+                  const { formattedDate, formattedTime } = formatOrderDate(order);
+                  return (
+                    <div key={order.id} className="p-4 space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-mono font-semibold text-gray-900">#{order.id?.slice(-8) || 'N/A'}</p>
+                          <p className="text-xs text-gray-500">
+                            {formattedDate}
+                            {formattedTime ? ` • ${formattedTime}` : ''}
+                          </p>
+                        </div>
+                        {renderStatusPill(order)}
+                      </div>
+                      <div className="text-sm text-gray-700 space-y-2">
+                        <div>
+                          <p className="text-xs text-gray-500">Buyer</p>
+                          <p className="font-medium text-gray-900">{order.buyerName || order.buyer || 'Unknown buyer'}</p>
+                          {order.buyerEmail && <p className="text-xs text-gray-500">{order.buyerEmail}</p>}
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500">Items</p>
+                          <div className="space-y-1">
+                            {(order.items || []).slice(0, 2).map((item, idx) => (
+                              <p key={idx} className="text-xs text-gray-600">
+                                {item.name} • Qty {item.quantity}
+                              </p>
+                            ))}
+                            {Array.isArray(order.items) && order.items.length > 2 && (
+                              <p className="text-xs text-gray-400">+{order.items.length - 2} more</p>
+                            )}
                           </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Lagos, Abuja, Kano</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">1-2 days</td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <span className="text-yellow-400">⭐</span>
-                            <span className="text-sm font-medium ml-1">4.8</span>
-                            <span className="text-sm text-gray-500 ml-1">(123)</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                            Active
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
+                          <span className="font-semibold text-gray-900 text-sm">
+                            {order.currency || '₦'}{(order.totalAmount || 0).toLocaleString()}
                           </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <div className="flex gap-2">
-                            <button className="text-emerald-600 hover:text-emerald-700 font-medium">View</button>
-                            <button className="text-blue-600 hover:text-blue-700 font-medium">Edit</button>
-                            <button className="text-gray-600 hover:text-gray-700 font-medium">Disable</button>
-                          </div>
-                        </td>
-                      </tr>
-                      <tr className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center mr-3">
-                              <span className="text-lg">⚡</span>
-                            </div>
-                            <div>
-                              <div className="text-sm font-medium text-gray-900">Express Delivery</div>
-                              <div className="text-sm text-gray-500">express@delivery.com</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Lagos, Port Harcourt</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Same day</td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <span className="text-yellow-400">⭐</span>
-                            <span className="text-sm font-medium ml-1">4.6</span>
-                            <span className="text-sm text-gray-500 ml-1">(89)</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                            Active
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <div className="flex gap-2">
-                            <button className="text-emerald-600 hover:text-emerald-700 font-medium">View</button>
-                            <button className="text-blue-600 hover:text-blue-700 font-medium">Edit</button>
-                            <button className="text-gray-600 hover:text-gray-700 font-medium">Disable</button>
-                          </div>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Recent Deliveries */}
-              <div className="bg-white rounded-xl border">
-                <div className="p-6 border-b border-gray-200">
-                  <h3 className="text-lg font-semibold text-gray-900">Recent Deliveries</h3>
-                </div>
-                <div className="p-6">
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                        <span className="text-blue-600">🚚</span>
+                          {order.logisticsCompany && <span>🚚 {order.logisticsCompany}</span>}
+                          {order.trackingNumber && <span className="font-mono">Tracking: {order.trackingNumber}</span>}
+                        </div>
                       </div>
-                      <div className="flex-1">
-                        <p className="font-medium">Order #ORD-001 → Lagos, Nigeria</p>
-                        <p className="text-sm text-gray-600">Swift Logistics • In Transit • Est. 1 day</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium">₦5,000</p>
-                        <p className="text-xs text-gray-500">Delivery fee</p>
+                      <div className="pt-3 border-t">
+                        {renderOrderActions(order, 'flex flex-wrap gap-2')}
                       </div>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                        <span className="text-green-600">✅</span>
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium">Order #ORD-002 → Abuja, Nigeria</p>
-                        <p className="text-sm text-gray-600">Express Delivery • Delivered • 2 days ago</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium">₦6,500</p>
-                        <p className="text-xs text-gray-500">Delivery fee</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                  );
+                })}
               </div>
             </div>
           )}

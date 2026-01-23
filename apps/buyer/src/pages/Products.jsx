@@ -16,6 +16,19 @@ import WishlistButton from '../components/WishlistButton';
 import { collection, query, where, getDocs, orderBy, limit, startAfter } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
+function normalizeSidebarFilters(filters = {}) {
+  return {
+    searchQuery: typeof filters.searchQuery === 'string' ? filters.searchQuery : '',
+    categories: Array.isArray(filters.categories) ? filters.categories : [],
+    expressDelivery: Boolean(filters.expressDelivery),
+    priceRange: typeof filters.priceRange === 'object' ? filters.priceRange : null,
+    discountPercentage:
+      typeof filters.discountPercentage === 'number' ? filters.discountPercentage : null,
+    brands: Array.isArray(filters.brands) ? filters.brands : [],
+    sizes: Array.isArray(filters.sizes) ? filters.sizes : [],
+  };
+}
+
 const Products = () => {
   console.log('🛍️ Products: Component function called');
   const { currentUser } = useAuth();
@@ -33,7 +46,10 @@ const Products = () => {
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [priceRange, setPriceRange] = useState({ min: 0, max: 100000 });
+  const PRICE_MIN = 0;
+  const PRICE_MAX = 10000000;
+  const [priceRange, setPriceRange] = useState({ min: PRICE_MIN, max: PRICE_MAX });
+
   const [categories, setCategories] = useState([]);
   const [hasMore, setHasMore] = useState(true);
   const [lastDoc, setLastDoc] = useState(null);
@@ -44,20 +60,19 @@ const Products = () => {
   const [compareProducts, setCompareProducts] = useState([]);
   const [advancedFilters, setAdvancedFilters] = useState({
     category: 'all',
-    priceRange: { min: 0, max: 100000 },
+    priceRange: { min: PRICE_MIN, max: PRICE_MAX },
     brand: 'all',
     condition: 'all',
     inStock: true,
     minRating: 0
   });
   const [brands, setBrands] = useState([]);
+
   const [searchParams] = useSearchParams();
-  const [sidebarFilters, setSidebarFilters] = useState(null);
+  const [sidebarFilters, setSidebarFilters] = useState(() => normalizeSidebarFilters());
   const [isFilterSidebarOpen, setIsFilterSidebarOpen] = useState(true);
 
   // Price slider constants and derived percentages for styled track
-  const PRICE_MIN = 0;
-  const PRICE_MAX = 100000;
   const clampedMin = Math.max(PRICE_MIN, Math.min(priceRange.min, PRICE_MAX));
   const clampedMax = Math.max(PRICE_MIN, Math.min(priceRange.max, PRICE_MAX));
   const minPercent = ((Math.min(clampedMin, clampedMax) - PRICE_MIN) / (PRICE_MAX - PRICE_MIN)) * 100;
@@ -241,7 +256,7 @@ const Products = () => {
           brandsSet.add(data.brand);
         }
       });
-      
+
       const categoriesData = Array.from(categoriesSet).sort();
       const brandsData = Array.from(brandsSet).sort();
       setCategories(categoriesData);
@@ -250,110 +265,7 @@ const Products = () => {
       console.error('Error fetching categories:', err);
       // Fallback categories
       setCategories(['Electronics', 'Fashion', 'Home & Living', 'Food', 'Services']);
-    }
-  };
-
-  // Search products
-  const searchProducts = async () => {
-    if (!searchQuery.trim()) {
-      fetchProducts(true);
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setError(null);
-
-      // Use a simpler query that doesn't require a composite index
-      // Fetch active products and filter client-side for better performance
-      const q = query(
-        collection(db, 'products'),
-        where('isActive', '==', true),
-        limit(100) // Fetch more products to search through client-side
-      );
-
-      const snapshot = await getDocs(q);
-      const searchLower = searchQuery.toLowerCase().trim();
-      
-      // Filter products client-side by search query
-      const searchResults = snapshot.docs
-        .map(doc => {
-          const data = doc.data();
-          
-          // Handle images - normalize image fields
-          let images = [];
-          
-          // Check various image field names (prioritize single image fields first)
-          const imageFields = ['image', 'imageUrl', 'imageURL', 'photo', 'photoUrl', 'thumbnail', 'img', 'picture'];
-          for (const field of imageFields) {
-            if (data[field] && typeof data[field] === 'string' && data[field].trim() !== '' && data[field] !== 'undefined') {
-              if (!images.includes(data[field])) {
-                images.push(data[field]); // Add to array if not already present
-              }
-            }
-          }
-          
-          // Then add from images array
-          if (data.images && Array.isArray(data.images) && data.images.length > 0) {
-            const validImages = data.images.filter(img => 
-              img && typeof img === 'string' && img.trim() !== '' && img !== 'undefined'
-            );
-            validImages.forEach(img => {
-              if (!images.includes(img)) {
-                images.push(img);
-              }
-            });
-          }
-          
-          return {
-            id: doc.id,
-            ...data,
-            images: images,
-            image: images.length > 0 ? images[0] : null
-          };
-        })
-        .filter(product => {
-          // Client-side filtering for search query
-          const nameMatch = product.name?.toLowerCase().includes(searchLower);
-          const descMatch = product.description?.toLowerCase().includes(searchLower);
-          const categoryMatch = product.category?.toLowerCase().includes(searchLower);
-          const brandMatch = product.brand?.toLowerCase().includes(searchLower);
-          const tagsMatch = product.tags?.some(tag => tag.toLowerCase().includes(searchLower));
-          
-          return nameMatch || descMatch || categoryMatch || brandMatch || tagsMatch;
-        });
-
-      // Store all search results
-      setAllFilteredProducts(searchResults);
-      setHasMore(false);
-      setError(null);
-    } catch (err) {
-      console.error('Error searching products:', err);
-      setError('Something went wrong while searching. Please try again.');
-      setProducts([]);
-      setFilteredProducts([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Handle search results from filter component
-  const handleSearchResults = (searchResults) => {
-    console.log('🔍 Products: Search results received:', searchResults.length, 'products');
-    console.log('🔍 Products: Search results data:', searchResults);
-    setFilteredProducts(searchResults);
-    setIsSearching(false);
-  };
-
-  const handleSearchLoading = (loading) => {
-    console.log('🔍 Products: Search loading:', loading);
-    setIsSearching(loading);
-  };
-
-  // Load more products
-  const loadMore = () => {
-    if (!loading && hasMore) {
-      fetchProducts(false);
+      setBrands([]);
     }
   };
 
@@ -390,12 +302,12 @@ const Products = () => {
   // Apply sidebar filters to products
   const applySidebarFilters = (productsToFilter, filters) => {
     if (!filters) return productsToFilter;
-    
+
+    const normalized = normalizeSidebarFilters(filters);
     let filtered = [...productsToFilter];
-    
-    // Search query filter
-    if (filters.searchQuery && filters.searchQuery.trim()) {
-      const searchLower = filters.searchQuery.toLowerCase().trim();
+
+    if (normalized.searchQuery && normalized.searchQuery.trim()) {
+      const searchLower = normalized.searchQuery.toLowerCase().trim();
       filtered = filtered.filter(p => {
         const nameMatch = p.name?.toLowerCase().includes(searchLower);
         const descMatch = p.description?.toLowerCase().includes(searchLower);
@@ -405,113 +317,77 @@ const Products = () => {
         return nameMatch || descMatch || categoryMatch || brandMatch || tagsMatch;
       });
     }
-    
-    // Category filter
-    if (filters.categories && filters.categories.length > 0) {
-      filtered = filtered.filter(p => filters.categories.includes(p.category));
+
+    if (normalized.categories.length > 0) {
+      filtered = filtered.filter(p => normalized.categories.includes(p.category));
     }
-    
-    // Express delivery filter (if product has expressDelivery flag)
-    if (filters.expressDelivery) {
+
+    if (normalized.expressDelivery) {
       filtered = filtered.filter(p => p.expressDelivery === true || p.fastDelivery === true);
     }
-    
-    // Price range filter
-    if (filters.priceRange) {
+
+    if (normalized.priceRange) {
+      const { min = 0, max = Number.MAX_VALUE } = normalized.priceRange;
       filtered = filtered.filter(p => {
         const price = parseFloat(p.price) || 0;
-        return price >= filters.priceRange.min && price <= filters.priceRange.max;
+        return price >= min && price <= max;
       });
     }
-    
-    // Discount percentage filter
-    if (filters.discountPercentage !== null) {
+
+    if (normalized.discountPercentage !== null) {
       filtered = filtered.filter(p => {
         if (!p.originalPrice || !p.price) return false;
         const original = parseFloat(p.originalPrice);
         const current = parseFloat(p.price);
         if (original <= current) return false;
         const discount = Math.round(((original - current) / original) * 100);
-        return discount >= filters.discountPercentage;
+        return discount >= normalized.discountPercentage;
       });
     }
-    
-    // Brand filter
-    if (filters.brands && filters.brands.length > 0) {
-      filtered = filtered.filter(p => filters.brands.includes(p.brand));
+
+    if (normalized.brands.length > 0) {
+      filtered = filtered.filter(p => normalized.brands.includes(p.brand));
     }
-    
-    // Size filter
-    if (filters.sizes && filters.sizes.length > 0) {
+
+    if (normalized.sizes.length > 0) {
       filtered = filtered.filter(p => {
         if (p.size) {
           if (Array.isArray(p.size)) {
-            return p.size.some(s => filters.sizes.includes(s));
+            return p.size.some(s => normalized.sizes.includes(s));
           }
-          return filters.sizes.includes(p.size);
+          return normalized.sizes.includes(p.size);
         }
         if (p.sizes && Array.isArray(p.sizes)) {
-          return p.sizes.some(s => filters.sizes.includes(s));
+          return p.sizes.some(s => normalized.sizes.includes(s));
         }
         return false;
       });
     }
-    
     return filtered;
   };
 
-  // Handle sidebar filter changes
-  const handleSidebarFilterChange = (filters) => {
-    setSidebarFilters(filters);
-    // Update search query if it's in filters
-    if (filters.searchQuery !== undefined) {
-      setSearchQuery(filters.searchQuery);
-    }
-  };
-
-  // Handle search change from sidebar
-  const handleSidebarSearchChange = (query) => {
-    setSearchQuery(query);
-  };
-
-  // Display products when allFilteredProducts changes
+  // Recompute filtered products whenever data or filters change
   useEffect(() => {
-    // Only update filtered products when not loading to avoid race conditions
-    if (!loading) {
-      if (allFilteredProducts.length > 0) {
-        // Apply sidebar filters if they exist
-        let productsToDisplay = allFilteredProducts;
-        if (sidebarFilters) {
-          productsToDisplay = applySidebarFilters(allFilteredProducts, sidebarFilters);
-        }
-        // Display all filtered products directly (no sorting)
-        setFilteredProducts(productsToDisplay);
-        setProducts(productsToDisplay);
-        setHasMore(false); // All products are loaded
-      } else {
-        // If no products, clear filtered products too
-        setFilteredProducts([]);
-        setProducts([]);
-        setHasMore(false);
-      }
+    if (loading) return;
+
+    if (!allFilteredProducts || allFilteredProducts.length === 0) {
+      setFilteredProducts([]);
+      setProducts([]);
+      setHasMore(false);
+      return;
     }
+
+    const filtersToApply = {
+      ...(sidebarFilters || {}),
+      searchQuery: searchQuery || ''
+    };
+
+    const productsToDisplay = applySidebarFilters(allFilteredProducts, filtersToApply);
+    setFilteredProducts(productsToDisplay);
+    setProducts(productsToDisplay);
+    setHasMore(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allFilteredProducts, loading, sidebarFilters]);
-
-  // Handle search query changes - now integrated with sidebar filters
-  useEffect(() => {
-    // If search query is set via sidebar, it will be handled by sidebar filters
-    // Only trigger searchProducts if searchQuery is set and sidebar filters don't have it
-    if (searchQuery.trim() && (!sidebarFilters || !sidebarFilters.searchQuery)) {
-      const timeoutId = setTimeout(() => {
-        searchProducts();
-      }, 500);
-      return () => clearTimeout(timeoutId);
-    } else if (!searchQuery.trim() && !sidebarFilters?.searchQuery) {
-      // Only fetch if no search query and no sidebar search
-      fetchProducts(true);
-    }
-  }, [searchQuery]);
+  }, [allFilteredProducts, sidebarFilters, searchQuery, loading]);
 
   if (error) {
     return (
@@ -547,11 +423,13 @@ const Products = () => {
             products={allFilteredProducts}
             onFilterChange={handleSidebarFilterChange}
             onSearchChange={handleSidebarSearchChange}
+            onSearchSubmit={handleSidebarSearchSubmit}
             searchQuery={searchQuery}
             categories={categories}
             brands={brands}
             isOpen={isFilterSidebarOpen}
           />
+
         </div>
         
         {/* Mobile Filter Overlay */}
@@ -566,10 +444,12 @@ const Products = () => {
                 products={allFilteredProducts}
                 onFilterChange={handleSidebarFilterChange}
                 onSearchChange={handleSidebarSearchChange}
+                onSearchSubmit={handleSidebarSearchSubmit}
                 searchQuery={searchQuery}
                 categories={categories}
                 brands={brands}
                 isOpen={isFilterSidebarOpen}
+
                 onClose={() => setIsFilterSidebarOpen(false)}
               />
             </div>
@@ -724,10 +604,15 @@ const Products = () => {
                   {cat === 'all' ? 'All' : cat}
                 </button>
               ))}
-              {(searchQuery || selectedCategory !== 'all' || priceRange.min !== 0 || priceRange.max !== 100000) && (
+              {(searchQuery || selectedCategory !== 'all' || priceRange.min !== PRICE_MIN || priceRange.max !== PRICE_MAX) && (
                 <button
                   type="button"
-                  onClick={() => { setSearchQuery(''); setSelectedCategory('all'); setPriceRange({ min: 0, max: 100000 }); fetchProducts(true); }}
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSelectedCategory('all');
+                    setPriceRange({ min: PRICE_MIN, max: PRICE_MAX });
+                    fetchProducts(true);
+                  }}
                   className="ml-auto text-sm text-emerald-700 hover:text-emerald-800 hover:underline"
                 >
                   Reset filters

@@ -70,6 +70,6 @@ export const getAllCurrencies = () => {
 
 // Validate currency code
 export const isValidCurrency = (code) => {
-  return CURRENCIES.hasOwnProperty(code);
+  return Object.hasOwn(CURRENCIES, code);
 };
 

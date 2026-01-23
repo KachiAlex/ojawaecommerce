@@ -226,7 +226,6 @@ export const productTrackingService = {
           const duplicateSnapshot = await getDocs(duplicateQuery);
           
           if (!duplicateSnapshot.empty) {
-            const existingProduct = duplicateSnapshot.docs[0].data();
             throw new Error(`A product with the name "${productData.name}" already exists. Please use a different name or edit the existing product.`);
           }
         } catch (duplicateError) {

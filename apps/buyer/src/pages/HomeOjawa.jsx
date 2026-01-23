@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../contexts/AuthContext";
 import { useCart } from "../contexts/CartContext";
@@ -71,6 +71,56 @@ const heroSlides = [
 
 const sliderIntervalMs = 7000;
 
+const testModeEnabled = import.meta.env?.VITE_TEST_MODE === "true";
+
+const testModeProducts = [
+  {
+    id: "test-phone",
+    name: "Ojawa Test Phone",
+    price: 250,
+    originalPrice: 320,
+    category: "phones",
+    images: ["https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800&h=600&fit=crop"],
+    image: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800&h=600&fit=crop",
+    thumbnails: [],
+    discount: 20,
+    badges: ["New"],
+    vendorName: "Test Vendor",
+    rating: 4.8,
+    sold: 120,
+  },
+  {
+    id: "test-fashion",
+    name: "Ojawa Test Fashion Fit",
+    price: 80,
+    originalPrice: 110,
+    category: "fashion",
+    images: ["https://images.unsplash.com/photo-1495121605193-b116b5b09c73?w=800&h=600&fit=crop"],
+    image: "https://images.unsplash.com/photo-1495121605193-b116b5b09c73?w=800&h=600&fit=crop",
+    thumbnails: [],
+    discount: 15,
+    badges: ["Popular"],
+    vendorName: "Test Fashion",
+    rating: 4.6,
+    sold: 90,
+  },
+  {
+    id: "test-appliance",
+    name: "Ojawa Test Blender",
+    price: 120,
+    originalPrice: 180,
+    category: "appliances",
+    images: ["https://images.unsplash.com/photo-1489515217757-5fd1be406fef?w=800&h=600&fit=crop"],
+    image: "https://images.unsplash.com/photo-1489515217757-5fd1be406fef?w=800&h=600&fit=crop",
+    thumbnails: [],
+    discount: 30,
+    badges: ["Top Rated"],
+    vendorName: "Test Kitchen",
+    rating: 4.9,
+    sold: 60,
+  },
+];
+
 const HomeOjawa = () => {
   const { currentUser } = useAuth();
   const { addToCart } = useCart();
@@ -93,6 +143,8 @@ const HomeOjawa = () => {
     priceMax: "",
     express: false,
   });
+  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
+  const filteredResultsRef = useRef(null);
 
   // Flash sale end time (24 hours from now)
   const flashSaleEndTime = new Date(
@@ -125,6 +177,19 @@ const HomeOjawa = () => {
   // Fetch products from Firestore
   const fetchProducts = async () => {
     try {
+      if (testModeEnabled) {
+        setAllProducts(testModeProducts);
+        setFlashSaleProducts(testModeProducts);
+        setTopSellers(testModeProducts);
+        setCategoryProducts({
+          phones: testModeProducts.filter((p) => p.category === "phones"),
+          fashion: testModeProducts.filter((p) => p.category === "fashion"),
+          appliances: testModeProducts.filter((p) => p.category === "appliances"),
+        });
+        setCategories(["phones", "fashion", "appliances"]);
+        setIsLoading(false);
+        return;
+      }
       setIsLoading(true);
       console.log('[HomeOjawa] Fetching products...');
       const q = query(collection(db, "products"), limit(200));
@@ -328,6 +393,19 @@ const HomeOjawa = () => {
     if (!filters) return productsToFilter;
     
     let filtered = [...productsToFilter];
+
+    // Text search filter
+    if (filters.searchQuery && filters.searchQuery.trim()) {
+      const searchLower = filters.searchQuery.toLowerCase().trim();
+      filtered = filtered.filter((product) => {
+        const nameMatch = product.name?.toLowerCase().includes(searchLower);
+        const descMatch = product.description?.toLowerCase().includes(searchLower);
+        const categoryMatch = product.category?.toLowerCase().includes(searchLower);
+        const brandMatch = product.brand?.toLowerCase().includes(searchLower);
+        const tagsMatch = product.tags?.some((tag) => tag.toLowerCase().includes(searchLower));
+        return nameMatch || descMatch || categoryMatch || brandMatch || tagsMatch;
+      });
+    }
     
     // Category filter
     if (filters.categories && filters.categories.length > 0) {
@@ -430,6 +508,19 @@ const HomeOjawa = () => {
     }));
   };
 
+  const scrollToFilteredResults = useCallback(() => {
+    if (filteredResultsRef.current) {
+      filteredResultsRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+      if (typeof window !== "undefined" && window.history?.replaceState) {
+        const url = `${window.location.pathname}#home-filter-results`;
+        window.history.replaceState(null, "", url);
+      }
+    }
+  }, []);
+
   const handleHeroSearchSubmit = (event) => {
     event.preventDefault();
     const currentFilters = sidebarFilters || {};
@@ -459,6 +550,7 @@ const HomeOjawa = () => {
       expressDelivery: heroSearch.express,
       priceRange,
     });
+    scrollToFilteredResults();
   };
 
   const handleHeroSearchReset = () => {
@@ -488,157 +580,130 @@ const HomeOjawa = () => {
   const activeSlide = heroSlides[currentIndex];
 
   return (
-    <div className="min-h-screen bg-slate-950 pt-0">
+    <div className="min-h-screen bg-slate-950 pt-0 space-y-10">
       {/* Hero Section */}
       <section className="relative bg-slate-950">
-        {/* Mobile Filter Button */}
-        <div className="lg:hidden fixed bottom-20 right-4 z-30">
-          <button
-            onClick={() => setSidebarFilters({ ...sidebarFilters, _mobileOpen: true })}
-            className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-lg shadow-lg hover:from-emerald-400 hover:to-teal-400"
-          >
-            🔍 Filters
-          </button>
-        </div>
-        
         {/* Mobile Filter Overlay */}
-        {sidebarFilters?._mobileOpen && (
+        {isMobileFiltersOpen && (
           <div className="lg:hidden fixed inset-0 z-40">
-            <div 
+            <div
               className="absolute inset-0 bg-black/60"
-              onClick={() => setSidebarFilters(prev => prev ? { ...prev, _mobileOpen: false } : null)}
+              onClick={() => setIsMobileFiltersOpen(false)}
             />
-            <div className="absolute left-0 top-0 bottom-0 w-64 z-50">
-              <ProductFilterSidebar
-                products={allProducts}
-                onFilterChange={handleSidebarFilterChange}
-                categories={categories}
-                isOpen={true}
-                showSearch={true}
-                onClose={() => setSidebarFilters(prev => prev ? { ...prev, _mobileOpen: false } : null)}
-              />
-            </div>
-
-            {/* Property search aligned with filters */}
-            <div className="relative z-10 px-4 sm:px-6 lg:px-10 pb-4">
-              <form
-                onSubmit={handleHeroSearchSubmit}
-                className="backdrop-blur-md bg-slate-900/80 border border-teal-700/50 rounded-2xl p-4 sm:p-6 shadow-2xl space-y-3"
-              >
-                <div className="flex items-center gap-2 text-xs sm:text-sm text-teal-200/80 uppercase tracking-[0.2em]">
-                  <span className="text-emerald-300 text-lg">⌕</span>
-                  Intelligent product search aligned with filters
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                  <div className="col-span-2">
-                    <label className="text-xs text-teal-200 block mb-1">
-                      Product or keyword
-                    </label>
-                    <input
-                      type="text"
-                      value={heroSearch.query}
-                      onChange={(e) =>
-                        handleHeroSearchChange("query", e.target.value)
-                      }
-                      placeholder="Search for secure gadgets, verified vendors..."
-                      className="w-full px-3 py-2 bg-slate-800/80 border border-emerald-800 rounded-xl text-sm text-white placeholder-teal-500 focus:outline-none focus:ring-2 focus:ring-emerald-400"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-xs text-teal-200 block mb-1">
-                      Category
-                    </label>
-                    <select
-                      value={heroSearch.category}
-                      onChange={(e) =>
-                        handleHeroSearchChange("category", e.target.value)
-                      }
-                      className="w-full px-3 py-2 bg-slate-800/80 border border-emerald-800 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-400"
-                    >
-                      <option value="">All categories</option>
-                      {categories.map((category) => (
-                        <option key={category} value={category}>
-                          {category}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-xs text-teal-200 block mb-1">
-                        Min price
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={heroSearch.priceMin}
-                        onChange={(e) =>
-                          handleHeroSearchChange("priceMin", e.target.value)
-                        }
-                        placeholder="₦0"
-                        className="w-full px-3 py-2 bg-slate-800/80 border border-emerald-800 rounded-xl text-sm text-white placeholder-teal-500 focus:outline-none focus:ring-2 focus:ring-emerald-400"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs text-teal-200 block mb-1">
-                        Max price
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={heroSearch.priceMax}
-                        onChange={(e) =>
-                          handleHeroSearchChange("priceMax", e.target.value)
-                        }
-                        placeholder="₦150,000"
-                        className="w-full px-3 py-2 bg-slate-800/80 border border-emerald-800 rounded-xl text-sm text-white placeholder-teal-500 focus:outline-none focus:ring-2 focus:ring-emerald-400"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  <label className="inline-flex items-center gap-2 text-sm text-teal-100">
-                    <input
-                      type="checkbox"
-                      checked={heroSearch.express}
-                      onChange={(e) =>
-                        handleHeroSearchChange("express", e.target.checked)
-                      }
-                      className="h-4 w-4 rounded border-teal-500 text-emerald-400 focus:ring-emerald-400"
-                    />
-                    Prefer Ojawa Express delivery (24-48h)
-                  </label>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={handleHeroSearchReset}
-                      className="px-4 py-2 rounded-xl border border-teal-500/40 text-teal-100 text-sm hover:bg-teal-900/40 transition-colors"
-                    >
-                      Reset
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-500 text-slate-950 font-semibold text-sm shadow-lg hover:from-emerald-300 hover:to-teal-400 transition-all"
-                    >
-                      Apply filters
-                    </button>
-                  </div>
-                </div>
-              </form>
+            <div className="absolute right-0 top-0 h-full w-11/12 max-w-md bg-slate-950 border-l border-teal-800/40 shadow-2xl flex flex-col">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-teal-800/30 text-teal-50">
+                <p className="text-sm font-semibold">Refine products</p>
+                <button
+                  type="button"
+                  onClick={() => setIsMobileFiltersOpen(false)}
+                  className="text-sm text-emerald-300 hover:text-emerald-200"
+                >
+                  Close
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4">
+                <ProductFilterSidebar
+                  products={allProducts}
+                  onFilterChange={handleSidebarFilterChange}
+                  categories={categories}
+                  isOpen={true}
+                  showSearch={true}
+                  onClose={() => setIsMobileFiltersOpen(false)}
+                />
+              </div>
             </div>
           </div>
         )}
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-10">
-          {/* Desktop Layout: Grid with sidebar */}
-          <div className="hidden lg:grid lg:grid-cols-[260px_minmax(0,1fr)_260px] gap-6 lg:gap-8">
-            {/* Filter Sidebar - without search */}
-            <aside>
+        <div className="app-content py-6 lg:py-10 space-y-6 lg:space-y-10">
+          <div className="lg:hidden space-y-3">
+            <button
+              onClick={() => setIsMobileFiltersOpen(true)}
+              className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-semibold shadow-lg hover:from-emerald-400 hover:to-teal-400 transition-colors"
+            >
+              <span>🔍</span> Filters & search
+            </button>
+            <form
+              onSubmit={handleHeroSearchSubmit}
+              className="bg-slate-900/70 border border-teal-800/40 rounded-2xl p-4 space-y-3 text-white"
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="text-xs text-teal-200 block mb-1">
+                    Product or keyword
+                  </label>
+                  <input
+                    type="text"
+                    value={heroSearch.query}
+                    onChange={(e) => handleHeroSearchChange("query", e.target.value)}
+                    placeholder="Search verified vendors, items, brands..."
+                    className="w-full px-3 py-2 bg-slate-800/60 border border-emerald-800 rounded-xl text-sm text-white placeholder-teal-500 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-teal-200 block mb-1">Category</label>
+                  <select
+                    value={heroSearch.category}
+                    onChange={(e) => handleHeroSearchChange("category", e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-800/60 border border-emerald-800 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                  >
+                    <option value="">All categories</option>
+                    {categories.map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex gap-3">
+                  <input
+                    type="number"
+                    min="0"
+                    value={heroSearch.priceMin}
+                    onChange={(e) => handleHeroSearchChange("priceMin", e.target.value)}
+                    placeholder="Min ₦"
+                    className="flex-1 px-3 py-2 bg-slate-800/60 border border-emerald-800 rounded-xl text-sm text-white placeholder-teal-500 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                  />
+                  <input
+                    type="number"
+                    min="0"
+                    value={heroSearch.priceMax}
+                    onChange={(e) => handleHeroSearchChange("priceMax", e.target.value)}
+                    placeholder="Max ₦"
+                    className="flex-1 px-3 py-2 bg-slate-800/60 border border-emerald-800 rounded-xl text-sm text-white placeholder-teal-500 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                  />
+                </div>
+              </div>
+              <label className="inline-flex items-center gap-2 text-sm text-teal-100">
+                <input
+                  type="checkbox"
+                  checked={heroSearch.express}
+                  onChange={(e) => handleHeroSearchChange("express", e.target.checked)}
+                  className="h-4 w-4 rounded border-teal-500 text-emerald-400 focus:ring-emerald-400"
+                />
+                Prefer Ojawa Express delivery (24-48h)
+              </label>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <button
+                  type="button"
+                  onClick={handleHeroSearchReset}
+                  className="w-full sm:w-auto px-4 py-2 rounded-xl border border-teal-500/40 text-teal-100 text-sm hover:bg-teal-900/40 transition-colors"
+                >
+                  Reset
+                </button>
+                <button
+                  type="submit"
+                  className="w-full sm:w-auto px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-500 text-slate-950 font-semibold text-sm shadow-lg hover:from-emerald-300 hover:to-teal-400 transition-all"
+                >
+                  Apply filters
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)_260px]">
+            {/* Filter Sidebar - desktop */}
+            <aside className="hidden lg:block">
               <ProductFilterSidebar
                 products={allProducts}
                 onFilterChange={handleSidebarFilterChange}
@@ -647,52 +712,9 @@ const HomeOjawa = () => {
                 showSearch={true}
               />
             </aside>
-          
-          {/* Old category sidebar - removed, replaced with filter sidebar */}
-          {/* <aside className="hidden lg:block bg-slate-900/80 border border-teal-700/60 rounded-2xl shadow-xl overflow-hidden">
-            <div className="px-4 py-3 border-b border-teal-700/60 bg-gradient-to-r from-teal-900/40 to-emerald-900/40">
-              <p className="text-amber-300 text-sm font-semibold tracking-wide flex items-center gap-2">
-                <span className="text-teal-400">🏪</span>
-                Shop by category
-              </p>
-            </div>
-            <nav className="divide-y divide-slate-800/80">
-              {[
-                "Phones & Tablets",
-                "Fashion",
-                "Home & Office",
-                "Electronics",
-                "Beauty",
-                "Supermarket",
-                "Computing",
-                "Baby & Kids",
-              ].map((label, index) => (
-                <Link
-                  key={label}
-                  to={`/products?category=${encodeURIComponent(label.toLowerCase())}`}
-                  className="flex items-center justify-between px-4 py-2.5 text-sm text-slate-200 hover:bg-gradient-to-r hover:from-teal-900/40 hover:to-emerald-900/40 transition-all group"
-                >
-                  <span className="group-hover:text-amber-200 transition-colors">
-                    {label}
-                  </span>
-                  <span
-                    className={`text-xs transition-colors ${
-                      index % 3 === 0
-                        ? "text-teal-400"
-                        : index % 3 === 1
-                          ? "text-emerald-400"
-                          : "text-amber-400"
-                    }`}
-                  >
-                    ›
-                  </span>
-                </Link>
-              ))}
-            </nav>
-          </aside>
 
-          {/* Center hero slider + property search */}
-          <div className="relative h-auto lg:h-[520px] rounded-2xl lg:rounded-3xl overflow-hidden shadow-xl lg:shadow-2xl border lg:border-2 border-teal-600/50 bg-slate-900 flex flex-col">
+            {/* Center hero slider + search */}
+            <div className="order-first lg:order-none relative h-auto lg:h-[520px] rounded-2xl lg:rounded-3xl overflow-hidden shadow-xl lg:shadow-2xl border lg:border-2 border-teal-600/50 bg-slate-900 flex flex-col">
             {/* Background image + gradient overlay */}
             <div className="absolute inset-0">
               <AnimatePresence mode="wait">
@@ -884,6 +906,13 @@ const HomeOjawa = () => {
         </div>
       </section>
 
+      <div
+        id="home-filter-results"
+        ref={filteredResultsRef}
+        className="h-0"
+        aria-hidden="true"
+      />
+
       {/* Flash Sales Section */}
       {flashSaleProducts.length > 0 && (
         <section className="bg-gradient-to-r from-teal-600 via-emerald-600 to-amber-600 py-6 relative overflow-hidden border-y-2 border-amber-400/30">
@@ -908,7 +937,7 @@ const HomeOjawa = () => {
               </div>
               <Link
                 to="/products?sale=true"
-                className="text-white font-medium hover:underline flex items-center gap-1 bg-white/20 px-4 py-2 rounded-lg backdrop-blur-sm border-2 border-amber-300/50 hover:bg-amber-500/30 transition-all hover:border-amber-200"
+                className="ojawa-pill ojawa-pill--glow flex items-center gap-2 px-4 py-2 rounded-lg backdrop-blur-sm text-sm font-semibold hover:translate-y-[-1px]"
               >
                 See All
                 <svg

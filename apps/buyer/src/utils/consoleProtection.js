@@ -3,7 +3,6 @@
  * Prevents sensitive information from being exposed via browser console
  */
 
-const isDevelopment = import.meta.env.DEV || import.meta.env.MODE === 'development';
 const isProduction = import.meta.env.PROD || import.meta.env.MODE === 'production';
 
 export const setupConsoleProtection = () => {

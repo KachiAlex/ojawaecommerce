@@ -1,47 +1,9 @@
 /**
- * Convert Firebase Storage path to download URL if needed
- */
-const ensureValidImageUrl = async (imagePath) => {
-  if (!imagePath || typeof imagePath !== 'string') return null;
-
-  const trimmed = imagePath.trim();
-  if (!trimmed || trimmed === 'undefined' || trimmed === 'null') return null;
-
-  // If it's already a valid HTTP/HTTPS URL, return it
-  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-    return trimmed;
-  }
-
-  // If it looks like a Firebase Storage path (gs:// or storage path), convert it
-  if (trimmed.startsWith('gs://') || (!trimmed.includes('://') && trimmed.includes('/'))) {
-    try {
-      const { ref, getDownloadURL } = await import('firebase/storage');
-      const { storage } = await import('../firebase/config');
-      
-      // Convert gs:// to path
-      let path = trimmed;
-      if (trimmed.startsWith('gs://')) {
-        path = trimmed.replace(/^gs:\/\/[^/]+\//, '');
-      }
-      
-      const imageRef = ref(storage, path);
-      const url = await getDownloadURL(imageRef);
-      return url;
-    } catch (error) {
-      console.warn('Failed to convert Firebase Storage path to URL:', trimmed, error);
-      return null;
-    }
-  }
-
-  return trimmed;
-};
-
-/**
  * Get thumbnail URL from image URL
  * Prioritizes thumbnail field, then automatically uses first product image as thumbnail
  * Note: Firebase Storage paths should already be converted to download URLs in Firestore
  */
-export const getThumbnailUrl = (product, size = 300) => {
+export const getThumbnailUrl = (product) => {
   // First, check if product has a dedicated thumbnail field
   if (product.thumbnail && typeof product.thumbnail === 'string' && product.thumbnail.trim() !== '') {
     const thumbnail = product.thumbnail.trim();

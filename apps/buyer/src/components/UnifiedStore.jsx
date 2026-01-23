@@ -215,7 +215,7 @@ const UnifiedStore = () => {
         <div className="p-8 bg-gradient-to-r from-blue-600 to-purple-600 text-white">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <div className="w-20 h-20 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
+              <div className="w-20 h-20 rounded-lg flex items-center justify-center bg-white/10 border border-white/30 backdrop-blur">
                 <span className="text-3xl">🏪</span>
               </div>
               <div>
@@ -232,7 +232,7 @@ const UnifiedStore = () => {
               {isOwnStore && (
                 <button
                   onClick={() => navigate('/vendor')}
-                  className="bg-white bg-opacity-20 text-white px-4 py-2 rounded-lg hover:bg-opacity-30 transition-colors"
+                  className="ojawa-pill text-sm font-semibold px-4 py-2 rounded-lg"
                 >
                   Manage Store
                 </button>
@@ -241,7 +241,7 @@ const UnifiedStore = () => {
               {!isOwnStore && (
                 <button
                   onClick={() => setShowVendorProfile(true)}
-                  className="bg-white bg-opacity-20 text-white px-4 py-2 rounded-lg hover:bg-opacity-30 transition-colors"
+                  className="ojawa-pill text-sm font-semibold px-4 py-2 rounded-lg"
                 >
                   View Profile
                 </button>
@@ -252,7 +252,7 @@ const UnifiedStore = () => {
                   navigator.clipboard.writeText(window.location.href);
                   alert('Store link copied to clipboard!');
                 }}
-                className="bg-white bg-opacity-20 text-white px-4 py-2 rounded-lg hover:bg-opacity-30 transition-colors"
+                className="ojawa-pill text-sm font-semibold px-4 py-2 rounded-lg"
               >
                 Share Store
               </button>

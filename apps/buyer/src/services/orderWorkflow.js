@@ -302,7 +302,7 @@ export class OrderWorkflowManager {
 
       // Handle auto-transitions
       if (statusConfig?.autoTransition) {
-        await this.handleAutoTransition(orderId, newStatus, additionalData)
+        await this.handleAutoTransition(orderId, newStatus)
       }
 
       // Log the status change
@@ -328,7 +328,7 @@ export class OrderWorkflowManager {
   }
 
   // Handle auto-transitions
-  async handleAutoTransition(orderId, currentStatus, additionalData = {}) {
+  async handleAutoTransition(orderId, currentStatus) {
     const transitions = {
       [ORDER_STATUS.SHIPPED]: {
         nextStatus: ORDER_STATUS.IN_TRANSIT,

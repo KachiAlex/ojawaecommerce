@@ -3,7 +3,7 @@
  * Simulates real-world attack scenarios
  */
 
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 
 describe('Penetration Tests', () => {
   describe('SQL/NoSQL Injection', () => {
@@ -99,8 +99,6 @@ describe('Penetration Tests', () => {
   describe('Authentication Bypass', () => {
     it('should prevent privilege escalation', () => {
       const buyer = { uid: 'buyer-1', role: 'buyer' }
-      const admin = { uid: 'admin-1', role: 'admin' }
-
       // Buyer should not be able to set themselves as admin
       const attemptedRoleChange = { ...buyer, role: 'admin' }
       // Should be rejected by backend
@@ -110,14 +108,12 @@ describe('Penetration Tests', () => {
     })
 
     it('should validate JWT tokens', () => {
-      const validToken = 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...'
-      const invalidToken = 'invalid.token.here'
-      const expiredToken = 'expired.token.here'
-      const tamperedToken = 'tampered.token.here'
+      const sampleToken = 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...'
+      const malformedToken = 'invalid.token.here'
 
       // Tokens should be validated
-      expect(validToken).toContain('.')
-      expect(invalidToken.split('.').length).toBe(3) // JWT format
+      expect(sampleToken).toContain('.')
+      expect(malformedToken.split('.').length).toBe(3) // JWT format
     })
   })
 
@@ -133,13 +129,13 @@ describe('Penetration Tests', () => {
 
       traversalPaths.forEach(path => {
         const sanitized = path
-          .replace(/\.\./g, '')
-          .replace(/[\/\\]/g, '_')
-          .replace(/^[\/\\]/, '')
+          .replace(/\.{2}/g, '')
+          .replace(/[\\/]/g, '_')
+          .replace(/^[\\/]/, '')
         
         expect(sanitized).not.toContain('../')
         expect(sanitized).not.toContain('..\\')
-        expect(sanitized).not.toMatch(/^[\/\\]/)
+        expect(sanitized).not.toMatch(/^[\\/]/)
       })
     })
   })

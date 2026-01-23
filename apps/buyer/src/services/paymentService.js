@@ -1,16 +1,15 @@
 import { errorLogger } from '../utils/errorLogger'
 import secureStorage from '../utils/secureStorage'
-import { ORDER_STATUS } from './orderWorkflow'
+import { openPaystackCheckout, loadPaystackScript } from '../utils/paystack'
 
 // Payment configuration
 export const PAYMENT_CONFIG = {
   maxRetries: 3,
   retryDelay: 2000, // 2 seconds
   timeoutDuration: 30000, // 30 seconds
-  flutterwave: {
-    publicKey: import.meta.env.VITE_FLUTTERWAVE_PUBLIC_KEY,
+  paystack: {
     currency: 'NGN',
-    paymentOptions: 'card,banktransfer,ussd'
+    referencePrefix: 'CHK',
   }
 }
 
@@ -55,6 +54,16 @@ export class PaymentRetryManager {
       onRetry
     } = options
 
+    const paymentOptions = {
+      maxRetries,
+      retryDelay,
+      timeoutDuration,
+      onProgress,
+      onSuccess,
+      onFailure,
+      onRetry
+    }
+
     const paymentId = paymentData.tx_ref || `payment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     
     // Initialize retry tracking
@@ -66,8 +75,8 @@ export class PaymentRetryManager {
     })
 
     try {
-      // Load Flutterwave SDK
-      await this.loadFlutterwaveSDK()
+      // Ensure Paystack inline script is available
+      await loadPaystackScript()
       
       // Set up timeout
       const timeoutId = setTimeout(() => {
@@ -78,7 +87,7 @@ export class PaymentRetryManager {
       this.activePayments.set(paymentId, {
         timeoutId,
         paymentData,
-        options
+        options: paymentOptions
       })
 
       // Execute payment
@@ -99,68 +108,81 @@ export class PaymentRetryManager {
     }
   }
 
-  // Mock Flutterwave SDK loading (no external dependencies)
-  async loadFlutterwaveSDK() {
-    return new Promise((resolve) => {
-      // Mock successful loading without external scripts
-      setTimeout(() => resolve(), 100);
-    });
-  }
-
-  // Execute payment with Flutterwave
+  // Execute payment with Paystack
   async executePayment(paymentData, paymentId, callbacks) {
     const { onProgress, onSuccess, onFailure, onRetry } = callbacks
 
     return new Promise((resolve, reject) => {
-      const config = {
-        public_key: PAYMENT_CONFIG.flutterwave.publicKey,
-        tx_ref: paymentData.tx_ref,
-        amount: paymentData.amount,
-        currency: PAYMENT_CONFIG.flutterwave.currency,
-        payment_options: PAYMENT_CONFIG.flutterwave.paymentOptions,
-        customer: paymentData.customer,
-        customizations: paymentData.customizations,
-        callback: async (response) => {
-          try {
-            await this.handlePaymentCallback(response, paymentId, {
-              onSuccess: (result) => {
-                onSuccess?.(result)
-                resolve(result)
-              },
-              onFailure: (error) => {
-                onFailure?.(error)
-                reject(error)
-              },
-              onRetry: async (retryData) => {
-                onRetry?.(retryData)
-                await this.handlePaymentRetry(retryData, callbacks)
-              }
-            })
-          } catch (error) {
-            reject(error)
-          }
-        },
-        onclose: () => {
-          const retryInfo = this.retryAttempts.get(paymentId)
-          if (retryInfo && retryInfo.attempts < retryInfo.maxRetries) {
-            // Payment was closed but not failed - could be user cancellation
-            this.handlePaymentCancellation(paymentId)
-          }
-          onFailure?.(new Error('Payment cancelled by user'))
+      const runPayment = async () => {
+        onProgress?.({ stage: 'initializing', paymentId })
+
+        const referencePrefix = paymentData.referencePrefix || PAYMENT_CONFIG.paystack.referencePrefix
+        const currency = paymentData.currency || PAYMENT_CONFIG.paystack.currency
+        const metadata = {
+          ...paymentData.metadata,
+          paymentId,
+          customerEmail: paymentData?.customer?.email,
+          userId: paymentData?.user?.uid,
         }
+
+        const paystackResult = await openPaystackCheckout({
+          user: paymentData.user,
+          amount: paymentData.amount,
+          currency,
+          referencePrefix,
+          metadata,
+          customizations: paymentData.customizations,
+        })
+
+        const response = {
+          status: 'success',
+          transaction_id: paystackResult.reference,
+          reference: paystackResult.reference,
+          amount: paymentData.amount,
+          currency,
+          metadata,
+        }
+
+        await this.handlePaymentCallback(response, paymentId, {
+          onSuccess: (result) => {
+            onSuccess?.(result)
+            resolve(result)
+          },
+          onFailure: (error) => {
+            onFailure?.(error)
+            reject(error)
+          },
+          onRetry: async (retryData) => {
+            onRetry?.(retryData)
+            await this.handlePaymentRetry(retryData, callbacks)
+          }
+        })
       }
 
-      // Mock Flutterwave payment execution
-      console.log('Mock Flutterwave payment initiated:', config);
-      // Simulate successful payment after delay
-      setTimeout(() => {
-        const mockResponse = {
-          status: 'successful',
-          transaction_id: `TXN-${Date.now()}`,
-          tx_ref: config.tx_ref
-        };
-        config.callback(mockResponse);
-      }, 2000);
+      runPayment().catch(async (error) => {
+        const failureResponse = {
+          status: error.message === 'Payment window closed' ? 'cancelled' : 'failed',
+          code: error.code,
+          message: error.message,
+          amount: paymentData.amount,
+          reference: paymentData.tx_ref,
+        }
+
+        await this.handlePaymentCallback(failureResponse, paymentId, {
+          onSuccess: (result) => {
+            onSuccess?.(result)
+            resolve(result)
+          },
+          onFailure: (err) => {
+            onFailure?.(err)
+            reject(err)
+          },
+          onRetry: async (retryData) => {
+            onRetry?.(retryData)
+            await this.handlePaymentRetry(retryData, callbacks)
+          }
+        })
+      })
     })
   }
 
@@ -175,12 +197,12 @@ export class PaymentRetryManager {
       attempt: retryInfo?.attempts || 0
     })
 
-    if (response.status === 'successful' || response.status === 'completed') {
+    if (response.status === 'successful' || response.status === 'completed' || response.status === 'success') {
       // Payment successful
       await this.recordSuccessfulPayment(paymentId, response)
       callbacks.onSuccess({
         paymentId,
-        transactionId: response.transaction_id,
+        transactionId: response.transaction_id || response.reference,
         status: PAYMENT_STATUS.SUCCESS,
         response
       })
@@ -229,7 +251,8 @@ export class PaymentRetryManager {
     }
 
     // Wait before retry
-    await this.delay(PAYMENT_CONFIG.retryDelay * attempt)
+    const retryDelay = this.activePayments.get(paymentId)?.options?.retryDelay || PAYMENT_CONFIG.retryDelay
+    await this.delay(retryDelay * attempt)
 
     try {
       // Retry payment with updated reference
@@ -298,18 +321,18 @@ export class PaymentRetryManager {
   categorizePaymentError(response) {
     const error = new Error(response.message || 'Payment failed')
     
-    // Map Flutterwave error codes to our error types
     const errorMappings = {
-      'insufficient_funds': PAYMENT_ERROR_TYPES.INSUFFICIENT_FUNDS,
-      'card_declined': PAYMENT_ERROR_TYPES.CARD_DECLINED,
-      'invalid_card': PAYMENT_ERROR_TYPES.INVALID_CARD,
-      'expired_card': PAYMENT_ERROR_TYPES.EXPIRED_CARD,
-      'network_error': PAYMENT_ERROR_TYPES.NETWORK_ERROR,
-      'timeout': PAYMENT_ERROR_TYPES.TIMEOUT
+      insufficient_funds: PAYMENT_ERROR_TYPES.INSUFFICIENT_FUNDS,
+      card_declined: PAYMENT_ERROR_TYPES.CARD_DECLINED,
+      invalid_card: PAYMENT_ERROR_TYPES.INVALID_CARD,
+      expired_card: PAYMENT_ERROR_TYPES.EXPIRED_CARD,
+      network_error: PAYMENT_ERROR_TYPES.NETWORK_ERROR,
+      timeout: PAYMENT_ERROR_TYPES.TIMEOUT,
+      cancelled: PAYMENT_ERROR_TYPES.CANCELLED,
     }
 
-    error.type = errorMappings[response.code] || PAYMENT_ERROR_TYPES.UNKNOWN_ERROR
-    error.code = response.code
+    error.type = errorMappings[response.code] || errorMappings[response.status] || PAYMENT_ERROR_TYPES.UNKNOWN_ERROR
+    error.code = response.code || response.status
     error.response = response
     
     return error
@@ -327,7 +350,7 @@ export class PaymentRetryManager {
     const paymentRecord = {
       paymentId,
       status: PAYMENT_STATUS.SUCCESS,
-      transactionId: response.transaction_id,
+      transactionId: response.transaction_id || response.reference,
       amount: response.amount,
       timestamp: new Date(),
       response

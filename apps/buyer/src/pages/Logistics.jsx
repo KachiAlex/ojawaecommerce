@@ -96,12 +96,14 @@ const Logistics = () => {
   const [selectedCountryForIntercity, setSelectedCountryForIntercity] = useState('');
   const [intercitySearchTerm, setIntercitySearchTerm] = useState('');
   const [internationalSearchTerm, setInternationalSearchTerm] = useState('');
+
   const [selectedRoutes, setSelectedRoutes] = useState([]); // Array of {from, to, price, estimatedTime, vehicleType}
   const [usePartnerPricing, setUsePartnerPricing] = useState(true); // Use partner's rate for auto-calculation
   const [routeValidations, setRouteValidations] = useState({}); // Store validation results per route
   
   // Filter and sort state
   const [showFilters, setShowFilters] = useState(false);
+  // ... rest of your code
   const [routeFilters, setRouteFilters] = useState({
     minPrice: undefined,
     maxPrice: undefined,
@@ -489,11 +491,13 @@ const Logistics = () => {
   };
   
   const selectAllVisibleRoutes = (routesList) => {
+    const defaultVehicleTypes = ['Van', 'Truck', 'Motorcycle', 'Car'];
+
     const newSelections = routesList
       .filter(route => !isRouteSelected(route))
       .map(route => {
         let initialPrice = route.suggestedPrice;
-        
+
         if (usePartnerPricing && profile?.pricing?.ratePerKm) {
           const partnerPricing = calculatePartnerPrice(
             route.distance,
@@ -503,7 +507,11 @@ const Logistics = () => {
           );
           initialPrice = partnerPricing.finalPrice;
         }
-        
+
+        const availableVehicles = Array.isArray(route.vehicleTypes) && route.vehicleTypes.length > 0
+          ? route.vehicleTypes
+          : defaultVehicleTypes;
+
         return {
           from: route.from,
           to: route.to,
@@ -511,32 +519,42 @@ const Logistics = () => {
           suggestedPrice: route.suggestedPrice,
           partnerPrice: initialPrice !== route.suggestedPrice ? initialPrice : null,
           estimatedTime: route.estimatedTime,
-          vehicleType: route.vehicleTypes ? route.vehicleTypes[0] : 'Van',
+          vehicleType: availableVehicles[0],
+          vehicleTypes: availableVehicles,
           distance: route.distance || 0
         };
       });
-    
-    setSelectedRoutes([...selectedRoutes, ...newSelections]);
+
+    if (!newSelections.length) return;
+
+    setSelectedRoutes(prev => [...prev, ...newSelections]);
   };
-  
+
   const deselectAllRoutes = () => {
     setSelectedRoutes([]);
     setRouteValidations({});
   };
-  
-  // Save/Load draft functions
+
   const saveDraft = () => {
+    if (!selectedRoutes.length) {
+      alert('Select at least one route to save.');
+      return;
+    }
+
     const draft = {
       routeType: routeForm.routeType,
       selectedRoutes,
       selectedCountryForIntercity,
+      intercitySearchTerm,
+      internationalSearchTerm,
       currency: routeForm.currency,
       savedAt: new Date().toISOString()
     };
+
     localStorage.setItem(`logistics_route_draft_${profile?.id}`, JSON.stringify(draft));
     alert(`Draft saved! ${selectedRoutes.length} route(s) saved for later.`);
   };
-  
+
   const loadDraft = () => {
     const draftJson = localStorage.getItem(`logistics_route_draft_${profile?.id}`);
     if (!draftJson) {
@@ -550,8 +568,10 @@ const Logistics = () => {
       
       if (confirm(`Load draft from ${savedDate}?\n\n${draft.selectedRoutes.length} route(s) will be restored.`)) {
         setRouteForm(prev => ({ ...prev, routeType: draft.routeType, currency: draft.currency }));
-        setSelectedRoutes(draft.selectedRoutes);
+        setSelectedRoutes(draft.selectedRoutes || []);
         setSelectedCountryForIntercity(draft.selectedCountryForIntercity || '');
+        setIntercitySearchTerm(draft.intercitySearchTerm || '');
+        setInternationalSearchTerm(draft.internationalSearchTerm || '');
         alert('Draft loaded successfully!');
       }
     } catch (error) {
@@ -566,12 +586,176 @@ const Logistics = () => {
       alert('Draft deleted.');
     }
   };
-  
+
+  const renderRouteWarnings = (routeKey) => {
+    const warnings = routeValidations[routeKey]?.warnings || [];
+    if (!warnings.length) return null;
+
+    return (
+      <div className="space-y-1">
+        {warnings.map((warning, idx) => {
+          const isError = warning.severity === 'error';
+          return (
+            <div
+              key={`${routeKey}-warning-${idx}`}
+              className={`text-xs ${
+                isError
+                  ? 'bg-red-50 border border-red-200 text-red-800'
+                  : 'bg-yellow-50 border border-yellow-200 text-yellow-800'
+              } p-2 rounded flex items-start gap-2`}
+            >
+              <span className={isError ? 'text-red-600 flex-shrink-0' : 'text-yellow-600 flex-shrink-0'}>
+                {isError ? '⚠️' : '💡'}
+              </span>
+              <div>
+                <div className="font-medium">{warning.message}</div>
+                {warning.recommendation && (
+                  <div className={isError ? 'text-red-700 mt-1' : 'text-yellow-700 mt-1'}>
+                    {warning.recommendation}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const renderMarketSuggestion = (routeKey, selectedRoute) => {
+    if (!selectedRoute) return null;
+    if (selectedRoute.suggestedPrice === selectedRoute.price) return null;
+
+    const hasPricingWarning = routeValidations[routeKey]?.warnings?.some((warning) =>
+      warning.type?.includes('pricing')
+    );
+    if (hasPricingWarning) return null;
+
+    const comparison = comparePrices(selectedRoute.price, selectedRoute.suggestedPrice);
+
+    return (
+      <div className="text-xs text-gray-600 bg-blue-50 p-2 rounded">
+        Market suggestion: ₦{selectedRoute.suggestedPrice.toLocaleString()}
+        <span
+          className={`ml-2 ${
+            comparison.isLower
+              ? 'text-emerald-600'
+              : comparison.isHigher
+                ? 'text-orange-600'
+                : 'text-gray-600'
+          }`}
+        >
+          ({comparison.percentageDiff > 0 ? '+' : ''}{comparison.percentageDiff}%)
+        </span>
+      </div>
+    );
+  };
+
+  const renderBatchActionsPanel = () => {
+    if (!selectedRoutes.length) return null;
+
+    const totalValue = selectedRoutes.reduce((sum, route) => sum + (parseFloat(route.price) || 0), 0);
+
+    return (
+      <div className="mt-4 space-y-3">
+        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+          <div className="font-medium text-emerald-900">✓ {selectedRoutes.length} route(s) selected</div>
+          <div className="text-sm text-emerald-700">
+            Total estimated value: ₦{totalValue.toLocaleString()}
+          </div>
+        </div>
+
+        <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
+          <button
+            onClick={() => setShowBatchActions(!showBatchActions)}
+            className="text-sm font-medium text-purple-900 hover:text-purple-700 flex items-center gap-2"
+          >
+            ⚡ Bulk Actions {showBatchActions ? '▼' : '▶'}
+          </button>
+
+          {showBatchActions && (
+            <div className="mt-3 space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <select
+                  value={batchAction.type}
+                  onChange={(e) => setBatchAction({ ...batchAction, type: e.target.value })}
+                  className="w-full border border-purple-300 rounded px-2 py-1.5 text-sm"
+                >
+                  <option value="">-- Select Action --</option>
+                  <option value="price_adjust_percent">Adjust Price by %</option>
+                  <option value="price_adjust_amount">Adjust Price by ₦</option>
+                  <option value="price_set">Set Same Price</option>
+                  <option value="vehicle_change">Change Vehicle Type</option>
+                </select>
+
+                {batchAction.type === 'price_adjust_percent' && (
+                  <input
+                    type="number"
+                    value={batchAction.value}
+                    onChange={(e) => setBatchAction({ ...batchAction, value: e.target.value })}
+                    className="w-full border border-purple-300 rounded px-2 py-1.5 text-sm"
+                    placeholder="e.g., 10 for +10%, -15 for -15%"
+                  />
+                )}
+
+                {batchAction.type === 'price_adjust_amount' && (
+                  <input
+                    type="number"
+                    value={batchAction.value}
+                    onChange={(e) => setBatchAction({ ...batchAction, value: e.target.value })}
+                    className="w-full border border-purple-300 rounded px-2 py-1.5 text-sm"
+                    placeholder="e.g., 5000 to add ₦5000"
+                  />
+                )}
+
+                {batchAction.type === 'price_set' && (
+                  <input
+                    type="number"
+                    value={batchAction.value}
+                    onChange={(e) => setBatchAction({ ...batchAction, value: e.target.value })}
+                    className="w-full border border-purple-300 rounded px-2 py-1.5 text-sm"
+                    placeholder="e.g., 50000"
+                  />
+                )}
+
+                {batchAction.type === 'vehicle_change' && (
+                  <select
+                    value={batchAction.value}
+                    onChange={(e) => setBatchAction({ ...batchAction, value: e.target.value })}
+                    className="w-full border border-purple-300 rounded px-2 py-1.5 text-sm"
+                  >
+                    <option value="">-- Select Vehicle --</option>
+                    <option>Van</option>
+                    <option>Truck</option>
+                    <option>Motorcycle</option>
+                    <option>Car</option>
+                  </select>
+                )}
+
+                <button
+                  onClick={applyBatchAction}
+                  disabled={!batchAction.type || !batchAction.value}
+                  className="px-4 py-1.5 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Apply to All
+                </button>
+              </div>
+
+              <div className="text-xs text-purple-700">
+                💡 Tip: This will apply the change to all {selectedRoutes.length} selected route(s)
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   // Check if draft exists
   const hasDraft = () => {
     return !!localStorage.getItem(`logistics_route_draft_${profile?.id}`);
   };
-  
+
   // Quick actions handler
   const handleQuickAction = (actionType, value) => {
     switch (actionType) {
@@ -750,39 +934,36 @@ const Logistics = () => {
             createdAt: new Date().toISOString(),
             status: 'active'
           };
+
           return firebaseService.logistics.addRoute(profile.id, routeData);
         });
-        
+
         await Promise.all(addPromises);
-        alert(`Successfully added ${selectedRoutes.length} ${routeForm.routeType} route(s)!`);
-        setSelectedRoutes([]);
-        setRouteValidations({}); // Clear validations
+
+        setRouteForm(prev => ({
+          ...prev,
+          country: '',
+          state: '',
+          city: '',
+          stateAsCity: false,
+          from: '',
+          to: '',
+          distance: '',
+          price: '',
+          currency: '₦ NGN',
+          estimatedTime: '',
+          vehicleType: 'Van',
+          serviceType: 'Standard Delivery'
+        }));
+
+        setSelectedCountryForIntercity('');
+        setIntercitySearchTerm('');
+        setInternationalSearchTerm('');
+        setShowAddRouteForm(false);
+
+        // Reload routes
+        await loadRoutes(profile?.id);
       }
-      
-      // Reset form
-      setRouteForm({
-        routeType: 'intracity',
-        country: '',
-        state: '',
-        city: '',
-        stateAsCity: false,
-        from: '',
-        to: '',
-        distance: '',
-        price: '',
-        currency: '₦ NGN',
-        estimatedTime: '',
-        vehicleType: 'Van',
-        serviceType: 'Standard Delivery'
-      });
-      setSelectedCountryForIntercity('');
-      setIntercitySearchTerm('');
-      setInternationalSearchTerm('');
-      
-      setShowAddRouteForm(false);
-      
-      // Reload routes
-      await loadRoutes(profile?.id);
       
     } catch (error) {
       console.error('Error saving route:', error);
@@ -1079,864 +1260,7 @@ const Logistics = () => {
                       }}
                     />
                   )}
-
-                  {/* OLD COMPLEX INTERCITY CODE - REPLACED ABOVE */}
-                  {false && routeForm.routeType === 'intercity' && (
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4">🚛 Select Intercity Routes</h3>
-                      
-                      {/* Country Selection */}
-                      <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Select Country</label>
-                        <select
-                          value={selectedCountryForIntercity}
-                          onChange={(e) => {
-                            setSelectedCountryForIntercity(e.target.value);
-                            setIntercitySearchTerm('');
-                          }}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                        >
-                          <option value="">-- Select a country --</option>
-                          {getCountriesWithIntercityRoutes().map(country => (
-                            <option key={country} value={country}>{country}</option>
-                          ))}
-                        </select>
-                      </div>
-                      
-                      {/* Smart Recommendations Toggle */}
-                      {profile?.serviceAreas && profile.serviceAreas.length > 0 && selectedCountryForIntercity && (
-                        <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-                          <label className="flex items-center space-x-3 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={showOnlyRecommended}
-                              onChange={(e) => setShowOnlyRecommended(e.target.checked)}
-                              className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500 focus:ring-2"
-                            />
-                            <div className="flex-1">
-                              <span className="text-sm font-medium text-green-900">
-                                🎯 Show Only Routes in My Service Areas
-                              </span>
-                              <p className="text-xs text-green-700 mt-1">
-                                {(() => {
-                                  const baseRoutes = searchIntercityRoutes(selectedCountryForIntercity, intercitySearchTerm);
-                                  const recommended = filterByServiceAreas(baseRoutes, profile.serviceAreas);
-                                  return `${recommended.length} of ${baseRoutes.length} routes match your service areas`;
-                                })()}
-                              </p>
-                            </div>
-                          </label>
-                        </div>
-                      )}
-                      
-                      {/* Pricing Mode Toggle */}
-                      {profile?.pricing?.ratePerKm && (
-                        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                          <label className="flex items-center space-x-3 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={usePartnerPricing}
-                              onChange={(e) => setUsePartnerPricing(e.target.checked)}
-                              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
-                            />
-                            <div className="flex-1">
-                              <span className="text-sm font-medium text-blue-900">
-                                Use My Pricing (₦{profile.pricing.ratePerKm}/km)
-                              </span>
-                              <p className="text-xs text-blue-700 mt-1">
-                                Auto-calculate prices based on your configured rate instead of market suggestions
-                              </p>
-                            </div>
-                          </label>
-                        </div>
-                      )}
-                      
-                      {/* Search Box */}
-                      {selectedCountryForIntercity && (
-                        <div className="mb-4">
-                          <input
-                            type="text"
-                            placeholder="Search routes by city name..."
-                            value={intercitySearchTerm}
-                            onChange={(e) => setIntercitySearchTerm(e.target.value)}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                          />
-                        </div>
-                      )}
-                      
-                      {/* Filter & Sort Controls */}
-                      {selectedCountryForIntercity && (
-                        <div className="mb-4 flex items-center gap-2 flex-wrap">
-                          <button
-                            onClick={() => setShowFilters(!showFilters)}
-                            className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2"
-                          >
-                            🔍 Filters {Object.values(routeFilters).some(v => v !== undefined && (Array.isArray(v) ? v.length > 0 : true)) && '●'}
-                          </button>
-                          <select
-                            value={sortBy}
-                            onChange={(e) => setSortBy(e.target.value)}
-                            className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
-                          >
-                            <option value="price_asc">💰 Price: Low to High</option>
-                            <option value="price_desc">💰 Price: High to Low</option>
-                            <option value="distance_asc">📏 Distance: Short to Long</option>
-                            <option value="distance_desc">📏 Distance: Long to Short</option>
-                            <option value="time_asc">⏱️ Time: Fastest First</option>
-                            <option value="time_desc">⏱️ Time: Slowest First</option>
-                            <option value="alphabetical">🔤 Alphabetical</option>
-                          </select>
-                          <div className="text-xs text-gray-600">
-                            {(() => {
-                              const baseRoutes = searchIntercityRoutes(selectedCountryForIntercity, intercitySearchTerm);
-                              const filtered = filterRoutes(baseRoutes, routeFilters);
-                              return `${filtered.length} of ${baseRoutes.length} routes`;
-                            })()}
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* Filter Panel */}
-                      {showFilters && selectedCountryForIntercity && (
-                        <div className="mb-4 p-4 bg-white border border-gray-300 rounded-lg space-y-3">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div>
-                              <label className="block text-xs font-medium text-gray-700 mb-1">Min Price (₦)</label>
-                              <input
-                                type="number"
-                                value={routeFilters.minPrice || ''}
-                                onChange={(e) => setRouteFilters({...routeFilters, minPrice: e.target.value ? parseFloat(e.target.value) : undefined})}
-                                className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
-                                placeholder="0"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-medium text-gray-700 mb-1">Max Price (₦)</label>
-                              <input
-                                type="number"
-                                value={routeFilters.maxPrice || ''}
-                                onChange={(e) => setRouteFilters({...routeFilters, maxPrice: e.target.value ? parseFloat(e.target.value) : undefined})}
-                                className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
-                                placeholder="100000"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-medium text-gray-700 mb-1">Max Distance (km)</label>
-                              <input
-                                type="number"
-                                value={routeFilters.maxDistance || ''}
-                                onChange={(e) => setRouteFilters({...routeFilters, maxDistance: e.target.value ? parseFloat(e.target.value) : undefined})}
-                                className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
-                                placeholder="1000"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-medium text-gray-700 mb-1">Max Time (hours)</label>
-                              <input
-                                type="number"
-                                value={routeFilters.maxHours || ''}
-                                onChange={(e) => setRouteFilters({...routeFilters, maxHours: e.target.value ? parseFloat(e.target.value) : undefined})}
-                                className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
-                                placeholder="24"
-                              />
-                            </div>
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => setRouteFilters({minPrice: undefined, maxPrice: undefined, minDistance: undefined, maxDistance: undefined, maxHours: undefined, vehicleTypes: []})}
-                              className="px-3 py-1.5 text-xs border border-gray-300 rounded hover:bg-gray-50"
-                            >
-                              Clear Filters
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* Popular Routes List */}
-                      {selectedCountryForIntercity && (
-                        <div className="space-y-2 max-h-96 overflow-y-auto">
-                          {(() => {
-                            let routesToDisplay = searchIntercityRoutes(selectedCountryForIntercity, intercitySearchTerm);
-                            if (showOnlyRecommended && profile?.serviceAreas) {
-                              routesToDisplay = filterByServiceAreas(routesToDisplay, profile.serviceAreas);
-                            }
-                            const filteredRoutes = filterRoutes(routesToDisplay, routeFilters);
-                            const sortedRoutes = sortRoutes(filteredRoutes, sortBy);
-                            // Aggressive safety check: ensure we have an array before mapping
-                            if (!Array.isArray(sortedRoutes)) {
-                              console.error('sortedRoutes is not an array:', sortedRoutes);
-                              return <div className="text-red-600 p-3">Error loading routes. Please refresh the page.</div>;
-                            }
-                            return sortedRoutes.map((route, idx) => {
-                            const isSelected = isRouteSelected(route);
-                            const routeKey = `${route.from}-${route.to}`;
-                            const selectedRoute = selectedRoutes.find(r => `${r.from}-${r.to}` === routeKey);
-                            
-                            // Calculate partner pricing for comparison
-                            let partnerPrice = null;
-                            let priceComparison = null;
-                            if (profile?.pricing?.ratePerKm) {
-                              const pricing = calculatePartnerPrice(
-                                route.distance,
-                                profile.pricing.ratePerKm,
-                                profile.pricing?.intracity?.minCharge || 2000,
-                                profile.pricing?.intercity?.maxCharge || 100000
-                              );
-                              partnerPrice = pricing.finalPrice;
-                              priceComparison = comparePrices(partnerPrice, route.suggestedPrice);
-                            }
-                            
-                            return (
-                              <div key={idx} className={`border rounded-lg p-3 ${isSelected ? 'border-emerald-500 bg-emerald-50' : 'border-gray-300 bg-white'}`}>
-                                <div className="flex items-start justify-between">
-                                  <div className="flex items-start space-x-3 flex-1">
-                                    <input
-                                      type="checkbox"
-                                      checked={isSelected}
-                                      onChange={() => toggleRouteSelection(route)}
-                                      className="mt-1 w-4 h-4 text-emerald-600 bg-gray-100 border-gray-300 rounded focus:ring-emerald-500"
-                                    />
-                                    <div className="flex-1">
-                                      <div className="font-medium text-gray-900">{route.from} → {route.to}</div>
-                                      <div className="text-sm text-gray-600">
-                                        Distance: ~{route.distance}km | Est. Time: {route.estimatedTime}
-                                      </div>
-                                      
-                                      {/* Price comparison when not selected */}
-                                      {!isSelected && partnerPrice && usePartnerPricing && (
-                                        <div className="mt-2 text-xs">
-                                          <div className="flex items-center gap-2">
-                                            <span className="text-gray-600">Your rate:</span>
-                                            <span className={`font-semibold ${priceComparison.isLower ? 'text-emerald-600' : priceComparison.isHigher ? 'text-orange-600' : 'text-blue-600'}`}>
-                                              ₦{partnerPrice.toLocaleString()}
-                                            </span>
-                                            <span className={`text-xs ${priceComparison.isLower ? 'text-emerald-600' : priceComparison.isHigher ? 'text-orange-600' : 'text-gray-500'}`}>
-                                              ({priceComparison.percentageDiff > 0 ? '+' : ''}{priceComparison.percentageDiff}%)
-                                            </span>
-                                          </div>
-                                        </div>
-                                      )}
-                                      
-                                      {isSelected && selectedRoute && (
-                                        <div className="mt-3 space-y-3">
-                                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                            <div>
-                                              <label className="block text-xs font-medium text-gray-700 mb-1">Price (₦)</label>
-                                              <input
-                                                type="number"
-                                                value={selectedRoute.price}
-                                                onChange={(e) => updateSelectedRoute(routeKey, 'price', e.target.value)}
-                                                className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
-                                                min="0"
-                                              />
-                                            </div>
-                                            <div>
-                                              <label className="block text-xs font-medium text-gray-700 mb-1">Vehicle Type</label>
-                                              <select
-                                                value={selectedRoute.vehicleType}
-                                                onChange={(e) => updateSelectedRoute(routeKey, 'vehicleType', e.target.value)}
-                                                className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
-                                              >
-                                                <option>Van</option>
-                                                <option>Truck</option>
-                                                <option>Motorcycle</option>
-                                                <option>Car</option>
-                                              </select>
-                                            </div>
-                                          </div>
-                                          
-                                          {/* Show validation warnings */}
-                                          {routeValidations[routeKey] && routeValidations[routeKey].warnings.length > 0 && (
-                                            <div className="space-y-1">
-                                              {routeValidations[routeKey].warnings.filter(w => w.severity === 'error').map((warning, idx) => (
-                                                <div key={idx} className="text-xs bg-red-50 border border-red-200 text-red-800 p-2 rounded flex items-start gap-2">
-                                                  <span className="text-red-600 flex-shrink-0">⚠️</span>
-                                                  <div>
-                                                    <div className="font-medium">{warning.message}</div>
-                                                    {warning.recommendation && (
-                                                      <div className="text-red-700 mt-1">{warning.recommendation}</div>
-                                                    )}
-                                                  </div>
-                                                </div>
-                                              ))}
-                                              {routeValidations[routeKey].warnings.filter(w => w.severity === 'warning').map((warning, idx) => (
-                                                <div key={idx} className="text-xs bg-yellow-50 border border-yellow-200 text-yellow-800 p-2 rounded flex items-start gap-2">
-                                                  <span className="text-yellow-600 flex-shrink-0">💡</span>
-                                                  <div>
-                                                    <div className="font-medium">{warning.message}</div>
-                                                    {warning.recommendation && (
-                                                      <div className="text-yellow-700 mt-1">{warning.recommendation}</div>
-                                                    )}
-                                                  </div>
-                                                </div>
-                                              ))}
-                                            </div>
-                                          )}
-                                          
-                                          {/* Show comparison in selected route */}
-                                          {selectedRoute.suggestedPrice !== selectedRoute.price && !routeValidations[routeKey]?.warnings.some(w => w.type.includes('pricing')) && (
-                                            <div className="text-xs text-gray-600 bg-blue-50 p-2 rounded">
-                                              Market suggestion: ₦{selectedRoute.suggestedPrice.toLocaleString()}
-                                              {(() => {
-                                                const comp = comparePrices(selectedRoute.price, selectedRoute.suggestedPrice);
-                                                return (
-                                                  <span className={`ml-2 ${comp.isLower ? 'text-emerald-600' : comp.isHigher ? 'text-orange-600' : 'text-gray-600'}`}>
-                                                    ({comp.percentageDiff > 0 ? '+' : ''}{comp.percentageDiff}%)
-                                                  </span>
-                                                );
-                                              })()}
-                                            </div>
-                                          )}
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                  {!isSelected && (
-                                    <div className="text-right">
-                                      <div className="text-sm font-semibold text-emerald-600">
-                                        ₦{route.suggestedPrice.toLocaleString()}
-                                      </div>
-                                      <div className="text-xs text-gray-500">Market</div>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })();
-                          })()}
-                        </div>
-                      )}
-                      
-                      {/* Bulk Selection Actions */}
-                      {selectedCountryForIntercity && (
-                        <div className="mt-4 flex items-center gap-2 flex-wrap">
-                          <button
-                            onClick={() => {
-                              const visibleRoutes = sortRoutes(filterRoutes(searchIntercityRoutes(selectedCountryForIntercity, intercitySearchTerm), routeFilters), sortBy);
-                              selectAllVisibleRoutes(visibleRoutes);
-                            }}
-                            className="px-3 py-1.5 text-xs border border-gray-300 rounded hover:bg-gray-50"
-                          >
-                            ✓ Select All Visible
-                          </button>
-                          {selectedRoutes.length > 0 && (
-                            <button
-                              onClick={deselectAllRoutes}
-                              className="px-3 py-1.5 text-xs border border-gray-300 rounded hover:bg-gray-50"
-                            >
-                              ✗ Deselect All
-                            </button>
-                          )}
-                        </div>
-                      )}
-                      
-                      {/* Selected Routes Summary & Batch Actions */}
-                      {selectedRoutes.length > 0 && (
-                        <div className="mt-4 space-y-3">
-                          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
-                            <div className="font-medium text-emerald-900">
-                              ✓ {selectedRoutes.length} route(s) selected
-                            </div>
-                            <div className="text-sm text-emerald-700">
-                              Total estimated value: ₦{selectedRoutes.reduce((sum, r) => sum + parseFloat(r.price || 0), 0).toLocaleString()}
-                            </div>
-                          </div>
-                          
-                          {/* Batch Actions Toolbar */}
-                          <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
-                            <button
-                              onClick={() => setShowBatchActions(!showBatchActions)}
-                              className="text-sm font-medium text-purple-900 hover:text-purple-700 flex items-center gap-2"
-                            >
-                              ⚡ Bulk Actions {showBatchActions ? '▼' : '▶'}
-                            </button>
-                            
-                            {showBatchActions && (
-                              <div className="mt-3 space-y-3">
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                  <select
-                                    value={batchAction.type}
-                                    onChange={(e) => setBatchAction({ ...batchAction, type: e.target.value })}
-                                    className="w-full border border-purple-300 rounded px-2 py-1.5 text-sm"
-                                  >
-                                    <option value="">-- Select Action --</option>
-                                    <option value="price_adjust_percent">Adjust Price by %</option>
-                                    <option value="price_adjust_amount">Adjust Price by ₦</option>
-                                    <option value="price_set">Set Same Price</option>
-                                    <option value="vehicle_change">Change Vehicle Type</option>
-                                  </select>
-                                  
-                                  {batchAction.type === 'price_adjust_percent' && (
-                                    <input
-                                      type="number"
-                                      value={batchAction.value}
-                                      onChange={(e) => setBatchAction({ ...batchAction, value: e.target.value })}
-                                      className="w-full border border-purple-300 rounded px-2 py-1.5 text-sm"
-                                      placeholder="e.g., 10 for +10%, -15 for -15%"
-                                    />
-                                  )}
-                                  
-                                  {batchAction.type === 'price_adjust_amount' && (
-                                    <input
-                                      type="number"
-                                      value={batchAction.value}
-                                      onChange={(e) => setBatchAction({ ...batchAction, value: e.target.value })}
-                                      className="w-full border border-purple-300 rounded px-2 py-1.5 text-sm"
-                                      placeholder="e.g., 5000 to add ₦5000"
-                                    />
-                                  )}
-                                  
-                                  {batchAction.type === 'price_set' && (
-                                    <input
-                                      type="number"
-                                      value={batchAction.value}
-                                      onChange={(e) => setBatchAction({ ...batchAction, value: e.target.value })}
-                                      className="w-full border border-purple-300 rounded px-2 py-1.5 text-sm"
-                                      placeholder="e.g., 50000"
-                                    />
-                                  )}
-                                  
-                                  {batchAction.type === 'vehicle_change' && (
-                                    <select
-                                      value={batchAction.value}
-                                      onChange={(e) => setBatchAction({ ...batchAction, value: e.target.value })}
-                                      className="w-full border border-purple-300 rounded px-2 py-1.5 text-sm"
-                                    >
-                                      <option value="">-- Select Vehicle --</option>
-                                      <option>Van</option>
-                                      <option>Truck</option>
-                                      <option>Motorcycle</option>
-                                      <option>Car</option>
-                                    </select>
-                                  )}
-                                  
-                                  <button
-                                    onClick={applyBatchAction}
-                                    disabled={!batchAction.type || !batchAction.value}
-                                    className="px-4 py-1.5 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                                  >
-                                    Apply to All
-                                  </button>
-                                </div>
-                                
-                                <div className="text-xs text-purple-700">
-                                  💡 Tip: This will apply the change to all {selectedRoutes.length} selected route(s)
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
                   
-                  {/* OLD COMPLEX INTERNATIONAL CODE - REPLACED WITH RouteSelector ABOVE */}
-                  {false && routeForm.routeType === 'international' && (
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4">✈️ Select International Routes</h3>
-                      
-                      {/* Pricing Mode Toggle */}
-                      {profile?.pricing?.ratePerKm && (
-                        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                          <label className="flex items-center space-x-3 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={usePartnerPricing}
-                              onChange={(e) => setUsePartnerPricing(e.target.checked)}
-                              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
-                            />
-                            <div className="flex-1">
-                              <span className="text-sm font-medium text-blue-900">
-                                Use My Pricing (₦{profile.pricing.ratePerKm}/km)
-                              </span>
-                              <p className="text-xs text-blue-700 mt-1">
-                                Auto-calculate prices based on your configured rate instead of market suggestions
-                              </p>
-                            </div>
-                          </label>
-                        </div>
-                      )}
-                      
-                      {/* Search Box */}
-                      <div className="mb-4">
-                        <input
-                          type="text"
-                          placeholder="Search routes by country or city name..."
-                          value={internationalSearchTerm}
-                          onChange={(e) => setInternationalSearchTerm(e.target.value)}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                        />
-                      </div>
-                      
-                      {/* Filter & Sort Controls */}
-                      <div className="mb-4 flex items-center gap-2 flex-wrap">
-                        <button
-                          onClick={() => setShowFilters(!showFilters)}
-                          className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2"
-                        >
-                          🔍 Filters {Object.values(routeFilters).some(v => v !== undefined && (Array.isArray(v) ? v.length > 0 : true)) && '●'}
-                        </button>
-                        <select
-                          value={sortBy}
-                          onChange={(e) => setSortBy(e.target.value)}
-                          className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
-                        >
-                          <option value="price_asc">💰 Price: Low to High</option>
-                          <option value="price_desc">💰 Price: High to Low</option>
-                          <option value="distance_asc">📏 Distance: Short to Long</option>
-                          <option value="distance_desc">📏 Distance: Long to Short</option>
-                          <option value="time_asc">⏱️ Time: Fastest First</option>
-                          <option value="time_desc">⏱️ Time: Slowest First</option>
-                          <option value="alphabetical">🔤 Alphabetical</option>
-                        </select>
-                        <div className="text-xs text-gray-600">
-                          {(() => {
-                            const baseRoutes = searchInternationalRoutes(internationalSearchTerm);
-                            const filtered = filterRoutes(baseRoutes, routeFilters);
-                            return `${filtered.length} of ${baseRoutes.length} routes`;
-                          })()}
-                        </div>
-                      </div>
-                      
-                      {/* Filter Panel - Same as intercity */}
-                      {showFilters && (
-                        <div className="mb-4 p-4 bg-white border border-gray-300 rounded-lg space-y-3">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div>
-                              <label className="block text-xs font-medium text-gray-700 mb-1">Min Price (₦)</label>
-                              <input
-                                type="number"
-                                value={routeFilters.minPrice || ''}
-                                onChange={(e) => setRouteFilters({...routeFilters, minPrice: e.target.value ? parseFloat(e.target.value) : undefined})}
-                                className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
-                                placeholder="0"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-medium text-gray-700 mb-1">Max Price (₦)</label>
-                              <input
-                                type="number"
-                                value={routeFilters.maxPrice || ''}
-                                onChange={(e) => setRouteFilters({...routeFilters, maxPrice: e.target.value ? parseFloat(e.target.value) : undefined})}
-                                className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
-                                placeholder="1000000"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-medium text-gray-700 mb-1">Max Distance (km)</label>
-                              <input
-                                type="number"
-                                value={routeFilters.maxDistance || ''}
-                                onChange={(e) => setRouteFilters({...routeFilters, maxDistance: e.target.value ? parseFloat(e.target.value) : undefined})}
-                                className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
-                                placeholder="10000"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-medium text-gray-700 mb-1">Max Time (days)</label>
-                              <input
-                                type="number"
-                                value={routeFilters.maxHours ? routeFilters.maxHours / 24 : ''}
-                                onChange={(e) => setRouteFilters({...routeFilters, maxHours: e.target.value ? parseFloat(e.target.value) * 24 : undefined})}
-                                className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
-                                placeholder="14"
-                              />
-                            </div>
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => setRouteFilters({minPrice: undefined, maxPrice: undefined, minDistance: undefined, maxDistance: undefined, maxHours: undefined, vehicleTypes: []})}
-                              className="px-3 py-1.5 text-xs border border-gray-300 rounded hover:bg-gray-50"
-                            >
-                              Clear Filters
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* Popular Routes List */}
-                      <div className="space-y-2 max-h-96 overflow-y-auto">
-                        {(() => {
-                          const searchResults = searchInternationalRoutes(internationalSearchTerm);
-                          const filteredRoutes = filterRoutes(searchResults, routeFilters);
-                          const sortedRoutes = sortRoutes(filteredRoutes, sortBy);
-                          // Aggressive safety check: ensure we have an array before mapping
-                          if (!Array.isArray(sortedRoutes)) {
-                            console.error('International sortedRoutes is not an array:', sortedRoutes);
-                            return <div className="text-red-600 p-3">Error loading routes. Please refresh the page.</div>;
-                          }
-                          return sortedRoutes.map((route, idx) => {
-                          const isSelected = isRouteSelected(route);
-                          const routeKey = `${route.from}-${route.to}`;
-                          const selectedRoute = selectedRoutes.find(r => `${r.from}-${r.to}` === routeKey);
-                          
-                          // Calculate partner pricing for comparison
-                          let partnerPrice = null;
-                          let priceComparison = null;
-                          if (profile?.pricing?.ratePerKm) {
-                            const pricing = calculatePartnerPrice(
-                              route.distance,
-                              profile.pricing.ratePerKm,
-                              profile.pricing?.intracity?.minCharge || 2000,
-                              200000 // Higher max for international
-                            );
-                            partnerPrice = pricing.finalPrice;
-                            priceComparison = comparePrices(partnerPrice, route.suggestedPrice);
-                          }
-                          
-                          return (
-                            <div key={idx} className={`border rounded-lg p-3 ${isSelected ? 'border-emerald-500 bg-emerald-50' : 'border-gray-300 bg-white'}`}>
-                              <div className="flex items-start justify-between">
-                                <div className="flex items-start space-x-3 flex-1">
-                                  <input
-                                    type="checkbox"
-                                    checked={isSelected}
-                                    onChange={() => toggleRouteSelection(route)}
-                                    className="mt-1 w-4 h-4 text-emerald-600 bg-gray-100 border-gray-300 rounded focus:ring-emerald-500"
-                                  />
-                                  <div className="flex-1">
-                                    <div className="font-medium text-gray-900">{route.from} → {route.to}</div>
-                                    <div className="text-sm text-gray-600">
-                                      Distance: ~{route.distance}km | Est. Time: {route.estimatedTime}
-                                    </div>
-                                    <div className="text-xs text-gray-500 mt-1">
-                                      Available: {Array.isArray(route.vehicleTypes) ? route.vehicleTypes.join(', ') : 'Van, Truck, Flight'}
-                                    </div>
-                                    
-                                    {/* Price comparison when not selected */}
-                                    {!isSelected && partnerPrice && usePartnerPricing && (
-                                      <div className="mt-2 text-xs">
-                                        <div className="flex items-center gap-2">
-                                          <span className="text-gray-600">Your rate:</span>
-                                          <span className={`font-semibold ${priceComparison.isLower ? 'text-emerald-600' : priceComparison.isHigher ? 'text-orange-600' : 'text-blue-600'}`}>
-                                            ₦{partnerPrice.toLocaleString()}
-                                          </span>
-                                          <span className={`text-xs ${priceComparison.isLower ? 'text-emerald-600' : priceComparison.isHigher ? 'text-orange-600' : 'text-gray-500'}`}>
-                                            ({priceComparison.percentageDiff > 0 ? '+' : ''}{priceComparison.percentageDiff}%)
-                                          </span>
-                                        </div>
-                                      </div>
-                                    )}
-                                    
-                                    {isSelected && selectedRoute && (
-                                      <div className="mt-3 space-y-3">
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                          <div>
-                                            <label className="block text-xs font-medium text-gray-700 mb-1">Price (₦)</label>
-                                            <input
-                                              type="number"
-                                              value={selectedRoute.price}
-                                              onChange={(e) => updateSelectedRoute(routeKey, 'price', e.target.value)}
-                                              className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
-                                              min="0"
-                                            />
-                                          </div>
-                                          <div>
-                                            <label className="block text-xs font-medium text-gray-700 mb-1">Vehicle Type</label>
-                                            <select
-                                              value={selectedRoute.vehicleType}
-                                              onChange={(e) => updateSelectedRoute(routeKey, 'vehicleType', e.target.value)}
-                                              className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
-                                            >
-                                              {(() => {
-                                                // Get vehicle types from selectedRoute (which we guaranteed to be an array)
-                                                const availableVehicles = Array.isArray(selectedRoute.vehicleTypes) && selectedRoute.vehicleTypes.length > 0
-                                                  ? selectedRoute.vehicleTypes
-                                                  : ['Van', 'Truck', 'Motorcycle', 'Car'];
-                                                
-                                                return availableVehicles.map((vt, idx) => (
-                                                  <option key={`${vt}-${idx}`} value={vt}>{vt}</option>
-                                                ));
-                                              })()}
-                                            </select>
-                                          </div>
-                                        </div>
-                                        
-                                        {/* Show validation warnings */}
-                                        {routeValidations[routeKey] && routeValidations[routeKey].warnings.length > 0 && (
-                                          <div className="space-y-1">
-                                            {routeValidations[routeKey].warnings.filter(w => w.severity === 'error').map((warning, idx) => (
-                                              <div key={idx} className="text-xs bg-red-50 border border-red-200 text-red-800 p-2 rounded flex items-start gap-2">
-                                                <span className="text-red-600 flex-shrink-0">⚠️</span>
-                                                <div>
-                                                  <div className="font-medium">{warning.message}</div>
-                                                  {warning.recommendation && (
-                                                    <div className="text-red-700 mt-1">{warning.recommendation}</div>
-                                                  )}
-                                                </div>
-                                              </div>
-                                            ))}
-                                            {routeValidations[routeKey].warnings.filter(w => w.severity === 'warning').map((warning, idx) => (
-                                              <div key={idx} className="text-xs bg-yellow-50 border border-yellow-200 text-yellow-800 p-2 rounded flex items-start gap-2">
-                                                <span className="text-yellow-600 flex-shrink-0">💡</span>
-                                                <div>
-                                                  <div className="font-medium">{warning.message}</div>
-                                                  {warning.recommendation && (
-                                                    <div className="text-yellow-700 mt-1">{warning.recommendation}</div>
-                                                  )}
-                                                </div>
-                                              </div>
-                                            ))}
-                                          </div>
-                                        )}
-                                        
-                                        {/* Show comparison in selected route */}
-                                        {selectedRoute.suggestedPrice !== selectedRoute.price && !routeValidations[routeKey]?.warnings.some(w => w.type.includes('pricing')) && (
-                                          <div className="text-xs text-gray-600 bg-blue-50 p-2 rounded">
-                                            Market suggestion: ₦{selectedRoute.suggestedPrice.toLocaleString()}
-                                            {(() => {
-                                              const comp = comparePrices(selectedRoute.price, selectedRoute.suggestedPrice);
-                                              return (
-                                                <span className={`ml-2 ${comp.isLower ? 'text-emerald-600' : comp.isHigher ? 'text-orange-600' : 'text-gray-600'}`}>
-                                                  ({comp.percentageDiff > 0 ? '+' : ''}{comp.percentageDiff}%)
-                                                </span>
-                                              );
-                                            })()}
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                                {!isSelected && (
-                                  <div className="text-right">
-                                    <div className="text-sm font-semibold text-emerald-600">
-                                      ₦{route.suggestedPrice.toLocaleString()}
-                                    </div>
-                                    <div className="text-xs text-gray-500">Market</div>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        });
-                        })()}
-                      </div>
-                      
-                      {/* Bulk Selection Actions */}
-                      <div className="mt-4 flex items-center gap-2 flex-wrap">
-                        <button
-                          onClick={() => {
-                            const searchResults = searchInternationalRoutes(internationalSearchTerm);
-                            const filteredRoutes = filterRoutes(searchResults, routeFilters);
-                            const visibleRoutes = sortRoutes(filteredRoutes, sortBy);
-                            selectAllVisibleRoutes(visibleRoutes);
-                          }}
-                          className="px-3 py-1.5 text-xs border border-gray-300 rounded hover:bg-gray-50"
-                        >
-                          ✓ Select All Visible
-                        </button>
-                        {selectedRoutes.length > 0 && (
-                          <button
-                            onClick={deselectAllRoutes}
-                            className="px-3 py-1.5 text-xs border border-gray-300 rounded hover:bg-gray-50"
-                          >
-                            ✗ Deselect All
-                          </button>
-                        )}
-                      </div>
-                      
-                      {/* Selected Routes Summary & Batch Actions */}
-                      {selectedRoutes.length > 0 && (
-                        <div className="mt-4 space-y-3">
-                          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
-                            <div className="font-medium text-emerald-900">
-                              ✓ {selectedRoutes.length} route(s) selected
-                            </div>
-                            <div className="text-sm text-emerald-700">
-                              Total estimated value: ₦{selectedRoutes.reduce((sum, r) => sum + parseFloat(r.price || 0), 0).toLocaleString()}
-                            </div>
-                          </div>
-                          
-                          {/* Batch Actions Toolbar */}
-                          <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
-                            <button
-                              onClick={() => setShowBatchActions(!showBatchActions)}
-                              className="text-sm font-medium text-purple-900 hover:text-purple-700 flex items-center gap-2"
-                            >
-                              ⚡ Bulk Actions {showBatchActions ? '▼' : '▶'}
-                            </button>
-                            
-                            {showBatchActions && (
-                              <div className="mt-3 space-y-3">
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                  <select
-                                    value={batchAction.type}
-                                    onChange={(e) => setBatchAction({ ...batchAction, type: e.target.value })}
-                                    className="w-full border border-purple-300 rounded px-2 py-1.5 text-sm"
-                                  >
-                                    <option value="">-- Select Action --</option>
-                                    <option value="price_adjust_percent">Adjust Price by %</option>
-                                    <option value="price_adjust_amount">Adjust Price by ₦</option>
-                                    <option value="price_set">Set Same Price</option>
-                                    <option value="vehicle_change">Change Vehicle Type</option>
-                                  </select>
-                                  
-                                  {batchAction.type === 'price_adjust_percent' && (
-                                    <input
-                                      type="number"
-                                      value={batchAction.value}
-                                      onChange={(e) => setBatchAction({ ...batchAction, value: e.target.value })}
-                                      className="w-full border border-purple-300 rounded px-2 py-1.5 text-sm"
-                                      placeholder="e.g., 10 for +10%, -15 for -15%"
-                                    />
-                                  )}
-                                  
-                                  {batchAction.type === 'price_adjust_amount' && (
-                                    <input
-                                      type="number"
-                                      value={batchAction.value}
-                                      onChange={(e) => setBatchAction({ ...batchAction, value: e.target.value })}
-                                      className="w-full border border-purple-300 rounded px-2 py-1.5 text-sm"
-                                      placeholder="e.g., 5000 to add ₦5000"
-                                    />
-                                  )}
-                                  
-                                  {batchAction.type === 'price_set' && (
-                                    <input
-                                      type="number"
-                                      value={batchAction.value}
-                                      onChange={(e) => setBatchAction({ ...batchAction, value: e.target.value })}
-                                      className="w-full border border-purple-300 rounded px-2 py-1.5 text-sm"
-                                      placeholder="e.g., 50000"
-                                    />
-                                  )}
-                                  
-                                  {batchAction.type === 'vehicle_change' && (
-                                    <select
-                                      value={batchAction.value}
-                                      onChange={(e) => setBatchAction({ ...batchAction, value: e.target.value })}
-                                      className="w-full border border-purple-300 rounded px-2 py-1.5 text-sm"
-                                    >
-                                      <option value="">-- Select Vehicle --</option>
-                                      <option>Van</option>
-                                      <option>Truck</option>
-                                      <option>Motorcycle</option>
-                                      <option>Car</option>
-                                      <option>Flight</option>
-                                    </select>
-                                  )}
-                                  
-                                  <button
-                                    onClick={applyBatchAction}
-                                    disabled={!batchAction.type || !batchAction.value}
-                                    className="px-4 py-1.5 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                                  >
-                                    Apply to All
-                                  </button>
-                                </div>
-                                
-                                <div className="text-xs text-purple-700">
-                                  💡 Tip: This will apply the change to all {selectedRoutes.length} selected route(s)
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
                   {/* Pricing and Details - Only for Intracity */}
                   {routeForm.routeType === 'intracity' && (
                     <div className="bg-gray-50 p-4 rounded-lg">
