@@ -14,30 +14,6 @@ const ProtectedRoute = ({ children, requireCompleteProfile = false, requireVerif
   const [verificationError, setVerificationError] = useState('');
   const [verificationSent, setVerificationSent] = useState(false);
   
-  // Wait for auth to load
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
-      </div>
-    );
-  }
-  
-  if (!currentUser) {
-    // Save the intended destination and cart state
-    saveIntendedDestination(location.pathname);
-    
-    // Determine appropriate message based on the route
-    let message = 'Please sign in to continue.';
-    if (location.pathname === '/checkout') {
-      message = 'Please sign in to complete your purchase with wallet protection.';
-    } else if (location.pathname.startsWith('/products/')) {
-      message = 'Please sign in to add this product to your cart and complete your purchase.';
-    }
-    
-    return <Navigate to="/login" state={{ from: location, message }} />;
-  }
-
   const handleResendVerification = async () => {
     if (checkingVerification) return;
     setCheckingVerification(true);
@@ -76,6 +52,30 @@ const ProtectedRoute = ({ children, requireCompleteProfile = false, requireVerif
       saveIntendedDestination(location.pathname);
     }
   }, [requireVerifiedEmail, currentUser, location.pathname, saveIntendedDestination]);
+
+  // Wait for auth to load
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
+      </div>
+    );
+  }
+  
+  if (!currentUser) {
+    // Save the intended destination and cart state
+    saveIntendedDestination(location.pathname);
+    
+    // Determine appropriate message based on the route
+    let message = 'Please sign in to continue.';
+    if (location.pathname === '/checkout') {
+      message = 'Please sign in to complete your purchase with wallet protection.';
+    } else if (location.pathname.startsWith('/products/')) {
+      message = 'Please sign in to add this product to your cart and complete your purchase.';
+    }
+    
+    return <Navigate to="/login" state={{ from: location, message }} />;
+  }
 
   if (requireVerifiedEmail && !verificationBypassed && currentUser && !currentUser.emailVerified) {
     return (

@@ -70,48 +70,57 @@ export const openPaystackCheckout = async ({
   }
 
   await loadPaystackScript()
-  if (!window.PaystackPop) {
+  const PaystackPop = window.PaystackPop
+  if (!PaystackPop) {
     throw new Error('Unable to initialize Paystack inline payment')
   }
 
   const reference = `${referencePrefix}-${user.uid}-${Date.now()}`
 
-  const paystack = window.PaystackPop.setup({
-    key: publicKey,
-    email: user.email || 'customer@example.com',
-    amount: Math.round(numericAmount * 100),
-    currency,
-    ref: reference,
-    metadata: {
-      ...metadata,
-      full_name: user.displayName || 'Ojawa User',
-      userId: user.uid,
-    },
-    customizations: {
-      ...baseCustomizations,
-      ...customizations,
-    },
-    onSuccess: (response) => {
-      resolvePayment({ reference: response.reference, status: response.status || 'success' })
-    },
-    onCancel: () => {
-      if (typeof onClose === 'function') onClose()
-      rejectPayment(new Error('Payment window closed'))
-    },
-  })
-
-  if (!paystack || typeof paystack.openIframe !== 'function') {
-    throw new Error('Paystack inline handler could not be initialized')
-  }
-
-  let resolvePayment
-  let rejectPayment
-
   return new Promise((resolve, reject) => {
-    resolvePayment = resolve
-    rejectPayment = reject
+    const transactionPayload = {
+      key: publicKey,
+      email: user.email || 'customer@example.com',
+      amount: Math.round(numericAmount * 100),
+      currency,
+      ref: reference,
+      metadata: {
+        ...metadata,
+        full_name: user.displayName || 'Ojawa User',
+        userId: user.uid,
+      },
+      customizations: {
+        ...baseCustomizations,
+        ...customizations,
+      },
+      onSuccess: (response) => {
+        resolve({ reference: response.reference, status: response.status || 'success' })
+      },
+      onCancel: () => {
+        if (typeof onClose === 'function') onClose()
+        reject(new Error('Payment window closed'))
+      },
+    }
+
     try {
-      paystack.openIframe()
+      // Preferred SDK usage (v2)
+      if (typeof PaystackPop === 'function' && PaystackPop.prototype?.newTransaction) {
+        const handler = new PaystackPop()
+        handler.newTransaction(transactionPayload)
+        return
+      }
+
+      // Fallback to legacy setup API for older SDKs
+      if (typeof PaystackPop.setup === 'function') {
+        const legacyHandler = PaystackPop.setup(transactionPayload)
+        if (!legacyHandler || typeof legacyHandler.openIframe !== 'function') {
+          throw new Error('Paystack inline handler could not be initialized')
+        }
+        legacyHandler.openIframe()
+        return
+      }
+
+      throw new Error('Unsupported Paystack inline handler version')
     } catch (error) {
       reject(error)
     }

@@ -1,8 +1,12 @@
 const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { defineSecret } = require("firebase-functions/params");
 const admin = require("firebase-admin");
 const axios = require("axios");
 const crypto = require("crypto");
+
+const PAYSTACK_SECRET = defineSecret('PAYSTACK_SECRET_KEY');
+const PAYSTACK_WEBHOOK_SECRET = defineSecret('PAYSTACK_WEBHOOK_SECRET');
 
 // Initialize Firebase Admin
 admin.initializeApp();
@@ -14,16 +18,431 @@ const Timestamp = admin.firestore.Timestamp;
 const getPaystackConfig = () => {
   return {
     secretKey:
+      PAYSTACK_SECRET.value() ||
       process.env.PAYSTACK_SECRET_KEY ||
       process.env.PSTACK_SECRET_KEY ||
       process.env.PAYSTACK_SK ||
       process.env.SK_TEST_PAYSTACK,
     webhookSecret:
+      PAYSTACK_WEBHOOK_SECRET.value() ||
       process.env.PAYSTACK_WEBHOOK_SECRET ||
       process.env.PSTACK_WEBHOOK_SECRET ||
       process.env.PAYSTACK_SECRET_HASH ||
       process.env.PSTACK_SECRET_HASH,
   };
+};
+
+const PAYSTACK_BASE_URL = 'https://api.paystack.co';
+const PAYOUT_REQUESTS_COLLECTION = 'payout_requests';
+const PAYOUT_RECIPIENTS_COLLECTION = 'payout_recipients';
+
+const paystackAxios = axios.create({
+  baseURL: PAYSTACK_BASE_URL,
+  timeout: 20000,
+});
+
+// Automatically process payout requests when documents are created
+exports.handlePayoutRequestCreated = onDocumentCreated({
+  document: `${PAYOUT_REQUESTS_COLLECTION}/{payoutRequestId}`,
+  secrets: [PAYSTACK_SECRET, PAYSTACK_WEBHOOK_SECRET],
+}, async (event) => {
+  try {
+    const data = event.data?.data();
+    if (!data) {
+      console.warn('Payout request created without data');
+      return;
+    }
+    await processPayoutRequestDocument({
+      payoutRequestId: event.params.payoutRequestId,
+      data,
+    });
+  } catch (error) {
+    console.error('Error processing payout request (onCreate):', error);
+    const requestRef = db.collection(PAYOUT_REQUESTS_COLLECTION).doc(event.params.payoutRequestId);
+    await requestRef.set({
+      status: 'failed',
+      failureReason: error?.message,
+      failedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+  }
+});
+
+// Allow admins to reprocess payout requests on-demand
+exports.processPayoutRequest = onCall({ secrets: [PAYSTACK_SECRET, PAYSTACK_WEBHOOK_SECRET] }, async (request) => {
+  const { auth, data } = request;
+  if (!auth) {
+    throw new HttpsError('unauthenticated', 'Authentication required');
+  }
+
+  const { token = {} } = auth;
+  if (!token.admin && !token.isAdmin && !token.role?.includes?.('admin')) {
+    throw new HttpsError('permission-denied', 'Admin privileges required to process payouts');
+  }
+
+  const payoutRequestId = data?.payoutRequestId;
+  if (!payoutRequestId) {
+    throw new HttpsError('invalid-argument', 'payoutRequestId is required');
+  }
+
+  const docSnapshot = await db.collection(PAYOUT_REQUESTS_COLLECTION).doc(payoutRequestId).get();
+  if (!docSnapshot.exists) {
+    throw new HttpsError('not-found', 'Payout request not found');
+  }
+
+  const result = await processPayoutRequestDocument({
+    payoutRequestId,
+    data: docSnapshot.data(),
+  });
+
+  return {
+    success: true,
+    stakeholderResults: result,
+  };
+});
+
+const buildPaystackHeaders = () => {
+  const { secretKey } = getPaystackConfig();
+  if (!secretKey) {
+    throw new Error('Paystack secret key not configured');
+  }
+  return {
+    Authorization: `Bearer ${secretKey}`,
+    'Content-Type': 'application/json'
+  };
+};
+
+const callPaystack = async ({ method = 'post', endpoint, data }) => {
+  if (!endpoint) throw new Error('Paystack endpoint is required');
+  const headers = buildPaystackHeaders();
+  const response = await paystackAxios.request({
+    method,
+    url: endpoint,
+    data,
+    headers,
+  });
+  return response?.data?.data;
+};
+
+const ensurePaystackRecipient = async ({
+  userId,
+  accountName,
+  accountNumber,
+  bankCode,
+  type = 'nuban',
+  metadata = {},
+}) => {
+  if (!userId) throw new Error('userId is required to save payout recipient');
+  const docRef = db.collection(PAYOUT_RECIPIENTS_COLLECTION).doc(userId);
+  const existing = await docRef.get();
+  if (
+    existing.exists &&
+    existing.data()?.accountNumber === accountNumber &&
+    existing.data()?.bankCode === bankCode &&
+    existing.data()?.type === type &&
+    existing.data()?.recipientCode
+  ) {
+    return existing.data().recipientCode;
+  }
+
+  const payload = {
+    type,
+    name: accountName,
+    account_number: accountNumber,
+    bank_code: bankCode,
+    currency: 'NGN',
+    metadata,
+  };
+
+  const recipient = await callPaystack({ endpoint: '/transferrecipient', data: payload });
+  const recipientCode = recipient?.recipient_code;
+  if (!recipientCode) {
+    throw new Error('Unable to create Paystack transfer recipient');
+  }
+
+  await docRef.set({
+    userId,
+    accountName,
+    accountNumber,
+    bankCode,
+    type,
+    recipientCode,
+    metadata,
+    updatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+
+  return recipientCode;
+};
+
+const createWalletAutoWithdrawal = async ({ walletId, userId, amount, payoutRequestId, role, metadata = {} }) => {
+  if (!walletId) throw new Error('Wallet ID is required');
+  if (!amount || Number(amount) <= 0) throw new Error('Amount must be greater than zero');
+  const walletRef = db.collection('wallets').doc(walletId);
+
+  const result = await db.runTransaction(async (tx) => {
+    const walletSnap = await tx.get(walletRef);
+    if (!walletSnap.exists) {
+      throw new Error(`Wallet ${walletId} not found`);
+    }
+    const currentBalance = walletSnap.data().balance || 0;
+    const numericAmount = Number(amount);
+    if (currentBalance < numericAmount) {
+      throw new Error('Insufficient wallet balance for payout');
+    }
+
+    tx.update(walletRef, {
+      balance: currentBalance - numericAmount,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    const transactionRef = db.collection('wallet_transactions').doc();
+    tx.set(transactionRef, {
+      walletId,
+      userId,
+      type: 'withdrawal',
+      method: 'auto_payout',
+      amount: numericAmount,
+      status: 'processing',
+      role,
+      payoutRequestId,
+      description: `Automated payout (${role || 'stakeholder'}) for request ${payoutRequestId}`,
+      metadata,
+      balanceBefore: currentBalance,
+      balanceAfter: currentBalance - numericAmount,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    return { transactionId: transactionRef.id, walletRef };
+  });
+
+  return result;
+};
+
+const revertWalletAutoWithdrawal = async ({ walletRef, transactionId, amount, reason }) => {
+  if (!walletRef || !transactionId || !amount) return;
+  await db.runTransaction(async (tx) => {
+    const walletSnap = await tx.get(walletRef);
+    const currentBalance = walletSnap.data()?.balance || 0;
+    tx.update(walletRef, {
+      balance: currentBalance + Number(amount),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    const transactionRef = db.collection('wallet_transactions').doc(transactionId);
+    tx.update(transactionRef, {
+      status: 'reversed',
+      reversalReason: reason || 'Automated payout reversal',
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  });
+};
+
+const initiatePaystackTransfer = async ({ amount, recipientCode, reason, reference, metadata = {} }) => {
+  if (!amount || Number(amount) <= 0) {
+    throw new Error('Transfer amount must be greater than zero');
+  }
+  if (!recipientCode) {
+    throw new Error('Recipient code is required for transfer');
+  }
+
+  const payload = {
+    source: 'balance',
+    amount: Math.round(Number(amount) * 100),
+    recipient: recipientCode,
+    reason,
+    reference,
+    currency: 'NGN',
+    metadata,
+  };
+
+  const transfer = await callPaystack({ endpoint: '/transfer', data: payload });
+  return transfer;
+};
+
+const findWalletByUserId = async (userId) => {
+  if (!userId) return null;
+  const snapshot = await db.collection('wallets').where('userId', '==', userId).limit(1).get();
+  if (snapshot.empty) return null;
+  return snapshot.docs[0];
+};
+
+const resolveStakeholderAccountDetails = async (stakeholder = {}) => {
+  const directAccount = stakeholder.account || {};
+  if (directAccount.accountNumber && (directAccount.bankCode || directAccount.bank?.code)) {
+    return {
+      accountName: directAccount.accountName || directAccount.name,
+      accountNumber: directAccount.accountNumber,
+      bankCode: directAccount.bankCode || directAccount.bank?.code,
+      bankName: directAccount.bankName || directAccount.bank?.name || null,
+      type: directAccount.type || 'nuban',
+      metadata: directAccount.metadata || {},
+    };
+  }
+
+  if (!stakeholder.userId) {
+    throw new Error('Missing payout account details for stakeholder');
+  }
+
+  const userDoc = await db.collection('users').doc(stakeholder.userId).get();
+  const payout = userDoc.data()?.payout;
+  if (payout?.accountNumber && payout?.bankCode) {
+    return {
+      accountName: payout.accountName || payout.accountHolderName,
+      accountNumber: payout.accountNumber,
+      bankCode: payout.bankCode,
+      bankName: payout.bankName || null,
+      type: payout.type || payout.method || 'nuban',
+      metadata: payout.metadata || {},
+    };
+  }
+
+  throw new Error('No payout details available for this stakeholder');
+};
+
+const processPayoutStakeholder = async ({ stakeholder, payoutRequestId, orderId }) => {
+  if (!stakeholder) {
+    throw new Error('Stakeholder payload missing');
+  }
+
+  const amount = Number(stakeholder.amount || 0);
+  if (!amount || amount <= 0) {
+    throw new Error(`Invalid payout amount for ${stakeholder.role || 'stakeholder'}`);
+  }
+
+  const targetUserId = stakeholder.userId || stakeholder.uid || stakeholder.id;
+  let walletId = stakeholder.walletId;
+  if (!walletId && targetUserId) {
+    const walletDoc = await findWalletByUserId(targetUserId);
+    walletId = walletDoc?.id;
+  }
+
+  if (!walletId) {
+    throw new Error(`Wallet not found for payout stakeholder (${stakeholder.role || 'unknown'})`);
+  }
+
+  const { transactionId, walletRef } = await createWalletAutoWithdrawal({
+    walletId,
+    userId: targetUserId,
+    amount,
+    payoutRequestId,
+    role: stakeholder.role || 'stakeholder',
+    metadata: {
+      orderId,
+      trigger: stakeholder.trigger || 'auto',
+    },
+  });
+
+  try {
+    const accountDetails = await resolveStakeholderAccountDetails({
+      userId: targetUserId,
+      account: stakeholder.account,
+    });
+
+    const recipientCode = await ensurePaystackRecipient({
+      userId: targetUserId || `${payoutRequestId}-${stakeholder.role}`,
+      accountName: accountDetails.accountName,
+      accountNumber: accountDetails.accountNumber,
+      bankCode: accountDetails.bankCode,
+      type: accountDetails.type || 'nuban',
+      metadata: {
+        role: stakeholder.role,
+        orderId,
+        payoutRequestId,
+        ...accountDetails.metadata,
+      },
+    });
+
+    const transfer = await initiatePaystackTransfer({
+      amount,
+      recipientCode,
+      reason: stakeholder.reason || `Ojawa payout for order ${orderId} (${stakeholder.role || 'stakeholder'})`,
+      reference: stakeholder.reference || `PAYOUT-${payoutRequestId}-${stakeholder.role || 'stakeholder'}-${Date.now()}`,
+      metadata: {
+        orderId,
+        payoutRequestId,
+        walletTransactionId: transactionId,
+        role: stakeholder.role,
+        userId: targetUserId,
+      },
+    });
+
+    return {
+      role: stakeholder.role,
+      amount,
+      userId: targetUserId,
+      walletId,
+      walletTransactionId: transactionId,
+      recipientCode,
+      transferReference: transfer?.reference || transfer?.transfer_code || null,
+      paystackResponse: transfer,
+      status: 'transfer_initiated',
+    };
+  } catch (error) {
+    await revertWalletAutoWithdrawal({
+      walletRef,
+      transactionId,
+      amount,
+      reason: error?.message,
+    });
+    throw error;
+  }
+};
+
+const processPayoutRequestDocument = async ({ payoutRequestId, data }) => {
+  if (!payoutRequestId || !data) {
+    return;
+  }
+
+  const requestRef = db.collection(PAYOUT_REQUESTS_COLLECTION).doc(payoutRequestId);
+  if (data.status && data.status !== 'pending') {
+    return;
+  }
+
+  const stakeholders = Array.isArray(data.stakeholders) ? data.stakeholders : [];
+  if (!stakeholders.length) {
+    throw new Error('No stakeholders defined for payout request');
+  }
+
+  await requestRef.set({
+    status: 'processing',
+    processingStartedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+
+  const stakeholderResults = [];
+  for (const stakeholder of stakeholders) {
+    try {
+      const result = await processPayoutStakeholder({
+        stakeholder,
+        payoutRequestId,
+        orderId: data.orderId,
+      });
+      stakeholderResults.push(result);
+    } catch (error) {
+      stakeholderResults.push({
+        role: stakeholder.role,
+        amount: stakeholder.amount,
+        status: 'failed',
+        error: error?.message,
+      });
+
+      await requestRef.set({
+        status: 'failed',
+        stakeholderResults,
+        failureReason: error?.message,
+        failedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      throw error;
+    }
+  }
+
+  await requestRef.set({
+    status: 'transfers_initiated',
+    stakeholderResults,
+    completedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+
+  return stakeholderResults;
 };
 
 const VENDOR_SUBSCRIPTION_PLANS = {
@@ -50,6 +469,196 @@ const parsePaystackMetadata = (metadata) => {
     return {};
   }
 };
+
+const allowedOrigins = new Set([
+  'https://ojawa-ecommerce.web.app',
+  'https://ojawa-ecommerce.firebaseapp.com',
+  'https://ojawa-ecommerce-staging.web.app',
+  'https://ojawa-ecommerce-staging.firebaseapp.com'
+]);
+
+const isLocalhostOrigin = (origin = '') =>
+  origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:');
+
+const isOriginAllowed = (origin = '') => {
+  if (!origin) return true;
+  if (isLocalhostOrigin(origin)) return true;
+  return allowedOrigins.has(origin);
+};
+
+const addCorsHeaders = (res, origin = '') => {
+  if (origin) {
+    res.set('Access-Control-Allow-Origin', origin);
+    res.set('Vary', 'Origin');
+  }
+  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.set('Access-Control-Allow-Credentials', 'true');
+};
+
+const callableCors = {
+  origin: (origin, callback) => {
+    if (!origin || isOriginAllowed(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error(`Origin ${origin} not allowed`), false);
+  },
+  credentials: true
+};
+
+async function processPaystackWalletTopup({ reference, userId, amount }, authUid) {
+  try {
+    if (!authUid) {
+      throw new HttpsError('unauthenticated', 'User must be authenticated to top up wallet');
+    }
+
+    if (!reference) {
+      throw new HttpsError('invalid-argument', 'Reference is required');
+    }
+
+    if (!userId || userId !== authUid) {
+      throw new HttpsError('permission-denied', 'User ID mismatch');
+    }
+
+    if (!amount || Number(amount) <= 0) {
+      throw new HttpsError('invalid-argument', 'Valid amount is required');
+    }
+
+    console.log('Verifying Paystack payment:', { reference, userId, amount });
+
+    const { secretKey: paystackSecretKey } = getPaystackConfig();
+    if (!paystackSecretKey) {
+      console.error('Paystack secret key not configured');
+      throw new HttpsError('failed-precondition', 'Payment service not configured');
+    }
+
+    const verifyResponse = await axios.get(
+      `https://api.paystack.co/transaction/verify/${reference}`,
+      {
+        headers: {
+          Authorization: `Bearer ${paystackSecretKey}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    const transaction = verifyResponse.data?.data;
+    console.log('Paystack transaction verified:', {
+      reference: transaction?.reference,
+      status: transaction?.status,
+      amount: transaction?.amount,
+      currency: transaction?.currency,
+    });
+
+    if (!transaction) {
+      throw new HttpsError('not-found', 'Transaction could not be verified');
+    }
+
+    if (transaction.status !== 'success') {
+      throw new HttpsError(
+        'failed-precondition',
+        `Payment not successful. Status: ${transaction.status}`
+      );
+    }
+
+    const paidAmount = Number(transaction.amount) / 100;
+    if (Math.abs(paidAmount - Number(amount)) > 0.01) {
+      throw new HttpsError(
+        'failed-precondition',
+        `Amount mismatch. Expected: ${amount}, Paid: ${paidAmount}`
+      );
+    }
+
+    const existingTx = await db.collection('wallet_transactions')
+      .where('paymentIntentId', '==', transaction.reference)
+      .where('status', '==', 'completed')
+      .limit(1)
+      .get();
+
+    if (!existingTx.empty) {
+      console.log('Transaction already processed:', transaction.reference);
+      return {
+        success: true,
+        message: 'Transaction already processed',
+        transactionId: existingTx.docs[0].id
+      };
+    }
+
+    const walletQuery = await db.collection('wallets')
+      .where('userId', '==', userId)
+      .limit(1)
+      .get();
+
+    let walletRef;
+    let currentBalance = 0;
+
+    if (walletQuery.empty) {
+      walletRef = db.collection('wallets').doc();
+      await walletRef.set({
+        userId: userId,
+        balance: 0,
+        currency: transaction.currency || 'NGN',
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      console.log('Created new wallet for user:', userId);
+    } else {
+      walletRef = walletQuery.docs[0].ref;
+      currentBalance = walletQuery.docs[0].data().balance || 0;
+    }
+
+    const newBalance = currentBalance + paidAmount;
+
+    const batch = db.batch();
+
+    batch.update(walletRef, {
+      balance: newBalance,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    const transactionRef = db.collection('wallet_transactions').doc();
+    batch.set(transactionRef, {
+      walletId: walletRef.id,
+      userId: userId,
+      type: 'credit',
+      amount: paidAmount,
+      description: 'Wallet top-up via Paystack',
+      paymentIntentId: transaction.reference,
+      paystackReference: transaction.reference,
+      balanceBefore: currentBalance,
+      balanceAfter: newBalance,
+      status: 'completed',
+      currency: transaction.currency || 'NGN',
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    await batch.commit();
+
+    console.log('Wallet topped up successfully:', {
+      userId,
+      amount: paidAmount,
+      newBalance,
+      transactionId: transactionRef.id,
+      reference: transaction.reference,
+    });
+
+    return {
+      success: true,
+      transactionId: transactionRef.id,
+      newBalance: newBalance,
+      amount: paidAmount
+    };
+  } catch (error) {
+    console.error('processPaystackWalletTopup error:', {
+      message: error?.message,
+      response: error?.response?.data,
+    });
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+    throw new HttpsError('internal', error?.response?.data?.message || error?.message || 'Failed to process wallet top-up');
+  }
+}
 
 async function applyVendorSubscription({
   userId,
@@ -271,7 +880,7 @@ exports.sendOrderStatusUpdate = onCall(async (request) => {
 });
 
 // Create escrow-backed order (wallet funds held in escrow)
-exports.createEscrowOrder = onCall(async (request) => {
+exports.createEscrowOrder = onCall({ cors: callableCors }, async (request) => {
   const { auth, data } = request;
 
   if (!auth) {
@@ -1025,186 +1634,54 @@ exports.sendBulkPushNotifications = onCall(async (request) => {
 
 // ===== PAYSTACK PAYMENT FUNCTIONS =====
 
-// Top up wallet with Paystack payment
-exports.topupWalletPaystack = onCall(async (request) => {
+// Top up wallet with Paystack payment (callable)
+exports.topupWalletPaystack = onCall({ cors: callableCors, secrets: [PAYSTACK_SECRET] }, async (request) => {
   const { auth, data } = request;
-  if (!auth) {
-    throw new HttpsError(
-      'unauthenticated',
-      'User must be authenticated to top up wallet'
-    );
+  const result = await processPaystackWalletTopup(data || {}, auth?.uid);
+  return result;
+});
+
+// HTTP endpoint for environments that cannot use callable transport
+exports.topupWalletPaystackHttp = onRequest({ secrets: [PAYSTACK_SECRET] }, async (req, res) => {
+  const origin = req.get('origin');
+  if (!isOriginAllowed(origin)) {
+    res.status(403).send('Origin not allowed');
+    return;
+  }
+
+  addCorsHeaders(res, origin);
+
+  if (req.method === 'OPTIONS') {
+    return res.status(204).send('');
+  }
+
+  if (req.method !== 'POST') {
+    return res.status(405).send('Method Not Allowed');
   }
 
   try {
-    const { reference, userId, amount } = data || {};
+    const authHeader = req.get('Authorization') || '';
+    const idToken = authHeader.startsWith('Bearer ')
+      ? authHeader.substring('Bearer '.length)
+      : null;
 
-    if (!reference) {
-      throw new HttpsError(
-        'invalid-argument',
-        'Reference is required'
-      );
+    if (!idToken) {
+      return res.status(401).json({ error: 'Missing bearer token' });
     }
 
-    if (!userId || userId !== auth.uid) {
-      throw new HttpsError(
-        'permission-denied',
-        'User ID mismatch'
-      );
-    }
-
-    if (!amount || Number(amount) <= 0) {
-      throw new HttpsError(
-        'invalid-argument',
-        'Valid amount is required'
-      );
-    }
-
-    console.log('Verifying Paystack payment:', { reference, userId, amount });
-
-    // Verify transaction with Paystack API
-    const { secretKey: paystackSecretKey } = getPaystackConfig();
-    if (!paystackSecretKey) {
-      console.error('Paystack secret key not configured');
-      throw new HttpsError(
-        'failed-precondition',
-        'Payment service not configured'
-      );
-    }
-
-    // Verify transaction with Paystack
-    const verifyResponse = await axios.get(
-      `https://api.paystack.co/transaction/verify/${reference}`,
-      {
-        headers: {
-          Authorization: `Bearer ${paystackSecretKey}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
-    const transaction = verifyResponse.data?.data;
-    console.log('Paystack transaction verified:', {
-      reference: transaction?.reference,
-      status: transaction?.status,
-      amount: transaction?.amount,
-      currency: transaction?.currency,
-    });
-
-    if (!transaction) {
-      throw new HttpsError('not-found', 'Transaction could not be verified');
-    }
-
-    // Verify transaction status
-    if (transaction.status !== 'success') {
-      throw new HttpsError(
-        'failed-precondition',
-        `Payment not successful. Status: ${transaction.status}`
-      );
-    }
-
-    // Verify amount matches
-    const paidAmount = Number(transaction.amount) / 100;
-    if (Math.abs(paidAmount - Number(amount)) > 0.01) {
-      throw new HttpsError(
-        'failed-precondition',
-        `Amount mismatch. Expected: ${amount}, Paid: ${paidAmount}`
-      );
-    }
-
-    // Check if transaction was already processed
-    const existingTx = await db.collection('wallet_transactions')
-      .where('paymentIntentId', '==', transaction.reference)
-      .where('status', '==', 'completed')
-      .limit(1)
-      .get();
-
-    if (!existingTx.empty) {
-      console.log('Transaction already processed:', transaction.reference);
-      return {
-        success: true,
-        message: 'Transaction already processed',
-        transactionId: existingTx.docs[0].id
-      };
-    }
-
-    // Get or create wallet
-    const walletQuery = await db.collection('wallets')
-      .where('userId', '==', userId)
-      .limit(1)
-      .get();
-
-    let walletRef;
-    let currentBalance = 0;
-
-    if (walletQuery.empty) {
-      // Create new wallet
-      walletRef = db.collection('wallets').doc();
-      await walletRef.set({
-        userId: userId,
-        balance: 0,
-        currency: transaction.currency || 'NGN',
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-      });
-      console.log('Created new wallet for user:', userId);
-    } else {
-      walletRef = walletQuery.docs[0].ref;
-      currentBalance = walletQuery.docs[0].data().balance || 0;
-    }
-
-    const newBalance = currentBalance + paidAmount;
-
-    // Update wallet and create transaction record
-    const batch = db.batch();
-
-    batch.update(walletRef, {
-      balance: newBalance,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
-    });
-
-    const transactionRef = db.collection('wallet_transactions').doc();
-    batch.set(transactionRef, {
-      walletId: walletRef.id,
-      userId: userId,
-      type: 'credit',
-      amount: paidAmount,
-      description: 'Wallet top-up via Paystack',
-      paymentIntentId: transaction.reference,
-      paystackReference: transaction.reference,
-      balanceBefore: currentBalance,
-      balanceAfter: newBalance,
-      status: 'completed',
-      currency: transaction.currency || 'NGN',
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
-    });
-
-    await batch.commit();
-
-    console.log('Wallet topped up successfully:', {
-      userId,
-      amount: paidAmount,
-      newBalance,
-      transactionId: transactionRef.id,
-      reference: transaction.reference,
-    });
-
-    return {
-      success: true,
-      transactionId: transactionRef.id,
-      newBalance: newBalance,
-      amount: paidAmount
-    };
+    const decoded = await admin.auth().verifyIdToken(idToken, true);
+    const payload = typeof req.body === 'object' ? req.body : JSON.parse(req.body || '{}');
+    const result = await processPaystackWalletTopup(payload, decoded.uid);
+    return res.status(200).json(result);
   } catch (error) {
-    console.error('Error topping up wallet with Paystack:', error);
-    if (error instanceof HttpsError) {
-      throw error;
-    }
-    throw new HttpsError('internal', error.message);
+    console.error('topupWalletPaystackHttp error:', error);
+    const status = error instanceof HttpsError ? error.httpErrorCode?.status || 400 : 500;
+    return res.status(status).json({ error: error.message || 'Internal Server Error' });
   }
 });
 
 // Create vendor subscription record after Paystack payment
-exports.createPaystackSubscriptionRecord = onCall(async (request) => {
+exports.createPaystackSubscriptionRecord = onCall({ secrets: [PAYSTACK_SECRET] }, async (request) => {
   const { auth, data } = request;
   if (!auth) {
     throw new HttpsError('unauthenticated', 'User must be authenticated to create subscription records');
@@ -1283,7 +1760,7 @@ exports.createPaystackSubscriptionRecord = onCall(async (request) => {
 });
 
 // Paystack webhook handler
-exports.paystackWebhook = onRequest(async (req, res) => {
+exports.paystackWebhook = onRequest({ secrets: [PAYSTACK_SECRET, PAYSTACK_WEBHOOK_SECRET] }, async (req, res) => {
   // Set CORS headers
   res.set('Access-Control-Allow-Origin', '*');
   res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
