@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
@@ -22,7 +22,7 @@ const Login = () => {
   const [googleLoading, setGoogleLoading] = useState(false);
   // Default to role selection (centralized login/signup chooser)
   const [userType, setUserType] = useState(testModeEnabled ? 'existing' : '');
-  const [autoLoginTriggered, setAutoLoginTriggered] = useState(false);
+  const autoLoginTriggeredRef = useRef(false);
   const [verificationState, setVerificationState] = useState({
     pending: false,
     email: '',
@@ -284,7 +284,8 @@ const Login = () => {
   })();
 
   useEffect(() => {
-    if (!testModeEnabled || autoLoginTriggered) return;
+    if (!testModeEnabled) return;
+    if (autoLoginTriggeredRef.current) return;
     if (userType !== 'existing') return;
     if (!testCredentials?.email || !testCredentials?.password) return;
 
@@ -292,12 +293,12 @@ const Login = () => {
     setPassword(testCredentials.password);
 
     const timer = setTimeout(() => {
-      setAutoLoginTriggered(true);
+      autoLoginTriggeredRef.current = true;
       handleSubmit({ preventDefault: () => {} });
     }, 150);
 
     return () => clearTimeout(timer);
-  }, [autoLoginTriggered, userType, setEmail, setPassword, handleSubmit]);
+  }, [userType, setEmail, setPassword, handleSubmit]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-950 py-8 px-4">
