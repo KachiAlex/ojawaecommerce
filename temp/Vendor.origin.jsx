@@ -1,6 +1,5 @@
-import { useNavigate } from 'react-router-dom';
+﻿import { useNavigate } from 'react-router-dom';
 import { useState, useEffect, useMemo, useCallback, lazy, Suspense, useRef } from 'react';
-import useOrderManagement from '../hooks/useOrderManagement';
 import { useAuth } from '../contexts/AuthContext';
 import { useMessaging } from '../contexts/MessagingContext';
 import firebaseService from '../services/firebaseService';
@@ -21,7 +20,6 @@ import VendorBilling from '../components/VendorBilling';
 import BulkOperations from '../components/BulkOperations';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
-import PayoutStatusSummary from '../components/PayoutStatusSummary';
 // import UnifiedVendorStore from '../components/UnifiedVendorStore'; // Removed - using simple overview instead
 
 // Lazy load heavy components
@@ -33,15 +31,6 @@ const planDetails = {
   basic: { price: 0, commission: 5.0, productLimit: 50, analytics: 'basic', support: 'email' },
   pro: { price: 5000, commission: 3.0, productLimit: 500, analytics: 'advanced', support: 'priority' },
   premium: { price: 15000, commission: 2.0, productLimit: -1, analytics: 'premium', support: 'dedicated' }
-};
-
-const formatCurrency = (amount, currency = 'NGN') => {
-  if (typeof amount !== 'number' || Number.isNaN(amount)) return '—';
-  const symbol = currency?.split?.(' ')?.[0] || '₦';
-  return `${symbol}${amount.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  })}`;
 };
 
 const VendorMessagesTabContent = ({
@@ -209,7 +198,7 @@ const VendorMessagesTabContent = ({
                       }`}
                     >
                       <div className="shrink-0 w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700">
-                        💬
+                        ≡ƒÆ¼
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between">
@@ -243,7 +232,7 @@ const VendorMessagesTabContent = ({
             <>
               <div className="p-4 border-b flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700">
-                  👤
+                  ≡ƒæñ
                 </div>
                 <div>
                   <div className="font-semibold text-gray-900">Chat</div>
@@ -335,7 +324,7 @@ const VendorMessagesTabContent = ({
 };
 
 const Vendor = () => {
-  console.log('🏪 Vendor component loaded');
+  console.log('≡ƒÅ¬ Vendor component loaded');
   const { currentUser, userProfile, updateUserProfile, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const {
@@ -352,7 +341,7 @@ const Vendor = () => {
   // Redirect to login if not authenticated
   useEffect(() => {
     if (!authLoading && !currentUser) {
-      console.log('❌ Vendor: No user, redirecting to login with vendor intent');
+      console.log('Γ¥î Vendor: No user, redirecting to login with vendor intent');
       navigate('/login', {
         state: {
           userType: 'vendor',
@@ -364,35 +353,30 @@ const Vendor = () => {
   }, [currentUser, authLoading, navigate]);
 
   const [activeTab, setActiveTab] = useState('overview');
+  const [ordersCursor, setOrdersCursor] = useState(null);
+  const [ordersCount, setOrdersCount] = useState(0);
+  const [ordersPages, setOrdersPages] = useState([]);
+  const [ordersPageIndex, setOrdersPageIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ status: '', buyer: '', from: '', to: '' });
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [isOrderDetailsOpen, setIsOrderDetailsOpen] = useState(false);
   const [isShipOpen, setIsShipOpen] = useState(false);
 
-  const {
-    orders = [],
-    loading: ordersLoading,
-    refreshOrders,
-    updateOrderStatus,
-    setSelectedOrder: hookSetSelectedOrder
-  } = useOrderManagement(currentUser?.uid, 'vendor');
-
   // Load only essential data first for fast initial load
   const fetchInitialData = useCallback(async () => {
     if (!currentUser) return;
-
+    
     try {
       setLoading(true);
-
+      
       // Use optimized service for faster loading
       const vendorData = await getVendorDataOptimized(currentUser.uid, 'overview');
-
-      // fallback orders snapshot
-      if (Array.isArray(vendorData.orders) && vendorData.orders.length > 0) {
-        hookSetSelectedOrder((prev) => prev);
-      }
-
+      
+      setOrdersCount(vendorData.ordersCount);
+      setOrdersPages([{ items: vendorData.orders, cursor: vendorData.lastDoc }]);
+      setOrdersPageIndex(0);
+      
     } catch (error) {
       console.error('Error loading initial vendor data:', error);
     } finally {
@@ -407,23 +391,27 @@ const Vendor = () => {
     try {
       switch (tab) {
         case 'orders': {
-          // orders handled by useOrderManagement hook
+          if (ordersPages.length === 0) {
+            const ordersData = await getVendorDataOptimized(currentUser.uid, 'orders');
+            setOrdersPages([{ items: ordersData.orders, cursor: ordersData.lastDoc }]);
+            setOrdersPageIndex(0);
+          }
           break;
         }
         case 'products': {
           // Always reload products when products tab is accessed to ensure fresh data
-          console.log('📦 Loading products for vendor:', currentUser.uid);
-          console.log('📦 Current user email:', currentUser.email);
+          console.log('≡ƒôª Loading products for vendor:', currentUser.uid);
+          console.log('≡ƒôª Current user email:', currentUser.email);
           
           let productsFound = false;
           
           try {
             // First try non-paged query to get ALL products (not just first page)
-            console.log('🔍 Attempt 1: Querying ALL products by vendorId (non-paged):', currentUser.uid);
+            console.log('≡ƒöì Attempt 1: Querying ALL products by vendorId (non-paged):', currentUser.uid);
             const allProducts = await firebaseService.products.getByVendor(currentUser.uid);
-            console.log('📦 All products loaded by vendorId:', allProducts.length, 'items');
+            console.log('≡ƒôª All products loaded by vendorId:', allProducts.length, 'items');
             if (allProducts.length > 0) {
-              console.log('📦 Products data:', allProducts.map(p => ({ id: p.id, name: p.name, vendorId: p.vendorId, vendorEmail: p.vendorEmail, status: p.status })));
+              console.log('≡ƒôª Products data:', allProducts.map(p => ({ id: p.id, name: p.name, vendorId: p.vendorId, vendorEmail: p.vendorEmail, status: p.status })));
               
               // Set all products, but also set up pagination for display
               setProducts(allProducts);
@@ -434,15 +422,15 @@ const Vendor = () => {
               productsFound = true;
             }
           } catch (error) {
-            console.error('❌ Error loading all products by vendorId:', error);
+            console.error('Γ¥î Error loading all products by vendorId:', error);
             
             // Fallback: Try paged query if non-paged fails
             try {
-              console.log('🔍 Fallback: Trying paged query by vendorId:', currentUser.uid);
+              console.log('≡ƒöì Fallback: Trying paged query by vendorId:', currentUser.uid);
               const productsPage = await firebaseService.products.getByVendorPaged({ vendorId: currentUser.uid, pageSize });
-              console.log('📦 Products loaded by vendorId (paged):', productsPage.items.length, 'items');
+              console.log('≡ƒôª Products loaded by vendorId (paged):', productsPage.items.length, 'items');
               if (productsPage.items.length > 0) {
-                console.log('📦 Products data:', productsPage.items.map(p => ({ id: p.id, name: p.name, vendorId: p.vendorId, vendorEmail: p.vendorEmail, status: p.status })));
+                console.log('≡ƒôª Products data:', productsPage.items.map(p => ({ id: p.id, name: p.name, vendorId: p.vendorId, vendorEmail: p.vendorEmail, status: p.status })));
                 setProducts(productsPage.items);
                 setProductsCursor(productsPage.nextCursor);
                 setProductsPages([{ items: productsPage.items, cursor: productsPage.nextCursor }]);
@@ -450,18 +438,18 @@ const Vendor = () => {
                 productsFound = true;
               }
             } catch (pagedError) {
-              console.error('❌ Paged query also failed:', pagedError);
+              console.error('Γ¥î Paged query also failed:', pagedError);
             }
           }
           
           // If no products found by vendorId, try querying by vendorEmail
           if (!productsFound && currentUser.email) {
-            console.log('🔄 Attempt 2: No products found by vendorId, trying vendorEmail query...', currentUser.email);
+            console.log('≡ƒöä Attempt 2: No products found by vendorId, trying vendorEmail query...', currentUser.email);
             try {
               const emailProducts = await firebaseService.products.getByVendorEmail(currentUser.email);
-              console.log('📦 Products found by vendorEmail:', emailProducts.length, 'products');
+              console.log('≡ƒôª Products found by vendorEmail:', emailProducts.length, 'products');
               if (emailProducts.length > 0) {
-                console.log('📦 Products data (email):', emailProducts.map(p => ({ id: p.id, name: p.name, vendorId: p.vendorId, vendorEmail: p.vendorEmail, status: p.status })));
+                console.log('≡ƒôª Products data (email):', emailProducts.map(p => ({ id: p.id, name: p.name, vendorId: p.vendorId, vendorEmail: p.vendorEmail, status: p.status })));
                 setProducts(emailProducts.slice(0, pageSize));
                 setProductsCursor(null);
                 setProductsPages([{ items: emailProducts.slice(0, pageSize), cursor: null }]);
@@ -469,16 +457,16 @@ const Vendor = () => {
                 productsFound = true;
               }
             } catch (emailError) {
-              console.error('⚠️ Query by vendorEmail failed:', emailError);
+              console.error('ΓÜá∩╕Å Query by vendorEmail failed:', emailError);
             }
           }
           
           // Fallback: Try non-paged query by vendorId
           if (!productsFound) {
-            console.log('🔄 Attempt 3: Trying non-paged query by vendorId...');
+            console.log('≡ƒöä Attempt 3: Trying non-paged query by vendorId...');
             try {
               const allProducts = await firebaseService.products.getByVendor(currentUser.uid);
-              console.log('📦 Fallback query returned:', allProducts.length, 'products');
+              console.log('≡ƒôª Fallback query returned:', allProducts.length, 'products');
               if (allProducts.length > 0) {
                 setProducts(allProducts);
                 setProductsCursor(null);
@@ -487,16 +475,16 @@ const Vendor = () => {
                 productsFound = true;
               }
             } catch (fallbackError) {
-              console.error('❌ Fallback query also failed:', fallbackError);
+              console.error('Γ¥î Fallback query also failed:', fallbackError);
             }
           }
           
           // Last resort: Try email query again (in case it was a different error)
           if (!productsFound && currentUser.email) {
-            console.log('🔄 Attempt 4: Last resort - trying vendorEmail query again...');
+            console.log('≡ƒöä Attempt 4: Last resort - trying vendorEmail query again...');
             try {
               const emailProducts = await firebaseService.products.getByVendorEmail(currentUser.email);
-              console.log('📦 Last resort: Products found by vendorEmail:', emailProducts.length, 'products');
+              console.log('≡ƒôª Last resort: Products found by vendorEmail:', emailProducts.length, 'products');
               if (emailProducts.length > 0) {
                 setProducts(emailProducts);
                 setProductsCursor(null);
@@ -505,16 +493,16 @@ const Vendor = () => {
                 productsFound = true;
               }
             } catch (emailError) {
-              console.error('❌ Email query also failed:', emailError);
+              console.error('Γ¥î Email query also failed:', emailError);
             }
           }
           
           // Ultimate fallback: Fetch ALL products and filter client-side
           if (!productsFound) {
-            console.log('🔄 Attempt 5: Ultimate fallback - fetching all products and filtering client-side...');
+            console.log('≡ƒöä Attempt 5: Ultimate fallback - fetching all products and filtering client-side...');
             try {
               const allProducts = await firebaseService.products.getAll({ showAll: true });
-              console.log('📦 Ultimate fallback: Fetched all products:', allProducts.length);
+              console.log('≡ƒôª Ultimate fallback: Fetched all products:', allProducts.length);
               
               // Filter products by vendorId or vendorEmail
               const filteredProducts = allProducts.filter(product => {
@@ -525,8 +513,8 @@ const Vendor = () => {
                 return matchesVendorId || matchesVendorEmail;
               });
               
-              console.log('📦 Ultimate fallback: Filtered products for vendor:', filteredProducts.length);
-              console.log('📦 Ultimate fallback: Product details:', filteredProducts.map(p => ({ 
+              console.log('≡ƒôª Ultimate fallback: Filtered products for vendor:', filteredProducts.length);
+              console.log('≡ƒôª Ultimate fallback: Product details:', filteredProducts.map(p => ({ 
                 id: p.id, 
                 name: p.name, 
                 vendorId: p.vendorId, 
@@ -552,23 +540,23 @@ const Vendor = () => {
                 setProductsPages([{ items: filteredProducts, cursor: null }]);
                 setProductsPageIndex(0);
                 productsFound = true;
-                console.log('✅ Ultimate fallback: Successfully loaded', filteredProducts.length, 'products');
+                console.log('Γ£à Ultimate fallback: Successfully loaded', filteredProducts.length, 'products');
               }
             } catch (ultimateError) {
-              console.error('❌ Ultimate fallback also failed:', ultimateError);
+              console.error('Γ¥î Ultimate fallback also failed:', ultimateError);
             }
           }
           
           if (!productsFound) {
-            console.error('❌ No products found through any method');
-            console.error('🔍 Diagnostic: Current user uid:', currentUser.uid);
-            console.error('🔍 Diagnostic: Current user email:', currentUser.email);
+            console.error('Γ¥î No products found through any method');
+            console.error('≡ƒöì Diagnostic: Current user uid:', currentUser.uid);
+            console.error('≡ƒöì Diagnostic: Current user email:', currentUser.email);
             
             // Diagnostic: Query all products to see what vendorIds exist
             try {
-              console.log('🔍 Diagnostic: Fetching all products to analyze vendor references...');
+              console.log('≡ƒöì Diagnostic: Fetching all products to analyze vendor references...');
               const allProductsSnapshot = await firebaseService.products.getAll({ showAll: true });
-              console.log('🔍 Diagnostic: Total products in database:', allProductsSnapshot.length);
+              console.log('≡ƒöì Diagnostic: Total products in database:', allProductsSnapshot.length);
               
               // Group products by vendorId and vendorEmail
               const byVendorId = {};
@@ -589,21 +577,21 @@ const Vendor = () => {
                 byVendorEmail[vem].push(product.id);
               });
               
-              console.log('🔍 Diagnostic: Products by vendorId:', Object.keys(byVendorId).map(k => `${k}: ${byVendorId[k].length} products`));
-              console.log('🔍 Diagnostic: Products by vendorEmail:', Object.keys(byVendorEmail).slice(0, 10).map(k => `${k}: ${byVendorEmail[k].length} products`));
+              console.log('≡ƒöì Diagnostic: Products by vendorId:', Object.keys(byVendorId).map(k => `${k}: ${byVendorId[k].length} products`));
+              console.log('≡ƒöì Diagnostic: Products by vendorEmail:', Object.keys(byVendorEmail).slice(0, 10).map(k => `${k}: ${byVendorEmail[k].length} products`));
               
               // Check if current user's uid or email matches any products
               const matchingById = byVendorId[currentUser.uid] || [];
               const matchingByEmail = byVendorEmail[currentUser.email?.toLowerCase()] || [];
               
-              console.log('🔍 Diagnostic: Products matching current user uid:', matchingById.length);
-              console.log('🔍 Diagnostic: Products matching current user email:', matchingByEmail.length);
+              console.log('≡ƒöì Diagnostic: Products matching current user uid:', matchingById.length);
+              console.log('≡ƒöì Diagnostic: Products matching current user email:', matchingByEmail.length);
               
               if (matchingById.length > 0 || matchingByEmail.length > 0) {
-                console.warn('⚠️ Products exist but queries failed. This may indicate a query/index issue.');
+                console.warn('ΓÜá∩╕Å Products exist but queries failed. This may indicate a query/index issue.');
               }
             } catch (diagError) {
-              console.error('🔍 Diagnostic query failed:', diagError);
+              console.error('≡ƒöì Diagnostic query failed:', diagError);
             }
             
             setProducts([]);
@@ -632,62 +620,86 @@ const Vendor = () => {
   }, [currentUser, orders.length, products.length, disputes.length]);
 
   useEffect(() => {
+    fetchInitialData();
+  }, [fetchInitialData]);
+
+  // Load tab data when tab changes - ALWAYS REFRESH ON TAB CHANGE
+  useEffect(() => {
     if (!currentUser || !activeTab) {
-      console.log('⏸️ Tab data loader: Waiting for user or tab...', { currentUser: !!currentUser, activeTab });
+      console.log('ΓÅ╕∩╕Å Tab data loader: Waiting for user or tab...', { currentUser: !!currentUser, activeTab });
       return;
     }
-
+    
+    console.log('≡ƒôè Tab changed to:', activeTab);
+    
     if (activeTab === 'overview') {
-      console.log('📊 Overview tab active: loading products/stats and refreshing orders...');
-
+      // Overview tab - ALWAYS refresh data when tab becomes active
+      // This ensures data is fresh, especially after upgrade
+      console.log('≡ƒôè Overview tab active: Loading all data...');
+      
+      // Load all data in parallel
       (async () => {
         try {
           const [productsData, ordersData, statsData] = await Promise.all([
+            // Load products
             firebaseService.products.getByVendor(currentUser.uid).catch(err => {
-              console.warn('⚠️ Error loading products for overview:', err);
+              console.warn('ΓÜá∩╕Å Error loading products for overview:', err);
               if (currentUser.email) {
                 return firebaseService.products.getByVendorEmail(currentUser.email).catch(() => []);
               }
               return [];
             }),
+            
+            // Load orders
             getVendorDataOptimized(currentUser.uid, 'orders').catch(err => {
-              console.warn('⚠️ Error loading orders for overview:', err);
+              console.warn('ΓÜá∩╕Å Error loading orders for overview:', err);
               return { orders: [] };
             }),
+            
+            // Load stats
             getVendorDataOptimized(currentUser.uid, 'overview').catch(err => {
-              console.warn('⚠️ Error loading stats for overview:', err);
+              console.warn('ΓÜá∩╕Å Error loading stats for overview:', err);
               return { stats: {}, ordersCount: 0, productsCount: 0 };
             })
           ]);
-
+          
+          // Set products
           if (Array.isArray(productsData)) {
             setProducts(productsData);
             setProductsCount(productsData.length);
-            console.log('✅ Overview: Loaded', productsData.length, 'products');
+            console.log('Γ£à Overview: Loaded', productsData.length, 'products');
           }
-
-          // Replace manual order state with centralized hook refresh
-          await refreshOrders();
-          console.log('✅ Overview: Orders refreshed via hook');
-
+          
+          // Set orders
+          const ordersArray = ordersData?.orders || [];
+          if (Array.isArray(ordersArray)) {
+            setOrders(ordersArray);
+            setOrdersCount(ordersArray.length);
+            console.log('Γ£à Overview: Loaded', ordersArray.length, 'orders');
+          }
+          
+          // Set stats
           if (statsData?.stats) {
             setStats(statsData.stats);
+            // Also update counts from stats if available
+            if (statsData.ordersCount !== undefined) setOrdersCount(statsData.ordersCount);
             if (statsData.productsCount !== undefined) setProductsCount(statsData.productsCount);
-            console.log('✅ Overview: Stats refreshed');
+            console.log('Γ£à Overview: Stats refreshed');
           }
-
-          console.log('✅ Overview tab: All data loaded successfully');
+          
+          console.log('Γ£à Overview tab: All data loaded successfully');
         } catch (error) {
-          console.error('❌ Error loading overview data:', error);
+          console.error('Γ¥î Error loading overview data:', error);
         }
       })();
     } else {
-      console.log('📊 Loading data for tab:', activeTab);
+      // Other tabs - use loadTabData
+      console.log('≡ƒôè Loading data for tab:', activeTab);
       loadTabData(activeTab).catch(err => {
         console.error('Error loading tab data:', err);
       });
     }
-  }, [activeTab, currentUser, loadTabData, refreshOrders]);
+  }, [activeTab, currentUser, loadTabData]); // Always refresh when tab changes
 
   // Removed real-time listeners for better performance
   // Data will be refreshed when user switches tabs or manually refreshes
@@ -698,7 +710,7 @@ const Vendor = () => {
       const urlParams = new URLSearchParams(window.location.search);
       const tab = urlParams.get('tab');
       if (tab && ['overview', 'orders', 'store', 'products', 'billing', 'disputes', 'analytics', 'settings', 'wallet', 'messages'].includes(tab)) {
-        console.log('📍 Setting activeTab from URL:', tab);
+        console.log('≡ƒôì Setting activeTab from URL:', tab);
         setActiveTab(tab);
         return true; // Tab was set from URL
       }
@@ -735,7 +747,7 @@ const Vendor = () => {
   useEffect(() => {
     // Only run if we have a user
     if (!currentUser) {
-      console.log('⏸️ Upgrade flow: No user yet, waiting...');
+      console.log('ΓÅ╕∩╕Å Upgrade flow: No user yet, waiting...');
       return;
     }
     
@@ -744,19 +756,19 @@ const Vendor = () => {
       const plan = urlParams.get('plan');
       const tab = urlParams.get('tab');
       
-    console.log('🔍 Upgrade flow check:', { paymentStatus, plan, tab, url: window.location.href });
+    console.log('≡ƒöì Upgrade flow check:', { paymentStatus, plan, tab, url: window.location.href });
     
     // Only process if we have payment=success and a plan
     if (paymentStatus === 'success' && plan) {
       // Prevent duplicate processing
       if (processingUpgradeRef.current) {
-        console.log('⏳ Upgrade already processing, skipping...');
+        console.log('ΓÅ│ Upgrade already processing, skipping...');
         return;
       }
       
       // Check if already upgraded to this plan
       if (userProfile?.subscriptionPlan === plan && userProfile?.subscriptionStatus === 'active') {
-        console.log('✅ Already upgraded to', plan, '- just refreshing UI...');
+        console.log('Γ£à Already upgraded to', plan, '- just refreshing UI...');
         // Just refresh UI
         setUpgradeSuccessBanner({
           plan: plan.toUpperCase(),
@@ -782,7 +794,7 @@ const Vendor = () => {
             urlParams.get('paystack_reference') ||
             urlParams.get('paystack_ref');
 
-          console.log('🚀 UPGRADE FLOW: Starting subscription upgrade for', plan, 'ref:', reference);
+          console.log('≡ƒÜÇ UPGRADE FLOW: Starting subscription upgrade for', plan, 'ref:', reference);
           
               const selectedPlan = planDetails[plan] || planDetails.basic;
               
@@ -790,13 +802,13 @@ const Vendor = () => {
           if (reference) {
             try {
               await createSubscriptionRecord({ reference, plan });
-              console.log('✅ Paystack subscription record verified');
+              console.log('Γ£à Paystack subscription record verified');
             } catch (recordError) {
-              console.error('❌ Failed to verify subscription with Paystack reference:', recordError);
+              console.error('Γ¥î Failed to verify subscription with Paystack reference:', recordError);
               throw recordError;
             }
           } else {
-            console.warn('⚠️ No Paystack reference found in URL; skipping server verification');
+            console.warn('ΓÜá∩╕Å No Paystack reference found in URL; skipping server verification');
           }
 
           // STEP 2: Update user profile to reflect new subscription locally
@@ -811,49 +823,53 @@ const Vendor = () => {
             supportLevel: selectedPlan.support
           };
           
-          console.log('📝 Step 2: Updating user profile...');
+          console.log('≡ƒô¥ Step 2: Updating user profile...');
           
           // Update context (this also updates Firebase)
           await updateUserProfile(profileUpdates);
-          console.log('✅ Profile updated in Firebase and context');
+          console.log('Γ£à Profile updated in Firebase and context');
           
           // STEP 3: Show success banner
           setUpgradeSuccessBanner({
             plan: plan.toUpperCase(),
-            productLimit: selectedPlan.productLimit,
+                productLimit: selectedPlan.productLimit,
             commissionRate: selectedPlan.commission
-          });
-          console.log('✅ Success banner shown');
-
+              });
+          console.log('Γ£à Success banner shown');
+              
           // STEP 4: Force complete data refresh
-          console.log('🔄 Step 4: Refreshing all data...');
-
+          console.log('≡ƒöä Step 4: Refreshing all data...');
+          
           // Set activeTab to billing to show billing tab
           setActiveTab('billing');
-
-          // Refresh overview data (products, stats)
+              
+          // Refresh overview data (products, orders, stats)
           await fetchInitialData();
-          console.log('✅ Initial data refreshed');
-
+          console.log('Γ£à Initial data refreshed');
+          
+          // Force overview tab to reload if user switches to it
+          // Also ensure products and orders are set
           try {
-            const refreshedProducts = await firebaseService.products.getByVendor(currentUser.uid).catch(async (err) => {
-              console.warn('Error loading products during upgrade refresh:', err);
-              if (currentUser.email) {
-                return firebaseService.products.getByVendorEmail(currentUser.email).catch(() => []);
-              }
-              return [];
-            });
-
+            const [refreshedProducts, refreshedOrders] = await Promise.all([
+              firebaseService.products.getByVendor(currentUser.uid).catch(err => {
+                console.warn('Error loading products:', err);
+                if (currentUser.email) {
+                  return firebaseService.products.getByVendorEmail(currentUser.email).catch(() => []);
+                  }
+                return [];
+              }),
+              getVendorDataOptimized(currentUser.uid, 'orders').then(d => d?.orders || []).catch(() => [])
+            ]);
+            
             setProducts(refreshedProducts || []);
             setProductsCount(refreshedProducts?.length || 0);
-            console.log('✅ Force-refreshed products:', refreshedProducts?.length || 0);
+            setOrders(refreshedOrders || []);
+            setOrdersCount(refreshedOrders?.length || 0);
+            
+            console.log('Γ£à Force-refreshed products:', refreshedProducts?.length || 0, 'orders:', refreshedOrders?.length || 0);
           } catch (refreshErr) {
-            console.error('Error force-refreshing products:', refreshErr);
-          }
-
-          // Refresh orders via hook for real-time state
-          await refreshOrders();
-          console.log('✅ Orders refreshed after upgrade via hook');
+            console.error('Error force-refreshing data:', refreshErr);
+              }
               
           // Give a moment for context to update
           await new Promise(resolve => setTimeout(resolve, 500));
@@ -861,7 +877,7 @@ const Vendor = () => {
           // Refresh billing tab data
           try {
             await loadTabData('billing');
-            console.log('✅ Billing tab data refreshed');
+            console.log('Γ£à Billing tab data refreshed');
           } catch (billingErr) {
             console.warn('Error refreshing billing tab:', billingErr);
               }
@@ -869,12 +885,12 @@ const Vendor = () => {
           // STEP 5: Clean up URL but keep tab parameter
           const cleanUrl = window.location.pathname + '?tab=billing';
           window.history.replaceState({}, '', cleanUrl);
-          console.log('✅ URL cleaned:', cleanUrl);
+          console.log('Γ£à URL cleaned:', cleanUrl);
           
-          console.log('🎉 UPGRADE FLOW COMPLETE! Plan:', plan);
+          console.log('≡ƒÄë UPGRADE FLOW COMPLETE! Plan:', plan);
           
           // Double-check profile is updated - verify upgrade was successful
-          console.log('🔍 Verifying profile update:', {
+          console.log('≡ƒöì Verifying profile update:', {
             subscriptionPlan: userProfile?.subscriptionPlan,
             subscriptionStatus: userProfile?.subscriptionStatus,
             productLimit: userProfile?.productLimit,
@@ -884,26 +900,26 @@ const Vendor = () => {
           // Final verification: Ensure profile actually has the upgrade
           // If not, log a warning (but don't fail - profile update already happened)
           if (userProfile?.subscriptionPlan !== plan) {
-            console.warn('⚠️ Profile verification: Plan mismatch detected. Profile may need a moment to sync.');
-            console.warn('⚠️ Expected plan:', plan, 'Profile plan:', userProfile?.subscriptionPlan);
+            console.warn('ΓÜá∩╕Å Profile verification: Plan mismatch detected. Profile may need a moment to sync.');
+            console.warn('ΓÜá∩╕Å Expected plan:', plan, 'Profile plan:', userProfile?.subscriptionPlan);
               } else {
-            console.log('✅ Profile verification: Upgrade confirmed in profile!');
+            console.log('Γ£à Profile verification: Upgrade confirmed in profile!');
           }
           
           // Final UI refresh to ensure everything is in sync
           // Wait a bit more for context propagation, then do one final refresh
           setTimeout(async () => {
             try {
-              console.log('🔄 Final UI sync refresh...');
+              console.log('≡ƒöä Final UI sync refresh...');
               await fetchInitialData();
-              console.log('✅ Final UI sync complete');
+              console.log('Γ£à Final UI sync complete');
             } catch (syncErr) {
-              console.warn('⚠️ Final sync refresh failed (non-critical):', syncErr);
+              console.warn('ΓÜá∩╕Å Final sync refresh failed (non-critical):', syncErr);
               }
           }, 1000);
           
         } catch (error) {
-          console.error('❌ UPGRADE FLOW ERROR:', error);
+          console.error('Γ¥î UPGRADE FLOW ERROR:', error);
           
           // Even if there's an error, try to show the banner and refresh UI
           // This ensures user sees SOME feedback even if something fails
@@ -926,7 +942,7 @@ const Vendor = () => {
           // Reset processing flag after delay
           setTimeout(() => {
             processingUpgradeRef.current = false;
-            console.log('🔄 Upgrade processing flag reset - ready for next upgrade');
+            console.log('≡ƒöä Upgrade processing flag reset - ready for next upgrade');
           }, 3000);
         }
       })();
@@ -1040,7 +1056,7 @@ const Vendor = () => {
         const vendorStores = await storeService.getStoresByVendor(currentUser.uid);
         if (vendorStores && vendorStores.length > 0) {
           storeId = vendorStores[0].id || vendorStores[0].storeId || null;
-          console.log('📦 Linking product to store:', storeId);
+          console.log('≡ƒôª Linking product to store:', storeId);
         }
       } catch (storeErr) {
         console.warn('Could not fetch store for product:', storeErr);
@@ -1068,7 +1084,7 @@ const Vendor = () => {
   };
 
   const filteredOrders = useMemo(() => {
-    return (orders || []).filter((order) => {
+    return orders.filter((order) => {
       if (filters.status && (order.statusKey || order.status) !== filters.status) return false;
       if (filters.buyer) {
         const buyerName = (order.buyer || order.buyerName || '').toLowerCase();
@@ -1227,26 +1243,28 @@ const Vendor = () => {
   const confirmShipment = async ({ carrier, trackingNumber, eta, order }) => {
     try {
       await firebaseService.orders.markShipped(order.id, { carrier, trackingNumber, eta });
-
+      
       // Send order status update email
       try {
         const { httpsCallable } = await import('firebase/functions');
         const { functions } = await import('../firebase/config');
         const sendOrderStatusUpdate = httpsCallable(functions, 'sendOrderStatusUpdate');
-
+        
         await sendOrderStatusUpdate({
           buyerEmail: order.buyerEmail || order.buyer,
           buyerName: order.buyerName || order.buyer,
           orderId: order.id,
           status: 'shipped',
-          trackingNumber,
-          carrier
+          trackingNumber: trackingNumber,
+          carrier: carrier
         });
       } catch (emailError) {
         console.warn('Failed to send shipping notification:', emailError);
       }
-
-      await refreshOrders();
+      
+      const refreshed = await firebaseService.orders.getByUserPaged({ userId: currentUser.uid, userType: 'vendor', pageSize });
+      setOrders(refreshed.items);
+      setOrdersCursor(refreshed.nextCursor);
       setIsShipOpen(false);
       alert('Order marked as shipped.');
     } catch (e) {
@@ -1257,17 +1275,25 @@ const Vendor = () => {
 
   const handleCompleteOrder = async (orderId) => {
     try {
-      const order = orders.find((o) => o.id === orderId);
+      // Get order details
+      const order = orders.find(o => o.id === orderId);
       if (!order) return;
 
+      // Release wallet funds to vendor
       await firebaseService.wallet.releaseWallet(orderId, order.vendorId, order.totalAmount);
+      
+      // Update order status to completed
       await firebaseService.orders.updateStatus(orderId, 'completed', {
         completedAt: new Date(),
         completedBy: 'vendor'
       });
 
-      await refreshOrders();
-
+      // Refresh orders
+      const refreshedOrders = await firebaseService.orders.getByUserPaged({ userId: currentUser.uid, userType: 'vendor', pageSize });
+      setOrders(refreshedOrders.items);
+      setOrdersCursor(refreshedOrders.nextCursor);
+      
+      // Show success message
       alert('Order completed successfully! Funds have been released to your wallet. You can transfer them to your bank account from the Wallet tab.');
     } catch (error) {
       console.error('Error completing order:', error);
@@ -1275,9 +1301,10 @@ const Vendor = () => {
     }
   };
 
+
   const handleCreateDispute = async (orderId, disputeData) => {
     try {
-      const order = orders.find((o) => o.id === orderId);
+      const order = orders.find(o => o.id === orderId);
       if (!order) return;
 
       await firebaseService.disputes.createWithWalletHold(
@@ -1290,13 +1317,15 @@ const Vendor = () => {
         order.totalAmount
       );
 
-      const disputesPage = await firebaseService.disputes.getByVendorPaged({ vendorId: currentUser.uid, pageSize });
-      setDisputes(disputesPage.items);
-      setDisputesCursor(disputesPage.nextCursor);
-      setDisputesPages([{ items: disputesPage.items, cursor: disputesPage.nextCursor }]);
-      setDisputesPageIndex(0);
-
-      await refreshOrders();
+      // Refresh disputes and orders
+      const [refreshedDisputes, refreshedOrders] = await Promise.all([
+        firebaseService.disputes.getByVendorPaged({ vendorId: currentUser.uid, pageSize }),
+        firebaseService.orders.getByUserPaged({ userId: currentUser.uid, userType: 'vendor', pageSize })
+      ]);
+      setDisputes(refreshedDisputes.items);
+      setDisputesCursor(refreshedDisputes.nextCursor);
+      setOrders(refreshedOrders.items);
+      setOrdersCursor(refreshedOrders.nextCursor);
 
       alert('Dispute created successfully! Funds have been held pending resolution.');
     } catch (error) {
@@ -1304,7 +1333,6 @@ const Vendor = () => {
       alert('Failed to create dispute. Please try again.');
     }
   };
-
 
   const openCreateProduct = () => {
     setEditingProduct(null);
@@ -1326,7 +1354,7 @@ const Vendor = () => {
         const vendorStores = await storeService.getStoresByVendor(currentUser.uid);
         if (vendorStores && vendorStores.length > 0) {
           storeId = vendorStores[0].id || vendorStores[0].storeId || null;
-          console.log('📦 Linking product to store:', storeId);
+          console.log('≡ƒôª Linking product to store:', storeId);
         }
       } catch (storeErr) {
         console.warn('Could not fetch store for product:', storeErr);
@@ -1413,7 +1441,7 @@ const Vendor = () => {
                     : 'text-teal-200 hover:text-amber-200 hover:bg-slate-900/70'
                 }`}
               >
-                📊 Overview
+                ≡ƒôè Overview
               </button>
               <button 
                 onClick={() => setActiveTab('orders')}
@@ -1423,11 +1451,11 @@ const Vendor = () => {
                     : 'text-teal-200 hover:text-amber-200 hover:bg-slate-900/70'
                 }`}
               >
-                📦 Orders
+                ≡ƒôª Orders
               </button>
               <button 
                 onClick={() => {
-                  console.log('🏪 My Store tab clicked');
+                  console.log('≡ƒÅ¬ My Store tab clicked');
                   setActiveTab('store');
                 }}
                 className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg ${
@@ -1436,7 +1464,7 @@ const Vendor = () => {
                     : 'text-teal-200 hover:text-amber-200 hover:bg-slate-900/70'
                 }`}
               >
-                🏪 My Store
+                ≡ƒÅ¬ My Store
               </button>
               {/* Logistics tab removed - logistics partners work independently */}
               <button 
@@ -1447,7 +1475,7 @@ const Vendor = () => {
                     : 'text-teal-200 hover:text-amber-200 hover:bg-slate-900/70'
                 }`}
               >
-                💳 Billing & Subscription
+                ≡ƒÆ│ Billing & Subscription
               </button>
               <button 
                 onClick={() => setActiveTab('disputes')}
@@ -1457,7 +1485,7 @@ const Vendor = () => {
                     : 'text-teal-200 hover:text-amber-200 hover:bg-slate-900/70'
                 }`}
               >
-                ⚖️ Disputes
+                ΓÜû∩╕Å Disputes
               </button>
               <button 
                 onClick={() => setActiveTab('analytics')}
@@ -1467,7 +1495,7 @@ const Vendor = () => {
                     : 'text-teal-200 hover:text-amber-200 hover:bg-slate-900/70'
                 }`}
               >
-                📊 Analytics
+                ≡ƒôè Analytics
               </button>
               <button 
                 onClick={() => setActiveTab('settings')}
@@ -1477,7 +1505,7 @@ const Vendor = () => {
                     : 'text-teal-200 hover:text-amber-200 hover:bg-slate-900/70'
                 }`}
               >
-                ⚙️ Settings
+                ΓÜÖ∩╕Å Settings
               </button>
               <button 
                 onClick={() => setActiveTab('wallet')}
@@ -1487,7 +1515,7 @@ const Vendor = () => {
                     : 'text-teal-200 hover:text-amber-200 hover:bg-slate-900/70'
                 }`}
               >
-                💳 My Wallet
+                ≡ƒÆ│ My Wallet
               </button>
               <button 
                 onClick={() => setActiveTab('messages')}
@@ -1497,7 +1525,7 @@ const Vendor = () => {
                     : 'text-teal-200 hover:text-amber-200 hover:bg-slate-900/70'
                 }`}
               >
-                💬 Messages
+                ≡ƒÆ¼ Messages
                 {typeof unreadCount === 'number' && unreadCount > 0 && (
                   <span className="ml-auto bg-amber-500 text-slate-950 text-xs rounded-full h-5 w-5 flex items-center justify-center">
                     {unreadCount > 9 ? '9+' : unreadCount}
@@ -1512,7 +1540,7 @@ const Vendor = () => {
                     : 'text-teal-200 hover:text-amber-200 hover:bg-slate-900/70'
                 }`}
               >
-                📈 Analytics
+                ≡ƒôê Analytics
               </button>
             </div>
           </div>
@@ -1529,7 +1557,7 @@ const Vendor = () => {
             const hasState = hasStructuredAddress?.state;
             const shouldShowBanner = !hasCity || !hasState || !hasStructuredAddress;
             
-            console.log('🔍 Address Banner Debug:', {
+            console.log('≡ƒöì Address Banner Debug:', {
               hasStructuredAddress: !!hasStructuredAddress,
               hasCity: !!hasCity,
               hasState: !!hasState,
@@ -1544,7 +1572,7 @@ const Vendor = () => {
               <div className="flex items-start gap-4">
                 <div className="flex-shrink-0">
                   <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
-                    <span className="text-2xl">⚠️</span>
+                    <span className="text-2xl">ΓÜá∩╕Å</span>
                   </div>
                 </div>
                 <div className="flex-1">
@@ -1555,10 +1583,10 @@ const Vendor = () => {
                     Your business address is incomplete or not in the new structured format. This is required for:
                   </p>
                   <ul className="text-sm text-orange-700 space-y-1 mb-4 ml-4">
-                    <li>• <strong>Accurate delivery cost calculation</strong> for customer orders</li>
-                    <li>• <strong>Logistics partner matching</strong> for your delivery area</li>
-                    <li>• <strong>Better customer experience</strong> with reliable shipping estimates</li>
-                    <li>• <strong>Higher trust</strong> from buyers seeing complete business info</li>
+                    <li>ΓÇó <strong>Accurate delivery cost calculation</strong> for customer orders</li>
+                    <li>ΓÇó <strong>Logistics partner matching</strong> for your delivery area</li>
+                    <li>ΓÇó <strong>Better customer experience</strong> with reliable shipping estimates</li>
+                    <li>ΓÇó <strong>Higher trust</strong> from buyers seeing complete business info</li>
                   </ul>
                   <div className="flex items-center gap-3">
                     <button
@@ -1586,7 +1614,7 @@ const Vendor = () => {
                           <p className="font-mono font-semibold text-gray-900">#{order.id?.slice(-8) || 'N/A'}</p>
                           <p className="text-xs text-gray-500">
                             {formattedDate}
-                            {formattedTime ? ` • ${formattedTime}` : ''}
+                            {formattedTime ? ` ΓÇó ${formattedTime}` : ''}
                           </p>
                         </div>
                         {renderStatusPill(order)}
@@ -1602,7 +1630,7 @@ const Vendor = () => {
                           <div className="space-y-1">
                             {(order.items || []).slice(0, 2).map((item, idx) => (
                               <p key={idx} className="text-xs text-gray-600">
-                                {item.name} • Qty {item.quantity}
+                                {item.name} ΓÇó Qty {item.quantity}
                               </p>
                             ))}
                             {Array.isArray(order.items) && order.items.length > 2 && (
@@ -1612,20 +1640,11 @@ const Vendor = () => {
                         </div>
                         <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
                           <span className="font-semibold text-gray-900 text-sm">
-                            {order.currency || '₦'}{(order.totalAmount || 0).toLocaleString()}
+                            {order.currency || 'Γéª'}{(order.totalAmount || 0).toLocaleString()}
                           </span>
-                          {order.logisticsCompany && <span>🚚 {order.logisticsCompany}</span>}
+                          {order.logisticsCompany && <span>≡ƒÜÜ {order.logisticsCompany}</span>}
                           {order.trackingNumber && <span className="font-mono">Tracking: {order.trackingNumber}</span>}
                         </div>
-
-                        <PayoutStatusSummary
-                          variant="inline"
-                          payoutStatus={order.payoutStatus}
-                          payoutRequestId={order.payoutRequestId}
-                          payoutTotals={order.payoutTotals}
-                          vat={order.vat}
-                          currency={order.currency}
-                        />
                       </div>
                       <div className="pt-3 border-t">
                         {renderOrderActions(order, 'flex flex-wrap gap-2')}
@@ -1644,7 +1663,7 @@ const Vendor = () => {
                 <div className="flex items-start gap-4 flex-1">
                   <div className="flex-shrink-0">
                     <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                      <span className="text-2xl">🎉</span>
+                      <span className="text-2xl">≡ƒÄë</span>
                     </div>
                   </div>
                   <div className="flex-1">
@@ -1655,8 +1674,8 @@ const Vendor = () => {
                       Your subscription has been activated. You can now:
                     </p>
                     <ul className="text-sm text-green-700 space-y-1 ml-4">
-                      <li>• Add up to {upgradeSuccessBanner.productLimit === -1 ? 'unlimited' : upgradeSuccessBanner.productLimit} products</li>
-                      <li>• Pay only {upgradeSuccessBanner.commissionRate}% commission on sales</li>
+                      <li>ΓÇó Add up to {upgradeSuccessBanner.productLimit === -1 ? 'unlimited' : upgradeSuccessBanner.productLimit} products</li>
+                      <li>ΓÇó Pay only {upgradeSuccessBanner.commissionRate}% commission on sales</li>
                     </ul>
                   </div>
                 </div>
@@ -1664,7 +1683,7 @@ const Vendor = () => {
                   onClick={() => setUpgradeSuccessBanner(null)}
                   className="text-green-600 hover:text-green-800 text-xl"
                 >
-                  ×
+                  ├ù
                 </button>
               </div>
             </div>
@@ -1698,7 +1717,7 @@ const Vendor = () => {
                       <p className="text-blue-100 text-sm font-medium">Total Products</p>
                       <p className="text-3xl font-bold">{products.length}</p>
                     </div>
-                    <div className="text-4xl opacity-80">📦</div>
+                    <div className="text-4xl opacity-80">≡ƒôª</div>
                   </div>
                 </div>
 
@@ -1708,7 +1727,7 @@ const Vendor = () => {
                       <p className="text-green-100 text-sm font-medium">Total Orders</p>
                       <p className="text-3xl font-bold">{orders.length}</p>
                     </div>
-                    <div className="text-4xl opacity-80">📋</div>
+                    <div className="text-4xl opacity-80">≡ƒôï</div>
                   </div>
                 </div>
 
@@ -1720,7 +1739,7 @@ const Vendor = () => {
                         {orders.filter(order => order.status === 'pending').length}
                       </p>
                     </div>
-                    <div className="text-4xl opacity-80">⏳</div>
+                    <div className="text-4xl opacity-80">ΓÅ│</div>
                   </div>
                 </div>
                 
@@ -1729,10 +1748,10 @@ const Vendor = () => {
                     <div>
                       <p className="text-purple-100 text-sm font-medium">Total Revenue</p>
                       <p className="text-3xl font-bold">
-                        ₦{orders.reduce((sum, order) => sum + (order.totalAmount || 0), 0).toLocaleString()}
+                        Γéª{orders.reduce((sum, order) => sum + (order.totalAmount || 0), 0).toLocaleString()}
                       </p>
                     </div>
-                    <div className="text-4xl opacity-80">💰</div>
+                    <div className="text-4xl opacity-80">≡ƒÆ░</div>
                     </div>
                   </div>
                 </div>
@@ -1742,7 +1761,7 @@ const Vendor = () => {
                 {/* Store Information */}
                 <div className="bg-white rounded-lg shadow-sm border p-6">
                   <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
-                    <span className="text-2xl mr-3">🏪</span>
+                    <span className="text-2xl mr-3">≡ƒÅ¬</span>
                     Store Information
                   </h2>
                   <div className="space-y-4">
@@ -1782,7 +1801,7 @@ const Vendor = () => {
                 {/* Quick Actions */}
                 <div className="bg-white rounded-lg shadow-sm border p-6">
                   <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
-                    <span className="text-2xl mr-3">⚡</span>
+                    <span className="text-2xl mr-3">ΓÜí</span>
                     Quick Actions
                   </h2>
                   <div className="space-y-3">
@@ -1790,7 +1809,7 @@ const Vendor = () => {
                       onClick={() => setActiveTab('store')}
                       className="w-full p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left flex items-center"
                     >
-                      <span className="text-2xl mr-3">🏪</span>
+                      <span className="text-2xl mr-3">≡ƒÅ¬</span>
                       <div>
                         <p className="font-medium text-gray-900">Manage Store</p>
                         <p className="text-sm text-gray-600">Add products and manage your store</p>
@@ -1801,7 +1820,7 @@ const Vendor = () => {
                       onClick={() => setActiveTab('orders')}
                       className="w-full p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left flex items-center"
                     >
-                      <span className="text-2xl mr-3">📦</span>
+                      <span className="text-2xl mr-3">≡ƒôª</span>
                       <div>
                         <p className="font-medium text-gray-900">View Orders</p>
                         <p className="text-sm text-gray-600">Track and manage your orders</p>
@@ -1812,7 +1831,7 @@ const Vendor = () => {
                       onClick={() => setActiveTab('analytics')}
                       className="w-full p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left flex items-center"
                     >
-                      <span className="text-2xl mr-3">📊</span>
+                      <span className="text-2xl mr-3">≡ƒôè</span>
                       <div>
                         <p className="font-medium text-gray-900">Analytics</p>
                         <p className="text-sm text-gray-600">View your business insights</p>
@@ -1825,7 +1844,7 @@ const Vendor = () => {
               {/* Recent Orders */}
               <div className="bg-white rounded-lg shadow-sm border p-6">
                 <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
-                  <span className="text-2xl mr-3">📋</span>
+                  <span className="text-2xl mr-3">≡ƒôï</span>
                   Recent Orders
                 </h2>
                 
@@ -1842,12 +1861,12 @@ const Vendor = () => {
                               Order #{order.id?.slice(-6) || 'N/A'}
                             </p>
                             <p className="text-sm text-gray-600">
-                              {order.buyerName || 'Customer'} • {order.items?.length || 0} items
+                              {order.buyerName || 'Customer'} ΓÇó {order.items?.length || 0} items
                             </p>
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="font-bold text-gray-900">₦{order.totalAmount?.toLocaleString() || '0'}</p>
+                          <p className="font-bold text-gray-900">Γéª{order.totalAmount?.toLocaleString() || '0'}</p>
                           <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
                             order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
                             order.status === 'shipped' ? 'bg-blue-100 text-blue-800' :
@@ -1862,7 +1881,7 @@ const Vendor = () => {
                   </div>
                 ) : (
                   <div className="text-center py-12">
-                    <div className="text-6xl mb-4">📦</div>
+                    <div className="text-6xl mb-4">≡ƒôª</div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">No orders yet</h3>
                     <p className="text-gray-600 mb-4">Start by adding products to your store</p>
                     <button
@@ -1879,7 +1898,7 @@ const Vendor = () => {
 
           {activeTab === 'store' && (
             <div key="store-tab-content">
-              {console.log('🏪 Rendering VendorStoreManager, activeTab:', activeTab)}
+              {console.log('≡ƒÅ¬ Rendering VendorStoreManager, activeTab:', activeTab)}
               <BulkOperations 
                 products={products}
                 onProductsUpdate={() => loadTabData('products')}
@@ -1915,7 +1934,7 @@ const Vendor = () => {
                       <p className="text-2xl font-bold text-gray-900">{stats.totalOrders || 0}</p>
                     </div>
                     <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                      <span className="text-yellow-600 text-xl">🔒</span>
+                      <span className="text-yellow-600 text-xl">≡ƒöÆ</span>
                     </div>
                   </div>
                 </div>
@@ -1927,7 +1946,7 @@ const Vendor = () => {
                       <p className="text-2xl font-bold text-gray-900">{stats.completedOrders || 0}</p>
                     </div>
                     <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                      <span className="text-purple-600 text-xl">🛍️</span>
+                      <span className="text-purple-600 text-xl">≡ƒ¢ì∩╕Å</span>
                     </div>
                   </div>
                 </div>
@@ -2035,29 +2054,29 @@ const Vendor = () => {
                       <div className="space-y-4">
                         <div className="flex items-center gap-4">
                           <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                            <span className="text-green-600">💰</span>
+                            <span className="text-green-600">≡ƒÆ░</span>
                           </div>
                           <div>
                             <p className="font-medium">Payment received - Kente Scarf</p>
-                            <p className="text-sm text-gray-600">From John D. • ₵150 • Sep 10, 2025</p>
+                            <p className="text-sm text-gray-600">From John D. ΓÇó Γé╡150 ΓÇó Sep 10, 2025</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-4">
                           <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                            <span className="text-blue-600">📦</span>
+                            <span className="text-blue-600">≡ƒôª</span>
                           </div>
                           <div>
                             <p className="font-medium">Order shipped - Leather Sandals</p>
-                            <p className="text-sm text-gray-600">To Peter M. • KSh 6,800 • Sep 4, 2025</p>
+                            <p className="text-sm text-gray-600">To Peter M. ΓÇó KSh 6,800 ΓÇó Sep 4, 2025</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-4">
                           <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center">
-                            <span className="text-yellow-600">🔒</span>
+                            <span className="text-yellow-600">≡ƒöÆ</span>
                           </div>
                           <div>
                             <p className="font-medium">Wallet funded - Ankara Dress</p>
-                            <p className="text-sm text-gray-600">From Amina K. • ₦85,000 • Sep 1, 2025</p>
+                            <p className="text-sm text-gray-600">From Amina K. ΓÇó Γéª85,000 ΓÇó Sep 1, 2025</p>
                           </div>
                         </div>
                       </div>
@@ -2104,11 +2123,11 @@ const Vendor = () => {
                         </div>
                         <div className="flex justify-between">
                           <span className="text-sm text-gray-600">Avg Order Value</span>
-                          <span className="text-sm font-medium">₦28,500</span>
+                          <span className="text-sm font-medium">Γéª28,500</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-sm text-gray-600">Customer Rating</span>
-                          <span className="text-sm font-medium">4.8 ⭐</span>
+                          <span className="text-sm font-medium">4.8 Γ¡É</span>
                         </div>
                       </div>
                     </div>
@@ -2130,7 +2149,7 @@ const Vendor = () => {
               {/* Logistics Info Banner */}
               <div className="mx-6 mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <div className="flex items-start gap-3">
-                  <span className="text-blue-600 text-xl">📦</span>
+                  <span className="text-blue-600 text-xl">≡ƒôª</span>
                   <div className="flex-1">
                     <h4 className="text-sm font-medium text-blue-900 mb-1">About Logistics & Delivery</h4>
                     <p className="text-sm text-blue-700">
@@ -2179,7 +2198,7 @@ const Vendor = () => {
                                 order.items.map((item, idx) => (
                                   <div key={idx} className="text-xs">
                                     <p className="font-medium text-gray-900">{item.name}</p>
-                                    <p className="text-gray-500">Qty: {item.quantity} × ₦{item.price?.toLocaleString()}</p>
+                                    <p className="text-gray-500">Qty: {item.quantity} ├ù Γéª{item.price?.toLocaleString()}</p>
                                   </div>
                                 ))
                               ) : (
@@ -2214,28 +2233,19 @@ const Vendor = () => {
                           <td className="px-6 py-4 text-sm">
                             <div className="space-y-1">
                               <p className="font-semibold text-gray-900">
-                                {order.currency || '₦'}{(order.totalAmount || 0).toLocaleString()}
+                                {order.currency || 'Γéª'}{(order.totalAmount || 0).toLocaleString()}
                               </p>
                               {order.subtotal && (
-                                <p className="text-xs text-gray-500">Subtotal: ₦{order.subtotal.toLocaleString()}</p>
+                                <p className="text-xs text-gray-500">Subtotal: Γéª{order.subtotal.toLocaleString()}</p>
                               )}
                               {order.deliveryFee && (
-                                <p className="text-xs text-gray-500">Delivery: ₦{order.deliveryFee.toLocaleString()}</p>
+                                <p className="text-xs text-gray-500">Delivery: Γéª{order.deliveryFee.toLocaleString()}</p>
                               )}
                               {order.escrowAmount && (
-                                <p className="text-xs text-yellow-600">Escrow: ₦{order.escrowAmount.toLocaleString()}</p>
+                                <p className="text-xs text-yellow-600">Escrow: Γéª{order.escrowAmount.toLocaleString()}</p>
                               )}
                             </div>
-
-                            <PayoutStatusSummary
-                              variant="inline"
-                              payoutStatus={order.payoutStatus}
-                              payoutRequestId={order.payoutRequestId}
-                              payoutTotals={order.payoutTotals}
-                              vat={order.vat}
-                              currency={order.currency}
-                            />
-                          </div>
+                          </td>
                           
                           {/* Date */}
                           <td className="px-6 py-4 text-sm text-gray-500">
@@ -2255,7 +2265,7 @@ const Vendor = () => {
                                 </div>
                               )}
                               {order.logisticsCompany && (
-                                <p className="text-xs text-gray-500">🚚 {order.logisticsCompany}</p>
+                                <p className="text-xs text-gray-500">≡ƒÜÜ {order.logisticsCompany}</p>
                               )}
                               {order.walletId && (
                                 <div>
@@ -2277,6 +2287,42 @@ const Vendor = () => {
                   </tbody>
                 </table>
               </div>
+              <div className="p-4 flex items-center justify-between">
+                <div className="text-sm text-gray-600">{orders.length} of {ordersCount} orders</div>
+                <div className="flex gap-2">
+                  <button
+                    disabled={ordersPageIndex === 0}
+                    onClick={() => {
+                      if (ordersPageIndex === 0) return;
+                      const prevIndex = ordersPageIndex - 1;
+                      setOrders(ordersPages[prevIndex].items);
+                      setOrdersCursor(ordersPages[prevIndex].cursor);
+                      setOrdersPageIndex(prevIndex);
+                    }}
+                    className={`px-3 py-2 text-sm rounded-lg border ${ordersPageIndex > 0 ? 'text-gray-700 hover:bg-gray-50' : 'text-gray-400 cursor-not-allowed'}`}
+                  >
+                    Previous
+                  </button>
+                  <button
+                    disabled={!ordersCursor}
+                    onClick={async () => {
+                      if (!ordersCursor) return;
+                      try {
+                        const next = await firebaseService.orders.getByUserPaged({ userId: currentUser.uid, userType: 'vendor', pageSize, cursor: ordersCursor });
+                        setOrders(next.items);
+                        setOrdersCursor(next.nextCursor);
+                        setOrdersPages((prev) => [...prev, { items: next.items, cursor: next.nextCursor }]);
+                        setOrdersPageIndex((i) => i + 1);
+                      } catch (e) {
+                        console.error('Next orders failed', e);
+                      }
+                    }}
+                    className={`px-3 py-2 text-sm rounded-lg border ${ordersCursor ? 'text-gray-700 hover:bg-gray-50' : 'text-gray-400 cursor-not-allowed'}`}
+                  >
+                    Next
+                  </button>
+                </div>
+                </div>
               <div className="lg:hidden divide-y border-t">
                 {ordersList.length === 0 && (
                   <p className="p-4 text-sm text-gray-500">No orders match the selected filters.</p>
@@ -2290,7 +2336,7 @@ const Vendor = () => {
                           <p className="font-mono font-semibold text-gray-900">#{order.id?.slice(-8) || 'N/A'}</p>
                           <p className="text-xs text-gray-500">
                             {formattedDate}
-                            {formattedTime ? ` • ${formattedTime}` : ''}
+                            {formattedTime ? ` ΓÇó ${formattedTime}` : ''}
                           </p>
                         </div>
                         {renderStatusPill(order)}
@@ -2306,7 +2352,7 @@ const Vendor = () => {
                           <div className="space-y-1">
                             {(order.items || []).slice(0, 2).map((item, idx) => (
                               <p key={idx} className="text-xs text-gray-600">
-                                {item.name} • Qty {item.quantity}
+                                {item.name} ΓÇó Qty {item.quantity}
                               </p>
                             ))}
                             {Array.isArray(order.items) && order.items.length > 2 && (
@@ -2316,9 +2362,9 @@ const Vendor = () => {
                         </div>
                         <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
                           <span className="font-semibold text-gray-900 text-sm">
-                            {order.currency || '₦'}{(order.totalAmount || 0).toLocaleString()}
+                            {order.currency || 'Γéª'}{(order.totalAmount || 0).toLocaleString()}
                           </span>
-                          {order.logisticsCompany && <span>🚚 {order.logisticsCompany}</span>}
+                          {order.logisticsCompany && <span>≡ƒÜÜ {order.logisticsCompany}</span>}
                           {order.trackingNumber && <span className="font-mono">Tracking: {order.trackingNumber}</span>}
                         </div>
                       </div>
@@ -2395,7 +2441,7 @@ const Vendor = () => {
             <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
               <div className="p-6 border-b flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-gray-900">Delete Product</h3>
-                <button onClick={() => setConfirmDelete({ open: false, product: null })} className="text-gray-500 hover:text-gray-700">✕</button>
+                <button onClick={() => setConfirmDelete({ open: false, product: null })} className="text-gray-500 hover:text-gray-700">Γ£ò</button>
         </div>
               <div className="p-6 space-y-3">
                 <p className="text-gray-700">Are you sure you want to delete <span className="font-medium">{confirmDelete.product?.name}</span>?</p>

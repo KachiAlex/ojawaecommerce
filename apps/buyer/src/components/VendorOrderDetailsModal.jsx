@@ -1,4 +1,5 @@
 import React from 'react';
+import PayoutStatusSummary from './PayoutStatusSummary';
 
 // Currency formatting helper
 const formatCurrency = (amount, currencyValue) => {
@@ -62,6 +63,15 @@ const VendorOrderDetailsModal = ({ open, order, onClose, onShip }) => {
               <p className="font-medium text-gray-900">{order.walletId || 'N/A'}</p>
             </div>
           </div>
+
+          <PayoutStatusSummary
+            payoutStatus={order.payoutStatus}
+            payoutRequestId={order.payoutRequestId}
+            payoutTotals={order.payoutTotals}
+            vat={order.vat}
+            currency={order.currency}
+            className="border border-gray-200 bg-gray-50"
+          />
 
           {/* Delivery & Logistics Information */}
           {order.deliveryOption === 'delivery' && (

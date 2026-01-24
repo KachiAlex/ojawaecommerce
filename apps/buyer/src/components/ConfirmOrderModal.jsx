@@ -47,21 +47,12 @@ const ConfirmOrderModal = ({ isOpen, order, onClose, onOrderConfirmed }) => {
       setLoading(true);
       setError('');
 
-      console.log('✅ Confirming order with satisfaction...');
+      console.log('✅ Confirming order and creating payout request...');
 
-      // Release escrow payment to vendor FIRST
-      let transactionId = null;
-      if (order.escrowAmount && order.vendorId) {
-        console.log('💰 Releasing escrow to vendor...');
-        transactionId = await firebaseService.wallet.releaseWallet(
-          order.id,
-          order.vendorId,
-          order.totalAmount
-        );
-        console.log('✅ Escrow released, transaction ID:', transactionId);
-      }
+      // Create payout request so Cloud Functions can pay stakeholders
+      const payoutResult = await firebaseService.payouts.createOrderPayoutRequest(order);
+      console.log('📤 Payout request created:', payoutResult?.id);
 
-      // Then update order status to completed
       await firebaseService.orders.updateStatus(order.id, 'completed', {
         satisfactionConfirmed: true,
         hasReceivedProduct: true,
@@ -73,7 +64,11 @@ const ConfirmOrderModal = ({ isOpen, order, onClose, onOrderConfirmed }) => {
         confirmedAt: new Date().toISOString(),
         confirmedBy: 'buyer',
         escrowReleased: true,
-        releaseTransactionId: transactionId,
+        releaseTransactionId: payoutResult?.id || null,
+        payoutRequestId: payoutResult?.id || null,
+        payoutStatus: 'pending',
+        payoutTotals: payoutResult?.totals || null,
+        payoutStakeholders: payoutResult?.stakeholders || [],
         completedAt: new Date().toISOString()
       });
 
@@ -107,12 +102,15 @@ const ConfirmOrderModal = ({ isOpen, order, onClose, onOrderConfirmed }) => {
         userId: order.vendorId,
         type: 'order_completed',
         title: 'Order Completed',
-        message: `Order #${order.id.slice(-8)} has been confirmed by the buyer. Payment released!`,
+        message: `Order #${order.id.slice(-8)} has been confirmed by the buyer. Payout request is processing automatically.`,
         orderId: order.id,
-        read: false
+        read: false,
+        metadata: {
+          payoutRequestId: payoutResult?.id || null,
+        },
       });
 
-      alert('Order confirmed! Payment has been released to the vendor.');
+      alert('Order confirmed! Vendor payout is now processing automatically.');
       onOrderConfirmed(order);
       resetAndClose();
       

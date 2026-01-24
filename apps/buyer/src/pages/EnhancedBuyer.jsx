@@ -20,6 +20,7 @@ import { ORDER_STATUS } from '../services/orderWorkflow'
 import { errorLogger } from '../utils/errorLogger'
 import firebaseService from '../services/firebaseService'
 import { openWalletTopUpCheckout } from '../utils/paystack'
+import PayoutStatusSummary from '../components/PayoutStatusSummary'
 
 const EnhancedBuyer = () => {
   const { currentUser } = useAuth()
@@ -199,6 +200,12 @@ const EnhancedBuyer = () => {
     }
   }
 
+  const formatCurrency = (amount, currency = 'NGN') => {
+    if (typeof amount !== 'number') return '—'
+    const symbol = currency?.split?.(' ')?.[0] || '₦'
+    return `${symbol}${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  }
+
   const handleSatisfactionConfirmed = async (satisfactionData) => {
     try {
       if (!selectedOrderForSatisfaction) return
@@ -206,27 +213,25 @@ const EnhancedBuyer = () => {
       const { isSatisfied, rating, feedback, createDispute } = satisfactionData
       
       if (isSatisfied) {
-        // Release escrow to vendor
-        await firebaseService.wallet.releaseWallet(
-          selectedOrderForSatisfaction.id,
-          selectedOrderForSatisfaction.vendorId,
-          selectedOrderForSatisfaction.totalAmount
-        )
-        
-        // Update order status
+        const payoutResult = await firebaseService.payouts.createOrderPayoutRequest(selectedOrderForSatisfaction)
+
         await updateOrderStatus(selectedOrderForSatisfaction.id, ORDER_STATUS.COMPLETED, {
           satisfactionConfirmed: true,
           satisfactionRating: rating,
           satisfactionFeedback: feedback,
           confirmedBy: 'buyer',
-          confirmedAt: new Date()
+          confirmedAt: new Date(),
+          payoutRequestId: payoutResult?.id || null,
+          payoutStatus: 'pending',
+          payoutTotals: payoutResult?.totals || null,
+          payoutStakeholders: payoutResult?.stakeholders || []
         })
-        
-        // Show success message
-        errorLogger.info('Order satisfaction confirmed and escrow released', {
+
+        errorLogger.info('Order satisfaction confirmed and payout queued', {
           orderId: selectedOrderForSatisfaction.id,
           rating,
-          feedback
+          feedback,
+          payoutRequestId: payoutResult?.id
         })
       } else if (createDispute) {
         // Create dispute
@@ -595,7 +600,7 @@ const EnhancedBuyer = () => {
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                               <div>
                                 <p className="text-sm text-gray-500">Total Amount</p>
-                                <p className="font-medium">{order.currency ? `${order.currency.split(' ')[0]}${order.totalAmount?.toFixed(2)}` : `₦${order.totalAmount?.toFixed(2)}`}</p>
+                                <p className="font-medium">{formatCurrency(order.totalAmount, order.currency)}</p>
                               </div>
                               <div>
                                 <p className="text-sm text-gray-500">Order Date</p>
@@ -607,17 +612,37 @@ const EnhancedBuyer = () => {
                               </div>
                             </div>
 
+                            {order.vat?.amount > 0 && (
+                              <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                                <p className="font-semibold text-amber-900">VAT Collected</p>
+                                <p>{formatCurrency(order.vat.amount, order.vat.currency || order.currency)} awaiting remittance</p>
+                              </div>
+                            )}
+
                             {/* Order Timeline (Compact) */}
                             <OrderTimeline order={order} compact={true} />
                           </div>
                           
                           <div className="ml-6 flex flex-col gap-2">
+                            <div className="flex flex-col gap-2">
                             <button
                               onClick={() => setSelectedOrder(order)}
                               className="bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700 text-sm font-medium"
                             >
                               View Details
                             </button>
+
+                            <PayoutStatusSummary
+                              variant="inline"
+                              payoutStatus={order.payoutStatus}
+                              payoutRequestId={order.payoutRequestId}
+                              payoutTotals={order.payoutTotals}
+                              vat={order.vat}
+                              currency={order.currency}
+                              showBreakdown={false}
+                              showVat={false}
+                            />
+                          </div>
                             
                             {/* Order Actions */}
                             <div className="flex flex-wrap gap-2">
@@ -776,6 +801,16 @@ const EnhancedBuyer = () => {
                 <div className="space-y-6">
                   {/* Order Timeline (Full) */}
                   <OrderTimeline order={selectedOrder} showDetails={true} />
+
+                  {/* Payout + VAT Status */}
+                  <PayoutStatusSummary
+                    payoutStatus={selectedOrder.payoutStatus}
+                    payoutRequestId={selectedOrder.payoutRequestId}
+                    payoutTotals={selectedOrder.payoutTotals}
+                    vat={selectedOrder.vat}
+                    currency={selectedOrder.currency}
+                    className="rounded-lg border border-gray-200 bg-gray-50"
+                  />
                   
                   {/* Order Actions */}
                   <div className="border-t pt-4">

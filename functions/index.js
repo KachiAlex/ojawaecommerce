@@ -7,6 +7,7 @@ const crypto = require("crypto");
 
 const PAYSTACK_SECRET = defineSecret('PAYSTACK_SECRET_KEY');
 const PAYSTACK_WEBHOOK_SECRET = defineSecret('PAYSTACK_WEBHOOK_SECRET');
+const WALLET_ADMIN_SECRET = defineSecret('WALLET_ADMIN_SECRET');
 
 // Initialize Firebase Admin
 admin.initializeApp();
@@ -35,6 +36,7 @@ const getPaystackConfig = () => {
 const PAYSTACK_BASE_URL = 'https://api.paystack.co';
 const PAYOUT_REQUESTS_COLLECTION = 'payout_requests';
 const PAYOUT_RECIPIENTS_COLLECTION = 'payout_recipients';
+const VAT_LEDGER_COLLECTION = 'vat_ledger';
 
 const paystackAxios = axios.create({
   baseURL: PAYSTACK_BASE_URL,
@@ -98,6 +100,39 @@ exports.processPayoutRequest = onCall({ secrets: [PAYSTACK_SECRET, PAYSTACK_WEBH
     success: true,
     stakeholderResults: result,
   };
+});
+
+exports.ensureWalletForUser = onCall({ secrets: [WALLET_ADMIN_SECRET] }, async (request) => {
+  const { data } = request;
+  const adminSecret = WALLET_ADMIN_SECRET.value();
+
+  if (!adminSecret) {
+    throw new HttpsError('failed-precondition', 'Wallet admin secret not configured');
+  }
+
+  if (!data?.adminSecret || data.adminSecret !== adminSecret) {
+    throw new HttpsError('permission-denied', 'Invalid admin secret');
+  }
+
+  const userId = data?.userId;
+  if (!userId) {
+    throw new HttpsError('invalid-argument', 'userId is required');
+  }
+
+  const userType = data?.userType || 'buyer';
+  const currency = data?.currency || 'NGN';
+
+  try {
+    const walletDoc = await ensureWalletDocument({ userId, userType, currency });
+    const wallet = sanitizeWalletForResponse(walletDoc ? { id: walletDoc.id, ...walletDoc } : null);
+    return {
+      success: true,
+      wallet,
+    };
+  } catch (error) {
+    console.error('Error ensuring wallet for user:', error);
+    throw new HttpsError('internal', error?.message || 'Failed to ensure wallet');
+  }
 });
 
 const buildPaystackHeaders = () => {
@@ -259,11 +294,121 @@ const initiatePaystackTransfer = async ({ amount, recipientCode, reason, referen
   return transfer;
 };
 
-const findWalletByUserId = async (userId) => {
+const getWalletDocByUserId = async (userId) => {
   if (!userId) return null;
   const snapshot = await db.collection('wallets').where('userId', '==', userId).limit(1).get();
   if (snapshot.empty) return null;
-  return snapshot.docs[0];
+  const docSnap = snapshot.docs[0];
+  return { id: docSnap.id, ...docSnap.data() };
+};
+
+const sanitizeWalletForResponse = (walletDoc) => {
+  if (!walletDoc) return null;
+  const { createdAt, updatedAt, ...rest } = walletDoc;
+  const normalizeTimestamp = (value) => {
+    if (!value) return null;
+    if (typeof value?.toDate === 'function') {
+      return value.toDate().toISOString();
+    }
+    if (value instanceof Date) {
+      return value.toISOString();
+    }
+    return value;
+  };
+
+  return {
+    ...rest,
+    createdAt: normalizeTimestamp(createdAt),
+    updatedAt: normalizeTimestamp(updatedAt),
+  };
+};
+
+const upsertVatLedgerEntry = async ({
+  payoutRequestId,
+  orderId,
+  vatData = {},
+  currency = 'NGN',
+  status = 'pending_payout',
+  metadata = {},
+  extraFields = {},
+}) => {
+  const vatAmount = Number(vatData?.amount || 0);
+  if (!vatAmount) {
+    return null;
+  }
+
+  let docRef = null;
+  let existingData = null;
+
+  if (payoutRequestId) {
+    const existingSnapshot = await db
+      .collection(VAT_LEDGER_COLLECTION)
+      .where('payoutRequestId', '==', payoutRequestId)
+      .limit(1)
+      .get();
+
+    if (!existingSnapshot.empty) {
+      docRef = existingSnapshot.docs[0].ref;
+      existingData = existingSnapshot.docs[0].data();
+    }
+  }
+
+  if (!docRef) {
+    docRef = db.collection(VAT_LEDGER_COLLECTION).doc();
+  }
+
+  const payload = {
+    orderId: orderId || existingData?.orderId || null,
+    payoutRequestId: payoutRequestId || existingData?.payoutRequestId || null,
+    amount: vatAmount || existingData?.amount || 0,
+    currency: vatData?.currency || existingData?.currency || currency || 'NGN',
+    breakdown: vatData?.breakdown || existingData?.breakdown || null,
+    status: status || existingData?.status || 'pending_payout',
+    metadata: {
+      ...(existingData?.metadata || {}),
+      ...metadata,
+    },
+    updatedAt: FieldValue.serverTimestamp(),
+    ...extraFields,
+  };
+
+  if (!existingData) {
+    payload.createdAt = FieldValue.serverTimestamp();
+  }
+
+  await docRef.set(payload, { merge: true });
+  return docRef.id;
+};
+
+const ensureWalletDocument = async ({ userId, userType = 'buyer', currency = 'NGN' }) => {
+  if (!userId) {
+    throw new Error('userId is required to ensure wallet');
+  }
+
+  const existingWallet = await getWalletDocByUserId(userId);
+  if (existingWallet) {
+    return existingWallet;
+  }
+
+  const walletRef = db.collection('wallets').doc();
+  const walletPayload = {
+    walletId: generateWalletId(),
+    userId,
+    userType,
+    balance: 0,
+    currency,
+    status: 'active',
+    totalTransactions: 0,
+    totalCredits: 0,
+    totalDebits: 0,
+    lastTransactionAt: null,
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+
+  await walletRef.set(walletPayload);
+  const snapshot = await walletRef.get();
+  return { id: walletRef.id, ...snapshot.data() };
 };
 
 const resolveStakeholderAccountDetails = async (stakeholder = {}) => {
@@ -312,8 +457,16 @@ const processPayoutStakeholder = async ({ stakeholder, payoutRequestId, orderId 
   const targetUserId = stakeholder.userId || stakeholder.uid || stakeholder.id;
   let walletId = stakeholder.walletId;
   if (!walletId && targetUserId) {
-    const walletDoc = await findWalletByUserId(targetUserId);
-    walletId = walletDoc?.id;
+    const walletDoc = await getWalletDocByUserId(targetUserId);
+    if (walletDoc) {
+      walletId = walletDoc.id;
+    } else {
+      const createdWallet = await ensureWalletDocument({
+        userId: targetUserId,
+        userType: stakeholder.userType || stakeholder.role || 'buyer',
+      });
+      walletId = createdWallet.id;
+    }
   }
 
   if (!walletId) {
@@ -403,6 +556,15 @@ const processPayoutRequestDocument = async ({ payoutRequestId, data }) => {
     throw new Error('No stakeholders defined for payout request');
   }
 
+  const vatLedgerEntryId = await upsertVatLedgerEntry({
+    payoutRequestId,
+    orderId: data.orderId,
+    vatData: data.vat,
+    currency: data.totals?.currency || data.metadata?.currency || data.currency || 'NGN',
+    status: 'pending_payout',
+    metadata: data.metadata || {},
+  });
+
   await requestRef.set({
     status: 'processing',
     processingStartedAt: FieldValue.serverTimestamp(),
@@ -432,6 +594,20 @@ const processPayoutRequestDocument = async ({ payoutRequestId, data }) => {
         failedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
 
+      await upsertVatLedgerEntry({
+        payoutRequestId,
+        orderId: data.orderId,
+        vatData: data.vat,
+        currency: data.totals?.currency || data.metadata?.currency || data.currency || 'NGN',
+        status: 'payout_failed',
+        metadata: data.metadata || {},
+        extraFields: {
+          vatLedgerEntryId,
+          stakeholderResults,
+          failureReason: error?.message,
+        },
+      });
+
       throw error;
     }
   }
@@ -441,6 +617,21 @@ const processPayoutRequestDocument = async ({ payoutRequestId, data }) => {
     stakeholderResults,
     completedAt: FieldValue.serverTimestamp(),
   }, { merge: true });
+
+  await upsertVatLedgerEntry({
+    payoutRequestId,
+    orderId: data.orderId,
+    vatData: data.vat,
+    currency: data.totals?.currency || data.metadata?.currency || data.currency || 'NGN',
+    status: 'awaiting_remittance',
+    metadata: data.metadata || {},
+    extraFields: {
+      vatLedgerEntryId,
+      stakeholderResults,
+      totals: data.totals || null,
+      lastPayoutCompletedAt: FieldValue.serverTimestamp(),
+    },
+  });
 
   return stakeholderResults;
 };

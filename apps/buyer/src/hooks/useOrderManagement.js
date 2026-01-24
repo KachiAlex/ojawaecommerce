@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { orderWorkflowManager, ORDER_STATUS } from '../services/orderWorkflow'
 import firebaseService from '../services/firebaseService'
 import { errorLogger } from '../utils/errorLogger'
+import { collection, query, where, onSnapshot } from 'firebase/firestore'
+import { db } from '../firebase/config'
 
 export const useOrderManagement = (userId, userType = 'buyer') => {
   const [orders, setOrders] = useState([])
@@ -262,16 +264,53 @@ export const useOrderManagement = (userId, userType = 'buyer') => {
     }
   }, [userId, fetchOrders])
 
-  // Refresh orders periodically (every 30 seconds)
+  // Real-time payout status updates
   useEffect(() => {
-    if (!userId) return
+    if (!userId) return undefined
 
-    const interval = setInterval(() => {
-      fetchOrders()
-    }, 30000)
+    const field = userType === 'buyer' ? 'buyerId' : 'vendorId'
+    const ordersRef = collection(db, 'orders')
+    const q = query(ordersRef, where(field, '==', userId))
 
-    return () => clearInterval(interval)
-  }, [userId, fetchOrders])
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setOrders((current) => {
+        if (!Array.isArray(current) || current.length === 0) {
+          return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+        }
+
+        const updates = {}
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === 'modified') {
+            updates[change.doc.id] = change.doc.data()
+          }
+        })
+
+        if (Object.keys(updates).length === 0) {
+          return current
+        }
+
+        return current.map((order) => {
+          if (!updates[order.id]) {
+            return order
+          }
+          const updated = updates[order.id]
+          const interestingFields = ['payoutStatus', 'payoutTotals', 'payoutRequestId', 'payoutStakeholders', 'vat']
+          const hasMeaningfulChange = interestingFields.some((fieldName) => {
+            const prevValue = order[fieldName]
+            const nextValue = updated[fieldName]
+            if (typeof prevValue === 'object' || typeof nextValue === 'object') {
+              return JSON.stringify(prevValue || null) !== JSON.stringify(nextValue || null)
+            }
+            return prevValue !== nextValue
+          })
+
+          return hasMeaningfulChange ? { ...order, ...updated } : order
+        })
+      })
+    })
+
+    return () => unsubscribe()
+  }, [userId, userType])
 
   return {
     // State

@@ -58,20 +58,53 @@ const DisputeResolutionDashboard = ({ isOpen, onClose, dispute, onDisputeResolve
       await firebaseService.disputes.resolveDispute(dispute.id, resolutionData);
 
       // Process financial resolution
-      if (resolution.decision === 'buyer_wins' || resolution.decision === 'partial_buyer') {
-        // Refund to buyer
-        await firebaseService.wallet.refundEscrow(
-          dispute.orderId,
-          dispute.buyerId,
-          resolution.refundAmount
-        );
+      if (resolution.decision === 'buyer_wins') {
+        const refundAmount = Number(resolution.refundAmount || dispute.totalAmount || 0);
+        if (refundAmount > 0) {
+          await firebaseService.wallet.refundEscrow(
+            dispute.orderId,
+            dispute.buyerId,
+            refundAmount
+          );
+        }
+      } else if (resolution.decision === 'partial_buyer') {
+        const refundAmount = Number(resolution.refundAmount || 0);
+        if (refundAmount > 0) {
+          await firebaseService.wallet.refundEscrow(
+            dispute.orderId,
+            dispute.buyerId,
+            refundAmount
+          );
+        }
+
+        const remainingAmount = Math.max(0, Number(dispute.totalAmount || 0) - refundAmount);
+        if (remainingAmount > 0) {
+          await firebaseService.payouts.createOrderPayoutRequest({
+            id: dispute.orderId,
+            vendorId: dispute.vendorId,
+            buyerId: dispute.buyerId,
+            totalAmount: remainingAmount,
+            pricingBreakdown: {
+              subtotal: remainingAmount,
+              breakdown: {
+                subtotal: { amount: remainingAmount }
+              }
+            }
+          }, { vendorAmount: remainingAmount });
+        }
       } else if (resolution.decision === 'vendor_wins') {
-        // Release funds to vendor
-        await firebaseService.wallet.releaseWallet(
-          dispute.orderId,
-          dispute.vendorId,
-          dispute.totalAmount
-        );
+        await firebaseService.payouts.createOrderPayoutRequest({
+          id: dispute.orderId,
+          vendorId: dispute.vendorId,
+          buyerId: dispute.buyerId,
+          totalAmount: dispute.totalAmount,
+          pricingBreakdown: {
+            subtotal: dispute.totalAmount,
+            breakdown: {
+              subtotal: { amount: dispute.totalAmount }
+            }
+          }
+        }, { vendorAmount: dispute.totalAmount });
       }
 
       // Apply penalties if any
