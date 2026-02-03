@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useState, useEffect, useMemo, useCallback, lazy, Suspense, useRef } from 'react';
 import useOrderManagement from '../hooks/useOrderManagement';
 import { useAuth } from '../contexts/AuthContext';
@@ -364,17 +364,42 @@ const Vendor = () => {
   }, [currentUser, authLoading, navigate]);
 
   const [activeTab, setActiveTab] = useState('overview');
+  const [showAddProductForm, setShowAddProductForm] = useState(false);
+  const [products, setProducts] = useState([]);
+  const [, setOrdersCursor] = useState(null);
+  const [, setProductsCursor] = useState(null);
+  const [, setOrdersCount] = useState(0);
+  const [, setProductsCount] = useState(0);
+  const [, setOrdersPages] = useState([]);
+  const [, setProductsPages] = useState([]);
+  const [, setOrdersPageIndex] = useState(0);
+  const [, setProductsPageIndex] = useState(0);
+  const pageSize = 10;
+  const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ status: '', buyer: '', from: '', to: '' });
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [isOrderDetailsOpen, setIsOrderDetailsOpen] = useState(false);
   const [isShipOpen, setIsShipOpen] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [disputes, setDisputes] = useState([]);
+  const [, setDisputesCursor] = useState(null);
+  const [, setDisputesPages] = useState([]);
+  const [, setDisputesPageIndex] = useState(0);
+  const [, setDisputesCount] = useState(0);
+  const [confirmDelete, setConfirmDelete] = useState({ open: false, product: null });
+  const [uploadProgress, setUploadProgress] = useState(null);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [, setDeletingProductId] = useState(null);
+  const [upgradeSuccessBanner, setUpgradeSuccessBanner] = useState(null);
+  const processingUpgradeRef = useRef(false); // Prevent duplicate upgrade processing
 
   const {
-    orders = [],
-    loading: ordersLoading,
-    refreshOrders,
-    updateOrderStatus,
+    orders: hookOrders = [],
+    loading: _ordersLoading,
+    refreshOrders: _refreshOrders,
+    updateOrderStatus: _updateOrderStatus,
     setSelectedOrder: hookSetSelectedOrder
   } = useOrderManagement(currentUser?.uid, 'vendor');
 
@@ -2235,7 +2260,7 @@ const Vendor = () => {
                               vat={order.vat}
                               currency={order.currency}
                             />
-                          </div>
+                          </td>
                           
                           {/* Date */}
                           <td className="px-6 py-4 text-sm text-gray-500">

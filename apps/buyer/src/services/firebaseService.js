@@ -3421,7 +3421,7 @@ export const messagingService = {
 
 export const authService = {
   // Generate 2FA secret
-  async generate2FASecret(userId) {
+  async generate2FASecret(_userId) {
     try {
       // In a real implementation, this would call a Cloud Function
       // For now, we'll simulate the response
