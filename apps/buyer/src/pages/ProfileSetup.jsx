@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
+import secureNotification from '../utils/secureNotification';
+import InputValidator from '../utils/inputValidator';
 
 const ProfileSetup = () => {
-  const { currentUser, userProfile, updateUserProfile, isProfileComplete } = useAuth();
+  const { userProfile, updateUserProfile, isProfileComplete } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [loading, setLoading] = useState(false);
@@ -71,56 +73,56 @@ const ProfileSetup = () => {
     e.preventDefault();
     setError('');
 
-    // Validation
-    if (!formData.displayName.trim()) {
-      setError('Please enter your full name');
+    // Validate form data using InputValidator
+    const validationRules = {
+      displayName: { type: 'name', fieldName: 'Full Name', required: true },
+      phone: { type: 'phone', required: true },
+      address: { type: 'address', fieldName: 'Address', required: true },
+      nin: { type: 'text', fieldName: 'NIN Number', required: true, minLength: 11, maxLength: 11 },
+      dateOfBirth: { type: 'text', fieldName: 'Date of Birth', required: true }
+    };
+
+    const validation = InputValidator.validateForm(formData, validationRules);
+    
+    if (!validation.isValid) {
+      const firstError = Object.values(validation.errors)[0];
+      setError(firstError);
+      secureNotification.error(firstError);
       return;
     }
 
-    if (!formData.phone.trim()) {
-      setError('Please enter your phone number');
+    // Additional NIN validation (numeric only)
+    if (!/^\d{11}$/.test(formData.nin)) {
+      setError('NIN must be exactly 11 digits');
+      secureNotification.error('NIN must be exactly 11 digits');
       return;
     }
 
-    if (!formData.address.trim()) {
-      setError('Please enter your address');
+    // Date validation (must be at least 18 years old)
+    const birthDate = new Date(formData.dateOfBirth);
+    const today = new Date();
+    const age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    
+    if (age < 18 || (age === 18 && monthDiff < 0)) {
+      setError('You must be at least 18 years old');
+      secureNotification.error('You must be at least 18 years old');
       return;
     }
 
-    if (!formData.nin.trim()) {
-      setError('Please enter your NIN number');
-      return;
-    }
-
-    if (!formData.dateOfBirth) {
-      setError('Please enter your date of birth');
-      return;
-    }
-
-    if (!formData.gender) {
-      setError('Please select your gender');
-      return;
-    }
-
-    if (!ninDocument && !ninDocumentPreview) {
-      setError('Please upload your NIN document');
-      return;
-    }
+    const sanitizedData = validation.sanitizedData;
 
     try {
       setLoading(true);
-      
-      // Update user profile
+
       const profileData = {
-        displayName: formData.displayName.trim(),
-        phone: formData.phone.trim(),
-        address: formData.address.trim(),
-        nin: formData.nin.trim(),
-        dateOfBirth: formData.dateOfBirth,
-        gender: formData.gender,
+        displayName: sanitizedData.displayName,
+        phone: sanitizedData.phone,
+        address: sanitizedData.address,
+        nin: sanitizedData.nin,
+        dateOfBirth: sanitizedData.dateOfBirth,
         profileCompleted: true,
-        profileCompletedAt: new Date(),
-        kycComplete: true
+        completedAt: new Date().toISOString()
       };
 
       // If there's a new NIN document, add it to the profile data
@@ -130,14 +132,15 @@ const ProfileSetup = () => {
 
       await updateUserProfile(profileData);
 
-      // Show success message
-      alert('Profile completed successfully! You can now proceed with your purchase.');
+      secureNotification.success('Profile completed successfully! You can now proceed with your purchase.');
       
       // Redirect to intended destination
       navigate(intendedDestination, { replace: true });
     } catch (error) {
       console.error('Profile setup error:', error);
-      setError('Failed to update profile. Please try again.');
+      const errorMessage = error.message || 'Failed to update profile. Please try again.';
+      setError(errorMessage);
+      secureNotification.error(errorMessage);
     } finally {
       setLoading(false);
     }

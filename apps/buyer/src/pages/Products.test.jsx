@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { BrowserRouter } from 'react-router-dom'
 import Products from './Products'
-import * as firebaseService from '../services/firebaseService'
 
 // Mock Firebase config
 vi.mock('../firebase/config', () => ({
@@ -23,7 +22,7 @@ vi.mock('firebase/firestore', async () => {
     where: vi.fn(),
     orderBy: vi.fn(),
     limit: vi.fn(),
-    onSnapshot: vi.fn((query, onNext, onError) => {
+    onSnapshot: vi.fn((query, onNext) => {
       // Immediately call onNext with empty snapshot
       if (onNext) {
         setTimeout(() => {

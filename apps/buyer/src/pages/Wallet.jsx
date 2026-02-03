@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext'
 import firebaseService from '../services/firebaseService'
 import { openWalletTopUpCheckout } from '../utils/paystack'
 import SupportTicket from '../components/SupportTicket'
+import secureNotification from '../utils/secureNotification'
 
 const Wallet = () => {
   const { currentUser, userProfile } = useAuth()
@@ -73,7 +74,7 @@ const Wallet = () => {
       // Refresh wallet data
       setTopupAmount('')
       await load()
-      alert('Wallet topped up successfully!')
+      secureNotification.success('Wallet topped up successfully!')
     } catch (e) {
       console.error(e)
       setError(e.message || 'Top-up failed')
@@ -280,7 +281,7 @@ const Wallet = () => {
               onTicketCreated={() => {
                 setShowReportIssue(false);
                 setSelectedTransaction(null);
-                alert('Issue reported successfully! Our support team will review it shortly.');
+                secureNotification.success('Issue reported successfully! Our support team will review it shortly.');
               }}
               onClose={() => {
                 setShowReportIssue(false);

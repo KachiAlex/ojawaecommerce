@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
+import InputValidator from '../utils/inputValidator';
+import secureNotification from '../utils/secureNotification';
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -27,7 +29,6 @@ const Register = () => {
 
   const { signup, resendVerificationEmailWithPassword, lastVerificationEmailSentAt, logout } = useAuth();
   const { getIntendedDestination } = useCart();
-  const navigate = useNavigate();
   const location = useLocation();
 
   const from = location.state?.from?.pathname || '/dashboard';
@@ -49,36 +50,44 @@ const Register = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validate form data using InputValidator
+    const validationRules = {
+      displayName: { type: 'name', fieldName: 'Display Name', required: true },
+      email: { type: 'email', required: true },
+      password: { type: 'text', fieldName: 'Password', required: true, minLength: 6 },
+      confirmPassword: { type: 'text', fieldName: 'Confirm Password', required: true },
+      phone: { type: 'phone', required: false },
+      address: { type: 'address', fieldName: 'Address', required: false }
+    };
 
+    const validation = InputValidator.validateForm(formData, validationRules);
+    
+    if (!validation.isValid) {
+      const firstError = Object.values(validation.errors)[0];
+      setError(firstError);
+      secureNotification.error(firstError);
+      return;
+    }
+
+    // Additional password match validation
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
+      secureNotification.error('Passwords do not match');
       return;
     }
 
-    if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters for security');
-      return;
-    }
-
-    if (!formData.displayName || !formData.email || !formData.password) {
-      setError('Please fill in all required fields');
-      return;
-    }
-
-    if (!formData.email.includes('@')) {
-      setError('Please enter a valid email address');
-      return;
-    }
+    const sanitizedData = validation.sanitizedData;
 
     try {
       setError('');
       setSuccessMessage('');
       setResendStatus('idle');
       setLoading(true);
-      await signup(formData.email, formData.password, {
-        displayName: formData.displayName,
-        phone: formData.phone,
-        address: formData.address,
+      await signup(sanitizedData.email, sanitizedData.password, {
+        displayName: sanitizedData.displayName,
+        phone: sanitizedData.phone,
+        address: sanitizedData.address,
         userType: formData.userType
       });
 
@@ -86,13 +95,14 @@ const Register = () => {
       const fallbackDestination = intendedDestination?.path || from;
       setPostVerificationDestination(fallbackDestination);
       setSubmittedCredentials({
-        email: formData.email,
-        password: formData.password
+        email: sanitizedData.email,
+        password: sanitizedData.password
       });
-      setCreatedUserEmail(formData.email);
+      setCreatedUserEmail(sanitizedData.email);
       setRegistrationComplete(true);
       setSuccessMessage('Almost there! We emailed a verification link to activate your account.');
       setResendStatus('idle');
+      secureNotification.success('Registration successful! Please check your email for verification.');
 
       try {
         await logout();
@@ -100,7 +110,11 @@ const Register = () => {
         console.error('Error signing out after registration:', signOutError);
       }
     } catch (error) {
-      setError('Failed to create account. Email might already be in use.');
+      const errorMessage = error.message?.includes('already in use') 
+        ? 'Email address is already registered. Please use a different email or try logging in.'
+        : 'Failed to create account. Please try again.';
+      setError(errorMessage);
+      secureNotification.error(errorMessage);
       console.error('Registration error:', error);
     } finally {
       setLoading(false);

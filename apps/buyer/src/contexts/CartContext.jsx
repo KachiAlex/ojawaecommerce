@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
-import secureStorage from '../utils/secureStorage';
+import secureLocalStorage from '../utils/secureLocalStorage';
 import { useAuth } from './AuthContext';
 import { pricingService } from '../services/pricingService';
 
@@ -22,12 +22,12 @@ export const CartProvider = ({ children }) => {
   useEffect(() => {
     (async () => {
       try {
-        const savedCart = await secureStorage.getItem('cart');
+        const savedCart = await secureLocalStorage.getCart();
     if (savedCart) {
-        setCartItems(JSON.parse(savedCart));
+        setCartItems(savedCart);
         }
       } catch (error) {
-        console.error('Error loading cart from secure storage:', error);
+        console.error('Error loading cart from secure localStorage:', error);
       } finally {
         setHasLoaded(true);
       }
@@ -40,7 +40,7 @@ export const CartProvider = ({ children }) => {
       if (!currentUser) return;
       if (cartItems.length > 0) return;
       try {
-        const savedCart = await secureStorage.getItem('cart');
+        const savedCart = await secureLocalStorage.getCart();
         if (savedCart) {
           setCartItems(JSON.parse(savedCart));
         }
@@ -64,7 +64,7 @@ export const CartProvider = ({ children }) => {
           // Avoid overwriting an existing stored cart with empty state during startup
           return;
         }
-        await secureStorage.setItem('cart', JSON.stringify(cartItems));
+        await secureLocalStorage.setCart(cartItems);
       } catch (e) {
         console.warn('Cart save skipped/failed:', e?.message || e);
       }

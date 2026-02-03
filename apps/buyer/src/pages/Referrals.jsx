@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import firebaseService from '../services/firebaseService';
 
@@ -15,9 +15,9 @@ const Referrals = () => {
     if (currentUser) {
       loadReferralData();
     }
-  }, [currentUser]);
+  }, [currentUser, loadReferralData]);
 
-  const loadReferralData = async () => {
+  const loadReferralData = useCallback(async () => {
     try {
       setLoading(true);
       // Generate or get referral code
@@ -33,7 +33,7 @@ const Referrals = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentUser]);
 
   const handleApplyReferralCode = async (e) => {
     e.preventDefault();

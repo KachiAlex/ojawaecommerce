@@ -1413,7 +1413,7 @@ export const logisticsService = {
     }
   },
 
-  async getAvailablePartners(deliveryData) {
+  async getAvailablePartners() {
     try {
       const partners = await this.getAllPartners()
       if (!Array.isArray(partners)) return []
@@ -3421,7 +3421,7 @@ export const messagingService = {
 
 export const authService = {
   // Generate 2FA secret
-  async generate2FASecret(_userId) {
+  async generate2FASecret() {
     try {
       // In a real implementation, this would call a Cloud Function
       // For now, we'll simulate the response

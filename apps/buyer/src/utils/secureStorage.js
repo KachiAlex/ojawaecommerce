@@ -92,7 +92,7 @@ const secureStorage = {
       console.warn('secureStorage.getItem failed:', e?.message || e);
       try {
         localStorage.removeItem(`enc_${key}`);
-      } catch (_) {
+      } catch {
         // ignore cleanup errors
       }
       return null;

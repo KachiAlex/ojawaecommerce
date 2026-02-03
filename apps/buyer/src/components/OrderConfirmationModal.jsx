@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '../firebase/config';
 import escrowPaymentService from '../services/escrowPaymentService';
 import firebaseService from '../services/firebaseService';
+import secureNotification from '../utils/secureNotification';
 
 const OrderConfirmationModal = ({ open, order, onClose, onConfirm }) => {
   const [loading, setLoading] = useState(false);
@@ -13,7 +16,7 @@ const OrderConfirmationModal = ({ open, order, onClose, onConfirm }) => {
 
   const handleConfirmDelivery = () => {
     if (deliveryReceived === null || satisfactionLevel === null) {
-      alert('Please answer both questions before proceeding.');
+      secureNotification.warning('Please answer both questions before proceeding.');
       return;
     }
     setShowWarning(true);
@@ -42,7 +45,8 @@ const OrderConfirmationModal = ({ open, order, onClose, onConfirm }) => {
         throw new Error('Order amount is missing');
       }
 
-      // Release escrow funds to vendor using HTTP endpoint
+      // Release escrow funds to vendor using secure Firebase Functions
+      const releaseEscrowFunds = httpsCallable(functions, 'releaseEscrowFundsHttp');
       const functionParams = {
         orderId: order.id,
         vendorId: order.vendorId,
@@ -51,21 +55,8 @@ const OrderConfirmationModal = ({ open, order, onClose, onConfirm }) => {
       
       console.log('Parameters being sent to releaseEscrowFundsHttp:', functionParams);
       
-      const response = await fetch('https://us-central1-ojawa-ecommerce.cloudfunctions.net/releaseEscrowFundsHttp', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(functionParams)
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to release escrow funds');
-      }
-      
-      const result = await response.json();
-      console.log('Escrow release result:', result);
+      const result = await releaseEscrowFunds(functionParams);
+      console.log('Escrow release result:', result.data);
 
       // Update order status to completed
       await firebaseService.orders.updateStatus(order.id, 'completed', {
@@ -94,12 +85,12 @@ const OrderConfirmationModal = ({ open, order, onClose, onConfirm }) => {
         console.warn('Failed to send notifications:', notificationError);
       }
 
-      alert('Order confirmed successfully! Payment has been released to the vendor.');
+      secureNotification.success('Order confirmed successfully! Payment has been released to the vendor.');
       onConfirm();
       onClose();
     } catch (error) {
       console.error('Error confirming order:', error);
-      alert('Failed to confirm order. Please try again.');
+      secureNotification.error('Failed to confirm order. Please try again.');
     } finally {
       setLoading(false);
     }

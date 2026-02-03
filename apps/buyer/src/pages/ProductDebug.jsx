@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRealTimeProducts } from '../hooks/useRealTimeProducts';
 
 const ProductDebug = () => {

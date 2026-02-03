@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import OrderTransactionModal from '../components/OrderTransactionModal';
 import OrderDetailsModal from '../components/OrderDetailsModal';
+import secureNotification from '../utils/secureNotification';
 
 const ModalTest = () => {
   const { currentUser } = useAuth();
@@ -87,7 +88,7 @@ const ModalTest = () => {
           onClose={() => setIsOrderDetailsModalOpen(false)}
           onFundWallet={(order) => {
             console.log('Fund wallet for order:', order.id);
-            alert(`Fund wallet functionality for order ${order.id}`);
+            secureNotification.info(`Fund wallet functionality for order ${order.id}`);
           }}
         />
       )}

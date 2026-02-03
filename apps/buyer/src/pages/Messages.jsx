@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import { useMessaging } from '../contexts/MessagingContext';
 import { doc, getDoc } from 'firebase/firestore';
@@ -213,7 +212,7 @@ const Messages = () => {
   const otherParticipantId = useMemo(() => {
     if (!activeConversation || !currentUser) return null;
     return (activeConversation.participants || []).find((p) => p !== currentUser.uid) || null;
-  }, [activeConversation, currentUser?.uid]);
+  }, [activeConversation, currentUser]);
 
   // Resolve other participant's display name (vendor or user)
   useEffect(() => {
@@ -231,12 +230,12 @@ const Messages = () => {
         } else {
           setOtherParticipantName(otherParticipantId);
         }
-      } catch (_) {
+      } catch {
         setOtherParticipantName(otherParticipantId || '');
       }
     };
     fetchName();
-  }, [otherParticipantId]);
+  }, [otherParticipantId, currentUser]);
 
   // Fetch names for conversation list participants
   useEffect(() => {
@@ -277,7 +276,7 @@ const Messages = () => {
 
       return prev;
     });
-  }, [conversationList, currentUser?.uid]);
+  }, [currentUser, uniqueConversations, conversationList.length]);
 
   const showConversationList = uniqueConversations.length > 1;
   const getOtherParticipantId = (conv) => (

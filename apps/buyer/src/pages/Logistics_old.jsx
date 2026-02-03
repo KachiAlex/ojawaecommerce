@@ -1,12 +1,12 @@
 import { Link } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import firebaseService from '../services/firebaseService';
 import googleMapsService from '../services/googleMapsService';
 import WalletManager from '../components/WalletManager';
 import LogisticsPerformanceDashboard from '../components/LogisticsPerformanceDashboard';
 import DashboardSwitcher from '../components/DashboardSwitcher';
-import { calculateDeliveryPrice, determineRouteCategory, DEFAULT_PLATFORM_PRICING } from '../data/logisticsPricingModel';
+import { calculateDeliveryPrice, DEFAULT_PLATFORM_PRICING } from '../data/logisticsPricingModel';
 
 const Logistics = () => {
   const { currentUser } = useAuth();
@@ -39,21 +39,21 @@ const Logistics = () => {
   const [routeAnalysis, setRouteAnalysis] = useState(null);
   const [analyzingRoute, setAnalyzingRoute] = useState(false);
   const [suggestedPricing, setSuggestedPricing] = useState(null);
-  const [calculatedPricing, setCalculatedPricing] = useState(null);
+  const [, _calculatedPricing] = useState(null);
 
   useEffect(() => {
     if (currentUser) {
       loadLogisticsData();
     }
-  }, [currentUser]);
+  }, [currentUser, loadLogisticsData]);
 
   useEffect(() => {
     if (activeTab === 'routes' && profile?.id) {
       loadRouteAnalytics();
     }
-  }, [activeTab, profile?.id]);
+  }, [activeTab, profile?.id, loadRouteAnalytics]);
 
-  const loadLogisticsData = async () => {
+  const loadLogisticsData = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -86,7 +86,7 @@ const Logistics = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [loadRoutes, currentUser]);
 
   // Route form handlers
   const handleRouteFormChange = (field, value) => {
@@ -97,11 +97,11 @@ const Logistics = () => {
   };
 
   // Analyze route when both pickup and delivery locations are entered
-  const analyzeRoute = async (from, to) => {
+  const analyzeRoute = useCallback(async (from, to) => {
     if (!from || !to || from.trim() === '' || to.trim() === '') {
       setRouteAnalysis(null);
       setSuggestedPricing(null);
-      setCalculatedPricing(null);
+      _calculatedPricing(null);
       return;
     }
 
@@ -121,7 +121,7 @@ const Logistics = () => {
           ratePerKm: routeForm.ratePerKm
         });
         
-        setCalculatedPricing(pricing);
+        _calculatedPricing(pricing);
         
         // Auto-fill distance and estimated time
         setRouteForm(prev => ({
@@ -133,7 +133,7 @@ const Logistics = () => {
       } else {
         console.warn('Route analysis returned null or incomplete data');
         setRouteAnalysis(null);
-        setCalculatedPricing(null);
+        _calculatedPricing(null);
       }
 
       // Keep Google Maps pricing as fallback (optional)
@@ -158,11 +158,11 @@ const Logistics = () => {
       // Don't show error to user, just don't update the analysis
       setRouteAnalysis(null);
       setSuggestedPricing(null);
-      setCalculatedPricing(null);
+      _calculatedPricing(null);
     } finally {
       setAnalyzingRoute(false);
     }
-  };
+  }, []);
 
   // Debounced route analysis
   useEffect(() => {
@@ -173,7 +173,7 @@ const Logistics = () => {
     }, 1000); // Wait 1 second after user stops typing
 
     return () => clearTimeout(timer);
-  }, [routeForm.from, routeForm.to]);
+  }, [routeForm.from, routeForm.to, routeForm.serviceType, routeForm.ratePerKm, analyzeRoute, routeForm]);
 
   // Recalculate pricing when rate per km changes
   useEffect(() => {
@@ -183,13 +183,13 @@ const Logistics = () => {
         ratePerKm: routeForm.ratePerKm
       });
       
-      setCalculatedPricing(pricing);
+      _calculatedPricing(pricing);
       setRouteForm(prev => ({
         ...prev,
         price: pricing.finalPrice.toString()
       }));
     }
-  }, [routeForm.ratePerKm, routeAnalysis?.distanceKm]);
+  }, [routeForm.ratePerKm, routeAnalysis?.distanceKm, routeForm.from, routeForm.to, routeForm.serviceType]);
 
   const handleSubmitRoute = async (e) => {
     e.preventDefault();
@@ -306,7 +306,7 @@ const Logistics = () => {
     }
   };
 
-  const loadRouteAnalytics = async (timeRange = 30) => {
+  const loadRouteAnalytics = useCallback(async (timeRange = 30) => {
     if (!profile?.id) return;
     
     try {
@@ -318,7 +318,7 @@ const Logistics = () => {
     } finally {
       setLoadingAnalytics(false);
     }
-  };
+  }, [profile?.id]);
 
   // Helper function to get route type display information
   const getRouteTypeInfo = (routeType) => {

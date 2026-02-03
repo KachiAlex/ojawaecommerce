@@ -1,23 +1,23 @@
 import { Link } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import firebaseService from '../services/firebaseService';
 import googleMapsService from '../services/googleMapsService';
 import WalletManager from '../components/WalletManager';
 import LogisticsPerformanceDashboard from '../components/LogisticsPerformanceDashboard';
 import DashboardSwitcher from '../components/DashboardSwitcher';
-import { calculateDeliveryPrice, determineRouteCategory, DEFAULT_PLATFORM_PRICING } from '../data/logisticsPricingModel';
+import { calculateDeliveryPrice, DEFAULT_PLATFORM_PRICING } from '../data/logisticsPricingModel';
 
 const Logistics = () => {
   const { currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
   const [showAddRouteForm, setShowAddRouteForm] = useState(false);
-  const [showEditRouteForm, setShowEditRouteForm] = useState(false);
-  const [editingRoute, setEditingRoute] = useState(null);
+  const [, _showEditRouteForm] = useState(false);
+  const [, _editingRoute] = useState(null);
   const [deliveries, setDeliveries] = useState([]);
   const [routes, setRoutes] = useState([]);
-  const [analytics, setAnalytics] = useState(null);
-  const [routeAnalytics, setRouteAnalytics] = useState(null);
+  const [, _analytics] = useState(null);
+  const [, _routeAnalytics] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
@@ -37,23 +37,23 @@ const Logistics = () => {
   
   // Route analysis state
   const [routeAnalysis, setRouteAnalysis] = useState(null);
-  const [analyzingRoute, setAnalyzingRoute] = useState(false);
-  const [suggestedPricing, setSuggestedPricing] = useState(null);
+  const [, _analyzingRoute] = useState(false);
+  const [, _suggestedPricing] = useState(null);
   const [calculatedPricing, setCalculatedPricing] = useState(null);
 
   useEffect(() => {
     if (currentUser) {
       loadLogisticsData();
     }
-  }, [currentUser]);
+  }, [currentUser, loadLogisticsData]);
 
   useEffect(() => {
     if (activeTab === 'routes' && profile?.id) {
       loadRouteAnalytics();
     }
-  }, [activeTab, profile?.id]);
+  }, [activeTab, profile?.id, loadRouteAnalytics]);
 
-  const loadLogisticsData = async () => {
+  const loadLogisticsData = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -74,7 +74,7 @@ const Logistics = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [loadDeliveries, loadRoutes, currentUser]);
 
   const loadDeliveries = async () => {
     try {
@@ -94,17 +94,17 @@ const Logistics = () => {
     }
   };
 
-  const loadRouteAnalytics = async () => {
+  const loadRouteAnalytics = useCallback(async () => {
     try {
       setLoadingAnalytics(true);
       const analyticsData = await firebaseService.logistics.getRouteAnalytics(profile.id);
-      setRouteAnalytics(analyticsData);
+      _routeAnalytics(analyticsData);
     } catch (error) {
       console.error('Error loading route analytics:', error);
     } finally {
       setLoadingAnalytics(false);
     }
-  };
+  }, [profile?.id]);
 
   const handleRouteFormChange = (field, value) => {
     setRouteForm(prev => ({
@@ -114,16 +114,16 @@ const Logistics = () => {
   };
 
   // Analyze route when both pickup and delivery locations are entered
-  const analyzeRoute = async (from, to) => {
+  const analyzeRoute = useCallback(async (from, to) => {
     if (!from || !to || from.trim() === '' || to.trim() === '') {
       setRouteAnalysis(null);
-      setSuggestedPricing(null);
+      _suggestedPricing(null);
       setCalculatedPricing(null);
       return;
     }
 
     try {
-      setAnalyzingRoute(true);
+      _analyzingRoute(true);
       
       // Use Google Maps service to analyze the route
       const analysis = await googleMapsService.analyzeRouteType(from, to);
@@ -161,25 +161,25 @@ const Logistics = () => {
         });
         
         if (googlePricing && googlePricing.cost) {
-          setSuggestedPricing(googlePricing);
+          _suggestedPricing(googlePricing);
         } else {
-          setSuggestedPricing(null);
+          _suggestedPricing(null);
         }
       } catch (error) {
         console.warn('Google Maps pricing failed, using calculated pricing only:', error);
-        setSuggestedPricing(null);
+        _suggestedPricing(null);
       }
 
     } catch (error) {
       console.error('Error analyzing route:', error);
       // Don't show error to user, just don't update the analysis
       setRouteAnalysis(null);
-      setSuggestedPricing(null);
+      _suggestedPricing(null);
       setCalculatedPricing(null);
     } finally {
-      setAnalyzingRoute(false);
+      _analyzingRoute(false);
     }
-  };
+  }, []);
 
   // Debounced route analysis
   useEffect(() => {
@@ -190,7 +190,7 @@ const Logistics = () => {
     }, 1000); // Wait 1 second after user stops typing
 
     return () => clearTimeout(timer);
-  }, [routeForm.from, routeForm.to]);
+  }, [routeForm.from, routeForm.to, routeForm.serviceType, routeForm.ratePerKm, analyzeRoute, routeForm]);
 
   // Recalculate pricing when rate per km changes
   useEffect(() => {
@@ -206,7 +206,7 @@ const Logistics = () => {
         price: pricing.finalPrice.toString()
       }));
     }
-  }, [routeForm.ratePerKm, routeAnalysis?.distanceKm]);
+  }, [routeForm.ratePerKm, routeAnalysis?.distanceKm, routeForm.from, routeForm.to, routeForm.serviceType]);
 
   const handleSubmitRoute = async (e) => {
     e.preventDefault();
@@ -242,11 +242,11 @@ const Logistics = () => {
         return;
       }
 
-      if (editingRoute) {
+      if (_editingRoute) {
         // Update existing route
-        await firebaseService.logistics.updateRoute(editingRoute.id, routeData);
-        setShowEditRouteForm(false);
-        setEditingRoute(null);
+        await firebaseService.logistics.updateRoute(_editingRoute.id, routeData);
+        _showEditRouteForm(false);
+        _editingRoute(null);
         alert('Route updated successfully!');
       } else {
         // Create new route
@@ -704,7 +704,7 @@ const Logistics = () => {
                           <td className="px-6 py-4 whitespace-nowrap text-sm">
                             <button 
                               onClick={() => {
-                                setEditingRoute(route);
+                                _editingRoute(route);
                                 setRouteForm({
                                   from: route.from,
                                   to: route.to,
@@ -715,7 +715,7 @@ const Logistics = () => {
                                   serviceType: route.serviceType,
                                   ratePerKm: route.ratePerKm || DEFAULT_PLATFORM_PRICING.ratePerKm
                                 });
-                                setShowEditRouteForm(true);
+                                _showEditRouteForm(true);
                               }}
                               className="text-emerald-600 hover:text-emerald-700 font-medium mr-3"
                             >
@@ -857,7 +857,7 @@ const Logistics = () => {
                   profile={profile}
                   deliveries={deliveries}
                   routes={routes}
-                  analytics={routeAnalytics}
+                  analytics={_routeAnalytics}
                 />
               )}
             </div>

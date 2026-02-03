@@ -8,6 +8,7 @@ import { getVendorDataOptimized } from '../services/optimizedFirebaseService';
 import { createSubscriptionRecord } from '../utils/paystack';
 import WalletManager from '../components/WalletManager';
 import VendorOrdersFilterBar from '../components/VendorOrdersFilterBar';
+import secureNotification from '../utils/secureNotification';
 import VendorOrderDetailsModal from '../components/VendorOrderDetailsModal';
 import ShipOrderModal from '../components/ShipOrderModal';
 import ProductEditorModal from '../components/ProductEditorModal';
@@ -35,7 +36,7 @@ const planDetails = {
   premium: { price: 15000, commission: 2.0, productLimit: -1, analytics: 'premium', support: 'dedicated' }
 };
 
-const formatCurrency = (amount, currency = 'NGN') => {
+const _formatCurrency = (amount, currency = 'NGN') => {
   if (typeof amount !== 'number' || Number.isNaN(amount)) return '—';
   const symbol = currency?.split?.(' ')?.[0] || '₦';
   return `${symbol}${amount.toLocaleString(undefined, {
@@ -164,7 +165,7 @@ const VendorMessagesTabContent = ({
         } else {
           setOtherParticipantName(otherParticipantId);
         }
-      } catch (_) {
+      } catch {
         setOtherParticipantName(otherParticipantId || '');
       }
     };
@@ -648,7 +649,7 @@ const Vendor = () => {
     } catch (error) {
       console.error(`Error loading ${tab} data:`, error);
     }
-  }, [currentUser, orders.length, products.length, disputes.length, refreshOrders]);
+  }, [currentUser, disputes.length]);
 
   useEffect(() => {
     if (!currentUser || !activeTab) {
@@ -661,7 +662,7 @@ const Vendor = () => {
 
       (async () => {
         try {
-          const [productsData, ordersData, statsData] = await Promise.all([
+          const [productsData, , statsData] = await Promise.all([
             firebaseService.products.getByVendor(currentUser.uid).catch(err => {
               console.warn('⚠️ Error loading products for overview:', err);
               if (currentUser.email) {
@@ -940,7 +941,7 @@ const Vendor = () => {
             console.error('Error in recovery:', recoveryError);
           }
           
-          alert('Upgrade processing encountered an error. Your subscription may still have been updated. Please check your billing tab or contact support if you have any concerns. Error: ' + error.message);
+          secureNotification.error('Upgrade processing encountered an error. Your subscription may still have been updated. Please check your billing tab or contact support if you have any concerns. Error: ' + error.message);
         } finally {
           // Reset processing flag after delay
           setTimeout(() => {
@@ -957,7 +958,7 @@ const Vendor = () => {
           } else {
       processingUpgradeRef.current = false;
         }
-  }, [currentUser, userProfile, fetchInitialData, loadTabData, updateUserProfile]); // Include userProfile to detect updates
+  }, [currentUser, userProfile, fetchInitialData, loadTabData, updateUserProfile, refreshOrders]); // Include userProfile to detect updates
 
   // Check subscription limits before product creation
   const checkProductLimit = async (vendorId) => {
@@ -1039,7 +1040,7 @@ const Vendor = () => {
       const limitCheck = await checkProductLimit(currentUser.uid);
       if (!limitCheck.allowed) {
         const limitMessage = `You have reached your product limit of ${limitCheck.limit} products for the ${limitCheck.plan} plan. Please upgrade your subscription to add more products.`;
-        alert(limitMessage);
+        secureNotification.warning(limitMessage);
         setUploadProgress(null);
         
         // Optionally redirect to billing tab
@@ -1082,7 +1083,7 @@ const Vendor = () => {
     } catch (error) {
       console.error('Error adding product:', error);
       setUploadProgress(null);
-      alert('Failed to add product. Please try again.');
+      secureNotification.error('Failed to add product. Please try again.');
     }
   };
 
@@ -1159,10 +1160,10 @@ const Vendor = () => {
                 read: false
               });
               await loadTabData('products');
-              alert('Order moved to Processing');
+              secureNotification.success('Order moved to Processing');
             } catch (err) {
               console.error('Failed to update order', err);
-              alert('Failed to update order status');
+              secureNotification.error('Failed to update order status');
             }
           }}
           className="text-blue-600 hover:text-blue-700 font-medium text-left"
@@ -1194,10 +1195,10 @@ const Vendor = () => {
                 });
               }
               await loadTabData('products');
-              alert('Order ready for shipment');
+              secureNotification.success('Order ready for shipment');
             } catch (err) {
               console.error('Failed to update order', err);
-              alert('Failed to update order status');
+              secureNotification.error('Failed to update order status');
             }
           }}
           className="text-purple-600 hover:text-purple-700 font-medium text-left"
@@ -1267,10 +1268,10 @@ const Vendor = () => {
 
       await refreshOrders();
       setIsShipOpen(false);
-      alert('Order marked as shipped.');
+      secureNotification.success('Order marked as shipped.');
     } catch (e) {
       console.error('Mark shipped failed', e);
-      alert('Failed to mark as shipped.');
+      secureNotification.error('Failed to mark as shipped.');
     }
   };
 
@@ -1287,10 +1288,10 @@ const Vendor = () => {
 
       await refreshOrders();
 
-      alert('Order completed successfully! Funds have been released to your wallet. You can transfer them to your bank account from the Wallet tab.');
+      secureNotification.success('Order completed successfully! Funds have been released to your wallet. You can transfer them to your bank account from the Wallet tab.');
     } catch (error) {
       console.error('Error completing order:', error);
-      alert('Failed to complete order. Please try again.');
+      secureNotification.error('Failed to complete order. Please try again.');
     }
   };
 
@@ -1317,10 +1318,10 @@ const Vendor = () => {
 
       await refreshOrders();
 
-      alert('Dispute created successfully! Funds have been held pending resolution.');
+      secureNotification.success('Dispute created successfully! Funds have been held pending resolution.');
     } catch (error) {
       console.error('Error creating dispute:', error);
-      alert('Failed to create dispute. Please try again.');
+      secureNotification.error('Failed to create dispute. Please try again.');
     }
   };
 
@@ -1368,7 +1369,7 @@ const Vendor = () => {
       const errorMessage = e.message?.includes('already exists') 
         ? e.message 
         : 'Failed to save product. Please try again.';
-      alert(errorMessage);
+      secureNotification.error(errorMessage);
       setUploadProgress(null);
     }
   };
@@ -1386,7 +1387,7 @@ const Vendor = () => {
       setConfirmDelete({ open: false, product: null });
     } catch (e) {
       console.error('Delete product failed', e);
-      alert('Failed to delete product.');
+      secureNotification.error('Failed to delete product.');
     }
     setDeletingProductId(null);
   };

@@ -1,10 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
-import * as Framer from 'framer-motion';
-const { motion } = Framer;
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
-import firebaseService from '../services/firebaseService';
 import ProductCard from '../components/ProductCard';
 import Product3DCard from '../components/Product3DCard';
 import { ProductListSkeleton } from '../components/SkeletonLoaders';
@@ -13,7 +10,7 @@ import SearchAutocomplete from '../components/SearchAutocomplete';
 import ProductComparison from '../components/ProductComparison';
 import ProductFilterSidebar from '../components/ProductFilterSidebar';
 import WishlistButton from '../components/WishlistButton';
-import { collection, query, where, getDocs, orderBy, limit, startAfter } from 'firebase/firestore';
+import { collection, query, getDocs, where } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
 function normalizeSidebarFilters(filters = {}) {
@@ -31,7 +28,7 @@ function normalizeSidebarFilters(filters = {}) {
 
 const Products = () => {
   console.log('🛍️ Products: Component function called');
-  const { currentUser } = useAuth();
+  const [, _currentUser] = useAuth();
   const { addToCart } = useCart();
   const navigate = useNavigate();
   
@@ -52,8 +49,8 @@ const Products = () => {
 
   const [categories, setCategories] = useState([]);
   const [hasMore, setHasMore] = useState(true);
-  const [lastDoc, setLastDoc] = useState(null);
-  const [isSearching, setIsSearching] = useState(false);
+  const [, _setLastDoc] = useState(null);
+  const [, _setIsSearching] = useState(false);
   const [viewMode, setViewMode] = useState('3D'); // '2D' or '3D'
   const [showFilters, setShowFilters] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
@@ -68,8 +65,8 @@ const Products = () => {
   });
   const [brands, setBrands] = useState([]);
 
-  const [searchParams] = useSearchParams();
-  const [sidebarFilters, setSidebarFilters] = useState(() => normalizeSidebarFilters());
+  const [, _searchParams] = useSearchParams();
+  const [, _setSidebarFilters] = useState(() => normalizeSidebarFilters());
   const [isFilterSidebarOpen, setIsFilterSidebarOpen] = useState(true);
 
   // Price slider constants and derived percentages for styled track
@@ -79,7 +76,7 @@ const Products = () => {
   const maxPercent = ((Math.max(clampedMin, clampedMax) - PRICE_MIN) / (PRICE_MAX - PRICE_MIN)) * 100;
 
   // Fetch products
-  const fetchProducts = async (reset = false) => {
+  const fetchProducts = useCallback(async (reset = false) => {
     console.log('🛍️ Products: fetchProducts called with reset =', reset);
     try {
       setLoading(true);
@@ -232,10 +229,10 @@ const Products = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedCategory, priceRange]);
 
   // Fetch categories and brands
-  const fetchCategories = async () => {
+  const fetchCategories = useCallback(async () => {
     try {
       // Direct Firestore query to get categories
       const q = query(
@@ -267,7 +264,7 @@ const Products = () => {
       setCategories(['Electronics', 'Fashion', 'Home & Living', 'Food', 'Services']);
       setBrands([]);
     }
-  };
+  }, []);
 
   // Handle add to cart - allow guest users to add to cart (they'll be prompted at checkout)
   const handleAddToCart = async (product) => {
@@ -291,16 +288,48 @@ const Products = () => {
     console.log('🛍️ Products: useEffect triggered - Component mounted, fetching products...');
     fetchProducts(true);
     fetchCategories();
-  }, []);
+  }, [fetchProducts, fetchCategories]);
 
   // Refetch when filters change
   useEffect(() => {
     console.log('🛍️ Products: Filters changed, refetching products...');
     fetchProducts(true);
-  }, [selectedCategory, priceRange, advancedFilters.category, advancedFilters.brand, advancedFilters.condition, advancedFilters.priceRange, advancedFilters.inStock, advancedFilters.minRating]);
+  }, [selectedCategory, priceRange, advancedFilters.category, advancedFilters.brand, advancedFilters.condition, advancedFilters.priceRange, advancedFilters.inStock, advancedFilters.minRating, fetchProducts]);
+
+  // Handle sidebar filter changes
+  const handleSidebarFilterChange = (filters) => {
+    console.log('🛍️ Products: Sidebar filters changed:', filters);
+    // Apply filters to products
+    const filtered = applySidebarFilters(allFilteredProducts, filters);
+    setFilteredProducts(filtered);
+    setProducts(filtered);
+  };
+
+  // Handle sidebar search changes
+  const handleSidebarSearchChange = (searchQuery) => {
+    console.log('🛍️ Products: Sidebar search changed:', searchQuery);
+    setSearchQuery(searchQuery);
+  };
+
+  // Handle sidebar search submit
+  const handleSidebarSearchSubmit = (searchQuery) => {
+    console.log('🛍️ Products: Sidebar search submitted:', searchQuery);
+    setSearchQuery(searchQuery);
+    // Apply search to products
+    const filtered = applySidebarFilters(allFilteredProducts, { searchQuery });
+    setFilteredProducts(filtered);
+    setProducts(filtered);
+  };
+
+  // Load more function
+  const loadMore = () => {
+    console.log('🛍️ Products: Loading more products...');
+    // For now, we load all products at once, so this is a no-op
+    // In the future, this could implement pagination
+  };
 
   // Apply sidebar filters to products
-  const applySidebarFilters = (productsToFilter, filters) => {
+  const applySidebarFilters = useCallback((productsToFilter, filters) => {
     if (!filters) return productsToFilter;
 
     const normalized = normalizeSidebarFilters(filters);
@@ -364,7 +393,7 @@ const Products = () => {
       });
     }
     return filtered;
-  };
+  }, []);
 
   // Recompute filtered products whenever data or filters change
   useEffect(() => {
@@ -378,7 +407,7 @@ const Products = () => {
     }
 
     const filtersToApply = {
-      ...(sidebarFilters || {}),
+      ...(_setSidebarFilters() || {}),
       searchQuery: searchQuery || ''
     };
 
@@ -386,8 +415,7 @@ const Products = () => {
     setFilteredProducts(productsToDisplay);
     setProducts(productsToDisplay);
     setHasMore(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allFilteredProducts, sidebarFilters, searchQuery, loading]);
+  }, [allFilteredProducts, searchQuery, loading, applySidebarFilters]);
 
   if (error) {
     return (

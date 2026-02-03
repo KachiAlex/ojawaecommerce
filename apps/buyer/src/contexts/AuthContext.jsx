@@ -12,10 +12,11 @@ import {
   sendEmailVerification,
   reload
 } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
 import firebaseService from '../services/firebaseService';
 import { storeService } from '../services/trackingService';
+import emailOTPService from '../utils/emailOTPService';
 
 const verificationBypassed = typeof import.meta !== 'undefined' && import.meta.env?.VITE_BYPASS_EMAIL_VERIFICATION === 'true';
 
@@ -605,12 +606,72 @@ export const AuthProvider = ({ children }) => {
     return unsubscribe;
   }, []);
 
+  // Add OTP-based login method
+  const signInWithOTP = async (email, verifiedAt) => {
+    try {
+      // This would typically verify the OTP with a Cloud Function
+      // For now, we'll create a session based on the verified timestamp
+      const userDoc = await getDoc(doc(db, 'users', email));
+      
+      if (!userDoc.exists()) {
+        throw new Error('No account found with this email address');
+      }
+
+      const userData = userDoc.data();
+      
+      // Update last login and OTP verification
+      await updateDoc(doc(db, 'users', email), {
+        lastLoginAt: new Date(),
+        lastOTPLoginAt: verifiedAt,
+        loginMethod: 'otp'
+      });
+
+      // Set user profile (authentication would be handled by a secure token system)
+      setUserProfile(userData);
+      
+      return {
+        success: true,
+        user: userData,
+        loginMethod: 'otp'
+      };
+    } catch (error) {
+      console.error('OTP login error:', error);
+      throw error;
+    }
+  };
+
+  // Enhanced email verification with OTP
+  const sendVerificationEmailWithOTP = async (targetUser = auth.currentUser) => {
+    if (!targetUser) {
+      throw new Error('No authenticated user to verify.');
+    }
+
+    try {
+      // Send OTP instead of traditional email verification
+      const result = await emailOTPService.sendOTP(
+        targetUser.email,
+        'verification',
+        {
+          subject: 'Verify Your Ojawa E-commerce Account',
+          customMessage: 'Complete your registration with this verification code.'
+        }
+      );
+
+      setLastVerificationEmailSentAt(new Date());
+      return result;
+    } catch (error) {
+      console.error('OTP verification email error:', error);
+      throw error;
+    }
+  };
+
   const value = {
     currentUser,
     userProfile,
     signup,
     signin,
     signInWithGoogle,
+    signInWithOTP,
     logout,
     updateUserProfile,
     completeVendorOnboarding,
@@ -619,7 +680,7 @@ export const AuthProvider = ({ children }) => {
     showEscrowEducation,
     setShowEscrowEducation,
     newUserType,
-    sendVerificationEmail,
+    sendVerificationEmail: sendVerificationEmailWithOTP,
     refreshUser,
     lastVerificationEmailSentAt,
     resendVerificationEmailWithPassword

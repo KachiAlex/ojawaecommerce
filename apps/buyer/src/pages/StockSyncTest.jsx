@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useRealTimeProducts } from '../hooks/useRealTimeProducts';
 import RealTimeStockMonitor from '../components/RealTimeStockMonitor';
+import secureNotification from '../utils/secureNotification';
 
 const StockSyncTest = () => {
   const { products, loading, error } = useRealTimeProducts();
@@ -11,10 +12,10 @@ const StockSyncTest = () => {
       // This would normally update the product in the database
       // For demo purposes, we'll just log the action
       console.log(`Updating stock for product ${productId} to ${newStock}`);
-      alert(`Stock update simulated: Product ${productId} stock set to ${newStock}`);
+      secureNotification.info(`Stock update simulated: Product ${productId} stock set to ${newStock}.`);
     } catch (error) {
       console.error('Error updating stock:', error);
-      alert('Failed to update stock');
+      secureNotification.error('Failed to update stock');
     }
   };
 

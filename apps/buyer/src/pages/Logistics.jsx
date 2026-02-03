@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import firebaseService from '../services/firebaseService';
 // import googleMapsService from '../services/googleMapsService'; // Disabled
@@ -8,43 +8,17 @@ import LogisticsPerformanceDashboard from '../components/LogisticsPerformanceDas
 import DashboardSwitcher from '../components/DashboardSwitcher';
 import CSVRouteImport from '../components/CSVRouteImport';
 import QuickActionsMenu from '../components/QuickActionsMenu';
+import secureNotification from '../utils/secureNotification';
 import RouteMapPreview from '../components/RouteMapPreview';
 import RouteSelector from '../components/RouteSelector';
 import LogisticsBusinessProfileManager from '../components/LogisticsBusinessProfileManager';
-import { calculateDeliveryPrice, determineRouteCategory, DEFAULT_PLATFORM_PRICING, ROUTE_CATEGORY_INFO, RECOMMENDED_PRICING } from '../data/logisticsPricingModel';
+import { DEFAULT_PLATFORM_PRICING, ROUTE_CATEGORY_INFO, RECOMMENDED_PRICING } from '../data/logisticsPricingModel';
 import logisticsPricingService from '../services/logisticsPricingService';
 import { 
-  POPULAR_INTERCITY_ROUTES, 
-  POPULAR_INTERNATIONAL_ROUTES, 
-  getIntercityRoutesForCountry, 
-  getCountriesWithIntercityRoutes,
-  searchIntercityRoutes,
-  searchInternationalRoutes,
-  formatPrice,
-  enrichRouteWithPartnerPricing,
   calculatePartnerPrice,
-  comparePrices,
-  filterRoutes,
-  sortRoutes,
-  getRouteStats,
-  filterByServiceAreas,
-  getRecommendedRoutes
+  comparePrices
 } from '../data/popularRoutes';
-import { 
-  validateRoute, 
-  formatValidationMessage,
-  checkDuplicateRoute,
-  validatePricing,
-  validateEstimatedTime 
-} from '../utils/routeValidation';
-import { 
-  getRouteMarketInsights, 
-  getPricingRecommendation, 
-  getDemandIndicator 
-} from '../data/marketAnalytics';
 import { ROUTE_TEMPLATE_PRESETS } from '../data/routeTemplates';
-import { detectCurrency, convertCurrency, formatCurrency, getAllCurrencies, getDualCurrencyDisplay } from '../utils/currencyUtils';
-import { getRouteDemandInfo, getSeasonalAdjustment, applySeasonalPricing, getTopRecommendations } from '../data/demandAnalytics';
 
 const Logistics = () => {
   const { currentUser } = useAuth();
@@ -54,16 +28,16 @@ const Logistics = () => {
   console.log('🚚 Logistics component rendered!');
   console.log('🚚 Current user:', currentUser);
   const [showAddRouteForm, setShowAddRouteForm] = useState(false);
-  const [showEditRouteForm, setShowEditRouteForm] = useState(false);
-  const [editingRoute, setEditingRoute] = useState(null);
+  const [, _showEditRouteForm] = useState(false);
+  const [, _editingRoute] = useState(null);
   const [showCSVImport, setShowCSVImport] = useState(false);
   const [showQuickActions, setShowQuickActions] = useState(false);
   const [showMapPreview, setShowMapPreview] = useState(false);
   const [previewRoute, setPreviewRoute] = useState(null);
   const [deliveries, setDeliveries] = useState([]);
   const [routes, setRoutes] = useState([]);
-  const [analytics, setAnalytics] = useState(null);
-  const [routeAnalytics, setRouteAnalytics] = useState(null);
+  const [, _analytics] = useState(null);
+  const [, _routeAnalytics] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
@@ -88,9 +62,9 @@ const Logistics = () => {
   
   // Route analysis state
   const [routeAnalysis, setRouteAnalysis] = useState(null);
-  const [analyzingRoute, setAnalyzingRoute] = useState(false);
-  const [suggestedPricing, setSuggestedPricing] = useState(null);
-  const [calculatedPricing, setCalculatedPricing] = useState(null);
+  const [, _analyzingRoute] = useState(false);
+  const [, _suggestedPricing] = useState(null);
+  const [, _calculatedPricing] = useState(null);
   
   // Multi-route selection state for intercity/international
   const [selectedCountryForIntercity, setSelectedCountryForIntercity] = useState('');
@@ -98,13 +72,13 @@ const Logistics = () => {
   const [internationalSearchTerm, setInternationalSearchTerm] = useState('');
 
   const [selectedRoutes, setSelectedRoutes] = useState([]); // Array of {from, to, price, estimatedTime, vehicleType}
-  const [usePartnerPricing, setUsePartnerPricing] = useState(true); // Use partner's rate for auto-calculation
+  const [, _setUsePartnerPricing] = useState(true); // Use partner's rate for auto-calculation
   const [routeValidations, setRouteValidations] = useState({}); // Store validation results per route
   
   // Filter and sort state
-  const [showFilters, setShowFilters] = useState(false);
+  const [, _showFilters] = useState(false);
   // ... rest of your code
-  const [routeFilters, setRouteFilters] = useState({
+  const [, _routeFilters] = useState({
     minPrice: undefined,
     maxPrice: undefined,
     minDistance: undefined,
@@ -112,7 +86,7 @@ const Logistics = () => {
     maxHours: undefined,
     vehicleTypes: []
   });
-  const [sortBy, setSortBy] = useState('price_asc');
+  const [, _sortBy] = useState('price_asc');
   
   // Batch actions state
   const [showBatchActions, setShowBatchActions] = useState(false);
@@ -122,21 +96,21 @@ const Logistics = () => {
   });
   
   // Smart suggestions state
-  const [showOnlyRecommended, setShowOnlyRecommended] = useState(false);
+  const [, _showOnlyRecommended] = useState(false);
 
   useEffect(() => {
     if (currentUser) {
       loadLogisticsData();
     }
-  }, [currentUser]);
+  }, [currentUser, loadLogisticsData]);
 
   useEffect(() => {
     if (activeTab === 'routes' && profile?.id) {
       loadRouteAnalytics();
     }
-  }, [activeTab, profile?.id]);
+  }, [activeTab, profile?.id, loadRouteAnalytics]);
 
-  const loadLogisticsData = async () => {
+  const loadLogisticsData = useCallback(async () => {
     try {
       console.log('🚚 Loading logistics data for user:', currentUser.uid);
       setLoading(true);
@@ -167,9 +141,9 @@ const Logistics = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentUser, loadDeliveries, loadRoutes]);
 
-  const loadDeliveries = async (profileId) => {
+  const loadDeliveries = useCallback(async (profileId) => {
     try {
       const logisticsId = profileId || profile?.id;
       if (!logisticsId) {
@@ -181,9 +155,9 @@ const Logistics = () => {
     } catch (error) {
       console.error('Error loading deliveries:', error);
     }
-  };
+  }, [profile?.id]);
 
-  const loadRoutes = async (profileId) => {
+  const loadRoutes = useCallback(async (profileId) => {
     try {
       const logisticsId = profileId || profile?.id;
       if (!logisticsId) {
@@ -195,19 +169,19 @@ const Logistics = () => {
     } catch (error) {
       console.error('Error loading routes:', error);
     }
-  };
+  }, [profile?.id]);
 
-  const loadRouteAnalytics = async () => {
+  const loadRouteAnalytics = useCallback(async () => {
     try {
       setLoadingAnalytics(true);
       const analyticsData = await firebaseService.logistics.getRouteAnalytics(profile.id);
-      setRouteAnalytics(analyticsData);
+      _routeAnalytics(analyticsData);
     } catch (error) {
       console.error('Error loading route analytics:', error);
     } finally {
       setLoadingAnalytics(false);
     }
-  };
+  }, [profile?.id]);
 
   const handleRouteFormChange = (field, value) => {
     setRouteForm(prev => ({
@@ -263,16 +237,16 @@ const Logistics = () => {
   };
 
   // Analyze route when both pickup and delivery locations are entered
-  const analyzeRoute = async (from, to) => {
+  const analyzeRoute = useCallback(async (from, to) => {
     if (!from || !to || from.trim() === '' || to.trim() === '') {
       setRouteAnalysis(null);
-      setSuggestedPricing(null);
-      setCalculatedPricing(null);
+      _suggestedPricing(null);
+      _calculatedPricing(null);
       return;
     }
 
     try {
-      setAnalyzingRoute(true);
+      _analyzingRoute(true);
       
       // Use Google Maps service to analyze the route - DISABLED
       // const analysis = await googleMapsService.analyzeRouteType(from, to);
@@ -297,7 +271,7 @@ const Logistics = () => {
           breakdown: pricingResult.breakdown
         };
         
-        setCalculatedPricing(pricing);
+        _calculatedPricing(pricing);
         
         // Auto-fill distance and estimated time
         setRouteForm(prev => ({
@@ -309,7 +283,7 @@ const Logistics = () => {
       } else {
         console.warn('Route analysis returned null or incomplete data');
         setRouteAnalysis(null);
-        setCalculatedPricing(null);
+        _calculatedPricing(null);
       }
 
       // Keep Google Maps pricing as fallback (optional) - DISABLED
@@ -321,25 +295,25 @@ const Logistics = () => {
         const googlePricing = null; // Disabled
         
         if (googlePricing && googlePricing.cost) {
-          setSuggestedPricing(googlePricing);
+          _suggestedPricing(googlePricing);
         } else {
-          setSuggestedPricing(null);
+          _suggestedPricing(null);
         }
       } catch (error) {
         console.warn('Google Maps pricing failed, using calculated pricing only:', error);
-        setSuggestedPricing(null);
+        _suggestedPricing(null);
       }
 
     } catch (error) {
       console.error('Error analyzing route:', error);
       // Don't show error to user, just don't update the analysis
       setRouteAnalysis(null);
-      setSuggestedPricing(null);
-      setCalculatedPricing(null);
+      _suggestedPricing(null);
+      _calculatedPricing(null);
     } finally {
-      setAnalyzingRoute(false);
+      _analyzingRoute(false);
     }
-  };
+  }, []);
 
   // Debounced route analysis
   useEffect(() => {
@@ -350,7 +324,7 @@ const Logistics = () => {
     }, 1000); // Wait 1 second after user stops typing
 
     return () => clearTimeout(timer);
-  }, [routeForm.from, routeForm.to]);
+  }, [routeForm.from, routeForm.to, routeForm.serviceType, routeForm.ratePerKm, analyzeRoute, routeForm]);
 
   // Recalculate pricing when rate per km changes
   useEffect(() => {
@@ -370,16 +344,16 @@ const Logistics = () => {
         breakdown: pricingResult.breakdown
       };
       
-      setCalculatedPricing(pricing);
+      _calculatedPricing(pricing);
       setRouteForm(prev => ({
         ...prev,
         price: pricing.finalPrice.toString()
       }));
     }
-  }, [routeForm.ratePerKm, routeAnalysis?.distanceKm]);
+  }, [routeForm.ratePerKm, routeAnalysis?.distanceKm, routeForm.from, routeForm.to, routeForm.serviceType]);
 
   // Helper functions for multi-route selection
-  const toggleRouteSelection = (route) => {
+  const [, _toggleRouteSelection] = (route) => {
     const routeKey = `${route.from}-${route.to}`;
     const existingRoute = selectedRoutes.find(r => `${r.from}-${r.to}` === routeKey);
     
@@ -390,7 +364,7 @@ const Logistics = () => {
       // Determine initial price based on partner pricing preference
       let initialPrice = route.suggestedPrice;
       
-      if (usePartnerPricing && profile?.pricing?.ratePerKm) {
+      if (_setUsePartnerPricing && profile?.pricing?.ratePerKm) {
         const partnerPricing = calculatePartnerPrice(
           route.distance,
           profile.pricing.ratePerKm,
@@ -421,7 +395,7 @@ const Logistics = () => {
     }
   };
   
-  const updateSelectedRoute = (routeKey, field, value) => {
+  const [, _updateSelectedRoute] = (routeKey, field, value) => {
     setSelectedRoutes(selectedRoutes.map(route => {
       if (`${route.from}-${route.to}` === routeKey) {
         const updatedRoute = { ...route, [field]: value };
@@ -465,20 +439,24 @@ const Logistics = () => {
     
     const updatedRoutes = selectedRoutes.map(route => {
       switch (batchAction.type) {
-        case 'price_adjust_percent':
+        case 'price_adjust_percent': {
           const adjustment = parseFloat(batchAction.value) || 0;
           const newPrice = route.price * (1 + adjustment / 100);
           return { ...route, price: Math.round(newPrice) };
+        }
         
-        case 'price_adjust_amount':
+        case 'price_adjust_amount': {
           const amount = parseFloat(batchAction.value) || 0;
           return { ...route, price: Math.max(0, route.price + amount) };
+        }
         
-        case 'price_set':
+        case 'price_set': {
           return { ...route, price: parseFloat(batchAction.value) || route.price };
+        }
         
-        case 'vehicle_change':
+        case 'vehicle_change': {
           return { ...route, vehicleType: batchAction.value };
+        }
         
         default:
           return route;
@@ -490,7 +468,7 @@ const Logistics = () => {
     setBatchAction({ type: '', value: '' });
   };
   
-  const selectAllVisibleRoutes = (routesList) => {
+  const [, _selectAllVisibleRoutes] = (routesList) => {
     const defaultVehicleTypes = ['Van', 'Truck', 'Motorcycle', 'Car'];
 
     const newSelections = routesList
@@ -498,7 +476,7 @@ const Logistics = () => {
       .map(route => {
         let initialPrice = route.suggestedPrice;
 
-        if (usePartnerPricing && profile?.pricing?.ratePerKm) {
+        if (_setUsePartnerPricing && profile?.pricing?.ratePerKm) {
           const partnerPricing = calculatePartnerPrice(
             route.distance,
             profile.pricing.ratePerKm,
@@ -530,14 +508,14 @@ const Logistics = () => {
     setSelectedRoutes(prev => [...prev, ...newSelections]);
   };
 
-  const deselectAllRoutes = () => {
+  const [, _deselectAllRoutes] = () => {
     setSelectedRoutes([]);
     setRouteValidations({});
   };
 
   const saveDraft = () => {
     if (!selectedRoutes.length) {
-      alert('Select at least one route to save.');
+      secureNotification.warning('Select at least one route to save.');
       return;
     }
 
@@ -552,13 +530,13 @@ const Logistics = () => {
     };
 
     localStorage.setItem(`logistics_route_draft_${profile?.id}`, JSON.stringify(draft));
-    alert(`Draft saved! ${selectedRoutes.length} route(s) saved for later.`);
+    secureNotification.success(`Draft saved! ${selectedRoutes.length} route(s) saved for later.`);
   };
 
   const loadDraft = () => {
     const draftJson = localStorage.getItem(`logistics_route_draft_${profile?.id}`);
     if (!draftJson) {
-      alert('No saved draft found.');
+      secureNotification.warning('No saved draft found.');
       return;
     }
     
@@ -572,22 +550,22 @@ const Logistics = () => {
         setSelectedCountryForIntercity(draft.selectedCountryForIntercity || '');
         setIntercitySearchTerm(draft.intercitySearchTerm || '');
         setInternationalSearchTerm(draft.internationalSearchTerm || '');
-        alert('Draft loaded successfully!');
+        secureNotification.success('Draft loaded successfully!');
       }
     } catch (error) {
       console.error('Error loading draft:', error);
-      alert('Error loading draft. The saved data may be corrupted.');
+      secureNotification.error('Error loading draft. The saved data may be corrupted.');
     }
   };
   
-  const clearDraft = () => {
+  const [, _clearDraft] = () => {
     if (confirm('Delete saved draft? This cannot be undone.')) {
       localStorage.removeItem(`logistics_route_draft_${profile?.id}`);
-      alert('Draft deleted.');
+      secureNotification.success('Draft deleted.');
     }
   };
 
-  const renderRouteWarnings = (routeKey) => {
+  const [, _renderRouteWarnings] = (routeKey) => {
     const warnings = routeValidations[routeKey]?.warnings || [];
     if (!warnings.length) return null;
 
@@ -622,7 +600,7 @@ const Logistics = () => {
     );
   };
 
-  const renderMarketSuggestion = (routeKey, selectedRoute) => {
+  const [, _renderMarketSuggestion] = (routeKey, selectedRoute) => {
     if (!selectedRoute) return null;
     if (selectedRoute.suggestedPrice === selectedRoute.price) return null;
 
@@ -651,7 +629,7 @@ const Logistics = () => {
     );
   };
 
-  const renderBatchActionsPanel = () => {
+  const [, _renderBatchActionsPanel] = () => {
     if (!selectedRoutes.length) return null;
 
     const totalValue = selectedRoutes.reduce((sum, route) => sum + (parseFloat(route.price) || 0), 0);
@@ -759,7 +737,7 @@ const Logistics = () => {
   // Quick actions handler
   const handleQuickAction = (actionType, value) => {
     switch (actionType) {
-      case 'template':
+      case 'template': {
         const template = ROUTE_TEMPLATE_PRESETS[value];
         if (template) {
           const adjusted = selectedRoutes.map(route => ({
@@ -769,26 +747,30 @@ const Logistics = () => {
           setSelectedRoutes(adjusted);
         }
         break;
+      }
       
-      case 'match_market':
+      case 'match_market': {
         const matched = selectedRoutes.map(route => ({
           ...route,
           price: route.suggestedPrice
         }));
         setSelectedRoutes(matched);
         break;
+      }
       
-      case 'round_prices':
+      case 'round_prices': {
         const rounded = selectedRoutes.map(route => ({
           ...route,
           price: Math.round(route.price / 1000) * 1000
         }));
         setSelectedRoutes(rounded);
         break;
+      }
       
-      case 'export_csv':
+      case 'export_csv': {
         exportRoutesToCSV(selectedRoutes);
         break;
+      }
       
       default:
         break;
@@ -843,7 +825,7 @@ const Logistics = () => {
       if (routeForm.routeType === 'intracity') {
         const cityRequired = !routeForm.stateAsCity && !routeForm.city;
         if (!routeForm.country || !routeForm.state || cityRequired || !routeForm.price || !routeForm.estimatedTime) {
-          alert('Please fill in country, state, city (or select "State as City"), price, and estimated time for intracity route.');
+          secureNotification.warning('Please fill in country, state, city (or select "State as City"), price, and estimated time for intracity route.');
           setSubmittingRoute(false);
           return;
         }
@@ -868,12 +850,12 @@ const Logistics = () => {
         };
         
         await firebaseService.logistics.addRoute(profile.id, routeData);
-        alert('Intracity route added successfully!');
+        secureNotification.success('Intracity route added successfully!');
       } 
       // Handle intercity/international routes (multiple route submission)
       else if (routeForm.routeType === 'intercity' || routeForm.routeType === 'international') {
         if (selectedRoutes.length === 0) {
-          alert(`Please select at least one ${routeForm.routeType} route to add.`);
+          secureNotification.warning(`Please select at least one ${routeForm.routeType} route to add.`);
           setSubmittingRoute(false);
           return;
         }
@@ -967,7 +949,7 @@ const Logistics = () => {
       
     } catch (error) {
       console.error('Error saving route:', error);
-      alert('Error saving route. Please try again.');
+      secureNotification.error('Error saving route. Please try again.');
     } finally {
       setSubmittingRoute(false);
     }
@@ -1256,7 +1238,7 @@ const Logistics = () => {
                       calculatePartnerPrice={calculatePartnerPrice}
                       onRoutesSelected={(routes) => {
                         setSelectedRoutes(routes);
-                        alert(`${routes.length} route(s) selected. Click "Add Route(s)" to save.`);
+                        secureNotification.info(`${routes.length} route(s) selected. Click "Add Route(s)" to save.`);
                       }}
                     />
                   )}
@@ -1563,7 +1545,7 @@ const Logistics = () => {
                             </button>
                             <button 
                               onClick={() => {
-                                setEditingRoute(route);
+                                _editingRoute(route);
                                 setRouteForm({
                                   from: route.from,
                                   to: route.to,
@@ -1574,7 +1556,7 @@ const Logistics = () => {
                                   serviceType: route.serviceType,
                                   ratePerKm: route.ratePerKm || DEFAULT_PLATFORM_PRICING.ratePerKm
                                 });
-                                setShowEditRouteForm(true);
+                                _showEditRouteForm(true);
                               }}
                               className="text-emerald-600 hover:text-emerald-700 font-medium"
                             >
@@ -1716,7 +1698,7 @@ const Logistics = () => {
                   profile={profile}
                   deliveries={deliveries}
                   routes={routes}
-                  analytics={routeAnalytics}
+                  analytics={_routeAnalytics}
                 />
               )}
             </div>
