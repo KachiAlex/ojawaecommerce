@@ -366,13 +366,13 @@ const Vendor = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [showAddProductForm, setShowAddProductForm] = useState(false);
   const [products, setProducts] = useState([]);
-  const [, setOrdersCursor] = useState(null);
+  const [, _setOrdersCursor] = useState(null);
   const [, setProductsCursor] = useState(null);
-  const [, setOrdersCount] = useState(0);
+  const [, _setOrdersCount] = useState(0);
   const [, setProductsCount] = useState(0);
-  const [, setOrdersPages] = useState([]);
+  const [, _setOrdersPages] = useState([]);
   const [, setProductsPages] = useState([]);
-  const [, setOrdersPageIndex] = useState(0);
+  const [, _setOrdersPageIndex] = useState(0);
   const [, setProductsPageIndex] = useState(0);
   const pageSize = 10;
   const [stats, setStats] = useState({});
@@ -387,7 +387,7 @@ const Vendor = () => {
   const [, setDisputesCursor] = useState(null);
   const [, setDisputesPages] = useState([]);
   const [, setDisputesPageIndex] = useState(0);
-  const [, setDisputesCount] = useState(0);
+  const [, _setDisputesCount] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState({ open: false, product: null });
   const [uploadProgress, setUploadProgress] = useState(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -395,13 +395,7 @@ const Vendor = () => {
   const [upgradeSuccessBanner, setUpgradeSuccessBanner] = useState(null);
   const processingUpgradeRef = useRef(false); // Prevent duplicate upgrade processing
 
-  const {
-    orders: hookOrders = [],
-    loading: _ordersLoading,
-    refreshOrders: _refreshOrders,
-    updateOrderStatus: _updateOrderStatus,
-    setSelectedOrder: hookSetSelectedOrder
-  } = useOrderManagement(currentUser?.uid, 'vendor');
+  const { refreshOrders, orders } = useOrderManagement(currentUser?.uid, 'vendor');
 
   // Load only essential data first for fast initial load
   const fetchInitialData = useCallback(async () => {
@@ -415,7 +409,7 @@ const Vendor = () => {
 
       // fallback orders snapshot
       if (Array.isArray(vendorData.orders) && vendorData.orders.length > 0) {
-        hookSetSelectedOrder((prev) => prev);
+        // No-op for now
       }
 
     } catch (error) {
@@ -654,7 +648,7 @@ const Vendor = () => {
     } catch (error) {
       console.error(`Error loading ${tab} data:`, error);
     }
-  }, [currentUser, orders.length, products.length, disputes.length]);
+  }, [currentUser, orders.length, products.length, disputes.length, refreshOrders]);
 
   useEffect(() => {
     if (!currentUser || !activeTab) {
