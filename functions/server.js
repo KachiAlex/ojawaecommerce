@@ -1,3 +1,17 @@
+
+const express = require('express');
+const admin = require('firebase-admin');
+const axios = require('axios');
+const cors = require('cors');
+
+// Initialize Firebase Admin
+admin.initializeApp();
+const db = admin.firestore();
+
+const app = express();
+app.use(express.json());
+app.use(cors());
+
 // Paystack IP Whitelisting Middleware
 const PAYSTACK_IPS = [
   '52.31.139.75',
@@ -20,18 +34,6 @@ app.post('/paystack/webhook', paystackIpWhitelist, (req, res) => {
   // TODO: Handle webhook event
   res.status(200).send('Webhook received');
 });
-const express = require('express');
-const admin = require('firebase-admin');
-const axios = require('axios');
-const cors = require('cors');
-
-// Initialize Firebase Admin
-admin.initializeApp();
-const db = admin.firestore();
-
-const app = express();
-app.use(express.json());
-app.use(cors());
 
 
 // Example: processPayoutRequest as Express route
