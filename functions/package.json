@@ -7,7 +7,11 @@
     "start": "node server.js",
     "deploy": "firebase deploy --only functions",
     "logs": "firebase functions:log",
-    "test": "jest"
+    "test": "jest",
+    "audit:env": "node scripts/env-audit.js",
+    "audit:cors": "node scripts/cors-audit.js",
+    "audit:indexes": "node scripts/firestore-index-audit.js",
+    "lint:prod": "node scripts/lint-prod.js"
   },
   "engines": {
     "node": "20"

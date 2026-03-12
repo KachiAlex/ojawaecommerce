@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useMessaging } from '../contexts/MessagingContext';
+import { usePageTracking, useProductTracking, useClickTracking } from '../hooks/useAnalytics';
 import { doc, getDoc, collection, query, where, limit, getDocs } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import AddressInput from '../components/AddressInput';
@@ -31,6 +32,11 @@ const Cart = () => {
   const { startConversation, setActiveConversation } = useMessaging?.() || {};
   const navigate = useNavigate?.() || (() => {});
   const location = useLocation?.() || { search: '' };
+  
+  // Analytics tracking
+  usePageTracking('Shopping Cart');
+  useProductTracking();
+  useClickTracking();
   
   console.log('🛒 Cart - cartItems:', cartItems.length);
   console.log('🛒 Cart - currentUser:', currentUser?.email);

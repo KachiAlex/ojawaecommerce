@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { usePageTracking, usePaymentTracking, useFunnelTracking } from '../hooks/useAnalytics';
 import { collection, addDoc, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 // import EnhancedLogisticsSelector from '../components/EnhancedLogisticsSelector'; // Disabled
@@ -301,6 +302,11 @@ const Checkout = () => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  
+  // Analytics tracking
+  usePageTracking('Checkout');
+  usePaymentTracking();
+  useFunnelTracking('checkout');
   const [showSuccess, setShowSuccess] = useState(false);
   
   // Get logistics data from cart (passed via navigation state)

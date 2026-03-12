@@ -2242,3 +2242,14 @@ async function handleFailedPayment(data) {
     throw error;
   }
 }
+
+// Analytics Functions
+// Import analytics functions
+const analytics = require('./src/analytics');
+
+// Export all analytics functions
+exports.generateDailyAnalyticsReport = analytics.generateDailyAnalyticsReport;
+exports.checkErrorRateAlert = analytics.checkErrorRateAlert;
+exports.checkPerformanceDegradation = analytics.checkPerformanceDegradation;
+exports.cleanupOldAnalyticsData = analytics.cleanupOldAnalyticsData;
+exports.getAnalyticsSummary = analytics.getAnalyticsSummary;

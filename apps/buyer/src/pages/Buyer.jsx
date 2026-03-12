@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { usePageTracking, useOrderTracking, useClickTracking } from '../hooks/useAnalytics';
 import firebaseService from '../services/firebaseService';
 import WalletManager from '../components/WalletManager';
 import OrdersFilterBar from '../components/OrdersFilterBar';
@@ -31,6 +32,11 @@ const formatCurrency = (amount, currencyValue) => {
 
 const Buyer = () => {
   const [activeTab, setActiveTab] = useState('overview');
+  
+  // Analytics tracking
+  usePageTracking('My Orders');
+  useOrderTracking();
+  useClickTracking();
   const [orders, setOrders] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [vendors, setVendors] = useState([]);

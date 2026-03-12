@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
+import { usePageTracking, useProductTracking, useClickTracking } from '../hooks/useAnalytics';
 import ProductCard from '../components/ProductCard';
 import Product3DCard from '../components/Product3DCard';
 import { ProductListSkeleton } from '../components/SkeletonLoaders';
@@ -31,6 +32,11 @@ const Products = () => {
   const [, _currentUser] = useAuth();
   const { addToCart } = useCart();
   const navigate = useNavigate();
+  
+  // Analytics tracking
+  usePageTracking('Products List');
+  useProductTracking();
+  useClickTracking();
   
   const [products, setProducts] = useState([]);
   const [allFilteredProducts, setAllFilteredProducts] = useState([]); // Store ALL filtered products (not paginated)

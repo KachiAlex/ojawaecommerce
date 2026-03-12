@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
+import { usePageTracking, useUserTracking, useClickTracking } from '../hooks/useAnalytics';
 import InputValidator from '../utils/inputValidator';
 import secureNotification from '../utils/secureNotification';
 
@@ -15,6 +16,11 @@ const Register = () => {
     address: '',
     userType: 'buyer'
   });
+
+  // Analytics tracking
+  usePageTracking('Register');
+  useUserTracking();
+  useClickTracking();
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);

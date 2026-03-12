@@ -4,6 +4,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
+import { usePageTracking, useProductTracking, useClickTracking } from '../hooks/useAnalytics';
 import firebaseService from '../services/firebaseService';
 import NotificationToast from '../components/NotificationToast';
 import WishlistButton from '../components/WishlistButton';
@@ -12,6 +13,11 @@ import SocialShare from '../components/SocialShare';
 const ProductDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  
+  // Analytics tracking
+  usePageTracking('Product Detail');
+  useProductTracking();
+  useClickTracking();
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);

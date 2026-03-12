@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
+import { usePageTracking, useUserTracking, useClickTracking } from '../hooks/useAnalytics';
 
 const testModeEnabled = import.meta.env?.VITE_TEST_MODE === 'true';
 const defaultTestEmail = 'onyedika.akoma@gmail.com';
@@ -16,7 +17,11 @@ const testCredentials = testModeEnabled
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+  
+  // Analytics tracking
+  usePageTracking('Login');
+  useUserTracking();
+  useClickTracking();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);

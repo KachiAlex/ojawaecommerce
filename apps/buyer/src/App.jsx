@@ -5,6 +5,7 @@ import { CartProvider } from './contexts/CartContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { MessagingProvider } from './contexts/MessagingContext';
+import { useAnalytics } from './hooks/useAnalytics';
 // OnboardingContext removed - causing initialization flow issues
 import ErrorBoundary from './components/ErrorBoundary';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -163,7 +164,10 @@ function AdminRoute({ children }) {
 };
 
 const AppContent = () => {
-  const { showEscrowEducation, setShowEscrowEducation, newUserType } = useAuth();
+  const { showEscrowEducation, setShowEscrowEducation, newUserType, currentUser, userProfile } = useAuth();
+  
+  // Initialize analytics with user information
+  useAnalytics(currentUser?.uid, userProfile?.role);
 
   return (
     <CartProvider>

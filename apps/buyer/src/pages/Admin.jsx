@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import firebaseService from '../services/firebaseService';
+import AdminAnalyticsDashboard from '../components/admin/AdminAnalyticsDashboard';
 
 const Admin = () => {
   const { currentUser, userProfile } = useAuth();
@@ -816,7 +817,7 @@ const Admin = () => {
         <div className="bg-slate-950 rounded-lg shadow mb-6 border border-teal-900/70">
           <div className="border-b border-teal-900/70">
             <nav className="flex -mb-px">
-              {['overview', 'users', 'orders', 'products', 'featured', 'logistics', 'disputes', 'commission'].map(tab => (
+              {['overview', 'users', 'orders', 'products', 'featured', 'logistics', 'disputes', 'commission', 'analytics'].map(tab => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
@@ -2074,6 +2075,11 @@ const Admin = () => {
                   </div>
                 </div>
               </div>
+            )}
+
+            {/* Analytics Tab */}
+            {activeTab === 'analytics' && (
+              <AdminAnalyticsDashboard />
             )}
 
             {/* Overview Tab Content */}
