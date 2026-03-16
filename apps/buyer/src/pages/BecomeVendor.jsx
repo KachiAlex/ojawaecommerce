@@ -1,6 +1,7 @@
 ﻿import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AddressInput from "../components/AddressInput";
+import { useAuth } from "../contexts/AuthContext";
 
 /**
  * Public Vendor Registration - No Auth Required
@@ -11,6 +12,7 @@ const BecomeVendor = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
+  const { signup, completeVendorOnboarding } = useAuth();
 
   const [formData, setFormData] = useState({
     // Account
@@ -109,12 +111,34 @@ const BecomeVendor = () => {
 
     try {
       setLoading(true);
-      // The actual registration is handled by the backend
-      // For now, show success and redirect to login
-      alert("Registration submitted! Please check your email to verify your account.");
-      navigate("/login", { state: { email: formData.email } });
+      
+      // Step 1: Create account with email and password
+      console.log("📝 Registering new vendor account...");
+      const newUser = await signup(formData.email, formData.password, formData.displayName);
+      console.log("✅ Account created:", newUser.uid);
+
+      // Step 2: Complete vendor onboarding
+      console.log("🏪 Completing vendor onboarding...");
+      const vendorProfile = await completeVendorOnboarding({
+        nin: formData.nin,
+        businessName: formData.businessName,
+        businessAddress: formData.structuredAddress.street,
+        structuredAddress: formData.structuredAddress,
+        businessPhone: formData.businessPhone,
+        businessType: formData.businessType,
+        storeName: formData.storeName,
+        storeDescription: formData.storeDescription
+      });
+      console.log("✅ Vendor profile created:", vendorProfile);
+
+      // Success - redirect to vendor dashboard
+      alert("🎉 Welcome to Ojawa! Your vendor account is ready. Redirecting to your dashboard...");
+      navigate("/vendor", { replace: true });
     } catch (err) {
+      console.error("❌ Registration error:", err);
       setError(err.message || "Registration failed. Please try again.");
+      // Scroll to error message
+      window.scrollTo(0, 0);
     } finally {
       setLoading(false);
     }
