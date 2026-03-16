@@ -1,7 +1,13 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import adminAnalyticsService from '../services/adminAnalyticsService';
-import { ChevronDown, Download, RefreshCw, TrendingUp, TrendingDown, Users, Activity, AlertCircle, Clock } from 'lucide-react';
+import { useRealtimeAll } from '../hooks/useRealtimeAnalytics';
+import { analyticsCache } from '../services/analyticsCache';
+import VendorAnalyticsTab from './VendorAnalyticsTab';
+import BuyerAnalyticsTab from './BuyerAnalyticsTab';
+import TransactionAnalyticsTab from './TransactionAnalyticsTab';
+import PlatformHealthAnalyticsTab from './PlatformHealthAnalyticsTab';
+import { ChevronDown, Download, RefreshCw, TrendingUp, TrendingDown, Users, Activity, AlertCircle, Clock, Wifi } from 'lucide-react';
 
 const AdminAnalyticsDashboard = () => {
   const [metrics, setMetrics] = useState(null);
@@ -9,22 +15,95 @@ const AdminAnalyticsDashboard = () => {
   const [timeRange, setTimeRange] = useState('week');
   const [selectedTab, setSelectedTab] = useState('overview');
   const [exporting, setExporting] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [refreshInterval, setRefreshInterval] = useState(30000); // 30 seconds
+  const [livestreamActive, setLiveStreamActive] = useState(false);
+  const [listenerCount, setListenerCount] = useState(0);
+  
+  const autoRefreshTimerRef = useRef(null);
+  
+  // Real-time analytics subscription
+  const {
+    vendorMetrics,
+    buyerMetrics,
+    transactionMetrics,
+    healthMetrics,
+    errorMetrics,
+    apiMetrics,
+    activityMetrics,
+    loading: realtimeLoading,
+    listenerCount: activeListeners,
+    getAllCachedData
+  } = useRealtimeAll();
 
+  // Determine if any real-time data is available
   useEffect(() => {
-    fetchMetrics();
-  }, [timeRange]);
+    const hasLiveData = [
+      vendorMetrics?.livestream,
+      buyerMetrics?.livestream,
+      transactionMetrics?.livestream,
+      healthMetrics?.livestream
+    ].some(v => v === true);
 
+    setLiveStreamActive(hasLiveData);
+    setListenerCount(activeListeners);
+  }, [
+    vendorMetrics?.livestream,
+    buyerMetrics?.livestream,
+    transactionMetrics?.livestream,
+    healthMetrics?.livestream,
+    activeListeners
+  ]);
+
+  // Fetch metrics with cache and real-time fallback
   const fetchMetrics = async () => {
     try {
       setLoading(true);
-      const data = await adminAnalyticsService.getDashboardMetrics({ timeRange });
-      setMetrics(data);
+      
+      // Try to use cached real-time data first
+      if (livestreamActive) {
+        const combinedMetrics = {
+          vendor: vendorMetrics,
+          buyer: buyerMetrics,
+          transaction: transactionMetrics,
+          health: healthMetrics,
+          errors: errorMetrics,
+          api: apiMetrics,
+          activity: activityMetrics,
+          timestamp: new Date()
+        };
+        setMetrics(combinedMetrics);
+      } else {
+        // Fallback to traditional fetch
+        const data = await adminAnalyticsService.getDashboardMetrics({ timeRange });
+        setMetrics(data);
+      }
     } catch (error) {
       console.error('Error fetching metrics:', error);
     } finally {
       setLoading(false);
     }
   };
+
+  // Setup auto-refresh timer
+  useEffect(() => {
+    if (autoRefresh && refreshInterval) {
+      autoRefreshTimerRef.current = setInterval(() => {
+        fetchMetrics();
+      }, refreshInterval);
+    }
+
+    return () => {
+      if (autoRefreshTimerRef.current) {
+        clearInterval(autoRefreshTimerRef.current);
+      }
+    };
+  }, [autoRefresh, refreshInterval]);
+
+  // Initial fetch and when timeRange changes
+  useEffect(() => {
+    fetchMetrics();
+  }, [timeRange, livestreamActive, vendorMetrics, buyerMetrics, transactionMetrics]);
 
   const handleExport = async (format) => {
     try {
@@ -69,7 +148,16 @@ const AdminAnalyticsDashboard = () => {
       {/* Header with Controls */}
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Analytics Dashboard</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-2xl font-bold text-gray-900">Analytics Dashboard</h2>
+            {livestreamActive && (
+              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-green-50 border border-green-200">
+                <span className="h-2 w-2 bg-green-500 rounded-full animate-pulse"></span>
+                <span className="text-xs font-medium text-green-700">LIVE</span>
+                <span className="text-xs text-green-600">({listenerCount} listeners)</span>
+              </div>
+            )}
+          </div>
           <p className="text-gray-600 text-sm mt-1">Last {timeRange} performance metrics</p>
         </div>
         <div className="flex items-center gap-3">
@@ -82,13 +170,41 @@ const AdminAnalyticsDashboard = () => {
             <option value="week">Last 7 Days</option>
             <option value="month">Last 30 Days</option>
           </select>
+          
+          {/* Auto-refresh toggle */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setAutoRefresh(!autoRefresh)}
+              className={`p-2 rounded-lg transition-colors ${
+                autoRefresh
+                  ? 'bg-blue-100 text-blue-600'
+                  : 'hover:bg-gray-100 text-gray-600'
+              }`}
+              title={autoRefresh ? 'Auto-refresh enabled' : 'Auto-refresh disabled'}
+            >
+              <Wifi className="h-5 w-5" />
+            </button>
+            {autoRefresh && (
+              <select
+                value={refreshInterval}
+                onChange={(e) => setRefreshInterval(Number(e.target.value))}
+                className="px-2 py-1 rounded border border-gray-300 bg-white text-gray-900 text-xs font-medium hover:border-gray-400"
+              >
+                <option value={10000}>10s</option>
+                <option value={30000}>30s</option>
+                <option value={60000}>1m</option>
+                <option value={300000}>5m</option>
+              </select>
+            )}
+          </div>
+          
           <button
             onClick={fetchMetrics}
             disabled={loading}
             className="p-2 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50"
             title="Refresh"
           >
-            <RefreshCw className="h-5 w-5 text-gray-600" />
+            <RefreshCw className={`h-5 w-5 text-gray-600 ${loading ? 'animate-spin' : ''}`} />
           </button>
           <div className="relative group">
             <button className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
@@ -148,7 +264,7 @@ const AdminAnalyticsDashboard = () => {
 
       {/* Tab Navigation */}
       <div className="flex gap-4 border-b border-gray-200">
-        {['overview', 'events', 'performance', 'conversions', 'errors'].map(tab => (
+        {['overview', 'vendor', 'buyer', 'transaction', 'platform-health', 'events', 'performance', 'conversions', 'errors'].map(tab => (
           <button
             key={tab}
             onClick={() => setSelectedTab(tab)}
@@ -167,6 +283,18 @@ const AdminAnalyticsDashboard = () => {
       <div className="bg-white rounded-lg p-6 shadow-sm">
         {selectedTab === 'overview' && (
           <OverviewSection metrics={metrics} />
+        )}
+        {selectedTab === 'vendor' && (
+          <VendorAnalyticsTab timeRange={timeRange} />
+        )}
+        {selectedTab === 'buyer' && (
+          <BuyerAnalyticsTab timeRange={timeRange} />
+        )}
+        {selectedTab === 'transaction' && (
+          <TransactionAnalyticsTab timeRange={timeRange} />
+        )}
+        {selectedTab === 'platform-health' && (
+          <PlatformHealthAnalyticsTab timeRange={timeRange} />
         )}
         {selectedTab === 'events' && (
           <EventsSection metrics={metrics} />

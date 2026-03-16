@@ -301,7 +301,593 @@ export const useUserTracking = () => {
 };
 
 /**
- * Hook to track errors
+ * Hook to track vendor events
+ */
+export const useVendorTracking = (userId) => {
+  const trackVendorRegistered = useCallback((vendorData) => {
+    adminAnalyticsService.logEvent({
+      eventType: 'vendor_registered',
+      category: 'vendor',
+      userId,
+      vendorId: userId,
+      metadata: {
+        businessName: vendorData.businessName,
+        businessType: vendorData.businessType,
+        city: vendorData.address?.city
+      }
+    });
+  }, [userId]);
+
+  const trackVendorApproved = useCallback(() => {
+    adminAnalyticsService.logEvent({
+      eventType: 'vendor_approved',
+      category: 'vendor',
+      userId,
+      vendorId: userId,
+      severity: 'info'
+    });
+  }, [userId]);
+
+  const trackVendorSuspended = useCallback((reason) => {
+    adminAnalyticsService.logEvent({
+      eventType: 'vendor_suspended',
+      category: 'vendor',
+      userId,
+      vendorId: userId,
+      severity: 'warning',
+      metadata: {
+        reason
+      }
+    });
+  }, [userId]);
+
+  const trackVendorBanned = useCallback((reason) => {
+    adminAnalyticsService.logEvent({
+      eventType: 'vendor_banned',
+      category: 'vendor',
+      userId,
+      vendorId: userId,
+      severity: 'critical',
+      metadata: {
+        reason
+      }
+    });
+  }, [userId]);
+
+  const trackProductListed = useCallback((productData) => {
+    adminAnalyticsService.logEvent({
+      eventType: 'vendor_product_listed',
+      category: 'vendor',
+      userId,
+      vendorId: userId,
+      productId: productData.id,
+      metadata: {
+        productName: productData.name,
+        category: productData.category,
+        price: productData.price
+      }
+    });
+  }, [userId]);
+
+  const trackFirstProductListed = useCallback((productData) => {
+    adminAnalyticsService.logEvent({
+      eventType: 'vendor_first_product_listed',
+      category: 'vendor',
+      userId,
+      vendorId: userId,
+      productId: productData.id,
+      severity: 'info',
+      metadata: {
+        productName: productData.name
+      }
+    });
+  }, [userId]);
+
+  const trackFirstSale = useCallback((orderData) => {
+    adminAnalyticsService.logEvent({
+      eventType: 'vendor_first_sale',
+      category: 'vendor',
+      userId,
+      vendorId: userId,
+      orderId: orderData.id,
+      severity: 'info',
+      metadata: {
+        orderAmount: orderData.amount,
+        buyerId: orderData.buyerId
+      }
+    });
+  }, [userId]);
+
+  const trackVendorProfileUpdated = useCallback((updatedFields) => {
+    adminAnalyticsService.logEvent({
+      eventType: 'vendor_profile_updated',
+      category: 'vendor',
+      userId,
+      vendorId: userId,
+      metadata: {
+        updatedFields
+      }
+    });
+  }, [userId]);
+
+  const trackVendorStoreUpdated = useCallback((storeData) => {
+    adminAnalyticsService.logEvent({
+      eventType: 'vendor_store_updated',
+      category: 'vendor',
+      userId,
+      vendorId: userId,
+      metadata: {
+        storeName: storeData.storeName,
+        description: storeData.description ? storeData.description.substring(0, 50) : null
+      }
+    });
+  }, [userId]);
+
+  const trackVendorPayoutProcessed = useCallback((payoutData) => {
+    adminAnalyticsService.logEvent({
+      eventType: 'vendor_payout_processed',
+      category: 'vendor',
+      userId,
+      vendorId: userId,
+      severity: 'info',
+      metadata: {
+        amount: payoutData.amount,
+        method: payoutData.method,
+        period: payoutData.period
+      }
+    });
+  }, [userId]);
+
+  return {
+    trackVendorRegistered,
+    trackVendorApproved,
+    trackVendorSuspended,
+    trackVendorBanned,
+    trackProductListed,
+    trackFirstProductListed,
+    trackFirstSale,
+    trackVendorProfileUpdated,
+    trackVendorStoreUpdated,
+    trackVendorPayoutProcessed
+  };
+};
+
+/**
+ * Hook to track buyer events
+ */
+export const useBuyerTracking = (userId) => {
+  const trackBrowsingSession = useCallback((sessionData) => {
+    adminAnalyticsService.logEvent({
+      eventType: 'buyer_browsing_session',
+      category: 'buyer',
+      userId,
+      metadata: {
+        duration: sessionData.duration,
+        productsViewed: sessionData.productsViewed,
+        categoriesBrowsed: sessionData.categoriesBrowsed
+      }
+    });
+  }, [userId]);
+
+  const trackProductSearched = useCallback((searchData) => {
+    adminAnalyticsService.logEvent({
+      eventType: 'product_searched',
+      category: 'buyer',
+      userId,
+      metadata: {
+        query: searchData.query,
+        resultsCount: searchData.resultsCount,
+        filters: searchData.filters
+      }
+    });
+  }, [userId]);
+
+  const trackWishlistAdded = useCallback((productData) => {
+    adminAnalyticsService.logEvent({
+      eventType: 'wishlist_added',
+      category: 'buyer',
+      userId,
+      productId: productData.id,
+      metadata: {
+        productName: productData.name,
+        price: productData.price,
+        vendorId: productData.vendorId
+      }
+    });
+  }, [userId]);
+
+  const trackWishlistRemoved = useCallback((productId) => {
+    adminAnalyticsService.logEvent({
+      eventType: 'wishlist_removed',
+      category: 'buyer',
+      userId,
+      productId,
+      metadata: {
+        productId
+      }
+    });
+  }, [userId]);
+
+  const trackCartAdded = useCallback((productData) => {
+    adminAnalyticsService.logEvent({
+      eventType: 'cart_added',
+      category: 'buyer',
+      userId,
+      productId: productData.id,
+      metadata: {
+        productName: productData.name,
+        quantity: productData.quantity,
+        price: productData.price,
+        totalValue: productData.quantity * productData.price
+      }
+    });
+  }, [userId]);
+
+  const trackCartRemoved = useCallback((productId, reason) => {
+    adminAnalyticsService.logEvent({
+      eventType: 'cart_removed',
+      category: 'buyer',
+      userId,
+      productId,
+      metadata: {
+        productId,
+        reason
+      }
+    });
+  }, [userId]);
+
+  const trackCheckoutStarted = useCallback((cartData) => {
+    adminAnalyticsService.logEvent({
+      eventType: 'checkout_started',
+      category: 'buyer',
+      userId,
+      severity: 'info',
+      metadata: {
+        itemCount: cartData.itemCount,
+        totalValue: cartData.totalValue,
+        vendorCount: cartData.vendorCount
+      }
+    });
+  }, [userId]);
+
+  const trackCheckoutCompleted = useCallback((orderData) => {
+    adminAnalyticsService.logEvent({
+      eventType: 'checkout_completed',
+      category: 'buyer',
+      userId,
+      orderId: orderData.id,
+      severity: 'info',
+      metadata: {
+        orderId: orderData.id,
+        totalAmount: orderData.totalAmount,
+        itemCount: orderData.itemCount,
+        paymentMethod: orderData.paymentMethod
+      }
+    });
+  }, [userId]);
+
+  const trackCheckoutAbandoned = useCallback((cartData, reason) => {
+    adminAnalyticsService.logEvent({
+      eventType: 'checkout_abandoned',
+      category: 'buyer',
+      userId,
+      severity: 'warning',
+      metadata: {
+        itemCount: cartData.itemCount,
+        cartValue: cartData.totalValue,
+        reason,
+        stage: cartData.stage
+      }
+    });
+  }, [userId]);
+
+  const trackProductReview = useCallback((reviewData) => {
+    adminAnalyticsService.logEvent({
+      eventType: 'product_reviewed',
+      category: 'buyer',
+      userId,
+      productId: reviewData.productId,
+      metadata: {
+        productId: reviewData.productId,
+        rating: reviewData.rating,
+        reviewLength: reviewData.message ? reviewData.message.length : 0,
+        vendorId: reviewData.vendorId
+      }
+    });
+  }, [userId]);
+
+  const trackFirstPurchase = useCallback((orderData) => {
+    adminAnalyticsService.logEvent({
+      eventType: 'buyer_first_purchase',
+      category: 'buyer',
+      userId,
+      orderId: orderData.id,
+      severity: 'info',
+      metadata: {
+        orderId: orderData.id,
+        totalAmount: orderData.totalAmount,
+        itemCount: orderData.itemCount,
+        vendor: orderData.vendorId
+      }
+    });
+  }, [userId]);
+
+  const trackRepeatPurchase = useCallback((orderData) => {
+    adminAnalyticsService.logEvent({
+      eventType: 'buyer_repeat_purchase',
+      category: 'buyer',
+      userId,
+      orderId: orderData.id,
+      metadata: {
+        orderId: orderData.id,
+        totalAmount: orderData.totalAmount,
+        itemCount: orderData.itemCount,
+        previousPurchaseCount: orderData.previousPurchaseCount
+      }
+    });
+  }, [userId]);
+
+  const trackReturnInitiated = useCallback((returnData) => {
+    adminAnalyticsService.logEvent({
+      eventType: 'return_initiated',
+      category: 'buyer',
+      userId,
+      orderId: returnData.orderId,
+      severity: 'warning',
+      metadata: {
+        orderId: returnData.orderId,
+        itemCount: returnData.itemCount,
+        reason: returnData.reason,
+        refundAmount: returnData.refundAmount
+      }
+    });
+  }, [userId]);
+
+  const trackRewardEarned = useCallback((rewardData) => {
+    adminAnalyticsService.logEvent({
+      eventType: 'reward_earned',
+      category: 'buyer',
+      userId,
+      metadata: {
+        rewardType: rewardData.type,
+        points: rewardData.points,
+        source: rewardData.source
+      }
+    });
+  }, [userId]);
+
+  return {
+    trackBrowsingSession,
+    trackProductSearched,
+    trackWishlistAdded,
+    trackWishlistRemoved,
+    trackCartAdded,
+    trackCartRemoved,
+    trackCheckoutStarted,
+    trackCheckoutCompleted,
+    trackCheckoutAbandoned,
+    trackProductReview,
+    trackFirstPurchase,
+    trackRepeatPurchase,
+    trackReturnInitiated,
+    trackRewardEarned
+  };
+};
+
+/**
+ * Hook to track transaction/order events
+ */
+export const useTransactionTracking = (userId) => {
+  const trackOrderCreated = useCallback((orderData) => {
+    adminAnalyticsService.logEvent({
+      eventType: 'transaction_order_created',
+      category: 'transaction',
+      userId,
+      orderId: orderData.id,
+      severity: 'info',
+      metadata: {
+        orderId: orderData.id,
+        totalAmount: orderData.totalAmount,
+        itemCount: orderData.itemCount,
+        vendorCount: orderData.vendorCount,
+        paymentMethod: orderData.paymentMethod
+      }
+    });
+  }, [userId]);
+
+  const trackOrderStatusChanged = useCallback((orderData, oldStatus, newStatus) => {
+    const severityMap = {
+      'processing': 'info',
+      'shipped': 'info',
+      'delivered': 'info',
+      'cancelled': 'warning',
+      'failed': 'critical',
+      'returned': 'warning',
+      'refunded': 'info'
+    };
+
+    adminAnalyticsService.logEvent({
+      eventType: 'transaction_order_status_changed',
+      category: 'transaction',
+      userId,
+      orderId: orderData.id,
+      severity: severityMap[newStatus] || 'info',
+      metadata: {
+        orderId: orderData.id,
+        oldStatus,
+        newStatus,
+        timestamp: new Date().toISOString()
+      }
+    });
+  }, [userId]);
+
+  const trackPaymentProcessed = useCallback((paymentData) => {
+    adminAnalyticsService.logEvent({
+      eventType: 'transaction_payment_processed',
+      category: 'transaction',
+      userId,
+      orderId: paymentData.orderId,
+      severity: 'info',
+      metadata: {
+        orderId: paymentData.orderId,
+        amount: paymentData.amount,
+        method: paymentData.method,
+        transactionId: paymentData.transactionId,
+        processingTime: paymentData.processingTime
+      }
+    });
+  }, [userId]);
+
+  const trackPaymentFailed = useCallback((paymentData) => {
+    adminAnalyticsService.logEvent({
+      eventType: 'transaction_payment_failed',
+      category: 'transaction',
+      userId,
+      orderId: paymentData.orderId,
+      severity: 'warning',
+      metadata: {
+        orderId: paymentData.orderId,
+        amount: paymentData.amount,
+        method: paymentData.method,
+        failureReason: paymentData.failureReason,
+        retryCount: paymentData.retryCount
+      }
+    });
+  }, [userId]);
+
+  const trackRefundProcessed = useCallback((refundData) => {
+    adminAnalyticsService.logEvent({
+      eventType: 'transaction_refund_processed',
+      category: 'transaction',
+      userId,
+      orderId: refundData.orderId,
+      severity: 'info',
+      metadata: {
+        orderId: refundData.orderId,
+        refundId: refundData.refundId,
+        amount: refundData.amount,
+        reason: refundData.reason,
+        processingTime: refundData.processingTime
+      }
+    });
+  }, [userId]);
+
+  const trackReturnInitiated = useCallback((returnData) => {
+    adminAnalyticsService.logEvent({
+      eventType: 'transaction_return_initiated',
+      category: 'transaction',
+      userId,
+      orderId: returnData.orderId,
+      severity: 'warning',
+      metadata: {
+        orderId: returnData.orderId,
+        returnId: returnData.returnId,
+        itemCount: returnData.itemCount,
+        reason: returnData.reason,
+        expectedRefund: returnData.expectedRefund
+      }
+    });
+  }, [userId]);
+
+  const trackDeliveryConfirmed = useCallback((deliveryData) => {
+    adminAnalyticsService.logEvent({
+      eventType: 'transaction_delivery_confirmed',
+      category: 'transaction',
+      userId,
+      orderId: deliveryData.orderId,
+      severity: 'info',
+      metadata: {
+        orderId: deliveryData.orderId,
+        deliveryDate: deliveryData.deliveryDate,
+        daysToDeliver: deliveryData.daysToDeliver,
+        signedBy: deliveryData.signedBy || 'Recipient'
+      }
+    });
+  }, [userId]);
+
+  const trackShippingUpdated = useCallback((shippingData) => {
+    adminAnalyticsService.logEvent({
+      eventType: 'transaction_shipping_updated',
+      category: 'transaction',
+      userId,
+      orderId: shippingData.orderId,
+      metadata: {
+        orderId: shippingData.orderId,
+        trackingNumber: shippingData.trackingNumber,
+        carrier: shippingData.carrier,
+        status: shippingData.status,
+        estimatedDelivery: shippingData.estimatedDelivery
+      }
+    });
+  }, [userId]);
+
+  const trackOrderCancelled = useCallback((cancelData) => {
+    adminAnalyticsService.logEvent({
+      eventType: 'transaction_order_cancelled',
+      category: 'transaction',
+      userId,
+      orderId: cancelData.orderId,
+      severity: 'warning',
+      metadata: {
+        orderId: cancelData.orderId,
+        reason: cancelData.reason,
+        initiatedBy: cancelData.initiatedBy,
+        refundAmount: cancelData.refundAmount
+      }
+    });
+  }, [userId]);
+
+  const trackDisputeCreated = useCallback((disputeData) => {
+    adminAnalyticsService.logEvent({
+      eventType: 'transaction_dispute_created',
+      category: 'transaction',
+      userId,
+      orderId: disputeData.orderId,
+      severity: 'critical',
+      metadata: {
+        orderId: disputeData.orderId,
+        disputeId: disputeData.disputeId,
+        reason: disputeData.reason,
+        claimAmount: disputeData.claimAmount,
+        againstParty: disputeData.againstParty
+      }
+    });
+  }, [userId]);
+
+  const trackRevenueRecognized = useCallback((revenueData) => {
+    adminAnalyticsService.logEvent({
+      eventType: 'transaction_revenue_recognized',
+      category: 'transaction',
+      userId,
+      orderId: revenueData.orderId,
+      severity: 'info',
+      metadata: {
+        orderId: revenueData.orderId,
+        amount: revenueData.amount,
+        vendorShare: revenueData.vendorShare,
+        platformFee: revenueData.platformFee,
+        recognitionDate: revenueData.recognitionDate
+      }
+    });
+  }, [userId]);
+
+  return {
+    trackOrderCreated,
+    trackOrderStatusChanged,
+    trackPaymentProcessed,
+    trackPaymentFailed,
+    trackRefundProcessed,
+    trackReturnInitiated,
+    trackDeliveryConfirmed,
+    trackShippingUpdated,
+    trackOrderCancelled,
+    trackDisputeCreated,
+    trackRevenueRecognized
+  };
+};
+
+/**
+ * Hook to track error events
  */
 export const useErrorTracking = (userId) => {
   const trackError = useCallback((error, context = {}) => {
@@ -378,6 +964,101 @@ export const useFunnelTracking = (userId, funnelType) => {
 };
 
 /**
+ * Hook to track platform health events
+ */
+export const usePlatformHealthTracking = () => {
+  const trackCSPViolation = useCallback((violation) => {
+    adminAnalyticsService.logEvent({
+      eventType: 'csp_violation',
+      category: 'security',
+      metadata: {
+        violatedDirective: violation.violatedDirective,
+        blockedURI: violation.blockedURI,
+        sourceFile: violation.sourceFile,
+        disposition: violation.disposition
+      }
+    });
+  }, []);
+
+  const trackErrorLog = useCallback((error, context = {}) => {
+    adminAnalyticsService.logEvent({
+      eventType: 'error_logged',
+      category: 'error',
+      severity: error.severity || 'error',
+      metadata: {
+        errorType: error.name,
+        message: error.message,
+        stack: error.stack ? error.stack.substring(0, 500) : null,
+        context
+      }
+    });
+  }, []);
+
+  const trackPerformanceMetric = useCallback((metricName, value, metadata = {}) => {
+    adminAnalyticsService.logEvent({
+      eventType: 'performance_metric',
+      category: 'performance',
+      metadata: {
+        metricName,
+        value,
+        timestamp: new Date().toISOString(),
+        ...metadata
+      }
+    });
+  }, []);
+
+  const trackAPICall = useCallback((endpoint, duration, status, metadata = {}) => {
+    adminAnalyticsService.logEvent({
+      eventType: 'api_call',
+      category: 'api',
+      metadata: {
+        endpoint,
+        duration,
+        status,
+        timestamp: new Date().toISOString(),
+        ...metadata
+      }
+    });
+  }, []);
+
+  const trackDatabaseQuery = useCallback((collection, operationType, duration, metadata = {}) => {
+    adminAnalyticsService.logEvent({
+      eventType: 'database_query',
+      category: 'database',
+      metadata: {
+        collection,
+        operationType,
+        duration,
+        timestamp: new Date().toISOString(),
+        ...metadata
+      }
+    });
+  }, []);
+
+  const trackServiceStatus = useCallback((serviceName, status, metadata = {}) => {
+    adminAnalyticsService.logEvent({
+      eventType: 'service_status',
+      category: 'service',
+      metadata: {
+        serviceName,
+        status,
+        timestamp: new Date().toISOString(),
+        ...metadata
+      }
+    });
+  }, []);
+
+  return {
+    trackCSPViolation,
+    trackErrorLog,
+    trackPerformanceMetric,
+    trackAPICall,
+    trackDatabaseQuery,
+    trackServiceStatus
+  };
+};
+
+/**
  * Combined hook for comprehensive tracking
  */
 export const useAnalytics = (userId, userRole) => {
@@ -394,7 +1075,8 @@ export const useAnalytics = (userId, userRole) => {
     trackPayment: usePaymentTracking(userId),
     trackUser: useUserTracking(),
     trackError: useErrorTracking(userId),
-    trackFunnel: useFunnelTracking
+    trackFunnel: useFunnelTracking,
+    trackPlatformHealth: usePlatformHealthTracking
   };
 };
 

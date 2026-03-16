@@ -7,10 +7,16 @@ const BecomeVendor = () => {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const { completeVendorOnboarding, currentUser } = useAuth();
+  const { completeVendorOnboarding, currentUser, signup } = useAuth();
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
+    // Account registration fields (if not logged in)
+    email: '',
+    password: '',
+    passwordConfirm: '',
+    displayName: '',
+    // Vendor onboarding fields
     nin: '',
     businessName: '',
     businessAddress: '', // Keep for backward compatibility
@@ -20,6 +26,11 @@ const BecomeVendor = () => {
     storeName: '',
     storeDescription: ''
   });
+
+  // Determine the starting step based on login status
+  const needsAccountCreation = !currentUser;
+  const accountStepOffset = needsAccountCreation ? 1 : 0;
+  const totalSteps = needsAccountCreation ? 4 : 3;
 
   const businessTypes = [
     { value: 'retail', label: 'Retail Store' },
@@ -43,8 +54,28 @@ const BecomeVendor = () => {
   const handleNext = () => {
     setError('');
     
-    if (step === 1) {
-      // Validate NIN and business info
+    if (step === 1 && needsAccountCreation) {
+      // Validate account creation
+      if (!formData.email || !formData.password || !formData.passwordConfirm || !formData.displayName) {
+        setError('Please fill in all account fields');
+        return;
+      }
+      if (formData.password.length < 6) {
+        setError('Password must be at least 6 characters');
+        return;
+      }
+      if (formData.password !== formData.passwordConfirm) {
+        setError('Passwords do not match');
+        return;
+      }
+      if (!formData.email.includes('@')) {
+        setError('Please enter a valid email address');
+        return;
+      }
+    }
+    
+    if ((step === 2 && needsAccountCreation) || (step === 1 && !needsAccountCreation)) {
+      // Validate NIN and business info (Step 2 if account creation, Step 1 if already logged in)
       if (!formData.nin || !formData.businessName || !formData.structuredAddress.city || !formData.structuredAddress.state || !formData.businessPhone) {
         setError('Please fill in all required fields including complete business address');
         return;
@@ -55,8 +86,8 @@ const BecomeVendor = () => {
       }
     }
     
-    if (step === 2) {
-      // Validate store info
+    if ((step === 3 && needsAccountCreation) || (step === 2 && !needsAccountCreation)) {
+      // Validate store info (Step 3 if account creation, Step 2 if already logged in)
       if (!formData.storeName || !formData.storeDescription) {
         setError('Please fill in all store information');
         return;
@@ -71,6 +102,27 @@ const BecomeVendor = () => {
       setLoading(true);
       setError('');
       
+      // If user needs account creation, do that first
+      if (needsAccountCreation) {
+        await signup(formData.email, formData.password, {
+          displayName: formData.displayName,
+          role: 'buyer'
+        });
+        
+        // Wait for currentUser to be updated in auth context
+        // The auth state listener will update currentUser automatically
+        let retries = 0;
+        const maxRetries = 20; // 10 seconds max
+        while (!currentUser && retries < maxRetries) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+          retries++;
+        }
+        
+        if (!currentUser) {
+          throw new Error('Failed to initialize user account. Please try signing in.');
+        }
+      }
+      
       // Build full address string from structured address
       const fullAddress = formData.structuredAddress.city ? 
         `${formData.structuredAddress.street}, ${formData.structuredAddress.city}, ${formData.structuredAddress.state}, ${formData.structuredAddress.country}` :
@@ -84,32 +136,32 @@ const BecomeVendor = () => {
       
       await completeVendorOnboarding(vendorData);
       
-      // Redirect to vendor dashboard
-      navigate('/vendor');
+      // Redirect to success page
+      navigate('/vendor-registration-success', { 
+        state: { 
+          vendorRegistrationSuccess: true, 
+          requiresEmailVerification: needsAccountCreation,
+          userEmail: needsAccountCreation ? formData.email : currentUser?.email
+        },
+        replace: true
+      });
     } catch (error) {
       console.error('Vendor onboarding error:', error);
-      setError('Failed to complete vendor onboarding. Please try again.');
+      if (error.code === 'auth/email-already-in-use') {
+        setError('This email is already registered. Please sign in instead.');
+      } else if (error.code === 'auth/invalid-email') {
+        setError('Please enter a valid email address.');
+      } else if (error.code === 'auth/weak-password') {
+        setError('Password must be at least 6 characters.');
+      } else if (error.message?.includes('Failed to initialize user account')) {
+        setError('Account creation succeeded, but we had trouble setting up your vendor profile. Please try signing in and complete vendor registration again.');
+      } else {
+        setError(error.message || 'Failed to complete vendor registration. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
   };
-
-  if (!currentUser) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Please Sign In</h2>
-          <p className="text-gray-600 mb-6">You need to be signed in to become a vendor</p>
-          <button
-            onClick={() => navigate('/login')}
-            className="bg-emerald-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-emerald-700"
-          >
-            Sign In
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gray-50 py-12">
@@ -126,27 +178,41 @@ const BecomeVendor = () => {
         {/* Progress Bar */}
         <div className="mb-8">
           <div className="flex items-center justify-center space-x-4">
-            {[1, 2, 3].map((stepNumber) => (
-              <div key={stepNumber} className="flex items-center">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                  step >= stepNumber 
-                    ? 'bg-blue-600 text-white' 
-                    : 'bg-gray-200 text-gray-600'
-                }`}>
-                  {stepNumber}
+            {Array.from({ length: totalSteps }).map((_, index) => {
+              const stepNumber = index + 1;
+              return (
+                <div key={stepNumber} className="flex items-center">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                    step >= stepNumber 
+                      ? 'bg-blue-600 text-white' 
+                      : 'bg-gray-200 text-gray-600'
+                  }`}>
+                    {stepNumber}
+                  </div>
+                  {stepNumber < totalSteps && (
+                    <div className={`w-16 h-1 mx-2 ${
+                      step > stepNumber ? 'bg-blue-600' : 'bg-gray-200'
+                    }`} />
+                  )}
                 </div>
-                {stepNumber < 3 && (
-                  <div className={`w-16 h-1 mx-2 ${
-                    step > stepNumber ? 'bg-blue-600' : 'bg-gray-200'
-                  }`} />
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
           <div className="flex justify-between text-xs text-gray-500 mt-2">
-            <span>Business Info</span>
-            <span>Store Setup</span>
-            <span>Review</span>
+            {needsAccountCreation ? (
+              <>
+                <span>Account</span>
+                <span>Business Info</span>
+                <span>Store Setup</span>
+                <span>Review</span>
+              </>
+            ) : (
+              <>
+                <span>Business Info</span>
+                <span>Store Setup</span>
+                <span>Review</span>
+              </>
+            )}
           </div>
         </div>
 
@@ -158,8 +224,81 @@ const BecomeVendor = () => {
             </div>
           )}
 
-          {/* Step 1: Business Information */}
-          {step === 1 && (
+          {/* Step 1: Account Registration (if not logged in) */}
+          {step === 1 && needsAccountCreation && (
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">Create Your Account</h2>
+                <p className="text-gray-600 mb-6">Let's get you set up as a vendor on Ojawa</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Email Address *
+                </label>
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Enter your email"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Display Name *
+                </label>
+                <input
+                  type="text"
+                  name="displayName"
+                  value={formData.displayName}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Your full name"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Password *
+                </label>
+                <input
+                  type="password"
+                  name="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="At least 6 characters"
+                />
+                <p className="text-xs text-gray-500 mt-1">Minimum 6 characters required</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Confirm Password *
+                </label>
+                <input
+                  type="password"
+                  name="passwordConfirm"
+                  value={formData.passwordConfirm}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Re-enter your password"
+                />
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-800">
+                  Already have an account? <a href="/login" className="font-semibold text-blue-600 hover:text-blue-700">Sign in here</a>
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Step 1/2: Business Information */}
+          {((step === 2 && needsAccountCreation) || (step === 1 && !needsAccountCreation)) && (
             <div className="space-y-6">
               <div>
                 <h2 className="text-xl font-semibold text-gray-900 mb-4">Business Information</h2>
@@ -240,8 +379,8 @@ const BecomeVendor = () => {
             </div>
           )}
 
-          {/* Step 2: Store Setup */}
-          {step === 2 && (
+          {/* Step 2/3: Store Setup */}
+          {((step === 3 && needsAccountCreation) || (step === 2 && !needsAccountCreation)) && (
             <div className="space-y-6">
               <div>
                 <h2 className="text-xl font-semibold text-gray-900 mb-4">Store Setup</h2>
@@ -299,8 +438,8 @@ const BecomeVendor = () => {
             </div>
           )}
 
-          {/* Step 3: Review */}
-          {step === 3 && (
+          {/* Step 3/4: Review */}
+          {((step === 4 && needsAccountCreation) || (step === 3 && !needsAccountCreation)) && (
             <div className="space-y-6">
               <div>
                 <h2 className="text-xl font-semibold text-gray-900 mb-4">Review & Submit</h2>
@@ -393,7 +532,7 @@ const BecomeVendor = () => {
                 Cancel
               </button>
               
-              {step < 3 ? (
+              {step < totalSteps ? (
                 <button
                   onClick={handleNext}
                   className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"

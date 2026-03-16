@@ -83,6 +83,7 @@ const PricingAdminPanel = lazyLoad(() => import('./components/PricingAdminPanel'
 // Vendor pages (separate chunk)
 const Vendor = lazyLoad(() => import('./pages/Vendor'));
 const BecomeVendor = lazyLoad(() => import('./pages/BecomeVendor'));
+const VendorRegistrationSuccess = lazyLoad(() => import('./pages/VendorRegistrationSuccess'));
 const StoreManager = lazyLoad(() => import('./components/StoreManager'));
 
 // Logistics pages (separate chunk)
@@ -392,6 +393,11 @@ const AppRoutes = () => {
       <Route path="/become-vendor" element={
         <Suspense fallback={<RouteLoadingSpinner route="default" />}>
           <BecomeVendor />
+        </Suspense>
+      } />
+      <Route path="/vendor-registration-success" element={
+        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+          <VendorRegistrationSuccess />
         </Suspense>
       } />
       <Route path="/become-logistics" element={
