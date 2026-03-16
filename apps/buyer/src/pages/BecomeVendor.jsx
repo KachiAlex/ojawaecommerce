@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import AddressInput from '../components/AddressInput';
@@ -7,8 +7,14 @@ const BecomeVendor = () => {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [ready, setReady] = useState(false);
   const { completeVendorOnboarding, currentUser, signup } = useAuth();
   const navigate = useNavigate();
+
+  // Ensure component renders immediately without auth checks
+  useEffect(() => {
+    setReady(true);
+  }, []);
 
   const [formData, setFormData] = useState({
     // Account registration fields (if not logged in)
@@ -163,6 +169,15 @@ const BecomeVendor = () => {
     }
   };
 
+  // Show loading while component initializes
+  if (!ready) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 py-12">
       <div className="max-w-2xl mx-auto px-4">
@@ -288,6 +303,33 @@ const BecomeVendor = () => {
                   placeholder="Re-enter your password"
                 />
               </div>
+
+              {/* Google Sign-In Alternative */}
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-300"></div>
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-white text-gray-500">Or continue with</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  // TODO: Implement Google Sign-In
+                  setError('Google Sign-In coming soon! Use email/password for now.');
+                }}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium flex items-center justify-center gap-2 transition-colors"
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24">
+                  <image href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%234285F4' d='M10.5 19.5c4.41 0 8-2.238 8-5s-3.59-5-8-5-8 2.238-8 5 3.59 5 8 5zm0-8c2.21 0 4 1.34 4 3s-1.79 3-4 3-4-1.34-4-3 1.79-3 4-3z'/%3E%3C/svg%3E" />
+                  <g transform="translate(4,4)">
+                    <rect fill="#4285F4" width="4" height="4" x="0" y="0" rx="1"/>
+                  </g>
+                </svg>
+                <span>Sign up with Google</span>
+              </button>
 
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <p className="text-sm text-blue-800">

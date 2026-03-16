@@ -4,7 +4,7 @@
  * Prevents XSS data theft and provides secure storage
  */
 
-import { secureStorage } from './secureStorage';
+import secureStorage from './secureStorage';
 
 class SecureLocalStorage {
   constructor() {
