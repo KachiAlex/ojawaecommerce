@@ -616,91 +616,6 @@ const HomeOjawa = () => {
         )}
 
         <div className="app-content py-6 lg:py-10 space-y-6 lg:space-y-10">
-          <div className="lg:hidden space-y-3">
-            <button
-              onClick={() => setIsMobileFiltersOpen(true)}
-              className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-semibold shadow-lg hover:from-emerald-400 hover:to-teal-400 transition-colors"
-            >
-              <span>🔍</span> Filters & search
-            </button>
-            <form
-              onSubmit={handleHeroSearchSubmit}
-              className="bg-slate-900/70 border border-teal-800/40 rounded-2xl p-4 space-y-3 text-white"
-            >
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="sm:col-span-2">
-                  <label className="text-xs text-teal-200 block mb-1">
-                    Product or keyword
-                  </label>
-                  <input
-                    type="text"
-                    value={heroSearch.query}
-                    onChange={(e) => handleHeroSearchChange("query", e.target.value)}
-                    placeholder="Search verified vendors, items, brands..."
-                    className="w-full px-3 py-2 bg-slate-800/60 border border-emerald-800 rounded-xl text-sm text-white placeholder-teal-500 focus:outline-none focus:ring-2 focus:ring-emerald-400"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-teal-200 block mb-1">Category</label>
-                  <select
-                    value={heroSearch.category}
-                    onChange={(e) => handleHeroSearchChange("category", e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-800/60 border border-emerald-800 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-400"
-                  >
-                    <option value="">All categories</option>
-                    {categories.map((category) => (
-                      <option key={category} value={category}>
-                        {category}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex gap-3">
-                  <input
-                    type="number"
-                    min="0"
-                    value={heroSearch.priceMin}
-                    onChange={(e) => handleHeroSearchChange("priceMin", e.target.value)}
-                    placeholder="Min ₦"
-                    className="flex-1 px-3 py-2 bg-slate-800/60 border border-emerald-800 rounded-xl text-sm text-white placeholder-teal-500 focus:outline-none focus:ring-2 focus:ring-emerald-400"
-                  />
-                  <input
-                    type="number"
-                    min="0"
-                    value={heroSearch.priceMax}
-                    onChange={(e) => handleHeroSearchChange("priceMax", e.target.value)}
-                    placeholder="Max ₦"
-                    className="flex-1 px-3 py-2 bg-slate-800/60 border border-emerald-800 rounded-xl text-sm text-white placeholder-teal-500 focus:outline-none focus:ring-2 focus:ring-emerald-400"
-                  />
-                </div>
-              </div>
-              <label className="inline-flex items-center gap-2 text-sm text-teal-100">
-                <input
-                  type="checkbox"
-                  checked={heroSearch.express}
-                  onChange={(e) => handleHeroSearchChange("express", e.target.checked)}
-                  className="h-4 w-4 rounded border-teal-500 text-emerald-400 focus:ring-emerald-400"
-                />
-                Prefer Ojawa Express delivery (24-48h)
-              </label>
-              <div className="flex flex-col sm:flex-row gap-2">
-                <button
-                  type="button"
-                  onClick={handleHeroSearchReset}
-                  className="w-full sm:w-auto px-4 py-2 rounded-xl border border-teal-500/40 text-teal-100 text-sm hover:bg-teal-900/40 transition-colors"
-                >
-                  Reset
-                </button>
-                <button
-                  type="submit"
-                  className="w-full sm:w-auto px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-500 text-slate-950 font-semibold text-sm shadow-lg hover:from-emerald-300 hover:to-teal-400 transition-all"
-                >
-                  Apply filters
-                </button>
-              </div>
-            </form>
-          </div>
-
           <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)_260px]">
             {/* Filter Sidebar - desktop */}
             <aside className="hidden lg:block">
@@ -902,6 +817,92 @@ const HomeOjawa = () => {
               )}
             </div>
           </aside>
+
+            {/* Mobile Filters & Search - Appears below hero on mobile */}
+            <div className="lg:hidden order-last space-y-3 col-span-full">
+              <button
+                onClick={() => setIsMobileFiltersOpen(true)}
+                className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-semibold shadow-lg hover:from-emerald-400 hover:to-teal-400 transition-colors"
+              >
+                <span>🔍</span> Filters & search
+              </button>
+              <form
+                onSubmit={handleHeroSearchSubmit}
+                className="bg-slate-900/70 border border-teal-800/40 rounded-2xl p-4 space-y-3 text-white"
+              >
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="sm:col-span-2">
+                    <label className="text-xs text-teal-200 block mb-1">
+                      Product or keyword
+                    </label>
+                    <input
+                      type="text"
+                      value={heroSearch.query}
+                      onChange={(e) => handleHeroSearchChange("query", e.target.value)}
+                      placeholder="Search verified vendors, items, brands..."
+                      className="w-full px-3 py-2 bg-slate-800/60 border border-emerald-800 rounded-xl text-sm text-white placeholder-teal-500 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-teal-200 block mb-1">Category</label>
+                    <select
+                      value={heroSearch.category}
+                      onChange={(e) => handleHeroSearchChange("category", e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-800/60 border border-emerald-800 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                    >
+                      <option value="">All categories</option>
+                      {categories.map((category) => (
+                        <option key={category} value={category}>
+                          {category}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex gap-3">
+                    <input
+                      type="number"
+                      min="0"
+                      value={heroSearch.priceMin}
+                      onChange={(e) => handleHeroSearchChange("priceMin", e.target.value)}
+                      placeholder="Min ₦"
+                      className="flex-1 px-3 py-2 bg-slate-800/60 border border-emerald-800 rounded-xl text-sm text-white placeholder-teal-500 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      value={heroSearch.priceMax}
+                      onChange={(e) => handleHeroSearchChange("priceMax", e.target.value)}
+                      placeholder="Max ₦"
+                      className="flex-1 px-3 py-2 bg-slate-800/60 border border-emerald-800 rounded-xl text-sm text-white placeholder-teal-500 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                    />
+                  </div>
+                </div>
+                <label className="inline-flex items-center gap-2 text-sm text-teal-100">
+                  <input
+                    type="checkbox"
+                    checked={heroSearch.express}
+                    onChange={(e) => handleHeroSearchChange("express", e.target.checked)}
+                    className="h-4 w-4 rounded border-teal-500 text-emerald-400 focus:ring-emerald-400"
+                  />
+                  Prefer Ojawa Express delivery (24-48h)
+                </label>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <button
+                    type="button"
+                    onClick={handleHeroSearchReset}
+                    className="w-full sm:w-auto px-4 py-2 rounded-xl border border-teal-500/40 text-teal-100 text-sm hover:bg-teal-900/40 transition-colors"
+                  >
+                    Reset
+                  </button>
+                  <button
+                    type="submit"
+                    className="w-full sm:w-auto px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-500 text-slate-950 font-semibold text-sm shadow-lg hover:from-emerald-300 hover:to-teal-400 transition-all"
+                  >
+                    Apply filters
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       </section>

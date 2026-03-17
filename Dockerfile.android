@@ -1,0 +1,96 @@
+# Multi-stage Docker build for Ojawa Android APK
+# Stage 1: Build the React web app
+FROM node:22-alpine AS web-builder
+
+WORKDIR /app
+
+# Copy package files
+COPY package.json package-lock.json ./
+COPY apps/buyer/package.json apps/buyer/package-lock.json ./apps/buyer/
+
+# Install dependencies
+RUN npm install
+RUN cd apps/buyer && npm install
+
+# Copy source code
+COPY apps/buyer ./apps/buyer
+COPY . .
+
+# Build web app for production
+WORKDIR /app/apps/buyer
+RUN npm run build
+
+# Stage 2: Build Android APK
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+ENV ANDROID_HOME=/opt/android-sdk
+ENV PATH=$ANDROID_HOME/tools:$ANDROID_HOME/tools/bin:$ANDROID_HOME/platform-tools:$JAVA_HOME/bin:$PATH
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    openjdk-21-jdk \
+    wget \
+    curl \
+    git \
+    unzip \
+    nano \
+    --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# Download Android SDK
+RUN mkdir -p $ANDROID_HOME && \
+    cd $ANDROID_HOME && \
+    wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip && \
+    unzip -q commandlinetools-linux-11076708_latest.zip && \
+    rm commandlinetools-linux-11076708_latest.zip && \
+    mv cmdline-tools latest && \
+    mkdir -p cmdline-tools && \
+    mv latest cmdline-tools/
+
+# Accept Android licenses and install SDK platforms
+RUN echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platforms;android-35" && \
+    echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platforms;android-34" && \
+    echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "build-tools;35.0.0" && \
+    echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "ndk;26.1.10909125"
+
+WORKDIR /app
+
+# Copy built web files from stage 1
+COPY --from=web-builder /app/apps/buyer/dist ./apps/buyer/dist
+
+# Copy entire project
+COPY . .
+
+# Install npm dependencies
+RUN npm install
+WORKDIR /app/apps/buyer
+RUN npm install
+
+# Sync Capacitor with Android
+RUN npx cap sync android
+
+# Build Android APK (release)
+WORKDIR /app/apps/buyer/android
+RUN chmod +x gradlew && \
+    ./gradlew clean && \
+    ./gradlew assembleRelease --no-daemon
+
+# Stage 3: Output APK
+FROM alpine:latest
+
+WORKDIR /output
+
+# Copy built APK from stage 2
+COPY --from=1 /app/apps/buyer/android/app/build/outputs/apk/release/ ./apks/
+
+# List all generated APKs
+RUN ls -lah /output/apks/ 2>/dev/null || echo "No APKs generated"
+
+CMD ["/bin/sh", "-c", "echo 'APK build complete!' && ls -lah /output/apks/ 2>/dev/null || echo 'No APKs found'"]

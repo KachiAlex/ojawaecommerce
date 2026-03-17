@@ -12,6 +12,7 @@
     "firebase-admin": "^13.5.0"
   },
   "devDependencies": {
-    "@playwright/test": "^1.57.0"
+    "@playwright/test": "^1.57.0",
+    "firebase-tools": "^15.10.1"
   }
 }
