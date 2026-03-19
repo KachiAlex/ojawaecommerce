@@ -371,6 +371,56 @@ service cloud.firestore {
              allow list: if isAdmin() || isAuthenticated();
            }
 
+           // Analytics events collection - Any user can create events (including unauthenticated for page tracking)
+           match /analytics_events/{eventId} {
+             // Allow anyone to create analytics events (including unauthenticated users)
+             allow create: if true;
+             // Allow read for admins only
+             allow read: if isAdmin();
+             // Allow update/delete only for admins
+             allow update, delete: if isAdmin();
+             // Allow list for admins only
+             allow list: if isAdmin();
+           }
+
+           // Error logs collection - Any user can create error logs
+           match /error_logs/{errorId} {
+             // Allow anyone to create error logs
+             allow create: if true;
+             // Allow read for admins only
+             allow read: if isAdmin();
+             // Allow update/delete only for admins
+             allow update, delete: if isAdmin();
+             // Allow list for admins only
+             allow list: if isAdmin();
+           }
+
+           // Performance metrics collection - Any user can create metrics
+           match /performance_metrics/{metricId} {
+             // Allow anyone to create performance metrics
+             allow create: if true;
+             // Allow read for admins only
+             allow read: if isAdmin();
+             // Allow update/delete only for admins
+             allow update, delete: if isAdmin();
+             // Allow list for admins only
+             allow list: if isAdmin();
+           }
+
+           // User sessions collection - Any user can create sessions
+           match /user_sessions/{sessionId} {
+             // Allow anyone to create sessions
+             allow create: if true;
+             // Allow read for own session or admins
+             allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+             // Allow update for own session or admins
+             allow update: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+             // Allow delete only for admins
+             allow delete: if isAdmin();
+             // Allow list for admins only
+             allow list: if isAdmin();
+           }
+
            // Support tickets collection - users can create and read their own tickets, admins can read/update all
            match /support_tickets/{ticketId} {
              // Allow authenticated users to create tickets

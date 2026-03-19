@@ -106,7 +106,7 @@ export const adminAnalyticsService = {
       const action = {
         actionType: actionData.actionType, // e.g., 'button_click', 'form_submit', 'page_view'
         actionName: actionData.actionName,
-        userId: actionData.userId,
+        ...(actionData.userId && { userId: actionData.userId }),
         timestamp: serverTimestamp(),
         metadata: actionData.metadata || {},
         sessionId: this.getSessionId(),
