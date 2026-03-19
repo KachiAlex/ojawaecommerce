@@ -87,43 +87,50 @@ const CheckoutForm = ({ total, pricingBreakdown, cartItems, onSuccess, orderDeta
   };
 
   const createOrderWithEscrow = async () => {
-    try {
-      const { httpsCallable } = await import('firebase/functions');
-      const { functions } = await import('../firebase/config');
-      const createEscrowOrder = httpsCallable(functions, 'createEscrowOrder');
+    const idToken = await currentUser.getIdToken();
 
-      const requestPayload = {
-        totalAmount: total,
-        currency: currencyCode,
-        cartItems,
-        deliveryOption: orderDetails.deliveryOption,
-        deliveryAddress: orderDetails.buyerAddress || '',
-        selectedLogistics: orderDetails.selectedLogistics,
-        pricing: {
-          subtotal: orderDetails.subtotal,
-          deliveryFee: orderDetails.deliveryFee,
-          ojawaCommission: orderDetails.ojawaCommission,
-          serviceFee: orderDetails.pricingBreakdown?.serviceFee,
-          vat: orderDetails.pricingBreakdown?.vat,
-        },
-        buyerInfo: {
-          email: currentUser.email,
-          name: currentUser.displayName || 'Customer',
-        },
-      };
+    const requestPayload = {
+      totalAmount: total,
+      currency: currencyCode,
+      cartItems,
+      deliveryOption: orderDetails.deliveryOption,
+      deliveryAddress: orderDetails.buyerAddress || '',
+      selectedLogistics: orderDetails.selectedLogistics,
+      pricing: {
+        subtotal: orderDetails.subtotal,
+        deliveryFee: orderDetails.deliveryFee,
+        ojawaCommission: orderDetails.ojawaCommission,
+        serviceFee: orderDetails.pricingBreakdown?.serviceFee,
+        vat: orderDetails.pricingBreakdown?.vat,
+      },
+      buyerInfo: {
+        email: currentUser.email,
+        name: currentUser.displayName || 'Customer',
+      },
+    };
 
-      const response = await createEscrowOrder(requestPayload);
-      const orderId = response?.data?.orderId;
+    const response = await fetch('/api/createEscrowOrder', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({ data: requestPayload }),
+    });
 
-      if (!orderId) {
-        throw new Error('Order creation failed');
-      }
-
-      return orderId;
-    } catch (error) {
-      console.error('Error creating order via Cloud Function:', error);
-      throw error;
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData?.error?.message || 'Order creation failed');
     }
+
+    const result = await response.json();
+    const orderId = result?.result?.orderId;
+
+    if (!orderId) {
+      throw new Error('Order creation failed');
+    }
+
+    return orderId;
   };
 
   if (testModeEnabled) {

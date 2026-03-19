@@ -1,4 +1,41 @@
 // --- Admin Middleware ---
+const express = require('express');
+const admin = require('firebase-admin');
+const axios = require('axios');
+const cors = require('cors');
+
+// Initialize Firebase Admin
+admin.initializeApp();
+const db = admin.firestore();
+const FieldValue = admin.firestore.FieldValue;
+
+const app = express();
+app.use(express.json());
+app.use(cors({
+  origin: ['https://ojawa.africa', 'https://www.ojawa.africa', 'https://ojawa-ecommerce.web.app', 'https://ojawa-ecommerce-staging.web.app'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+}));
+
+// --- Middleware to verify Firebase ID token ---
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.startsWith('Bearer ')
+    ? authHeader.split(' ')[1]
+    : null;
+  if (!token) {
+    return res.status(401).json({ error: 'No token provided' });
+  }
+  admin.auth().verifyIdToken(token)
+    .then((decodedToken) => {
+      req.user = decodedToken;
+      next();
+    })
+    .catch(() => res.status(401).json({ error: 'Invalid or expired token' }));
+}
+
+// --- Admin Middleware ---
 function requireAdmin(req, res, next) {
   const user = req.user;
   if (user && (user.admin || user.isAdmin || (user.role && user.role.includes && user.role.includes('admin')))) {
@@ -7,52 +44,76 @@ function requireAdmin(req, res, next) {
   return res.status(403).json({ error: 'Admin privileges required' });
 }
 
-// --- Admin: List all orders ---
-app.get('/admin/orders', authenticateToken, requireAdmin, async (req, res) => {
+// Paystack IP Whitelisting Middleware
+const PAYSTACK_IPS = [
+  '52.31.139.75',
+  '52.49.173.169',
+  '52.214.14.220'
+];
+
+function paystackIpWhitelist(req, res, next) {
+  const forwarded = req.headers['x-forwarded-for'];
+  const remoteIp = req.connection.remoteAddress;
+  const requestIp = (forwarded ? forwarded.split(',')[0] : remoteIp) || '';
+  if (PAYSTACK_IPS.some(ip => requestIp.includes(ip))) {
+    return next();
+  }
+  return res.status(403).send('Forbidden: Invalid IP');
+}
+
+// --- Health Check ---
+app.get('/', (req, res) => {
+  res.send('Ojawa backend running on Render!');
+});
+
+// --- User Sign Up Route ---
+app.post('/signup', async (req, res) => {
   try {
-    const snapshot = await db.collection('orders').orderBy('createdAt', 'desc').get();
-    const orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    res.json({ orders });
+    const { email, password, displayName } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+    const userRecord = await admin.auth().createUser({ email, password, displayName });
+    return res.json({ success: true, uid: userRecord.uid, email: userRecord.email });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    return res.status(400).json({ error: error.message });
   }
 });
 
-// --- Admin: List all products ---
-app.get('/admin/products', authenticateToken, requireAdmin, async (req, res) => {
+// --- User Login Route (Firebase Auth REST API) ---
+app.post('/login', async (req, res) => {
   try {
-    const snapshot = await db.collection('products').get();
-    const products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    res.json({ products });
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+    const apiKey = process.env.FIREBASE_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ error: 'FIREBASE_API_KEY not set in environment' });
+    }
+    const response = await axios.post(
+      `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${apiKey}`,
+      { email, password, returnSecureToken: true }
+    );
+    const { idToken, refreshToken, expiresIn, localId } = response.data;
+    return res.json({ success: true, idToken, refreshToken, expiresIn, uid: localId });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    const msg = error.response?.data?.error?.message || error.message;
+    return res.status(401).json({ error: msg });
   }
 });
 
-// --- Admin: Update product ---
-app.put('/admin/products/:id', authenticateToken, requireAdmin, async (req, res) => {
+// --- Profile ---
+app.get('/profile', authenticateToken, async (req, res) => {
   try {
-    const { id } = req.params;
-    const update = req.body;
-    await db.collection('products').doc(id).set(update, { merge: true });
-    res.json({ success: true });
+    const userRecord = await admin.auth().getUser(req.user.uid);
+    res.json({ uid: userRecord.uid, email: userRecord.email, ...userRecord });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(404).json({ error: 'User not found' });
   }
 });
 
-// --- Admin: Delete product ---
-app.delete('/admin/products/:id', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-    await db.collection('products').doc(id).delete();
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// --- Notifications: Get user notifications ---
+// --- Notifications ---
 app.get('/notifications', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.uid;
@@ -63,6 +124,7 @@ app.get('/notifications', authenticateToken, async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
 // --- Product Listing ---
 app.get('/products', async (req, res) => {
   try {
@@ -74,7 +136,7 @@ app.get('/products', async (req, res) => {
   }
 });
 
-// --- Cart Management (protected) ---
+// --- Cart Management ---
 app.get('/cart', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.uid;
@@ -107,7 +169,131 @@ app.delete('/cart', authenticateToken, async (req, res) => {
   }
 });
 
-// --- Order Placement (protected, escrow-backed) ---
+// --- Create Escrow Order ---
+app.post('/createEscrowOrder', authenticateToken, async (req, res) => {
+  try {
+    const buyerId = req.user.uid;
+    const {
+      totalAmount,
+      currency = 'NGN',
+      cartItems = [],
+      deliveryOption = 'standard',
+      deliveryAddress = '',
+      deliveryInstructions = '',
+      selectedLogistics = null,
+      pricing = {},
+      buyerInfo = {},
+      metadata = {},
+    } = req.body.data || req.body;
+
+    if (!totalAmount || Number(totalAmount) <= 0) {
+      return res.status(400).json({ error: { message: 'totalAmount must be a positive number' } });
+    }
+    if (!Array.isArray(cartItems) || cartItems.length === 0) {
+      return res.status(400).json({ error: { message: 'cartItems must include at least one item' } });
+    }
+
+    const walletQuery = await db.collection('wallets').where('userId', '==', buyerId).limit(1).get();
+    if (walletQuery.empty) {
+      return res.status(400).json({ error: { message: 'Wallet not found. Please fund your wallet first.' } });
+    }
+    const walletRef = walletQuery.docs[0].ref;
+
+    const orderResult = await db.runTransaction(async (transaction) => {
+      const walletSnapshot = await transaction.get(walletRef);
+      if (!walletSnapshot.exists) throw new Error('Wallet not found');
+
+      const walletData = walletSnapshot.data() || {};
+      const currentBalance = Number(walletData.balance || 0);
+      const amountToDebit = Number(totalAmount);
+
+      if (currentBalance < amountToDebit) throw new Error('Insufficient wallet balance');
+
+      const orderRef = db.collection('orders').doc();
+      const walletTxnRef = db.collection('wallet_transactions').doc();
+      const newBalance = currentBalance - amountToDebit;
+
+      const normalizedItems = cartItems.map((item) => ({
+        id: item.id || item.productId || null,
+        name: item.name || 'Item',
+        price: Number(item.price || 0),
+        quantity: Number(item.quantity || 1),
+        vendorId: item.vendorId || null,
+        currency: item.currency || currency,
+        metadata: item.metadata || null,
+      }));
+
+      const orderPayload = {
+        id: orderRef.id,
+        buyerId,
+        buyerEmail: buyerInfo.email || req.user.email || null,
+        buyerName: buyerInfo.name || req.user.name || null,
+        cartItems: normalizedItems,
+        deliveryOption,
+        deliveryAddress,
+        deliveryInstructions,
+        selectedLogistics,
+        pricingBreakdown: pricing,
+        totalAmount: amountToDebit,
+        currency,
+        status: 'pending_vendor_confirmation',
+        fulfillmentStatus: 'pending',
+        paymentStatus: 'escrow_hold',
+        paymentMethod: 'wallet_escrow',
+        escrowStatus: 'funds_on_hold',
+        escrowAmount: amountToDebit,
+        walletTransactionId: walletTxnRef.id,
+        metadata,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+
+      transaction.set(orderRef, orderPayload);
+      transaction.update(walletRef, { balance: newBalance, updatedAt: FieldValue.serverTimestamp() });
+      transaction.set(walletTxnRef, {
+        walletId: walletRef.id,
+        userId: buyerId,
+        type: 'debit',
+        orderId: orderRef.id,
+        amount: amountToDebit,
+        description: `Escrow hold for order ${orderRef.id}`,
+        status: 'completed',
+        balanceBefore: currentBalance,
+        balanceAfter: newBalance,
+        currency,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+
+      return { orderId: orderRef.id, walletTransactionId: walletTxnRef.id, balanceAfter: newBalance };
+    });
+
+    // Notify buyer (best-effort)
+    db.collection('notifications').add({
+      userId: buyerId,
+      type: 'order_created',
+      title: 'Order Created',
+      message: `Your order ${orderResult.orderId} has been created and funds are held in escrow.`,
+      orderId: orderResult.orderId,
+      read: false,
+      createdAt: FieldValue.serverTimestamp(),
+    }).catch((e) => console.warn('Notification failed:', e));
+
+    return res.json({
+      result: {
+        success: true,
+        orderId: orderResult.orderId,
+        walletTransactionId: orderResult.walletTransactionId,
+        escrowStatus: 'funds_on_hold',
+        remainingBalance: orderResult.balanceAfter,
+      },
+    });
+  } catch (error) {
+    console.error('Error creating escrow order:', error);
+    return res.status(500).json({ error: { message: error.message || 'Failed to create escrow order' } });
+  }
+});
+
+// --- Order Placement (legacy, simple) ---
 app.post('/orders', authenticateToken, async (req, res) => {
   try {
     const buyerId = req.user.uid;
@@ -128,8 +314,8 @@ app.post('/orders', authenticateToken, async (req, res) => {
       buyerInfo: buyerInfo || {},
       metadata: metadata || {},
       status: 'pending_payment',
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     };
     await orderRef.set(orderPayload);
     res.json({ success: true, orderId: orderRef.id });
@@ -138,7 +324,7 @@ app.post('/orders', authenticateToken, async (req, res) => {
   }
 });
 
-// --- Order History (protected) ---
+// --- Order History ---
 app.get('/orders', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.uid;
@@ -150,51 +336,57 @@ app.get('/orders', authenticateToken, async (req, res) => {
   }
 });
 
-const express = require('express');
-const admin = require('firebase-admin');
-const axios = require('axios');
-const cors = require('cors');
-
-// Initialize Firebase Admin
-admin.initializeApp();
-const db = admin.firestore();
-
-const app = express();
-app.use(express.json());
-app.use(cors());
-
-// Paystack IP Whitelisting Middleware
-const PAYSTACK_IPS = [
-  '52.31.139.75',
-  '52.49.173.169',
-  '52.214.14.220'
-];
-
-function paystackIpWhitelist(req, res, next) {
-  const forwarded = req.headers['x-forwarded-for'];
-  const remoteIp = req.connection.remoteAddress;
-  const requestIp = (forwarded ? forwarded.split(',')[0] : remoteIp) || '';
-  if (PAYSTACK_IPS.some(ip => requestIp.includes(ip))) {
-    return next();
+// --- Admin Routes ---
+app.get('/admin/orders', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const snapshot = await db.collection('orders').orderBy('createdAt', 'desc').get();
+    const orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    res.json({ orders });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
-  return res.status(403).send('Forbidden: Invalid IP');
-}
+});
 
-// Example Paystack webhook route with IP whitelisting
+app.get('/admin/products', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const snapshot = await db.collection('products').get();
+    const products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    res.json({ products });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/admin/products/:id', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await db.collection('products').doc(id).set(req.body, { merge: true });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/admin/products/:id', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await db.collection('products').doc(id).delete();
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- Paystack Webhook ---
 app.post('/paystack/webhook', paystackIpWhitelist, (req, res) => {
   // TODO: Handle webhook event
   res.status(200).send('Webhook received');
 });
 
-
-// Example: processPayoutRequest as Express route
-app.post('/processPayoutRequest', async (req, res) => {
+// --- Process Payout Request ---
+app.post('/processPayoutRequest', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    // Auth check (replace with your own logic)
-    const { auth, data } = req.body;
-    if (!auth || !auth.token || !auth.token.admin) {
-      return res.status(403).json({ error: 'Admin privileges required' });
-    }
+    const { data } = req.body;
     const payoutRequestId = data?.payoutRequestId;
     if (!payoutRequestId) {
       return res.status(400).json({ error: 'payoutRequestId is required' });
@@ -203,9 +395,6 @@ app.post('/processPayoutRequest', async (req, res) => {
     if (!docSnapshot.exists) {
       return res.status(404).json({ error: 'Payout request not found' });
     }
-    // Call your existing logic here (refactor processPayoutRequestDocument to be reusable)
-    // const result = await processPayoutRequestDocument({ payoutRequestId, data: docSnapshot.data() });
-    // For now, just return success
     return res.json({ success: true, message: 'Stub: implement logic' });
   } catch (error) {
     console.error(error);
@@ -213,7 +402,7 @@ app.post('/processPayoutRequest', async (req, res) => {
   }
 });
 
-// Refactored: ensureWalletForUser as Express route
+// --- Ensure Wallet For User ---
 app.post('/ensureWalletForUser', async (req, res) => {
   try {
     const { adminSecret, userId, userType = 'buyer', currency = 'NGN' } = req.body;
@@ -227,10 +416,6 @@ app.post('/ensureWalletForUser', async (req, res) => {
     if (!userId) {
       return res.status(400).json({ error: 'userId is required' });
     }
-    // Import or inline ensureWalletDocument and sanitizeWalletForResponse from index.js
-    // For now, stub response:
-    // const walletDoc = await ensureWalletDocument({ userId, userType, currency });
-    // const wallet = sanitizeWalletForResponse(walletDoc ? { id: walletDoc.id, ...walletDoc } : null);
     return res.json({ success: true, message: 'Stub: implement logic' });
   } catch (error) {
     console.error(error);
@@ -238,86 +423,7 @@ app.post('/ensureWalletForUser', async (req, res) => {
   }
 });
 
-// Health check
-app.get('/', (req, res) => {
-  res.send('Ojawa backend running on Render!');
-});
-
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
-});
-
-
-// --- User Sign Up Route ---
-app.post('/signup', async (req, res) => {
-  try {
-    const { email, password, displayName } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required' });
-    }
-    const userRecord = await admin.auth().createUser({
-      email,
-      password,
-      displayName,
-    });
-    return res.json({ success: true, uid: userRecord.uid, email: userRecord.email });
-  } catch (error) {
-    return res.status(400).json({ error: error.message });
-  }
-});
-
-
-// --- User Login Route (Firebase Auth REST API) ---
-app.post('/login', async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required' });
-    }
-    const apiKey = process.env.FIREBASE_API_KEY;
-    if (!apiKey) {
-      return res.status(500).json({ error: 'FIREBASE_API_KEY not set in environment' });
-    }
-    const response = await axios.post(
-      `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${apiKey}`,
-      {
-        email,
-        password,
-        returnSecureToken: true
-      }
-    );
-    const { idToken, refreshToken, expiresIn, localId } = response.data;
-    return res.json({ success: true, idToken, refreshToken, expiresIn, uid: localId });
-  } catch (error) {
-    const msg = error.response?.data?.error?.message || error.message;
-    return res.status(401).json({ error: msg });
-  }
-});
-
-// --- Middleware to verify Firebase ID token ---
-function authenticateToken(req, res, next) {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.startsWith('Bearer ')
-    ? authHeader.split(' ')[1]
-    : null;
-  if (!token) {
-    return res.status(401).json({ error: 'No token provided' });
-  }
-  admin.auth().verifyIdToken(token)
-    .then((decodedToken) => {
-      req.user = decodedToken;
-      next();
-    })
-    .catch(() => res.status(401).json({ error: 'Invalid or expired token' }));
-}
-
-// --- Example protected route ---
-app.get('/profile', authenticateToken, async (req, res) => {
-  try {
-    const userRecord = await admin.auth().getUser(req.user.uid);
-    res.json({ uid: userRecord.uid, email: userRecord.email, ...userRecord });
-  } catch (error) {
-    res.status(404).json({ error: 'User not found' });
-  }
 });
