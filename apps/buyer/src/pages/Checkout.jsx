@@ -587,7 +587,7 @@ const Checkout = () => {
           </div>
 
           {/* Delivery Summary */}
-          {deliveryOption === 'delivery' && calculatedDeliveryFee > 0 && selectedPartner && (
+          {deliveryOption === 'delivery' && calculatedDeliveryFee > 0 && routeInfo && (
             <div className="bg-teal-900/20 border border-teal-800/60 rounded-lg p-4 mb-6">
               <h3 className="text-sm font-semibold text-teal-200 mb-3">📦 Delivery Details</h3>
               
