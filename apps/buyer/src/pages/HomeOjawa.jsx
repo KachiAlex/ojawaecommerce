@@ -1502,6 +1502,110 @@ const HomeOjawa = () => {
         </section>
       )}
 
+      {/* Partnership Opportunities Section */}
+      <section className="py-16 bg-gradient-to-b from-slate-900 to-slate-950 border-t-2 border-teal-800/40">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+              Ready to Grow Your Business?
+            </h2>
+            <p className="text-lg text-teal-100/80 max-w-2xl mx-auto">
+              Join thousands of African vendors and logistics partners earning on Ojawa's secure marketplace
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Become a Vendor Card */}
+            <Link to="/become-vendor" className="group">
+              <div className="relative h-full rounded-2xl overflow-hidden bg-gradient-to-br from-emerald-900/40 to-teal-900/40 border border-emerald-600/50 hover:border-emerald-500/80 transition-all hover:shadow-2xl hover:shadow-emerald-900/50 p-8">
+                {/* Background decorative elements */}
+                <div className="absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity">
+                  <div className="absolute top-0 right-0 w-40 h-40 bg-emerald-500 rounded-full blur-3xl"></div>
+                </div>
+
+                <div className="relative z-10 flex flex-col h-full">
+                  <div className="text-6xl mb-4">🏪</div>
+                  
+                  <h3 className="text-2xl font-bold text-white mb-3 group-hover:text-emerald-300 transition-colors">
+                    Become a Vendor
+                  </h3>
+                  
+                  <p className="text-teal-100/80 mb-6 flex-grow">
+                    Start selling to thousands of buyers across Africa. Access verified customers, secure payments with escrow protection, and grow your business with Ojawa's trusted platform.
+                  </p>
+
+                  <div className="space-y-3 mb-6">
+                    <div className="flex items-start gap-3">
+                      <span className="text-emerald-400 font-bold">✓</span>
+                      <span className="text-sm text-teal-100">Verification in 24 hours</span>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <span className="text-emerald-400 font-bold">✓</span>
+                      <span className="text-sm text-teal-100">Escrow-protected payments</span>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <span className="text-emerald-400 font-bold">✓</span>
+                      <span className="text-sm text-teal-100">Pan-African customer base</span>
+                    </div>
+                  </div>
+
+                  <div className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 font-bold text-sm group-hover:from-emerald-400 group-hover:to-teal-400 transition-all transform group-hover:translate-y-[-2px]">
+                    Start Selling Now
+                    <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </Link>
+
+            {/* Become a Logistics Partner Card */}
+            <Link to="/become-logistics" className="group">
+              <div className="relative h-full rounded-2xl overflow-hidden bg-gradient-to-br from-amber-900/40 to-orange-900/40 border border-amber-600/50 hover:border-amber-500/80 transition-all hover:shadow-2xl hover:shadow-amber-900/50 p-8">
+                {/* Background decorative elements */}
+                <div className="absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity">
+                  <div className="absolute top-0 right-0 w-40 h-40 bg-amber-500 rounded-full blur-3xl"></div>
+                </div>
+
+                <div className="relative z-10 flex flex-col h-full">
+                  <div className="text-6xl mb-4">🚚</div>
+                  
+                  <h3 className="text-2xl font-bold text-white mb-3 group-hover:text-amber-300 transition-colors">
+                    Become a Logistics Partner
+                  </h3>
+                  
+                  <p className="text-teal-100/80 mb-6 flex-grow">
+                    Grow your delivery business with a steady stream of orders across Africa. Set your own rates, manage routes easily, and scale your logistics operation with Ojawa.
+                  </p>
+
+                  <div className="space-y-3 mb-6">
+                    <div className="flex items-start gap-3">
+                      <span className="text-amber-400 font-bold">✓</span>
+                      <span className="text-sm text-teal-100">Competitive rates & transparent pricing</span>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <span className="text-amber-400 font-bold">✓</span>
+                      <span className="text-sm text-teal-100">Flexible route management</span>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <span className="text-amber-400 font-bold">✓</span>
+                      <span className="text-sm text-teal-100">Pan-African opportunities</span>
+                    </div>
+                  </div>
+
+                  <div className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-bold text-sm group-hover:from-amber-400 group-hover:to-orange-400 transition-all transform group-hover:translate-y-[-2px]">
+                    Join Our Network
+                    <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </Link>
+          </div>
+        </div>
+      </section>
+
       <Footer />
 
       {/* Product Detail Modal */}
