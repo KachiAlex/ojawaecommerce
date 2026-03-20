@@ -665,7 +665,9 @@ const allowedOrigins = new Set([
   'https://ojawa-ecommerce.web.app',
   'https://ojawa-ecommerce.firebaseapp.com',
   'https://ojawa-ecommerce-staging.web.app',
-  'https://ojawa-ecommerce-staging.firebaseapp.com'
+  'https://ojawa-ecommerce-staging.firebaseapp.com',
+  'https://ojawa.africa',
+  'https://www.ojawa.africa'
 ]);
 
 const isLocalhostOrigin = (origin = '') =>
@@ -1070,156 +1072,216 @@ exports.sendOrderStatusUpdate = onCall(async (request) => {
   }
 });
 
-// Create escrow-backed order (wallet funds held in escrow)
-exports.createEscrowOrder = onCall({ cors: callableCors }, async (request) => {
-  const { auth, data } = request;
-
+const createEscrowOrderCore = async ({ auth, data }) => {
   if (!auth) {
     throw new HttpsError('unauthenticated', 'User must be authenticated to create an order');
   }
 
-  try {
-    const buyerId = auth.uid;
-    const {
-      totalAmount,
-      currency = 'NGN',
-      cartItems = [],
-      deliveryOption = 'standard',
-      deliveryAddress = '',
-      deliveryInstructions = '',
-      selectedLogistics = null,
-      pricing = {},
-      buyerInfo = {},
-      metadata = {},
-    } = data || {};
+  const buyerId = auth.uid;
+  const {
+    totalAmount,
+    currency = 'NGN',
+    cartItems = [],
+    deliveryOption = 'standard',
+    deliveryAddress = '',
+    deliveryInstructions = '',
+    selectedLogistics = null,
+    pricing = {},
+    buyerInfo = {},
+    metadata = {},
+  } = data || {};
 
-    if (!totalAmount || Number(totalAmount) <= 0) {
-      throw new HttpsError('invalid-argument', 'totalAmount must be a positive number');
+  if (!totalAmount || Number(totalAmount) <= 0) {
+    throw new HttpsError('invalid-argument', 'totalAmount must be a positive number');
+  }
+
+  if (!Array.isArray(cartItems) || cartItems.length === 0) {
+    throw new HttpsError('invalid-argument', 'cartItems must include at least one item');
+  }
+
+  const walletQuery = await db.collection('wallets')
+    .where('userId', '==', buyerId)
+    .limit(1)
+    .get();
+
+  if (walletQuery.empty) {
+    throw new HttpsError('failed-precondition', 'Wallet not found. Please fund your wallet first.');
+  }
+
+  const walletRef = walletQuery.docs[0].ref;
+
+  const orderResult = await db.runTransaction(async (transaction) => {
+    const walletSnapshot = await transaction.get(walletRef);
+    if (!walletSnapshot.exists) {
+      throw new HttpsError('failed-precondition', 'Wallet not found');
     }
 
-    if (!Array.isArray(cartItems) || cartItems.length === 0) {
-      throw new HttpsError('invalid-argument', 'cartItems must include at least one item');
+    const walletData = walletSnapshot.data() || {};
+    const currentBalance = Number(walletData.balance || 0);
+    const amountToDebit = Number(totalAmount);
+
+    if (currentBalance < amountToDebit) {
+      throw new HttpsError('failed-precondition', 'Insufficient wallet balance');
     }
 
-    const walletQuery = await db.collection('wallets')
-      .where('userId', '==', buyerId)
-      .limit(1)
-      .get();
+    const orderRef = db.collection('orders').doc();
+    const walletTxnRef = db.collection('wallet_transactions').doc();
+    const newBalance = currentBalance - amountToDebit;
 
-    if (walletQuery.empty) {
-      throw new HttpsError('failed-precondition', 'Wallet not found. Please fund your wallet first.');
-    }
+    const normalizedItems = cartItems.map((item) => ({
+      id: item.id || item.productId || null,
+      name: item.name || 'Item',
+      price: Number(item.price || 0),
+      quantity: Number(item.quantity || 1),
+      vendorId: item.vendorId || null,
+      currency: item.currency || currency,
+      metadata: item.metadata || null,
+    }));
 
-    const walletRef = walletQuery.docs[0].ref;
+    const orderPayload = {
+      id: orderRef.id,
+      buyerId,
+      buyerEmail: buyerInfo.email || auth.token?.email || null,
+      buyerName: buyerInfo.name || auth.token?.name || null,
+      cartItems: normalizedItems,
+      deliveryOption,
+      deliveryAddress,
+      deliveryInstructions,
+      selectedLogistics: selectedLogistics || null,
+      pricingBreakdown: pricing,
+      totalAmount: amountToDebit,
+      currency,
+      status: 'pending_vendor_confirmation',
+      fulfillmentStatus: 'pending',
+      paymentStatus: 'escrow_hold',
+      paymentMethod: 'wallet_escrow',
+      escrowStatus: 'funds_on_hold',
+      escrowAmount: amountToDebit,
+      walletTransactionId: walletTxnRef.id,
+      metadata,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    };
 
-    const orderResult = await db.runTransaction(async (transaction) => {
-      const walletSnapshot = await transaction.get(walletRef);
-      if (!walletSnapshot.exists) {
-        throw new HttpsError('failed-precondition', 'Wallet not found');
-      }
-
-      const walletData = walletSnapshot.data() || {};
-      const currentBalance = Number(walletData.balance || 0);
-      const amountToDebit = Number(totalAmount);
-
-      if (currentBalance < amountToDebit) {
-        throw new HttpsError('failed-precondition', 'Insufficient wallet balance');
-      }
-
-      const orderRef = db.collection('orders').doc();
-      const walletTxnRef = db.collection('wallet_transactions').doc();
-      const newBalance = currentBalance - amountToDebit;
-
-      const normalizedItems = cartItems.map((item) => ({
-        id: item.id || item.productId || null,
-        name: item.name || 'Item',
-        price: Number(item.price || 0),
-        quantity: Number(item.quantity || 1),
-        vendorId: item.vendorId || null,
-        currency: item.currency || currency,
-        metadata: item.metadata || null,
-      }));
-
-      const orderPayload = {
-        id: orderRef.id,
-        buyerId,
-        buyerEmail: buyerInfo.email || auth.token?.email || null,
-        buyerName: buyerInfo.name || auth.token?.name || null,
-        cartItems: normalizedItems,
-        deliveryOption,
-        deliveryAddress,
-        deliveryInstructions,
-        selectedLogistics: selectedLogistics || null,
-        pricingBreakdown: pricing,
-        totalAmount: amountToDebit,
-        currency,
-        status: 'pending_vendor_confirmation',
-        fulfillmentStatus: 'pending',
-        paymentStatus: 'escrow_hold',
-        paymentMethod: 'wallet_escrow',
-        escrowStatus: 'funds_on_hold',
-        escrowAmount: amountToDebit,
-        walletTransactionId: walletTxnRef.id,
-        metadata,
-        createdAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
-      };
-
-      transaction.set(orderRef, orderPayload);
-      transaction.update(walletRef, {
-        balance: newBalance,
-        updatedAt: FieldValue.serverTimestamp(),
-      });
-
-      transaction.set(walletTxnRef, {
-        walletId: walletRef.id,
-        userId: buyerId,
-        type: 'debit',
-        orderId: orderRef.id,
-        amount: amountToDebit,
-        description: `Escrow hold for order ${orderRef.id}`,
-        status: 'completed',
-        balanceBefore: currentBalance,
-        balanceAfter: newBalance,
-        currency,
-        createdAt: FieldValue.serverTimestamp(),
-      });
-
-      return {
-        orderId: orderRef.id,
-        walletTransactionId: walletTxnRef.id,
-        balanceAfter: newBalance,
-      };
+    transaction.set(orderRef, orderPayload);
+    transaction.update(walletRef, {
+      balance: newBalance,
+      updatedAt: FieldValue.serverTimestamp(),
     });
 
-    // Notify buyer that their order was created (best-effort, outside transaction)
-    try {
-      await db.collection('notifications').add({
-        userId: buyerId,
-        type: 'order_created',
-        title: 'Order Created',
-        message: `Your order ${orderResult.orderId} has been created and funds are held in escrow.`,
-        orderId: orderResult.orderId,
-        read: false,
-        createdAt: FieldValue.serverTimestamp(),
-      });
-    } catch (notifyError) {
-      console.warn('createEscrowOrder notification failed:', notifyError);
-    }
+    transaction.set(walletTxnRef, {
+      walletId: walletRef.id,
+      userId: buyerId,
+      type: 'debit',
+      orderId: orderRef.id,
+      amount: amountToDebit,
+      description: `Escrow hold for order ${orderRef.id}`,
+      status: 'completed',
+      balanceBefore: currentBalance,
+      balanceAfter: newBalance,
+      currency,
+      createdAt: FieldValue.serverTimestamp(),
+    });
 
     return {
-      success: true,
-      orderId: orderResult.orderId,
-      walletTransactionId: orderResult.walletTransactionId,
-      escrowStatus: 'funds_on_hold',
-      remainingBalance: orderResult.balanceAfter,
+      orderId: orderRef.id,
+      walletTransactionId: walletTxnRef.id,
+      balanceAfter: newBalance,
     };
+  });
+
+  try {
+    await db.collection('notifications').add({
+      userId: buyerId,
+      type: 'order_created',
+      title: 'Order Created',
+      message: `Your order ${orderResult.orderId} has been created and funds are held in escrow.`,
+      orderId: orderResult.orderId,
+      read: false,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  } catch (notifyError) {
+    console.warn('createEscrowOrder notification failed:', notifyError);
+  }
+
+  return {
+    success: true,
+    orderId: orderResult.orderId,
+    walletTransactionId: orderResult.walletTransactionId,
+    escrowStatus: 'funds_on_hold',
+    remainingBalance: orderResult.balanceAfter,
+  };
+};
+
+// Create escrow-backed order (wallet funds held in escrow)
+exports.createEscrowOrder = onCall({ cors: callableCors }, async (request) => {
+  try {
+    return await createEscrowOrderCore(request);
   } catch (error) {
     console.error('Error creating escrow order:', error);
     if (error instanceof HttpsError) {
       throw error;
     }
     throw new HttpsError('internal', error?.message || 'Failed to create escrow order');
+  }
+});
+
+exports.createEscrowOrderHttp = onRequest(async (req, res) => {
+  const origin = req.headers.origin || '';
+  if (!origin || isOriginAllowed(origin)) {
+    addCorsHeaders(res, origin);
+  }
+
+  if (req.method === 'OPTIONS') {
+    return res.status(204).send('');
+  }
+
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: { status: 'invalid-argument', message: 'Method not allowed' } });
+  }
+
+  try {
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    if (!token) {
+      return res.status(401).json({ error: { status: 'unauthenticated', message: 'Missing authorization token' } });
+    }
+
+    const decoded = await admin.auth().verifyIdToken(token);
+    const data = req.body?.data || req.body || {};
+
+    const result = await createEscrowOrderCore({
+      auth: { uid: decoded.uid, token: decoded },
+      data,
+    });
+
+    return res.status(200).json({ result });
+  } catch (error) {
+    console.error('Error creating escrow order (HTTP):', error);
+    if (error instanceof HttpsError) {
+      const code = error.code || 'internal';
+      const statusMap = {
+        'invalid-argument': 400,
+        unauthenticated: 401,
+        'permission-denied': 403,
+        'not-found': 404,
+        'failed-precondition': 412,
+        internal: 500,
+      };
+      return res.status(statusMap[code] || 500).json({
+        error: {
+          status: code,
+          message: error.message || 'Failed to create escrow order',
+        },
+      });
+    }
+
+    return res.status(500).json({
+      error: {
+        status: 'internal',
+        message: error?.message || 'Failed to create escrow order',
+      },
+    });
   }
 });
 
@@ -1354,7 +1416,9 @@ exports.releaseEscrowFundsHttp = onRequest(async (req, res) => {
     'https://ojawa-ecommerce.web.app',
     'https://ojawa-ecommerce.firebaseapp.com',
     'https://ojawa-ecommerce-staging.web.app',
-    'https://ojawa-ecommerce-staging.firebaseapp.com'
+    'https://ojawa-ecommerce-staging.firebaseapp.com',
+    'https://ojawa.africa',
+    'https://www.ojawa.africa'
   ];
   
   const origin = req.headers.origin;

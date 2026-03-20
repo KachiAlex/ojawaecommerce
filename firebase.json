@@ -20,7 +20,7 @@
       "rewrites": [
         {
           "source": "/api/createEscrowOrder",
-          "function": "createEscrowOrder",
+          "function": "createEscrowOrderHttp",
           "region": "us-central1"
         },
         {
