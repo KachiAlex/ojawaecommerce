@@ -92,7 +92,7 @@ const CheckoutForm = ({ total, pricingBreakdown, cartItems, onSuccess, orderDeta
   };
 
   const createOrderWithEscrow = async () => {
-    const idToken = await currentUser.getIdToken();
+    const idToken = await currentUser.getIdToken(true); // Force refresh to ensure token is valid
 
     const requestPayload = {
       totalAmount: total,
@@ -125,7 +125,7 @@ const CheckoutForm = ({ total, pricingBreakdown, cartItems, onSuccess, orderDeta
 
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}));
-      throw new Error(errData?.error?.message || 'Order creation failed');
+      throw new Error(errData?.error?.message || errData?.error || 'Order creation failed');
     }
 
     const result = await response.json();

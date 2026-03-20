@@ -5,7 +5,26 @@ const axios = require('axios');
 const cors = require('cors');
 
 // Initialize Firebase Admin
-admin.initializeApp();
+const firebaseProjectId = process.env.FIREBASE_PROJECT_ID || 'ojawa-ecommerce';
+const firebaseClientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+const firebasePrivateKey = process.env.FIREBASE_PRIVATE_KEY
+  ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
+  : null;
+
+if (firebaseClientEmail && firebasePrivateKey) {
+  admin.initializeApp({
+    credential: admin.credential.cert({
+      projectId: firebaseProjectId,
+      clientEmail: firebaseClientEmail,
+      privateKey: firebasePrivateKey,
+    }),
+    projectId: firebaseProjectId,
+  });
+  console.log(`✅ Firebase Admin initialized with service account for project ${firebaseProjectId}`);
+} else {
+  admin.initializeApp({ projectId: firebaseProjectId });
+  console.warn(`⚠️ Firebase Admin initialized without explicit service account for project ${firebaseProjectId}`);
+}
 const db = admin.firestore();
 const FieldValue = admin.firestore.FieldValue;
 
@@ -32,7 +51,21 @@ function authenticateToken(req, res, next) {
       req.user = decodedToken;
       next();
     })
-    .catch(() => res.status(401).json({ error: 'Invalid or expired token' }));
+    .catch((err) => {
+      const code = err?.code || 'auth/invalid-id-token';
+      const message = err?.message || 'Invalid or expired token';
+      console.warn('❌ Token verification failed:', { code, message });
+
+      if (message.includes('incorrect "aud"') || message.includes('incorrect audience')) {
+        return res.status(401).json({ error: 'Invalid token for this Firebase project' });
+      }
+
+      if (code === 'auth/id-token-expired') {
+        return res.status(401).json({ error: 'Token expired. Please sign in again.' });
+      }
+
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    });
 }
 
 // --- Admin Middleware ---

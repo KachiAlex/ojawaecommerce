@@ -1,6 +1,12 @@
 // Firebase Lite Configuration - Optimized for smaller bundle size
 import { initializeApp } from 'firebase/app';
-import { getAuth, connectAuthEmulator } from 'firebase/auth';
+import {
+  getAuth,
+  connectAuthEmulator,
+  setPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence
+} from 'firebase/auth';
 import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 import { getStorage, connectStorageEmulator } from 'firebase/storage';
 
@@ -21,6 +27,18 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
+
+// Keep users signed in across refresh; fallback to session persistence if local storage is unavailable.
+if (typeof window !== 'undefined') {
+  setPersistence(auth, browserLocalPersistence).catch(async () => {
+    try {
+      await setPersistence(auth, browserSessionPersistence);
+      console.warn('⚠️ Firebase Auth Lite: Falling back to session persistence');
+    } catch (err) {
+      console.warn('⚠️ Firebase Auth Lite: Unable to set persistence mode', err?.message || err);
+    }
+  });
+}
 
 // Connect to emulators in development
 if (process.env.NODE_ENV === 'development') {

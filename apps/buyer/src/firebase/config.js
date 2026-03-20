@@ -1,5 +1,11 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, connectAuthEmulator } from 'firebase/auth';
+import {
+  getAuth,
+  connectAuthEmulator,
+  setPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence
+} from 'firebase/auth';
 import { 
   getFirestore, 
   connectFirestoreEmulator,
@@ -28,6 +34,18 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
+
+// Keep users signed in across refresh; fallback to session persistence if local storage is unavailable.
+if (typeof window !== 'undefined') {
+  setPersistence(auth, browserLocalPersistence).catch(async () => {
+    try {
+      await setPersistence(auth, browserSessionPersistence);
+      console.warn('⚠️ Firebase Auth: Falling back to session persistence');
+    } catch (err) {
+      console.warn('⚠️ Firebase Auth: Unable to set persistence mode', err?.message || err);
+    }
+  });
+}
 
 // Configure auth settings for better reliability
 auth.settings.appVerificationDisabledForTesting = false;
@@ -68,11 +86,7 @@ if (typeof window !== 'undefined' && !persistenceEnabled) {
     try {
       if (typeof window === 'undefined' || !window.indexedDB) return;
       const explicitDbNames = [
-        'firestore/[DEFAULT]/ojawa-ecommerce',
-        'firebaseLocalStorageDb',
-        'firebase-installations-database',
-        'firebase-app-check-store',
-        'firebase-heartbeat-database'
+        'firestore/[DEFAULT]/ojawa-ecommerce'
       ];
       const discoveredNames = new Set();
 
