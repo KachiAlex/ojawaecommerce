@@ -1,4 +1,5 @@
 // --- Admin Middleware ---
+require('dotenv').config();
 const express = require('express');
 const admin = require('firebase-admin');
 const axios = require('axios');
@@ -97,6 +98,16 @@ function paystackIpWhitelist(req, res, next) {
 // --- Health Check ---
 app.get('/', (req, res) => {
   res.send('Ojawa backend running on Render!');
+});
+
+app.get('/health', (req, res) => {
+  const hasCredentials = !!(process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY);
+  res.json({
+    status: 'ok',
+    firebase: 'initialized',
+    credentials: hasCredentials ? 'service_account' : 'missing_check_render_env_vars',
+    project: process.env.FIREBASE_PROJECT_ID || 'ojawa-ecommerce',
+  });
 });
 
 // --- User Sign Up Route ---
