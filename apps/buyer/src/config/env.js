@@ -29,7 +29,7 @@ export const config = {
   app: {
     name: import.meta.env.VITE_APP_NAME || 'Ojawa',
     version: import.meta.env.VITE_APP_VERSION || '1.0.0',
-    apiBaseUrl: import.meta.env.VITE_API_BASE_URL || 'https://us-central1-ojawa-ecommerce.cloudfunctions.net',
+    apiBaseUrl: import.meta.env.VITE_API_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : ''),
   },
 
   // Feature flags

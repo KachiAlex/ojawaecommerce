@@ -10,6 +10,7 @@ import firebaseService from '../services/firebaseService';
 import WalletBalanceCheck from '../components/WalletBalanceCheck';
 import { pricingService } from '../services/pricingService';
 import logisticsPricingService from '../services/logisticsPricingService';
+import { config } from '../config/env';
 
 // Currency helpers
 const currencySymbolMap = {
@@ -35,6 +36,12 @@ const formatAmount = (amount, code = 'NGN') => {
     const sym = currencySymbolMap[code] || ''
     return `${sym}${numeric.toLocaleString()}`
   }
+}
+
+const buildApiUrl = (path) => {
+  const baseUrl = (config.app.apiBaseUrl || '').replace(/\/$/, '')
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`
+  return baseUrl ? `${baseUrl}${normalizedPath}` : normalizedPath
 }
 
 const CheckoutForm = ({ total, pricingBreakdown, cartItems, onSuccess, orderDetails, walletBalance, canProceed, currencyCode }) => {
@@ -109,7 +116,7 @@ const CheckoutForm = ({ total, pricingBreakdown, cartItems, onSuccess, orderDeta
       },
     };
 
-    const response = await fetch('/api/createEscrowOrder', {
+    const response = await fetch(buildApiUrl('/api/createEscrowOrder'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
