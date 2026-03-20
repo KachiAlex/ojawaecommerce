@@ -11,6 +11,7 @@ import WalletBalanceCheck from '../components/WalletBalanceCheck';
 import { pricingService } from '../services/pricingService';
 import logisticsPricingService from '../services/logisticsPricingService';
 import { config } from '../config/env';
+import { apiPostWithAuth } from '../utils/apiClient';
 
 // Currency helpers
 const currencySymbolMap = {
@@ -66,16 +67,13 @@ const CheckoutForm = ({ total, pricingBreakdown, cartItems, onSuccess, orderDeta
 
       // Send payment confirmation email
       try {
-        const { httpsCallable } = await import('firebase/functions');
-        const { functions } = await import('../firebase/config');
-        const sendPaymentConfirmation = httpsCallable(functions, 'sendPaymentConfirmation');
-        await sendPaymentConfirmation({
+        await apiPostWithAuth('/sendPaymentConfirmation', {
           buyerEmail: currentUser.email,
           buyerName: currentUser.displayName || 'Customer',
           orderId: orderId,
           amount: Math.round(total * 100),
           items: cartItems
-        });
+        }, currentUser);
       } catch (emailError) {
         console.warn('Failed to send payment confirmation email:', emailError);
       }
@@ -116,7 +114,7 @@ const CheckoutForm = ({ total, pricingBreakdown, cartItems, onSuccess, orderDeta
       },
     };
 
-    const response = await fetch(buildApiUrl('/api/createEscrowOrder'), {
+    const response = await fetch(buildApiUrl('/createEscrowOrder'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -19,11 +19,6 @@
       ],
       "rewrites": [
         {
-          "source": "/api/createEscrowOrder",
-          "function": "createEscrowOrderHttp",
-          "region": "us-central1"
-        },
-        {
           "source": "**",
           "destination": "/index.html"
         }

@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '../firebase/config';
+import { useAuth } from '../contexts/AuthContext';
+import { apiPostWithAuth } from '../utils/apiClient';
 
 const FunctionTest = () => {
+  const { currentUser } = useAuth();
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -13,17 +14,15 @@ const FunctionTest = () => {
     setResult(null);
 
     try {
-      const notifyVendor = httpsCallable(functions, 'notifyVendorNewOrder');
-      
-      const response = await notifyVendor({
+      const response = await apiPostWithAuth('/notifyVendorNewOrder', {
         vendorId: 'test-vendor-123',
         orderId: 'test-order-456',
         buyerName: 'Test Buyer',
         totalAmount: 1000,
         items: [{ name: 'Test Item', quantity: 1 }]
-      });
+      }, currentUser);
 
-      setResult(response.data);
+      setResult(response?.result || response);
     } catch (err) {
       setError(err.message);
       console.error('Function test error:', err);
@@ -42,7 +41,7 @@ const FunctionTest = () => {
           disabled={loading}
           className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
         >
-          {loading ? 'Testing...' : 'Test notifyVendorNewOrder Function'}
+          {loading ? 'Testing...' : 'Test notifyVendorNewOrder API'}
         </button>
 
         {error && (
@@ -64,8 +63,8 @@ const FunctionTest = () => {
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <h3 className="text-blue-800 font-medium">Instructions:</h3>
           <ul className="text-blue-700 text-sm mt-2 space-y-1">
-            <li>• This tests the notifyVendorNewOrder function</li>
-            <li>• If successful, it means the function is working</li>
+            <li>• This tests the notifyVendorNewOrder endpoint</li>
+            <li>• If successful, it means the backend API is working</li>
             <li>• The order modal should now work properly</li>
           </ul>
         </div>

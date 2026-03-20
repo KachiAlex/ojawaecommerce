@@ -6,6 +6,7 @@ import { useMessaging } from '../contexts/MessagingContext';
 import firebaseService from '../services/firebaseService';
 import { getVendorDataOptimized } from '../services/optimizedFirebaseService';
 import { createSubscriptionRecord } from '../utils/paystack';
+import { apiPostWithAuth } from '../utils/apiClient';
 import WalletManager from '../components/WalletManager';
 import VendorOrdersFilterBar from '../components/VendorOrdersFilterBar';
 import secureNotification from '../utils/secureNotification';
@@ -809,7 +810,7 @@ const Vendor = () => {
           // STEP 1: Verify payment and create subscription record in backend
           if (reference) {
             try {
-              await createSubscriptionRecord({ reference, plan });
+              await createSubscriptionRecord({ reference, plan }, currentUser);
               console.log('✅ Paystack subscription record verified');
             } catch (recordError) {
               console.error('❌ Failed to verify subscription with Paystack reference:', recordError);
@@ -1250,18 +1251,14 @@ const Vendor = () => {
 
       // Send order status update email
       try {
-        const { httpsCallable } = await import('firebase/functions');
-        const { functions } = await import('../firebase/config');
-        const sendOrderStatusUpdate = httpsCallable(functions, 'sendOrderStatusUpdate');
-
-        await sendOrderStatusUpdate({
+        await apiPostWithAuth('/sendOrderStatusUpdate', {
           buyerEmail: order.buyerEmail || order.buyer,
           buyerName: order.buyerName || order.buyer,
           orderId: order.id,
           status: 'shipped',
           trackingNumber,
           carrier
-        });
+        }, currentUser);
       } catch (emailError) {
         console.warn('Failed to send shipping notification:', emailError);
       }

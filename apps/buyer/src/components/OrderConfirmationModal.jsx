@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '../firebase/config';
+import { useAuth } from '../contexts/AuthContext';
 import escrowPaymentService from '../services/escrowPaymentService';
 import firebaseService from '../services/firebaseService';
 import secureNotification from '../utils/secureNotification';
+import { apiPostWithAuth } from '../utils/apiClient';
 
 const OrderConfirmationModal = ({ open, order, onClose, onConfirm }) => {
+  const { currentUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [deliveryReceived, setDeliveryReceived] = useState(null);
   const [satisfactionLevel, setSatisfactionLevel] = useState(null);
@@ -45,8 +46,6 @@ const OrderConfirmationModal = ({ open, order, onClose, onConfirm }) => {
         throw new Error('Order amount is missing');
       }
 
-      // Release escrow funds to vendor using secure Firebase Functions
-      const releaseEscrowFunds = httpsCallable(functions, 'releaseEscrowFundsHttp');
       const functionParams = {
         orderId: order.id,
         vendorId: order.vendorId,
@@ -55,8 +54,8 @@ const OrderConfirmationModal = ({ open, order, onClose, onConfirm }) => {
       
       console.log('Parameters being sent to releaseEscrowFundsHttp:', functionParams);
       
-      const result = await releaseEscrowFunds(functionParams);
-      console.log('Escrow release result:', result.data);
+      const result = await apiPostWithAuth('/releaseEscrowFundsHttp', functionParams, currentUser);
+      console.log('Escrow release result:', result?.result || result);
 
       // Update order status to completed
       await firebaseService.orders.updateStatus(order.id, 'completed', {

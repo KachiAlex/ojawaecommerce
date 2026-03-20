@@ -1,6 +1,5 @@
-import { httpsCallable } from 'firebase/functions'
-import { functions } from '../firebase/config'
 import { config } from '../config/env'
+import { apiPostWithAuth } from './apiClient'
 
 const PAYSTACK_SCRIPT_URL = 'https://js.paystack.co/v2/inline.js'
 let paystackScriptPromise = null
@@ -142,17 +141,16 @@ export const openWalletTopUpCheckout = async ({ user, amount, currency = 'NGN' }
     },
   })
 
-  const topupFn = httpsCallable(functions, 'topupWalletPaystack')
-  const verification = await topupFn({
+  const verification = await apiPostWithAuth('/topupWalletPaystack', {
     reference: paymentResult.reference,
     userId: user.uid,
     amount: Number(amount),
-  })
+  }, user)
 
   return {
     success: true,
     reference: paymentResult.reference,
-    data: verification?.data,
+    data: verification?.result || verification,
   }
 }
 
@@ -186,10 +184,9 @@ export const openSubscriptionCheckout = async ({
   return paymentResult
 }
 
-export const createSubscriptionRecord = async (subscriptionData) => {
-  const subscriptionFn = httpsCallable(functions, 'createPaystackSubscriptionRecord')
-  const response = await subscriptionFn(subscriptionData)
-  return response?.data
+export const createSubscriptionRecord = async (subscriptionData, user) => {
+  const response = await apiPostWithAuth('/createPaystackSubscriptionRecord', subscriptionData, user)
+  return response?.result || response
 }
 
 export default {

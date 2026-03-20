@@ -4,8 +4,7 @@
  * Enhanced security with rate limiting and expiration
  */
 
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '../firebase/config';
+import { apiPost } from './apiClient';
 import secureLocalStorage from './secureLocalStorage';
 import secureNotification from './secureNotification';
 
@@ -105,9 +104,8 @@ class EmailOTPService {
       // Prepare email content
       const emailContent = this.prepareEmailContent(otp, purpose, customMessage);
       
-      // Send OTP via Cloud Function
-      const sendOTPFunction = httpsCallable(functions, this.functionName);
-      const result = await sendOTPFunction({
+      // Send OTP via Render backend endpoint
+      const result = await apiPost('/sendEmailOTP', {
         to: email,
         subject: emailContent.subject,
         htmlContent: emailContent.html,
@@ -130,7 +128,7 @@ class EmailOTPService {
         success: true,
         message: `OTP sent to ${email}`,
         expiresAt: Date.now() + this.otpExpiry,
-        requestId: result.data?.requestId
+        requestId: result?.requestId
       };
 
     } catch (error) {
@@ -177,9 +175,8 @@ class EmailOTPService {
       // OTP is valid - clear it
       await this.clearOTP(email, purpose);
 
-      // Verify via Cloud Function for additional security
-      const verifyOTPFunction = httpsCallable(functions, this.verifyFunctionName);
-      const result = await verifyOTPFunction({
+      // Verify via Render backend for additional security signal
+      const result = await apiPost('/verifyEmailOTP', {
         email,
         otp,
         purpose,
@@ -190,7 +187,7 @@ class EmailOTPService {
         success: true,
         message: 'OTP verified successfully',
         verifiedAt: Date.now(),
-        serverVerified: result.data?.verified || false
+        serverVerified: result?.verified || false
       };
 
     } catch (error) {

@@ -12,6 +12,7 @@ import { paymentService, PAYMENT_STATUS, PAYMENT_ERROR_TYPES } from '../services
 import { ORDER_STATUS } from '../services/orderWorkflow'
 import firebaseService from '../services/firebaseService'
 import { errorLogger } from '../utils/errorLogger'
+import { apiPostWithAuth } from '../utils/apiClient'
 
 const EnhancedCheckoutForm = ({ total, cartItems, onSuccess, orderDetails }) => {
   const [loading, setLoading] = useState(false)
@@ -65,16 +66,13 @@ const EnhancedCheckoutForm = ({ total, cartItems, onSuccess, orderDetails }) => 
 
             // Send payment confirmation email (optional)
             try {
-              const { httpsCallable } = await import('firebase/functions')
-              const { functions } = await import('../firebase/config')
-              const sendPaymentConfirmation = httpsCallable(functions, 'sendPaymentConfirmation')
-              await sendPaymentConfirmation({
+              await apiPostWithAuth('/sendPaymentConfirmation', {
                 buyerEmail: currentUser.email,
                 buyerName: currentUser.displayName || 'Customer',
                 orderId: orderId,
                 amount: Math.round(total * 100),
                 items: cartItems
-              })
+              }, currentUser)
             } catch (emailError) {
               errorLogger.warn('Failed to send payment confirmation email', emailError)
             }
