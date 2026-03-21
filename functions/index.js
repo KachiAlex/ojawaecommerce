@@ -637,18 +637,61 @@ const processPayoutRequestDocument = async ({ payoutRequestId, data }) => {
 };
 
 const VENDOR_SUBSCRIPTION_PLANS = {
-  basic: { price: 0, commissionRate: 5.0, productLimit: 50, analyticsLevel: 'basic', supportLevel: 'email' },
-  pro: { price: 5000, commissionRate: 3.0, productLimit: 500, analyticsLevel: 'advanced', supportLevel: 'priority' },
-  premium: { price: 15000, commissionRate: 2.0, productLimit: -1, analyticsLevel: 'premium', supportLevel: 'dedicated' },
+  basic: {
+    price: 0,
+    commissionRate: 5.0,
+    productLimit: 10,
+    annualPrice: 0,
+    analyticsLevel: 'basic',
+    supportLevel: 'email',
+    mediaPerProduct: 6,
+    videoUploads: false,
+    bulkTools: false,
+    storefrontThemes: 'standard',
+    payoutSchedule: 'weekly',
+  },
+  pro: {
+    price: 5000,
+    annualPrice: 50000,
+    commissionRate: 3.0,
+    productLimit: 20,
+    analyticsLevel: 'advanced',
+    supportLevel: 'priority',
+    mediaPerProduct: 15,
+    videoUploads: true,
+    bulkTools: true,
+    storefrontThemes: 'enhanced',
+    payoutSchedule: 'twice-weekly',
+  },
+  premium: {
+    price: 15000,
+    annualPrice: 150000,
+    commissionRate: 2.0,
+    productLimit: 100,
+    analyticsLevel: 'premium',
+    supportLevel: 'dedicated',
+    mediaPerProduct: 30,
+    videoUploads: true,
+    bulkTools: true,
+    storefrontThemes: 'custom',
+    payoutSchedule: 'daily',
+  },
 };
 
-const VENDOR_SUBSCRIPTION_DURATION_DAYS = 30;
+const MONTHLY_SUBSCRIPTION_DURATION_DAYS = 30;
+const ANNUAL_SUBSCRIPTION_DURATION_DAYS = 365;
 
 const addDays = (date, days) => {
   return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
 };
 
 const normalizePlanKey = (plan) => (typeof plan === 'string' ? plan.trim().toLowerCase() : '');
+const normalizeBillingCycle = (cycle) =>
+  (typeof cycle === 'string' && cycle.trim().toLowerCase() === 'annual' ? 'annual' : 'monthly');
+const getSubscriptionTermDays = (cycle) =>
+  (cycle === 'annual' ? ANNUAL_SUBSCRIPTION_DURATION_DAYS : MONTHLY_SUBSCRIPTION_DURATION_DAYS);
+const getPlanPrice = (planConfig, cycle) =>
+  (cycle === 'annual' ? Number(planConfig.annualPrice ?? planConfig.price * 12) : Number(planConfig.price));
 
 const parsePaystackMetadata = (metadata) => {
   if (!metadata) return {};
@@ -856,6 +899,7 @@ async function processPaystackWalletTopup({ reference, userId, amount }, authUid
 async function applyVendorSubscription({
   userId,
   plan,
+  billingCycle = 'monthly',
   paystackReference,
   transactionId,
   amountPaid,
@@ -873,8 +917,11 @@ async function applyVendorSubscription({
     throw new Error(`Unknown vendor subscription plan: ${plan}`);
   }
 
+  const cycle = normalizeBillingCycle(billingCycle);
+  const subscriptionTermDays = getSubscriptionTermDays(cycle);
+  const planPrice = getPlanPrice(planConfig, cycle);
   const nowDate = new Date();
-  const endDate = addDays(nowDate, VENDOR_SUBSCRIPTION_DURATION_DAYS);
+  const endDate = addDays(nowDate, subscriptionTermDays);
   const startTimestamp = Timestamp.fromDate(nowDate);
   const endTimestamp = Timestamp.fromDate(endDate);
 
@@ -882,6 +929,8 @@ async function applyVendorSubscription({
   await userRef.set(
     {
       subscriptionPlan: planKey,
+      billingCycle: cycle,
+      subscriptionTermDays,
       subscriptionStatus: status,
       subscriptionStartDate: startTimestamp,
       subscriptionEndDate: endTimestamp,
@@ -889,6 +938,11 @@ async function applyVendorSubscription({
       productLimit: planConfig.productLimit,
       analyticsLevel: planConfig.analyticsLevel,
       supportLevel: planConfig.supportLevel,
+      mediaPerProduct: planConfig.mediaPerProduct,
+      videoUploads: planConfig.videoUploads,
+      bulkTools: planConfig.bulkTools,
+      storefrontThemes: planConfig.storefrontThemes,
+      payoutSchedule: planConfig.payoutSchedule,
       updatedAt: FieldValue.serverTimestamp(),
     },
     { merge: true },
@@ -913,8 +967,10 @@ async function applyVendorSubscription({
   const subscriptionPayload = {
     userId,
     plan: planKey,
-    price: planConfig.price,
-    amountPaid: typeof amountPaid === 'number' ? amountPaid : planConfig.price,
+    billingCycle: cycle,
+    subscriptionTermDays,
+    price: planPrice,
+    amountPaid: typeof amountPaid === 'number' ? amountPaid : planPrice,
     currency: 'NGN',
     status,
     startDate: startTimestamp,
@@ -923,6 +979,11 @@ async function applyVendorSubscription({
     productLimit: planConfig.productLimit,
     analyticsLevel: planConfig.analyticsLevel,
     supportLevel: planConfig.supportLevel,
+    mediaPerProduct: planConfig.mediaPerProduct,
+    videoUploads: planConfig.videoUploads,
+    bulkTools: planConfig.bulkTools,
+    storefrontThemes: planConfig.storefrontThemes,
+    payoutSchedule: planConfig.payoutSchedule,
     paymentMethod: 'paystack',
     paystackReference: paystackReference || null,
     transactionId: transactionId || null,
@@ -940,6 +1001,7 @@ async function applyVendorSubscription({
   return {
     subscriptionId: subscriptionRef.id,
     plan: planKey,
+    billingCycle: cycle,
     startDate: startTimestamp,
     endDate: endTimestamp,
     commissionRate: planConfig.commissionRate,
@@ -1943,7 +2005,7 @@ exports.createPaystackSubscriptionRecord = onCall({ secrets: [PAYSTACK_SECRET] }
   }
 
   try {
-    const { reference, plan: requestedPlan } = data || {};
+    const { reference, plan: requestedPlan, billingCycle: requestedBillingCycle } = data || {};
 
     if (!reference) {
       throw new HttpsError('invalid-argument', 'Paystack reference is required');
@@ -1975,6 +2037,9 @@ exports.createPaystackSubscriptionRecord = onCall({ secrets: [PAYSTACK_SECRET] }
 
     const metadata = parsePaystackMetadata(transaction.metadata || transaction.meta);
     const plan = normalizePlanKey(requestedPlan || metadata.subscription_plan || metadata.plan);
+    const billingCycle = normalizeBillingCycle(
+      requestedBillingCycle || metadata.subscription_billing_cycle || metadata.billingCycle
+    );
 
     if (!plan) {
       throw new HttpsError('invalid-argument', 'Subscription plan could not be determined');
@@ -1992,6 +2057,7 @@ exports.createPaystackSubscriptionRecord = onCall({ secrets: [PAYSTACK_SECRET] }
     const result = await applyVendorSubscription({
       userId,
       plan,
+      billingCycle,
       paystackReference: transaction.reference,
       transactionId: String(transaction.id),
       amountPaid: Number(transaction.amount || 0) / 100,
@@ -2001,6 +2067,7 @@ exports.createPaystackSubscriptionRecord = onCall({ secrets: [PAYSTACK_SECRET] }
     return {
       success: true,
       plan: result.plan,
+      billingCycle: result.billingCycle,
       subscriptionId: result.subscriptionId,
       startDate: result.startDate,
       endDate: result.endDate,
@@ -2176,6 +2243,9 @@ async function handleSuccessfulPayment(data) {
       console.log('Wallet topped up via webhook:', { userId, amount, newBalance });
     } else if ((purpose === 'subscription' || metadata.subscription_plan) && userId) {
       const plan = metadata.subscription_plan || metadata.plan;
+      const billingCycle = normalizeBillingCycle(
+        metadata.subscription_billing_cycle || metadata.billingCycle
+      );
       if (!plan) {
         console.warn('Subscription payment missing plan metadata, skipping.');
         return;
@@ -2185,6 +2255,7 @@ async function handleSuccessfulPayment(data) {
         const result = await applyVendorSubscription({
           userId,
           plan,
+          billingCycle,
           paystackReference: reference,
           transactionId,
           amountPaid: amount,

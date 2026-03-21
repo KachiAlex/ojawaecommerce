@@ -32,9 +32,45 @@ const VendorAnalyticsDashboard = lazy(() => import('../components/VendorAnalytic
 
 // Vendor Messages Tab Component
 const planDetails = {
-  basic: { price: 0, commission: 5.0, productLimit: 50, analytics: 'basic', support: 'email' },
-  pro: { price: 5000, commission: 3.0, productLimit: 500, analytics: 'advanced', support: 'priority' },
-  premium: { price: 15000, commission: 2.0, productLimit: -1, analytics: 'premium', support: 'dedicated' }
+  basic: {
+    price: 0,
+    annualPrice: 0,
+    commission: 5.0,
+    productLimit: 10,
+    analytics: 'basic',
+    support: 'email',
+    mediaPerProduct: 6,
+    videoUploads: false,
+    bulkTools: false,
+    storefrontThemes: 'standard',
+    payoutSchedule: 'weekly'
+  },
+  pro: {
+    price: 5000,
+    annualPrice: 50000,
+    commission: 3.0,
+    productLimit: 20,
+    analytics: 'advanced',
+    support: 'priority',
+    mediaPerProduct: 15,
+    videoUploads: true,
+    bulkTools: true,
+    storefrontThemes: 'enhanced',
+    payoutSchedule: 'twice-weekly'
+  },
+  premium: {
+    price: 15000,
+    annualPrice: 150000,
+    commission: 2.0,
+    productLimit: 100,
+    analytics: 'premium',
+    support: 'dedicated',
+    mediaPerProduct: 30,
+    videoUploads: true,
+    bulkTools: true,
+    storefrontThemes: 'custom',
+    payoutSchedule: 'daily'
+  }
 };
 
 const _formatCurrency = (amount, currency = 'NGN') => {
@@ -763,9 +799,10 @@ const Vendor = () => {
       const urlParams = new URLSearchParams(window.location.search);
       const paymentStatus = urlParams.get('payment');
       const plan = urlParams.get('plan');
+      const billingCycle = urlParams.get('billingCycle') || 'monthly';
       const tab = urlParams.get('tab');
       
-    console.log('🔍 Upgrade flow check:', { paymentStatus, plan, tab, url: window.location.href });
+    console.log('🔍 Upgrade flow check:', { paymentStatus, plan, billingCycle, tab, url: window.location.href });
     
     // Only process if we have payment=success and a plan
     if (paymentStatus === 'success' && plan) {
@@ -781,7 +818,7 @@ const Vendor = () => {
         // Just refresh UI
         setUpgradeSuccessBanner({
           plan: plan.toUpperCase(),
-          productLimit: plan === 'pro' ? 500 : plan === 'premium' ? -1 : 50,
+          productLimit: plan === 'pro' ? 20 : plan === 'premium' ? 100 : 10,
           commissionRate: plan === 'pro' ? 3.0 : plan === 'premium' ? 2.0 : 5.0
         });
         // Switch to billing tab if needed
@@ -810,7 +847,7 @@ const Vendor = () => {
           // STEP 1: Verify payment and create subscription record in backend
           if (reference) {
             try {
-              await createSubscriptionRecord({ reference, plan }, currentUser);
+              await createSubscriptionRecord({ reference, plan, billingCycle }, currentUser);
               console.log('✅ Paystack subscription record verified');
             } catch (recordError) {
               console.error('❌ Failed to verify subscription with Paystack reference:', recordError);
@@ -823,13 +860,20 @@ const Vendor = () => {
           // STEP 2: Update user profile to reflect new subscription locally
           const profileUpdates = {
             subscriptionPlan: plan,
+            billingCycle,
+            subscriptionTermDays: billingCycle === 'annual' ? 365 : 30,
             subscriptionStatus: 'active',
             subscriptionStartDate: new Date(),
-            subscriptionEndDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+            subscriptionEndDate: new Date(Date.now() + (billingCycle === 'annual' ? 365 : 30) * 24 * 60 * 60 * 1000),
             commissionRate: selectedPlan.commission,
             productLimit: selectedPlan.productLimit,
             analyticsLevel: selectedPlan.analytics,
-            supportLevel: selectedPlan.support
+            supportLevel: selectedPlan.support,
+            mediaPerProduct: selectedPlan.mediaPerProduct,
+            videoUploads: selectedPlan.videoUploads,
+            bulkTools: selectedPlan.bulkTools,
+            storefrontThemes: selectedPlan.storefrontThemes,
+            payoutSchedule: selectedPlan.payoutSchedule
           };
           
           console.log('📝 Step 2: Updating user profile...');
@@ -931,7 +975,7 @@ const Vendor = () => {
           try {
             setUpgradeSuccessBanner({
               plan: plan.toUpperCase(),
-              productLimit: planDetails[plan]?.productLimit || 50,
+              productLimit: planDetails[plan]?.productLimit || 10,
               commissionRate: planDetails[plan]?.commission || 5.0
             });
             setActiveTab('billing');
@@ -969,19 +1013,14 @@ const Vendor = () => {
       
       // Define plan limits
       const planLimits = {
-        basic: { productLimit: 50 },
-        pro: { productLimit: 500 },
-        premium: { productLimit: -1 } // unlimited
+        basic: { productLimit: 10 },
+        pro: { productLimit: 20 },
+        premium: { productLimit: 100 }
       };
       
       // Get current plan (default to basic if no subscription)
       const currentPlan = subscription?.plan || 'basic';
-      const productLimit = subscription?.productLimit || planLimits[currentPlan]?.productLimit || 50;
-      
-      // If unlimited, allow
-      if (productLimit === -1) {
-        return { allowed: true, remaining: -1 };
-      }
+      const productLimit = subscription?.productLimit || planLimits[currentPlan]?.productLimit || 10;
       
       // Count current products
       const currentProducts = await firebaseService.products.getByVendor(vendorId);
@@ -1010,7 +1049,7 @@ const Vendor = () => {
       // On error, default to basic plan limit
       const currentProducts = await firebaseService.products.getByVendor(vendorId);
       const productCount = currentProducts.length;
-      const basicLimit = 50;
+      const basicLimit = 10;
       
       if (productCount >= basicLimit) {
         return {

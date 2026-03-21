@@ -18,23 +18,64 @@ const VendorBilling = () => {
     basic: {
       name: 'Basic',
       price: 0,
+      annualPrice: 0,
       commission: 5.0,
-      productLimit: 50,
-      features: ['Up to 50 products', 'Basic analytics', 'Email support']
+      productLimit: 10,
+      mediaPerProduct: 6,
+      videoUploads: false,
+      bulkTools: false,
+      storefrontThemes: 'standard',
+      payoutSchedule: 'weekly',
+      features: [
+        'Up to 10 products',
+        'Up to 6 images per product',
+        'No product video uploads',
+        'Basic analytics',
+        'Email support',
+        'Weekly payout cycle'
+      ]
     },
     pro: {
       name: 'Pro',
       price: 5000,
+      annualPrice: 50000,
       commission: 3.0,
-      productLimit: 500,
-      features: ['Up to 500 products', 'Advanced analytics', 'Priority support', 'Featured listings']
+      productLimit: 20,
+      mediaPerProduct: 15,
+      videoUploads: true,
+      bulkTools: true,
+      storefrontThemes: 'enhanced',
+      payoutSchedule: 'twice-weekly',
+      features: [
+        'Up to 20 products',
+        'Up to 15 images per product',
+        'Product video uploads',
+        'Advanced analytics',
+        'Priority support',
+        'Bulk operations tools',
+        'Twice-weekly payout cycle'
+      ]
     },
     premium: {
       name: 'Premium',
       price: 15000,
+      annualPrice: 150000,
       commission: 2.0,
-      productLimit: -1, // unlimited
-      features: ['Unlimited products', 'Premium analytics', 'Dedicated support', 'API access']
+      productLimit: 100,
+      mediaPerProduct: 30,
+      videoUploads: true,
+      bulkTools: true,
+      storefrontThemes: 'custom',
+      payoutSchedule: 'daily',
+      features: [
+        'Up to 100 products',
+        'Up to 30 images per product',
+        'Priority video processing',
+        'Premium analytics',
+        'Dedicated support',
+        'Custom storefront themes',
+        'Daily payout cycle'
+      ]
     }
   };
 
@@ -73,6 +114,7 @@ const VendorBilling = () => {
       if (userProfile?.subscriptionPlan && !sub) {
         sub = {
           plan: userProfile.subscriptionPlan,
+          billingCycle: userProfile.billingCycle || 'monthly',
           status: userProfile.subscriptionStatus || 'active',
           commissionRate: userProfile.commissionRate,
           productLimit: userProfile.productLimit,
@@ -86,6 +128,7 @@ const VendorBilling = () => {
         sub = {
           ...sub,
           plan: userProfile.subscriptionPlan || sub.plan,
+          billingCycle: userProfile.billingCycle || sub.billingCycle || 'monthly',
           status: userProfile.subscriptionStatus || sub.status || 'active',
           commissionRate: userProfile.commissionRate || sub.commissionRate,
           productLimit: userProfile.productLimit !== undefined ? userProfile.productLimit : sub.productLimit,
@@ -172,6 +215,8 @@ const VendorBilling = () => {
   }
 
   const currentPlan = getCurrentPlan();
+  const currentBillingCycle = subscription?.billingCycle || userProfile?.billingCycle || 'monthly';
+  const currentPlanAmount = currentBillingCycle === 'annual' ? currentPlan.annualPrice : currentPlan.price;
   const isUnlimited = currentPlan.productLimit === -1;
 
   return (
@@ -197,8 +242,13 @@ const VendorBilling = () => {
             <h3 className="text-lg font-semibold text-gray-900">Current Plan</h3>
             <p className="text-2xl font-bold text-blue-600">{currentPlan.name}</p>
             <p className="text-gray-600">
-              {currentPlan.price === 0 ? 'Free' : `${formatCurrency(currentPlan.price)}/month`}
+              {currentPlanAmount === 0
+                ? 'Free'
+                : `${formatCurrency(currentPlanAmount)}/${currentBillingCycle === 'annual' ? 'year' : 'month'}`}
             </p>
+            {currentBillingCycle === 'annual' && currentPlanAmount > 0 && (
+              <p className="text-sm text-green-700">Annual billing includes 2 months free.</p>
+            )}
           </div>
           <div className="text-right">
             <p className="text-sm text-gray-600">Commission Rate</p>
@@ -224,7 +274,7 @@ const VendorBilling = () => {
         {/* Subscription Details */}
         {subscription && typeof subscription === 'object' && (
           <div className="border-t pt-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
               <div>
                 <p className="text-gray-600">Status</p>
                 <p className={`font-medium ${
@@ -238,6 +288,10 @@ const VendorBilling = () => {
               <div>
                 <p className="text-gray-600">Start Date</p>
                 <p className="font-medium">{subscription.startDate ? formatDate(subscription.startDate) : 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-gray-600">Billing Cycle</p>
+                <p className="font-medium capitalize">{currentBillingCycle}</p>
               </div>
               <div>
                 <p className="text-gray-600">Next Billing</p>
@@ -306,7 +360,9 @@ const VendorBilling = () => {
               </div>
               <div className="text-right">
                 <p className="font-medium text-gray-900">
-                  {currentPlan.price === 0 ? 'Free' : formatCurrency(currentPlan.price)}
+                  {currentPlanAmount === 0
+                    ? 'Free'
+                    : `${formatCurrency(currentPlanAmount)} / ${currentBillingCycle === 'annual' ? 'year' : 'month'}`}
                 </p>
                 <p className="text-sm text-green-600">Paid</p>
               </div>

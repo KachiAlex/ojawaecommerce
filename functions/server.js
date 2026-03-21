@@ -468,15 +468,55 @@ app.post('/ensureWalletForUser', async (req, res) => {
 });
 
 const VENDOR_SUBSCRIPTION_PLANS = {
-  basic: { price: 0, commissionRate: 5.0, productLimit: 50, analyticsLevel: 'basic', supportLevel: 'email' },
-  pro: { price: 5000, commissionRate: 3.0, productLimit: 500, analyticsLevel: 'advanced', supportLevel: 'priority' },
-  premium: { price: 15000, commissionRate: 2.0, productLimit: -1, analyticsLevel: 'premium', supportLevel: 'dedicated' },
+  basic: {
+    price: 0,
+    annualPrice: 0,
+    commissionRate: 5.0,
+    productLimit: 10,
+    analyticsLevel: 'basic',
+    supportLevel: 'email',
+    mediaPerProduct: 6,
+    videoUploads: false,
+    bulkTools: false,
+    storefrontThemes: 'standard',
+    payoutSchedule: 'weekly',
+  },
+  pro: {
+    price: 5000,
+    annualPrice: 50000,
+    commissionRate: 3.0,
+    productLimit: 20,
+    analyticsLevel: 'advanced',
+    supportLevel: 'priority',
+    mediaPerProduct: 15,
+    videoUploads: true,
+    bulkTools: true,
+    storefrontThemes: 'enhanced',
+    payoutSchedule: 'twice-weekly',
+  },
+  premium: {
+    price: 15000,
+    annualPrice: 150000,
+    commissionRate: 2.0,
+    productLimit: 100,
+    analyticsLevel: 'premium',
+    supportLevel: 'dedicated',
+    mediaPerProduct: 30,
+    videoUploads: true,
+    bulkTools: true,
+    storefrontThemes: 'custom',
+    payoutSchedule: 'daily',
+  },
 };
 
-const VENDOR_SUBSCRIPTION_DURATION_DAYS = 30;
+const MONTHLY_SUBSCRIPTION_DURATION_DAYS = 30;
+const ANNUAL_SUBSCRIPTION_DURATION_DAYS = 365;
 
 const addDays = (date, days) => new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
 const normalizePlanKey = (plan) => (typeof plan === 'string' ? plan.trim().toLowerCase() : '');
+const normalizeBillingCycle = (cycle) => (typeof cycle === 'string' && cycle.trim().toLowerCase() === 'annual' ? 'annual' : 'monthly');
+const getSubscriptionTermDays = (cycle) => (cycle === 'annual' ? ANNUAL_SUBSCRIPTION_DURATION_DAYS : MONTHLY_SUBSCRIPTION_DURATION_DAYS);
+const getPlanPrice = (planConfig, cycle) => (cycle === 'annual' ? Number(planConfig.annualPrice ?? planConfig.price * 12) : Number(planConfig.price));
 
 const parsePaystackMetadata = (metadata) => {
   if (!metadata) return {};
@@ -721,7 +761,12 @@ app.post('/topupWalletPaystack', authenticateToken, async (req, res) => {
 
 app.post('/createPaystackSubscriptionRecord', authenticateToken, async (req, res) => {
   try {
-    const { reference, plan: requestedPlan, userId: requestedUserId } = req.body || {};
+    const {
+      reference,
+      plan: requestedPlan,
+      userId: requestedUserId,
+      billingCycle: requestedBillingCycle,
+    } = req.body || {};
     if (!reference) {
       return res.status(400).json({ error: 'Paystack reference is required' });
     }
@@ -754,6 +799,9 @@ app.post('/createPaystackSubscriptionRecord', authenticateToken, async (req, res
     if (!plan || !VENDOR_SUBSCRIPTION_PLANS[plan]) {
       return res.status(400).json({ error: 'Subscription plan could not be determined' });
     }
+    const billingCycle = normalizeBillingCycle(
+      requestedBillingCycle || metadata.subscription_billing_cycle || metadata.billingCycle
+    );
 
     const userId = metadata.userId || metadata.user_id || requestedUserId || req.user.uid;
     if (userId !== req.user.uid) {
@@ -761,11 +809,15 @@ app.post('/createPaystackSubscriptionRecord', authenticateToken, async (req, res
     }
 
     const planConfig = VENDOR_SUBSCRIPTION_PLANS[plan];
+    const subscriptionTermDays = getSubscriptionTermDays(billingCycle);
+    const planPrice = getPlanPrice(planConfig, billingCycle);
     const nowDate = new Date();
-    const endDate = addDays(nowDate, VENDOR_SUBSCRIPTION_DURATION_DAYS);
+    const endDate = addDays(nowDate, subscriptionTermDays);
 
     await db.collection('users').doc(userId).set({
       subscriptionPlan: plan,
+      billingCycle,
+      subscriptionTermDays,
       subscriptionStatus: 'active',
       subscriptionStartDate: nowDate,
       subscriptionEndDate: endDate,
@@ -773,6 +825,11 @@ app.post('/createPaystackSubscriptionRecord', authenticateToken, async (req, res
       productLimit: planConfig.productLimit,
       analyticsLevel: planConfig.analyticsLevel,
       supportLevel: planConfig.supportLevel,
+      mediaPerProduct: planConfig.mediaPerProduct,
+      videoUploads: planConfig.videoUploads,
+      bulkTools: planConfig.bulkTools,
+      storefrontThemes: planConfig.storefrontThemes,
+      payoutSchedule: planConfig.payoutSchedule,
       updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
 
@@ -780,7 +837,9 @@ app.post('/createPaystackSubscriptionRecord', authenticateToken, async (req, res
     await subscriptionRef.set({
       userId,
       plan,
-      price: planConfig.price,
+      billingCycle,
+      subscriptionTermDays,
+      price: planPrice,
       amountPaid: Number(transaction.amount || 0) / 100,
       currency: 'NGN',
       status: 'active',
@@ -790,6 +849,11 @@ app.post('/createPaystackSubscriptionRecord', authenticateToken, async (req, res
       productLimit: planConfig.productLimit,
       analyticsLevel: planConfig.analyticsLevel,
       supportLevel: planConfig.supportLevel,
+      mediaPerProduct: planConfig.mediaPerProduct,
+      videoUploads: planConfig.videoUploads,
+      bulkTools: planConfig.bulkTools,
+      storefrontThemes: planConfig.storefrontThemes,
+      payoutSchedule: planConfig.payoutSchedule,
       paymentMethod: 'paystack',
       paystackReference: transaction.reference,
       transactionId: String(transaction.id),
@@ -801,6 +865,7 @@ app.post('/createPaystackSubscriptionRecord', authenticateToken, async (req, res
     return res.json({
       success: true,
       plan,
+      billingCycle,
       subscriptionId: subscriptionRef.id,
       startDate: nowDate,
       endDate,

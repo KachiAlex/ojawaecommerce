@@ -11,7 +11,9 @@
     "audit:env": "node scripts/env-audit.js",
     "audit:cors": "node scripts/cors-audit.js",
     "audit:indexes": "node scripts/firestore-index-audit.js",
-    "lint:prod": "node scripts/lint-prod.js"
+    "lint:prod": "node scripts/lint-prod.js",
+    "migrate:subscriptions": "node scripts/migrate-subscription-plans.js",
+    "migrate:subscriptions:apply": "node scripts/migrate-subscription-plans.js --apply"
   },
   "engines": {
     "node": "20"

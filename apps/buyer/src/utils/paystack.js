@@ -157,6 +157,7 @@ export const openWalletTopUpCheckout = async ({ user, amount, currency = 'NGN' }
 export const openSubscriptionCheckout = async ({
   user,
   plan,
+  billingCycle = 'monthly',
   price,
   metadata = {},
   description,
@@ -172,12 +173,13 @@ export const openSubscriptionCheckout = async ({
     metadata: {
       purpose: 'subscription',
       subscription_plan: plan,
+      subscription_billing_cycle: billingCycle,
       userId: user.uid,
       ...metadata,
     },
     customizations: {
       title: 'Ojawa Vendor Subscription',
-      description: description || `Activate ${plan} plan`,
+      description: description || `Activate ${plan} plan (${billingCycle})`,
     },
   })
 

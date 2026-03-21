@@ -6,62 +6,99 @@ import { openSubscriptionCheckout } from '../utils/paystack';
 const VendorSubscriptionModal = ({ isOpen, onClose, onUpgrade }) => {
   const { currentUser, userProfile } = useAuth();
   const [selectedPlan, setSelectedPlan] = useState('basic');
+  const [billingCycle, setBillingCycle] = useState('monthly');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const subscriptionPlans = {
     basic: {
       name: 'Basic',
-      price: 0,
+      monthlyPrice: 0,
+      annualPrice: 0,
       commission: 5.0,
       features: [
-        'Up to 50 products',
+        'Up to 10 products',
+        'Up to 6 images per product',
+        'No video uploads',
         'Basic analytics',
         'Email support',
-        'Standard listing priority'
+        'Standard listing priority',
+        'Weekly payout cycle',
       ],
       limits: {
-        products: 50,
+        products: 10,
         analytics: 'basic',
-        support: 'email'
+        support: 'email',
+        mediaPerProduct: 6,
+        videoUploads: false,
+        bulkTools: false,
+        storefrontThemes: 'standard',
+        payoutSchedule: 'weekly',
       }
     },
     pro: {
       name: 'Pro',
-      price: 5000,
+      monthlyPrice: 5000,
+      annualPrice: 50000,
       commission: 3.0,
       features: [
-        'Up to 500 products',
+        'Up to 20 products',
+        'Up to 15 images per product',
+        'Product video uploads',
         'Advanced analytics',
         'Priority support',
         'Featured product listings',
-        'Bulk operations'
+        'Bulk operations',
+        'Enhanced storefront themes',
+        'Twice-weekly payout cycle',
       ],
       limits: {
-        products: 500,
+        products: 20,
         analytics: 'advanced',
-        support: 'priority'
+        support: 'priority',
+        mediaPerProduct: 15,
+        videoUploads: true,
+        bulkTools: true,
+        storefrontThemes: 'enhanced',
+        payoutSchedule: 'twice-weekly',
       }
     },
     premium: {
       name: 'Premium',
-      price: 15000,
+      monthlyPrice: 15000,
+      annualPrice: 150000,
       commission: 2.0,
       features: [
-        'Unlimited products',
+        'Up to 100 products',
+        'Up to 30 images per product',
+        'Priority video processing',
         'Premium analytics',
         'Dedicated support',
         'Top listing priority',
         'API access',
-        'Custom branding'
+        'Custom branding',
+        'Custom storefront themes',
+        'Daily payout cycle',
       ],
       limits: {
-        products: -1, // unlimited
+        products: 100,
         analytics: 'premium',
-        support: 'dedicated'
+        support: 'dedicated',
+        mediaPerProduct: 30,
+        videoUploads: true,
+        bulkTools: true,
+        storefrontThemes: 'custom',
+        payoutSchedule: 'daily',
       }
     }
   };
+
+  const selectedPlanConfig = subscriptionPlans[selectedPlan];
+  const selectedPlanPrice = billingCycle === 'annual'
+    ? selectedPlanConfig.annualPrice
+    : selectedPlanConfig.monthlyPrice;
+  const subscriptionTermDays = billingCycle === 'annual' ? 365 : 30;
+  const getAnnualSavings = (plan) => Math.max((plan.monthlyPrice * 12) - plan.annualPrice, 0);
 
   const handleUpgrade = async () => {
     if (!currentUser) return;
@@ -73,34 +110,43 @@ const VendorSubscriptionModal = ({ isOpen, onClose, onUpgrade }) => {
       const plan = subscriptionPlans[selectedPlan];
       
       // If free plan, create subscription directly
-      if (plan.price === 0) {
+      if (selectedPlanPrice === 0) {
         await createFreeSubscription(plan);
         onUpgrade(selectedPlan);
         onClose();
         return;
       }
 
-      console.log('💳 Starting Paystack payment for plan:', selectedPlan, 'Price:', plan.price);
+      console.log('💳 Starting Paystack payment for plan:', selectedPlan, 'Cycle:', billingCycle, 'Price:', selectedPlanPrice);
 
       const paymentResult = await openSubscriptionCheckout({
         user: currentUser,
         plan: selectedPlan,
-        price: plan.price,
+        billingCycle,
+        price: selectedPlanPrice,
         metadata: {
           purpose: 'subscription',
           subscription_plan: selectedPlan,
+          subscription_billing_cycle: billingCycle,
           commissionRate: plan.commission,
           productLimit: plan.limits.products,
           analyticsLevel: plan.limits.analytics,
           supportLevel: plan.limits.support,
+          mediaPerProduct: plan.limits.mediaPerProduct,
+          videoUploads: plan.limits.videoUploads,
+          bulkTools: plan.limits.bulkTools,
+          storefrontThemes: plan.limits.storefrontThemes,
+          payoutSchedule: plan.limits.payoutSchedule,
+          subscriptionTermDays,
         },
-        description: `${plan.name} Plan Subscription`,
+        description: `${plan.name} Plan Subscription (${billingCycle})`,
       });
 
       const redirectUrl = new URL(`${window.location.origin}/vendor`);
       redirectUrl.searchParams.set('tab', 'billing');
       redirectUrl.searchParams.set('payment', 'success');
       redirectUrl.searchParams.set('plan', selectedPlan);
+      redirectUrl.searchParams.set('billingCycle', billingCycle);
       if (paymentResult?.reference) {
         redirectUrl.searchParams.set('reference', paymentResult.reference);
       }
@@ -122,30 +168,45 @@ const VendorSubscriptionModal = ({ isOpen, onClose, onUpgrade }) => {
   };
 
   const createFreeSubscription = async (plan) => {
+    const planPrice = billingCycle === 'annual' ? plan.annualPrice : plan.monthlyPrice;
     // Update user profile with subscription
     await firebaseService.users.update(currentUser.uid, {
       subscriptionPlan: selectedPlan,
+      billingCycle,
+      subscriptionTermDays,
       subscriptionStatus: 'active',
       subscriptionStartDate: new Date(),
-      subscriptionEndDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      subscriptionEndDate: new Date(Date.now() + subscriptionTermDays * 24 * 60 * 60 * 1000),
       commissionRate: plan.commission,
       productLimit: plan.limits.products,
       analyticsLevel: plan.limits.analytics,
-      supportLevel: plan.limits.support
+      supportLevel: plan.limits.support,
+      mediaPerProduct: plan.limits.mediaPerProduct,
+      videoUploads: plan.limits.videoUploads,
+      bulkTools: plan.limits.bulkTools,
+      storefrontThemes: plan.limits.storefrontThemes,
+      payoutSchedule: plan.limits.payoutSchedule,
     });
 
     // Create subscription record
     await firebaseService.subscriptions.create({
       userId: currentUser.uid,
       plan: selectedPlan,
-      price: plan.price,
+      billingCycle,
+      subscriptionTermDays,
+      price: planPrice,
       status: 'active',
       startDate: new Date(),
-      endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      endDate: new Date(Date.now() + subscriptionTermDays * 24 * 60 * 60 * 1000),
       commissionRate: plan.commission,
       productLimit: plan.limits.products,
       analyticsLevel: plan.limits.analytics,
-      supportLevel: plan.limits.support
+      supportLevel: plan.limits.support,
+      mediaPerProduct: plan.limits.mediaPerProduct,
+      videoUploads: plan.limits.videoUploads,
+      bulkTools: plan.limits.bulkTools,
+      storefrontThemes: plan.limits.storefrontThemes,
+      payoutSchedule: plan.limits.payoutSchedule,
     });
   };
 
@@ -166,6 +227,30 @@ const VendorSubscriptionModal = ({ isOpen, onClose, onUpgrade }) => {
               </svg>
             </button>
           </div>
+
+          <div className="mb-6 flex items-center justify-center">
+            <div className="inline-flex rounded-lg border border-gray-200 p-1 bg-gray-50">
+              <button
+                onClick={() => setBillingCycle('monthly')}
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                  billingCycle === 'monthly' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Monthly
+              </button>
+              <button
+                onClick={() => setBillingCycle('annual')}
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                  billingCycle === 'annual' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Annual
+              </button>
+            </div>
+          </div>
+          {billingCycle === 'annual' && (
+            <p className="text-center text-sm text-green-700 mb-4 font-medium">Annual billing includes 2 months free.</p>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             {Object.entries(subscriptionPlans).map(([key, plan]) => (
@@ -190,10 +275,17 @@ const VendorSubscriptionModal = ({ isOpen, onClose, onUpgrade }) => {
                   <h3 className="text-xl font-semibold text-gray-900 mb-2">{plan.name}</h3>
                   <div className="mb-4">
                     <span className="text-3xl font-bold text-gray-900">
-                      ₦{plan.price.toLocaleString()}
+                      ₦{(billingCycle === 'annual' ? plan.annualPrice : plan.monthlyPrice).toLocaleString()}
                     </span>
-                    <span className="text-gray-600">/month</span>
+                    <span className="text-gray-600">/{billingCycle === 'annual' ? 'year' : 'month'}</span>
                   </div>
+                  {billingCycle === 'annual' && getAnnualSavings(plan) > 0 && (
+                    <div className="mb-4">
+                      <span className="inline-block bg-green-100 text-green-700 px-2 py-1 rounded-md text-xs font-semibold">
+                        Save ₦{getAnnualSavings(plan).toLocaleString()} (2 months free)
+                      </span>
+                    </div>
+                  )}
                   <div className="mb-4">
                     <span className="text-sm text-gray-600">Commission Rate: </span>
                     <span className="font-semibold text-green-600">{plan.commission}%</span>
@@ -232,7 +324,7 @@ const VendorSubscriptionModal = ({ isOpen, onClose, onUpgrade }) => {
               disabled={loading}
               className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Processing...' : `Upgrade to ${subscriptionPlans[selectedPlan].name}`}
+              {loading ? 'Processing...' : `Upgrade to ${subscriptionPlans[selectedPlan].name} (${billingCycle})`}
             </button>
           </div>
         </div>
