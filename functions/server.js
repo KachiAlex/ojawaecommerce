@@ -15,6 +15,23 @@ const {
   EVENT_TYPES,
 } = require('./analytics');
 
+// Import error handling and validation modules
+const {
+  createRequestLogger,
+  errorHandlerMiddleware,
+  asyncHandler,
+  AppError,
+  ValidationError,
+  AuthError,
+  NotFoundError,
+} = require('./errorHandler');
+
+const {
+  RateLimiter,
+  securityHeaders,
+  sanitizeRequestData,
+} = require('./validation');
+
 // Initialize Firebase Admin
 const firebaseProjectId = process.env.FIREBASE_PROJECT_ID || 'ojawa-ecommerce';
 const firebaseClientEmail = process.env.FIREBASE_CLIENT_EMAIL;
@@ -48,6 +65,32 @@ app.use(cors({
   credentials: true,
 }));
 
+// --- Security & Error Handling Middleware ---
+app.use(securityHeaders); // Add security headers
+app.use(sanitizeRequestData); // Sanitize all input
+app.use(createRequestLogger({ logBody: process.env.NODE_ENV === 'development' })); // Request logging
+
+// Rate limiting: 1000 requests per minute per IP
+const apiLimiter = new RateLimiter({
+  maxRequests: 1000,
+  windowMs: 60000,
+});
+app.use('/api', apiLimiter.middleware());
+app.use('/admin', apiLimiter.middleware());
+
+// Strict rate limiting for auth endpoints: 10 requests per minute
+const authLimiter = new RateLimiter({
+  maxRequests: 10,
+  windowMs: 60000,
+});
+app.use('/auth', authLimiter.middleware());
+
+// Cleanup old rate limit entries every 5 minutes
+setInterval(() => {
+  apiLimiter.cleanup();
+  authLimiter.cleanup();
+}, 5 * 60 * 1000);
+
 // --- Middleware to verify Firebase ID token ---
 function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
@@ -55,7 +98,7 @@ function authenticateToken(req, res, next) {
     ? authHeader.split(' ')[1]
     : null;
   if (!token) {
-    return res.status(401).json({ error: 'No token provided' });
+    return next(new AuthError('No token provided'));
   }
   admin.auth().verifyIdToken(token)
     .then((decodedToken) => {
@@ -63,19 +106,18 @@ function authenticateToken(req, res, next) {
       next();
     })
     .catch((err) => {
-      const code = err?.code || 'auth/invalid-id-token';
       const message = err?.message || 'Invalid or expired token';
-      console.warn('❌ Token verification failed:', { code, message });
+      const code = err?.code || 'auth/invalid-id-token';
 
       if (message.includes('incorrect "aud"') || message.includes('incorrect audience')) {
-        return res.status(401).json({ error: 'Invalid token for this Firebase project' });
+        return next(new AuthError('Invalid token for this Firebase project', { code }));
       }
 
       if (code === 'auth/id-token-expired') {
-        return res.status(401).json({ error: 'Token expired. Please sign in again.' });
+        return next(new AuthError('Token expired. Please sign in again.', { code }));
       }
 
-      return res.status(401).json({ error: 'Invalid or expired token' });
+      return next(new AuthError(message, { code }));
     });
 }
 
@@ -1165,6 +1207,13 @@ app.get('/admin/analytics/summary', authenticateToken, requireAdmin, async (req,
     return res.status(500).json({ error: error.message || 'Failed to fetch analytics summary' });
   }
 });
+
+// --- Global Error Handler (must be last middleware) ---
+app.use((req, res, next) => {
+  return next(new NotFoundError('Endpoint', req.path));
+});
+
+app.use(errorHandlerMiddleware);
 
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
