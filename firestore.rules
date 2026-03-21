@@ -434,5 +434,72 @@ service cloud.firestore {
              // Allow list for authenticated users (filtered by userId in queries)
              allow list: if isAuthenticated();
            }
+
+           // ========== SECURITY & MONITORING COLLECTIONS ==========
+
+           // Security audit logs collection - admins only, immutable
+           match /security_audit_logs/{logId} {
+             // Only admins can read security audit logs
+             allow read: if isAdmin();
+             // Only server can create (via Cloud Functions) - not allowed from client
+             allow create: if false;
+             // Audit logs are immutable
+             allow update: if false;
+             allow delete: if false;
+             allow list: if isAdmin();
+           }
+
+           // Platform events collection - admins only, immutable
+           match /platform_events/{eventId} {
+             // Only admins can read platform events
+             allow read: if isAdmin();
+             // Only server can create (via Cloud Functions) - not allowed from client
+             allow create: if false;
+             // Events are immutable
+             allow update: if false;
+             allow delete: if false;
+             allow list: if isAdmin();
+           }
+
+           // Admin audit logs collection - admins only, immutable
+           match /admin_audit_logs/{logId} {
+             // Only admins can read admin audit logs
+             allow read: if isAdmin();
+             // Only server can create - not allowed from client
+             allow create: if false;
+             // Audit logs are immutable
+             allow update: if false;
+             allow delete: if false;
+             allow list: if isAdmin();
+           }
+
+           // Request logs collection - admins only, immutable
+           match /request_logs/{logId} {
+             // Only admins can read request logs
+             allow read: if isAdmin();
+             // Only server can create - not allowed from client
+             allow create: if false;
+             // Request logs are immutable
+             allow update: if false;
+             allow delete: if false;
+             allow list: if isAdmin();
+           }
+
+           // Critical errors collection - admins only, immutable
+           match /critical_errors/{errorId} {
+             // Only admins can read critical errors
+             allow read: if isAdmin();
+             // Only server can create - not allowed from client
+             allow create: if false;
+             // Critical error logs are immutable
+             allow update: if false;
+             allow delete: if false;
+             allow list: if isAdmin();
+           }
+
+           // Deny all other access by default
+           match /{allCollections=**} {
+             allow read, write: if false;
+           }
          }
        }
