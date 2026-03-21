@@ -4,6 +4,16 @@ const { defineSecret } = require("firebase-functions/params");
 const admin = require("firebase-admin");
 const axios = require("axios");
 const crypto = require("crypto");
+const {
+  logEvent,
+  logAdminAction,
+  queryEventsByType,
+  getSubscriptionRevenue,
+  getPaymentAnalytics,
+  getVendorTrends,
+  getAuditLogs,
+  EVENT_TYPES,
+} = require("./analytics");
 
 const PAYSTACK_SECRET = defineSecret('PAYSTACK_SECRET_KEY');
 const PAYSTACK_WEBHOOK_SECRET = defineSecret('PAYSTACK_WEBHOOK_SECRET');
@@ -996,6 +1006,31 @@ async function applyVendorSubscription({
     await subscriptionRef.set(subscriptionPayload);
   } else {
     await subscriptionRef.set(subscriptionPayload, { merge: true });
+  }
+
+  // Log subscription event for analytics
+  try {
+    const isNewSubscription = !subscriptionRef.id || !(await subscriptionRef.get()).exists;
+    const eventType = isNewSubscription ? EVENT_TYPES.SUBSCRIPTION_CREATED : EVENT_TYPES.SUBSCRIPTION_RENEWED;
+    await logEvent({
+      eventType,
+      data: {
+        userId,
+        plan: planKey,
+        billingCycle: cycle,
+        price: planPrice,
+        amountPaid: typeof amountPaid === 'number' ? amountPaid : planPrice,
+        subscriptionId: subscriptionRef.id,
+      },
+      userId,
+      metadata: {
+        source: 'firebase-function',
+        paystackReference,
+      },
+    });
+  } catch (analyticsError) {
+    console.warn('Failed to log subscription event:', analyticsError.message);
+    // Don't fail the subscription if analytics fails
   }
 
   return {

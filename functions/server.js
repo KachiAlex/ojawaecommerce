@@ -4,6 +4,16 @@ const express = require('express');
 const admin = require('firebase-admin');
 const axios = require('axios');
 const cors = require('cors');
+const {
+  logEvent,
+  logAdminAction,
+  queryEventsByType,
+  getSubscriptionRevenue,
+  getPaymentAnalytics,
+  getVendorTrends,
+  getAuditLogs,
+  EVENT_TYPES,
+} = require('./analytics');
 
 // Initialize Firebase Admin
 const firebaseProjectId = process.env.FIREBASE_PROJECT_ID || 'ojawa-ecommerce';
@@ -107,6 +117,22 @@ app.get('/health', (req, res) => {
     firebase: 'initialized',
     credentials: hasCredentials ? 'service_account' : 'missing_check_render_env_vars',
     project: process.env.FIREBASE_PROJECT_ID || 'ojawa-ecommerce',
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.get('/health/subscriptions', (req, res) => {
+  const hasPlan = !!(VENDOR_SUBSCRIPTION_PLANS && Object.keys(VENDOR_SUBSCRIPTION_PLANS).length > 0);
+  const plans = hasPlan ? Object.keys(VENDOR_SUBSCRIPTION_PLANS) : [];
+  res.json({
+    status: 'ok',
+    subscriptions: {
+      plansAvailable: plans,
+      billingCycles: ['monthly', 'annual'],
+      discountPercentage: 16.67,
+      discountLabel: '2 months free on annual',
+    },
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -862,6 +888,15 @@ app.post('/createPaystackSubscriptionRecord', authenticateToken, async (req, res
       updatedAt: FieldValue.serverTimestamp(),
     });
 
+    console.info('✅ Subscription activated', {
+      userId,
+      plan,
+      billingCycle,
+      planPrice,
+      subscriptionId: subscriptionRef.id,
+      endDate,
+    });
+
     return res.json({
       success: true,
       plan,
@@ -871,8 +906,17 @@ app.post('/createPaystackSubscriptionRecord', authenticateToken, async (req, res
       endDate,
     });
   } catch (error) {
-    console.error('Error creating Paystack subscription record:', error);
-    return res.status(500).json({ error: error.message || 'Failed to create subscription record' });
+    console.error('❌ Subscription creation failed', {
+      errorMessage: error.message,
+      errorCode: error.code,
+      stack: error.stack,
+      plan: requestedPlan,
+      billingCycle: requestedBillingCycle,
+    });
+    return res.status(500).json({
+      error: error.message || 'Failed to create subscription record',
+      code: error.code || 'SUBSCRIPTION_ERROR',
+    });
   }
 });
 
@@ -949,6 +993,176 @@ app.post('/optimizeRoute', async (req, res) => {
     const details = error.response?.data || { message: error.message };
     console.error('optimizeRoute error:', status, details);
     return res.status(status).json({ ok: false, error: 'ROUTES_API_ERROR', details });
+  }
+});
+
+// --- Admin Analytics Endpoints ---
+
+// Admin Analytics: Revenue Trends
+app.get('/admin/analytics/revenue', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { startDate, endDate, groupBy = 'daily' } = req.query;
+    
+    let start = startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // Default 30 days
+    let end = endDate ? new Date(endDate) : new Date();
+
+    const revenue = await getSubscriptionRevenue(start, end);
+    
+    return res.json({
+      success: true,
+      period: { start, end },
+      revenue: revenue || {
+        totalRevenue: 0,
+        byPlan: {},
+        byCycle: {},
+        transactionCount: 0,
+        averageTransactionValue: 0,
+      },
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    console.error('Error fetching revenue analytics:', error);
+    return res.status(500).json({ error: error.message || 'Failed to fetch revenue analytics' });
+  }
+});
+
+// Admin Analytics: Payment Health
+app.get('/admin/analytics/payments', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    
+    let start = startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // Default 30 days
+    let end = endDate ? new Date(endDate) : new Date();
+
+    const payments = await getPaymentAnalytics(start, end);
+    
+    return res.json({
+      success: true,
+      period: { start, end },
+      analytics: payments || {
+        totalProcessed: 0,
+        successCount: 0,
+        failureCount: 0,
+        successRate: 0,
+        refundAmount: 0,
+        failureReasons: {},
+      },
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    console.error('Error fetching payment analytics:', error);
+    return res.status(500).json({ error: error.message || 'Failed to fetch payment analytics' });
+  }
+});
+
+// Admin Analytics: Vendor Metrics
+app.get('/admin/analytics/vendors', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    
+    let start = startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // Default 30 days
+    let end = endDate ? new Date(endDate) : new Date();
+
+    const vendors = await getVendorTrends(start, end);
+    
+    return res.json({
+      success: true,
+      period: { start, end },
+      trends: vendors || {
+        registeredCount: 0,
+        approvedCount: 0,
+        suspendedCount: 0,
+        topPlans: {},
+        activationRate: 0,
+      },
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    console.error('Error fetching vendor analytics:', error);
+    return res.status(500).json({ error: error.message || 'Failed to fetch vendor analytics' });
+  }
+});
+
+// Admin Analytics: Audit Logs
+app.get('/admin/analytics/audit', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { adminId, targetId, limit = 50 } = req.query;
+    
+    const logs = await getAuditLogs(adminId || null, targetId || null, parseInt(limit));
+    
+    return res.json({
+      success: true,
+      logs: logs || [],
+      count: (logs || []).length,
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    console.error('Error fetching audit logs:', error);
+    return res.status(500).json({ error: error.message || 'Failed to fetch audit logs' });
+  }
+});
+
+// Admin Analytics: Events by Type
+app.get('/admin/analytics/events', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { eventType, startDate, endDate, limit = 100 } = req.query;
+    
+    if (!eventType) {
+      return res.status(400).json({ error: 'eventType query parameter is required' });
+    }
+
+    let start = startDate ? new Date(startDate) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // Default 7 days
+    let end = endDate ? new Date(endDate) : new Date();
+
+    const events = await queryEventsByType(eventType, start, end, parseInt(limit));
+    
+    return res.json({
+      success: true,
+      eventType,
+      period: { start, end },
+      events: events || [],
+      count: (events || []).length,
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    console.error('Error fetching event analytics:', error);
+    return res.status(500).json({ error: error.message || 'Failed to fetch event analytics' });
+  }
+});
+
+// Admin Analytics: Summary Dashboard
+app.get('/admin/analytics/summary', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { period = '30d' } = req.query;
+    
+    let days = 30;
+    if (period === '7d') days = 7;
+    if (period === '60d') days = 60;
+    if (period === '90d') days = 90;
+    if (period === '1y' || period === '365d') days = 365;
+
+    const endDate = new Date();
+    const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    const [revenue, payments, vendors] = await Promise.all([
+      getSubscriptionRevenue(startDate, endDate),
+      getPaymentAnalytics(startDate, endDate),
+      getVendorTrends(startDate, endDate),
+    ]);
+
+    return res.json({
+      success: true,
+      period: { days, start: startDate, end: endDate },
+      summary: {
+        revenue: revenue || {},
+        payments: payments || {},
+        vendors: vendors || {},
+      },
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    console.error('Error fetching analytics summary:', error);
+    return res.status(500).json({ error: error.message || 'Failed to fetch analytics summary' });
   }
 });
 

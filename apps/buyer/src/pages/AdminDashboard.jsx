@@ -4,6 +4,7 @@ import firebaseService from '../services/firebaseService';
 import { collection, query, where, getDocs, doc, updateDoc, deleteDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import FeaturedProductsManager from '../components/FeaturedProductsManager';
+import AdminAnalyticsDashboard from './AdminAnalyticsDashboard';
 
 const AdminDashboard = () => {
   const { userProfile, currentUser } = useAuth();
@@ -1422,58 +1423,7 @@ const AdminDashboard = () => {
 
       {/* Analytics Tab */}
       {activeTab === 'analytics' && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div className="bg-white p-6 rounded-lg shadow">
-              <p className="text-sm font-medium text-gray-600">Total Users</p>
-              <p className="text-3xl font-bold text-gray-900">{analytics.totalUsers}</p>
-                </div>
-            <div className="bg-white p-6 rounded-lg shadow">
-              <p className="text-sm font-medium text-gray-600">Vendors</p>
-              <p className="text-3xl font-bold text-gray-900">{analytics.totalVendors}</p>
-                  </div>
-            <div className="bg-white p-6 rounded-lg shadow">
-              <p className="text-sm font-medium text-gray-600">Logistics Partners</p>
-              <p className="text-3xl font-bold text-gray-900">{analytics.totalLogistics}</p>
-                  </div>
-            <div className="bg-white p-6 rounded-lg shadow">
-              <p className="text-sm font-medium text-gray-600">Completed Orders</p>
-              <p className="text-3xl font-bold text-gray-900">{analytics.completedOrders}</p>
-                </div>
-            <div className="bg-white p-6 rounded-lg shadow">
-              <p className="text-sm font-medium text-gray-600">Pending Products</p>
-              <p className="text-3xl font-bold text-gray-900">{analytics.pendingProducts}</p>
-                  </div>
-            <div className="bg-white p-6 rounded-lg shadow">
-              <p className="text-sm font-medium text-gray-600">Total Escrow Amount</p>
-              <p className="text-3xl font-bold text-gray-900">₦{(analytics.totalEscrowAmount || 0).toLocaleString()}</p>
-                  </div>
-                </div>
-
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Reports</h3>
-            <div className="flex flex-wrap gap-3">
-                  <button
-                onClick={() => generateReport('users')}
-                className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-                  >
-                👥 User Report
-                  </button>
-                  <button
-                onClick={() => generateReport('revenue')}
-                className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-                  >
-                💰 Revenue Report
-                  </button>
-                  <button
-                onClick={() => generateReport('products')}
-                className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-                  >
-                🛒 Products Report
-                  </button>
-            </div>
-          </div>
-        </div>
+        <AdminAnalyticsDashboard />
       )}
 
       {/* Bulk Message Modal */}
