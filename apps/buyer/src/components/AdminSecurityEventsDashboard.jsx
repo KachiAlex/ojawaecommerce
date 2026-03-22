@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import {
   LineChart, Line, BarChart, Bar, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell
@@ -25,30 +24,28 @@ const SecurityEventsDashboard = () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('authToken');
-      const headers = { Authorization: `Bearer ${token}` };
+      const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
       // Fetch security events
-      const eventsRes = await axios.get('/admin/security/events', {
-        params: {
-          startDate: dateRange.startDate,
-          endDate: dateRange.endDate,
-          ...(filterType !== 'all' && { eventType: filterType }),
-          limit: 100,
-        },
-        headers,
+      const params = new URLSearchParams({
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
+        ...(filterType !== 'all' && { eventType: filterType }),
+        limit: 100,
       });
-      setSecurityEvents(eventsRes.data.events || []);
+      const eventsRes = await fetch(`/admin/security/events?${params}`, { headers });
+      const eventsData = await eventsRes.json();
+      setSecurityEvents(eventsData.events || []);
 
       // Fetch security summary
-      const summaryRes = await axios.get('/admin/security/summary', { headers });
-      setSecuritySummary(summaryRes.data.summary);
+      const summaryRes = await fetch('/admin/security/summary', { headers });
+      const summaryData = await summaryRes.json();
+      setSecuritySummary(summaryData.summary);
 
       // Fetch failed logins
-      const loginsRes = await axios.get('/admin/security/failed-logins', {
-        params: { limit: 50, page: 1 },
-        headers,
-      });
-      setFailedLogins(loginsRes.data.failedLogins || []);
+      const loginsRes = await fetch('/admin/security/failed-logins?limit=50&page=1', { headers });
+      const loginsData = await loginsRes.json();
+      setFailedLogins(loginsData.failedLogins || []);
     } catch (error) {
       console.error('Error fetching security data:', error);
     } finally {
