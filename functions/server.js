@@ -121,11 +121,79 @@ function authenticateToken(req, res, next) {
     });
 }
 
+// --- Admin Context Validation (IP & User Agent Check) ---
+// Tracks admin login contexts to prevent account hijacking
+const adminContexts = new Map();
+
+function validateAdminContext(req, res, next) {
+  const user = req.user;
+  const userId = user?.uid;
+  const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+  const userAgent = req.get('user-agent') || 'unknown';
+  
+  if (!adminContexts.has(userId)) {
+    // First login from this IP/user agent - store context
+    adminContexts.set(userId, {
+      ipAddress,
+      userAgent,
+      timestamp: Date.now(),
+    });
+    return next();
+  }
+  
+  const storedContext = adminContexts.get(userId);
+  const timeDiff = Date.now() - storedContext.timestamp;
+  
+  // If IP or user agent changed significantly within a short time (< 1 hour), log warning
+  if (timeDiff < 3600000) { // 1 hour
+    if (storedContext.ipAddress !== ipAddress || storedContext.userAgent !== userAgent) {
+      // Log suspicious activity
+      console.warn(`⚠️ Admin context mismatch for user ${userId}:`, {
+        oldIp: storedContext.ipAddress,
+        newIp: ipAddress,
+        oldAgent: storedContext.userAgent?.substring(0, 50),
+        newAgent: userAgent?.substring(0, 50),
+      });
+      
+      // Log to admin audit logs
+      db.collection('admin_audit_logs').add({
+        userId,
+        action: 'admin_context_mismatch',
+        severity: 'high',
+        oldContext: {
+          ipAddress: storedContext.ipAddress,
+          userAgent: storedContext.userAgent,
+        },
+        newContext: {
+          ipAddress,
+          userAgent,
+        },
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      }).catch(err => console.error('Failed to log context mismatch:', err));
+      
+      // Allow access but flag for investigation (could block if desired)
+      // return res.status(403).json({ error: 'Suspicious admin activity detected' });
+    }
+  }
+  
+  // Update context if time has passed
+  if (timeDiff > 3600000) {
+    adminContexts.set(userId, {
+      ipAddress,
+      userAgent,
+      timestamp: Date.now(),
+    });
+  }
+  
+  return next();
+}
+
 // --- Admin Middleware ---
 function requireAdmin(req, res, next) {
   const user = req.user;
   if (user && (user.admin || user.isAdmin || (user.role && user.role.includes && user.role.includes('admin')))) {
-    return next();
+    // Validate admin context before proceeding
+    return validateAdminContext(req, res, next);
   }
   return res.status(403).json({ error: 'Admin privileges required' });
 }
@@ -490,9 +558,13 @@ app.delete('/admin/products/:id', authenticateToken, requireAdmin, async (req, r
 });
 
 // --- Paystack Webhook ---
-app.post('/paystack/webhook', paystackIpWhitelist, (req, res) => {
-  // TODO: Handle webhook event
-  res.status(200).send('Webhook received');
+// Webhook endpoint delegates to Cloud Function (paystackWebhook) for proper HMAC verification
+// This endpoint should not be used directly - webhooks must go through Cloud Functions
+app.post('/paystack/webhook', (req, res) => {
+  return res.status(403).json({
+    error: 'Webhooks must be processed through Cloud Function endpoint',
+    message: 'Configure your webhook to use the paystackWebhook Cloud Function instead'
+  });
 });
 
 // --- Process Payout Request ---
@@ -514,26 +586,71 @@ app.post('/processPayoutRequest', authenticateToken, requireAdmin, async (req, r
   }
 });
 
-// --- Ensure Wallet For User ---
-app.post('/ensureWalletForUser', async (req, res) => {
-  try {
-    const { adminSecret, userId, userType = 'buyer', currency = 'NGN' } = req.body;
-    const envSecret = process.env.WALLET_ADMIN_SECRET;
-    if (!envSecret) {
-      return res.status(500).json({ error: 'Wallet admin secret not configured' });
-    }
-    if (!adminSecret || adminSecret !== envSecret) {
-      return res.status(403).json({ error: 'Invalid admin secret' });
-    }
-    if (!userId) {
-      return res.status(400).json({ error: 'userId is required' });
-    }
-    return res.json({ success: true, message: 'Stub: implement logic' });
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({ error: error.message });
+// --- Ensure Wallet For User (Admin Protected) ---
+app.post('/ensureWalletForUser', authenticateToken, requireAdmin, asyncHandler(async (req, res) => {
+  const { userId, userType = 'buyer', currency = 'NGN' } = req.body;
+
+  // Validate input
+  if (!userId) {
+    throw new ValidationError('userId is required', { field: 'userId' });
   }
-});
+
+  if (!/^[a-zA-Z0-9_-]+$/.test(userType)) {
+    throw new ValidationError('Invalid userType format', { field: 'userType' });
+  }
+
+  if (!['NGN', 'USD', 'GBP'].includes(currency)) {
+    throw new ValidationError('Invalid currency', { field: 'currency', allowed: ['NGN', 'USD', 'GBP'] });
+  }
+
+  try {
+    // Check if wallet already exists
+    const walletRef = db.collection('wallets').doc(userId);
+    const walletDoc = await walletRef.get();
+
+    if (walletDoc.exists) {
+      return res.json({
+        success: true,
+        message: 'Wallet already exists',
+        walletId: userId
+      });
+    }
+
+    // Create new wallet with security tracking
+    await walletRef.set({
+      userId,
+      userType,
+      currency,
+      balance: 0,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdBy: req.user.uid,
+      status: 'active'
+    });
+
+    // Log admin action
+    await logAdminAction({
+      adminId: req.user.uid,
+      action: 'WALLET_CREATED',
+      targetId: userId,
+      targetType: 'wallet',
+      reason: `System wallet creation for ${userType}`
+    });
+
+    return res.json({
+      success: true,
+      message: 'Wallet created successfully',
+      walletId: userId
+    });
+  } catch (error) {
+    if (error instanceof ValidationError) throw error;
+    throw new AppError(
+      `Failed to create wallet: ${error.message}`,
+      500,
+      ERROR_LEVELS.ERROR,
+      { userId, operation: 'ensureWalletForUser' }
+    );
+  }
+}));
 
 const VENDOR_SUBSCRIPTION_PLANS = {
   basic: {
@@ -962,11 +1079,31 @@ app.post('/createPaystackSubscriptionRecord', authenticateToken, async (req, res
   }
 });
 
+// --- Per-Email OTP Rate Limiting (5 attempts per email per 15 minutes) ---
+const otpRateLimiter = new RateLimiter({
+  maxRequests: 5,
+  windowMs: 15 * 60 * 1000, // 15 minutes
+});
+
+const otpVerifyLimiter = new RateLimiter({
+  maxRequests: 10,
+  windowMs: 15 * 60 * 1000, // 15 minutes (verify up to 10 times per email)
+});
+
 app.post('/sendEmailOTP', async (req, res) => {
   try {
     const { to, subject, htmlContent, textContent, purpose } = req.body || {};
     if (!to || !subject || (!htmlContent && !textContent)) {
       return res.status(400).json({ error: 'to, subject, and content are required' });
+    }
+
+    // Check per-email rate limit for sending OTP (5 requests per 15 minutes)
+    const isAllowed = otpRateLimiter.checkLimit(to);
+    if (!isAllowed) {
+      return res.status(429).json({ 
+        error: 'Too many OTP requests. Please try again in 15 minutes.',
+        retryAfter: 900 // 15 minutes in seconds
+      });
     }
 
     console.log('sendEmailOTP request:', { to, subject, purpose });
@@ -982,6 +1119,15 @@ app.post('/verifyEmailOTP', async (req, res) => {
     const { email, otp } = req.body || {};
     if (!email || !otp) {
       return res.status(400).json({ error: 'email and otp are required' });
+    }
+
+    // Check per-email rate limit for verifying OTP (10 attempts per 15 minutes)
+    const isAllowed = otpVerifyLimiter.checkLimit(email);
+    if (!isAllowed) {
+      return res.status(429).json({ 
+        error: 'Too many OTP verification attempts. Please try again in 15 minutes.',
+        retryAfter: 900 // 15 minutes in seconds
+      });
     }
 
     // Client-side OTP cache remains the primary verifier in this flow.

@@ -79,6 +79,7 @@ const AdminDashboard = lazyLoad(() => import('./pages/AdminDashboard'));
 const AdminSetup = lazyLoad(() => import('./pages/AdminSetup'));
 const AdminLogin = lazyLoad(() => import('./pages/AdminLogin'));
 const PricingAdminPanel = lazyLoad(() => import('./components/PricingAdminPanel'));
+const SecurityMonitoringDashboard = lazyLoad(() => import('./pages/SecurityMonitoringDashboard'));
 
 // Vendor pages (separate chunk)
 const Vendor = lazyLoad(() => import('./pages/Vendor'));
@@ -359,6 +360,13 @@ const AppRoutes = () => {
         <AdminRoute>
         <Suspense fallback={<RouteLoadingSpinner route="default" />}>
           <Admin />
+        </Suspense>
+        </AdminRoute>
+      } />
+      <Route path="/admin/security" element={
+        <AdminRoute>
+        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+          <SecurityMonitoringDashboard />
         </Suspense>
         </AdminRoute>
       } />
