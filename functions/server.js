@@ -1359,6 +1359,200 @@ app.use((req, res, next) => {
   return next(new NotFoundError('Endpoint', req.path));
 });
 
+// --- Security Monitoring Dashboard Endpoint ---
+app.get('/admin/security/events', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { startDate, endDate, eventType, limit = 100 } = req.query;
+    
+    let query = db.collection('security_audit_logs');
+    
+    // Filter by date range
+    if (startDate) {
+      query = query.where('timestamp', '>=', new Date(startDate));
+    }
+    if (endDate) {
+      query = query.where('timestamp', '<=', new Date(endDate));
+    }
+    
+    // Filter by event type if specified
+    if (eventType) {
+      query = query.where('eventType', '==', eventType);
+    }
+    
+    // Get results ordered by timestamp descending
+    const snapshot = await query
+      .orderBy('timestamp', 'desc')
+      .limit(parseInt(limit))
+      .get();
+    
+    const events = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      timestamp: doc.data().timestamp?.toDate?.() || doc.data().timestamp,
+    }));
+    
+    // Count by severity
+    const severityCount = events.reduce((acc, event) => {
+      const severity = event.severity || 'unknown';
+      acc[severity] = (acc[severity] || 0) + 1;
+      return acc;
+    }, {});
+    
+    // Count by event type
+    const eventTypeCount = events.reduce((acc, event) => {
+      const type = event.eventType || 'unknown';
+      acc[type] = (acc[type] || 0) + 1;
+      return acc;
+    }, {});
+    
+    return res.json({
+      success: true,
+      events,
+      summary: {
+        totalEvents: events.length,
+        severityBreakdown: severityCount,
+        eventTypeBreakdown: eventTypeCount,
+        dateRange: { startDate, endDate },
+      },
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    console.error('Error fetching security events:', error);
+    return res.status(500).json({ error: error.message || 'Failed to fetch security events' });
+  }
+});
+
+// --- Security Summary Endpoint ---
+app.get('/admin/security/summary', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const now = new Date();
+    const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const last7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    
+    // Failed login attempts in last 24 hours
+    const failedLoginsSnapshot = await db.collection('request_logs')
+      .where('endpoint', '==', '/auth/login')
+      .where('statusCode', '==', 401)
+      .where('timestamp', '>=', last24h)
+      .get();
+    
+    // Rate limit violations in last 24 hours
+    const rateLimitSnapshot = await db.collection('security_audit_logs')
+      .where('eventType', '==', 'rate_limit_exceeded')
+      .where('timestamp', '>=', last24h)
+      .get();
+    
+    // Admin context mismatches in last 24 hours
+    const contextMismatchSnapshot = await db.collection('admin_audit_logs')
+      .where('action', '==', 'admin_context_mismatch')
+      .where('timestamp', '>=', last24h)
+      .get();
+    
+    // Account lockouts in last 24 hours
+    const lockoutsSnapshot = await db.collection('security_audit_logs')
+      .where('eventType', '==', 'account_lockout')
+      .where('timestamp', '>=', last24h)
+      .get();
+    
+    // Critical errors in last 24 hours
+    const criticalErrorsSnapshot = await db.collection('critical_errors')
+      .where('severity', '==', 'critical')
+      .where('timestamp', '>=', last24h)
+      .get();
+    
+    // Active admin sessions (last 24 hours with context)
+    const activeAdminsCount = adminContexts.size;
+    
+    return res.json({
+      success: true,
+      summary: {
+        last24Hours: {
+          failedLoginAttempts: failedLoginsSnapshot.size,
+          rateLimitViolations: rateLimitSnapshot.size,
+          adminContextMismatches: contextMismatchSnapshot.size,
+          accountLockouts: lockoutsSnapshot.size,
+          criticalErrors: criticalErrorsSnapshot.size,
+          activeAdminSessions: activeAdminsCount,
+        },
+        securityScore: {
+          // Calculate security score based on events (0-100)
+          violations: failedLoginsSnapshot.size + rateLimitSnapshot.size + contextMismatchSnapshot.size,
+          lockouts: lockoutsSnapshot.size,
+          criticalIssues: criticalErrorsSnapshot.size,
+          calculatedScore: Math.max(0, 100 - 
+            (failedLoginsSnapshot.size * 2 + 
+             rateLimitSnapshot.size * 3 + 
+             contextMismatchSnapshot.size * 5 + 
+             lockoutsSnapshot.size * 10 + 
+             criticalErrorsSnapshot.size * 20)
+          ),
+        },
+        trend: {
+          last24h: failedLoginsSnapshot.size + rateLimitSnapshot.size,
+          last7d: 'data-aggregation-pending', // Would require more queries
+        },
+      },
+      timestamp: now,
+    });
+  } catch (error) {
+    console.error('Error fetching security summary:', error);
+    return res.status(500).json({ error: error.message || 'Failed to fetch security summary' });
+  }
+});
+
+// --- Failed Login Attempts Endpoint ---
+app.get('/admin/security/failed-logins', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { limit = 50, page = 1 } = req.query;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    
+    const snapshot = await db.collection('request_logs')
+      .where('endpoint', '==', '/auth/login')
+      .where('statusCode', '==', 401)
+      .orderBy('timestamp', 'desc')
+      .limit(parseInt(limit) + offset)
+      .get();
+    
+    const failedLogins = snapshot.docs
+      .slice(offset)
+      .map(doc => ({
+        id: doc.id,
+        ipAddress: doc.data().ipAddress,
+        userAgent: doc.data().userAgent?.substring(0, 100),
+        timestamp: doc.data().timestamp?.toDate?.() || doc.data().timestamp,
+        userId: doc.data().userId || 'anonymous',
+        emailAttempted: doc.data().emailAttempted,
+      }));
+    
+    // Count failed attempts by IP
+    const ipAttempts = {};
+    snapshot.docs.forEach(doc => {
+      const ip = doc.data().ipAddress;
+      ipAttempts[ip] = (ipAttempts[ip] || 0) + 1;
+    });
+    
+    // Find suspicious IPs (>5 failed attempts in 24 hours)
+    const suspiciousIps = Object.entries(ipAttempts)
+      .filter(([_, count]) => count > 5)
+      .map(([ip, count]) => ({ ip, attempts: count }));
+    
+    return res.json({
+      success: true,
+      failedLogins,
+      summary: {
+        total: snapshot.size,
+        suspiciousIps,
+        page: parseInt(page),
+        limit: parseInt(limit),
+      },
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    console.error('Error fetching failed logins:', error);
+    return res.status(500).json({ error: error.message || 'Failed to fetch failed logins' });
+  }
+});
+
 app.use(errorHandlerMiddleware);
 
 const PORT = process.env.PORT || 8080;

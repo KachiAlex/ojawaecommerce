@@ -5,6 +5,7 @@ import { collection, query, where, getDocs, doc, updateDoc, deleteDoc, addDoc, s
 import { db } from '../firebase/config';
 import FeaturedProductsManager from '../components/FeaturedProductsManager';
 import AdminAnalyticsDashboard from './AdminAnalyticsDashboard';
+import SecurityEventsDashboard from '../components/AdminSecurityEventsDashboard';
 
 const AdminDashboard = () => {
   const { userProfile, currentUser } = useAuth();
@@ -521,7 +522,8 @@ const AdminDashboard = () => {
             { id: 'escrow', name: 'Escrow', icon: '💰' },
             { id: 'messages', name: 'Messages', icon: '📨' },
             { id: 'support-tickets', name: 'Support Tickets', icon: '🎫' },
-            { id: 'analytics', name: 'Analytics', icon: '📈' }
+            { id: 'analytics', name: 'Analytics', icon: '📈' },
+            { id: 'security', name: 'Security', icon: '🔒' }
           ].map((tab) => (
               <button
                 key={tab.id}
@@ -1424,6 +1426,11 @@ const AdminDashboard = () => {
       {/* Analytics Tab */}
       {activeTab === 'analytics' && (
         <AdminAnalyticsDashboard />
+      )}
+
+      {/* Security Monitoring Tab */}
+      {activeTab === 'security' && (
+        <SecurityEventsDashboard />
       )}
 
       {/* Bulk Message Modal */}
