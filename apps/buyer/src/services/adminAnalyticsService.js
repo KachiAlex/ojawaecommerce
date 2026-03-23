@@ -1,4 +1,4 @@
-import { collection, addDoc, getDocs, query, where, orderBy, limit as fsLimit, serverTimestamp, getAggregateFromServer, sum, count, average, DocumentReference } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, where, orderBy, limit as fsLimit, serverTimestamp, getAggregateFromServer, sum, count, average, DocumentReference, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
 /**
@@ -85,9 +85,11 @@ export const adminAnalyticsService = {
       const sessionDocId = sessionStorage.getItem('analyticsSessionDocId');
       if (!sessionDocId) return;
 
-      const sessionRef = await db.collection(ANALYTICS_COLLECTIONS.USER_SESSIONS).doc(sessionDocId).get();
-      if (sessionRef.exists) {
-        await sessionRef.ref.update({
+      const sessionRef = doc(db, ANALYTICS_COLLECTIONS.USER_SESSIONS, sessionDocId);
+      const sessionSnap = await getDoc(sessionRef);
+      
+      if (sessionSnap.exists()) {
+        await updateDoc(sessionRef, {
           endTime: serverTimestamp(),
           isActive: false
         });
