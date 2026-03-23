@@ -513,12 +513,6 @@ const EnhancedBuyer = () => {
                               </p>
                             </div>
                             <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => setSelectedOrder(order)}
-                                className="text-emerald-600 hover:text-emerald-700 font-medium"
-                              >
-                                View Details
-                              </button>
                               <div className="w-16 bg-gray-200 rounded-full h-2">
                                 <div 
                                   className="bg-emerald-600 h-2 rounded-full transition-all duration-300"
@@ -625,13 +619,6 @@ const EnhancedBuyer = () => {
                           
                           <div className="ml-6 flex flex-col gap-2">
                             <div className="flex flex-col gap-2">
-                            <button
-                              onClick={() => setSelectedOrder(order)}
-                              className="bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700 text-sm font-medium"
-                            >
-                              View Details
-                            </button>
-
                             <PayoutStatusSummary
                               variant="inline"
                               payoutStatus={order.payoutStatus}
@@ -778,104 +765,7 @@ const EnhancedBuyer = () => {
           )}
         </div>
 
-        {/* Order Details Modal */}
-        {selectedOrder && (
-          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-            <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
-              <div className="mt-3">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-medium text-gray-900">
-                    Order #{selectedOrder.id.slice(-8)}
-                  </h3>
-                  <button
-                    onClick={() => setSelectedOrder(null)}
-                    className="text-gray-400 hover:text-gray-600"
-                  >
-                    <span className="sr-only">Close</span>
-                    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-                
-                <div className="space-y-6">
-                  {/* Order Timeline (Full) */}
-                  <OrderTimeline order={selectedOrder} showDetails={true} />
-
-                  {/* Payout + VAT Status */}
-                  <PayoutStatusSummary
-                    payoutStatus={selectedOrder.payoutStatus}
-                    payoutRequestId={selectedOrder.payoutRequestId}
-                    payoutTotals={selectedOrder.payoutTotals}
-                    vat={selectedOrder.vat}
-                    currency={selectedOrder.currency}
-                    className="rounded-lg border border-gray-200 bg-gray-50"
-                  />
-                  
-                  {/* Order Actions */}
-                  <div className="border-t pt-4">
-                    <h4 className="text-md font-medium text-gray-900 mb-3">Actions</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {getNextActions(selectedOrder).map((action) => (
-                        <button
-                          key={action.status}
-                          onClick={() => {
-                            handleOrderAction(selectedOrder.id, action.action)
-                            setSelectedOrder(null)
-                          }}
-                          disabled={updating}
-                          className="bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700 text-sm font-medium disabled:opacity-50"
-                        >
-                          {action.name}
-                        </button>
-                      ))}
-                      {selectedOrder?.status === ORDER_STATUS.PENDING && (
-                        <button
-                          onClick={async () => {
-                            try {
-                              // Direct the user to top-up the exact order amount
-                              const amount = selectedOrder.totalAmount || 0
-                              window.location.href = `/wallet?topup=${encodeURIComponent(String(amount))}`
-                            } catch (e) {
-                              errorLogger.error('Failed to start fund-from-order', e)
-                            }
-                          }}
-                          className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 text-sm font-medium"
-                        >
-                          Fund Wallet for this Order
-                        </button>
-                      )}
-                      {(selectedOrder?.status === ORDER_STATUS.ESCROW_FUNDED || 
-                        selectedOrder?.status === ORDER_STATUS.SHIPPED || 
-                        selectedOrder?.status === ORDER_STATUS.DELIVERED ||
-                        selectedOrder?.status === 'escrow_funded' ||
-                        selectedOrder?.status === 'ready_for_shipment' ||
-                        selectedOrder?.status === 'delivered') && 
-                        !selectedOrder.satisfactionConfirmed && (
-                        <button
-                          onClick={() => {
-                            openConfirmOrderModal(selectedOrder)
-                            setSelectedOrder(null)
-                          }}
-                          className="bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700 text-sm font-medium flex items-center gap-2"
-                        >
-                          <span>✅</span>
-                          <span>Confirm Order</span>
-                        </button>
-                      )}
-                      <button
-                        onClick={() => setSelectedOrder(null)}
-                        className="bg-gray-100 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-200 text-sm font-medium"
-                      >
-                        Close
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Order details modal removed */}
 
         {/* Satisfaction Modal */}
         {isSatisfactionModalOpen && selectedOrderForSatisfaction && (
