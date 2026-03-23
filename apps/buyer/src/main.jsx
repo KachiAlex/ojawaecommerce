@@ -3,6 +3,9 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 
+// Ensure React is marked as initialized globally
+window.__REACT_INITIALIZED__ = true
+
 // Global error handler to suppress browser extension errors
 window.addEventListener('error', (event) => {
   // Suppress MutationObserver errors from browser extensions

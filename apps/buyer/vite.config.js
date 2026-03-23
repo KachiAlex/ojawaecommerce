@@ -6,30 +6,20 @@ const securityHeaders = {
   'Content-Security-Policy': "default-src 'self'; img-src 'self' data: https:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://firestore.googleapis.com https://firebase.googleapis.com; frame-ancestors 'none'; form-action 'self'"
 }
 
-// Plugin to exclude vendor-misc from modulepreload - load it dynamically instead
+// Plugin to enforce strict module loading: React first, everything else after
 const moduleOrderPlugin = {
   name: 'module-order',
   transformIndexHtml: {
     order: 'post',
     handler: (html) => {
-      // Remove vendor-misc from modulepreload - it will be loaded dynamically
+      // Remove vendor-misc from ALL loading (no preload, no dynamic load)
+      // It will be lazy-loaded on-demand by the code that uses it
       let result = html.replace(/<link rel="modulepreload"[^>]*href="\/vendor-misc\.js"[^>]*>\n?/g, '');
       
-      // Add a script that preloads vendor-misc dynamically after React is ready
-      const dynamicLoader = `
-    <script>
-      // Dynamically import vendor-misc after React loads to avoid forwardRef errors
-      setTimeout(function() {
-        const link = document.createElement('link');
-        link.rel = 'modulepreload';
-        link.crossOrigin = 'anonymous';
-        link.href = '/vendor-misc.js';
-        document.head.appendChild(link);
-      }, 100);
-    </script>`;
+      // Remove any dynamic loader script we added before
+      result = result.replace(/<script>\s*\/\/\s*Dynamically[^<]*vendor-misc[^<]*<\/script>\n?/g, '');
       
-      // Insert before closing head tag
-      return result.replace(/<\/head>/, dynamicLoader + '\n  </head>');
+      return result;
     }
   }
 }
@@ -56,22 +46,21 @@ export default defineConfig({
           return assetInfo.name;
         },
         manualChunks: (id) => {
-          // Keep React and contexts together to avoid createContext issues
+          // Keep React in its own chunk - MUST load first
           if (id.includes('node_modules')) {
             if (id.includes('react') || id.includes('react-dom') || id.includes('react-router') || id.includes('framer-motion')) {
               return 'vendor-react';
             }
-            // Libraries that depend on React must be separate to ensure React loads first
-            if (id.includes('react-chartjs-2') || id.includes('recharts') || id.includes('react-to-print') || id.includes('chart.js')) {
-              return 'vendor-charts';
-            }
+            // Firebase and Stripe/Flutterwave can load separately
             if (id.includes('firebase')) {
               return 'vendor-firebase';
             }
             if (id.includes('@stripe') || id.includes('flutterwave')) {
               return 'vendor-payments';
             }
-            return 'vendor-misc';
+            // ALL OTHER libraries (charts, utilities, etc.) go into main bundle to ensure React is available
+            // This prevents vendor-misc from trying to use React before it's initialized
+            return undefined;  // Keep in main bundle
           }
           
           // Keep contexts with main bundle to ensure React is available
