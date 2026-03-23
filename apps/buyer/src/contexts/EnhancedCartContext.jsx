@@ -26,7 +26,7 @@ export const EnhancedCartProvider = ({ children }) => {
       const savedCart = await secureStorage.getItem('enhanced_cart')
       if (savedCart) {
         try {
-          const cartData = JSON.parse(savedCart)
+          const cartData = typeof savedCart === 'string' ? JSON.parse(savedCart) : savedCart
           setCartItems(cartData.items || [])
           setInventoryChecks(cartData.inventoryChecks || {})
         } catch (error) {

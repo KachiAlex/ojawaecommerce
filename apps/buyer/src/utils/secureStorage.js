@@ -86,15 +86,16 @@ const secureStorage = {
     try {
       const val = localStorage.getItem(`enc_${key}`);
       if (!val) return null;
-      const plain = await decryptFromB64(val);
-      return plain;
+      try {
+        const plain = await decryptFromB64(val);
+        return plain;
+      } catch (decryptError) {
+        console.warn('Decryption failed for key:', key, 'Removing corrupted data', decryptError?.message);
+        localStorage.removeItem(`enc_${key}`);
+        return null;
+      }
     } catch (e) {
       console.warn('secureStorage.getItem failed:', e?.message || e);
-      try {
-        localStorage.removeItem(`enc_${key}`);
-      } catch {
-        // ignore cleanup errors
-      }
       return null;
     }
   },

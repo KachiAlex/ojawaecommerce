@@ -41,8 +41,8 @@ export const CartProvider = ({ children }) => {
       if (cartItems.length > 0) return;
       try {
         const savedCart = await secureLocalStorage.getCart();
-        if (savedCart) {
-          setCartItems(JSON.parse(savedCart));
+        if (savedCart && Array.isArray(savedCart)) {
+          setCartItems(savedCart);
         }
       } catch (error) {
         console.error('Error loading cart after auth:', error);
