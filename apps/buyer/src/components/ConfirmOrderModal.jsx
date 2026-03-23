@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import firebaseService from '../services/firebaseService';
 
 const ConfirmOrderModal = ({ isOpen, order, onClose, onOrderConfirmed }) => {
@@ -18,6 +18,46 @@ const ConfirmOrderModal = ({ isOpen, order, onClose, onOrderConfirmed }) => {
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [vendorDetails, setVendorDetails] = useState(null);
+  const [loadingVendor, setLoadingVendor] = useState(false);
+
+  // Fetch vendor details if missing
+  useEffect(() => {
+    const fetchVendorDetails = async () => {
+      if (!isOpen || !order) return;
+      
+      // If we already have vendor name, no need to fetch
+      if (order.vendorName && order.vendorName !== 'Unknown' && order.vendorName !== 'Vendor') {
+        setVendorDetails(order);
+        return;
+      }
+
+      // If we have a vendorId, fetch the vendor details
+      if (order.vendorId) {
+        try {
+          setLoadingVendor(true);
+          const vendor = await firebaseService.users.getVendorProfile(order.vendorId);
+          if (vendor) {
+            setVendorDetails({
+              ...order,
+              vendorName: vendor.businessName || vendor.name || vendor.storeName || 'Vendor'
+            });
+          } else {
+            setVendorDetails(order);
+          }
+        } catch (error) {
+          console.error('Error fetching vendor details:', error);
+          setVendorDetails(order);
+        } finally {
+          setLoadingVendor(false);
+        }
+      } else {
+        setVendorDetails(order);
+      }
+    };
+
+    fetchVendorDetails();
+  }, [isOpen, order]);
 
   if (!isOpen || !order) return null;
 
@@ -140,7 +180,7 @@ const ConfirmOrderModal = ({ isOpen, order, onClose, onOrderConfirmed }) => {
         buyerId: order.buyerId,
         vendorId: order.vendorId,
         buyerName: order.buyerName || 'Buyer',
-        vendorName: order.vendorName || 'Vendor',
+        vendorName: vendorDetails?.vendorName || order.vendorName || 'Vendor',
         orderAmount: order.totalAmount,
         escrowAmount: order.escrowAmount || order.totalAmount,
         hasReceivedProduct,
@@ -247,7 +287,7 @@ const ConfirmOrderModal = ({ isOpen, order, onClose, onOrderConfirmed }) => {
                 <h3 className="font-semibold text-gray-900 mb-2">Order Summary</h3>
                 <div className="text-sm space-y-1">
                   <p><span className="text-gray-600">Amount:</span> <span className="font-semibold">₦{order.totalAmount?.toLocaleString()}</span></p>
-                  <p><span className="text-gray-600">Vendor:</span> {order.vendorName || 'Vendor'}</p>
+                  <p><span className="text-gray-600">Vendor:</span> {loadingVendor ? '...' : (vendorDetails?.vendorName || 'Vendor')}</p>
                   {order.items && (
                     <p><span className="text-gray-600">Items:</span> {order.items.length} item(s)</p>
                   )}

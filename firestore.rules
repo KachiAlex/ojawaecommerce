@@ -97,7 +97,7 @@ service cloud.firestore {
     // ============ WALLET TRANSACTIONS GLOBAL ============
     match /wallet_transactions/{txId} {
       // Read: User can read own transactions; admins can read all
-      allow read: if request.resource.data.userId == request.auth.uid || isAdmin();
+      allow read: if resource.data.userId == request.auth.uid || isAdmin();
       
       // Write: Restricted to Cloud Functions only
       allow write: if false;
@@ -106,7 +106,7 @@ service cloud.firestore {
     // ============ SUBSCRIPTIONS COLLECTION ============
     match /subscriptions/{subscriptionId} {
       // Read: Vendor can read own subscription; admins can read all
-      allow read: if request.resource.data.userId == request.auth.uid || isAdmin();
+      allow read: if resource.data.userId == request.auth.uid || isAdmin();
       
       // Create: Via Cloud Functions only (/createPaystackSubscriptionRecord)
       allow create: if false;
@@ -138,7 +138,7 @@ service cloud.firestore {
     // ============ ORDERS COLLECTION ============
     match /orders/{orderId} {
       // Read: Buyer, vendor, or admin
-      allow read: if isOwner(request.resource.data.buyerId) || 
+      allow read: if isOwner(resource.data.buyerId) || 
                      get(/databases/$(database)/documents/products/{productId}).data.vendorId == request.auth.uid ||
                      isAdmin();
       
@@ -158,8 +158,8 @@ service cloud.firestore {
     // ============ DISPUTES COLLECTION ============
     match /disputes/{disputeId} {
       // Read: Involved parties (buyer/vendor/admin) or admin
-      allow read: if request.resource.data.buyerId == request.auth.uid ||
-                     request.resource.data.vendorId == request.auth.uid ||
+      allow read: if resource.data.buyerId == request.auth.uid ||
+                     resource.data.vendorId == request.auth.uid ||
                      isAdmin();
       
       // Create: Authenticated users only
@@ -239,7 +239,7 @@ service cloud.firestore {
 
     // User sessions (tracked by client)
     match /user_sessions/{sessionId} {
-      allow read: if isAdmin() || request.resource.data.userId == request.auth.uid;
+      allow read: if isAdmin() || resource.data.userId == request.auth.uid;
       allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
       allow update: if isAdmin() || request.resource.data.userId == request.auth.uid;
       allow delete: if false;
@@ -247,7 +247,7 @@ service cloud.firestore {
 
     // Analytics events (tracked by client)
     match /analytics_events/{eventId} {
-      allow read: if isAdmin() || request.resource.data.userId == request.auth.uid;
+      allow read: if isAdmin() || resource.data.userId == request.auth.uid;
       allow create: if isAuthenticated();
       allow update: if false;
       allow delete: if false;
@@ -263,7 +263,7 @@ service cloud.firestore {
 
     // Performance metrics (tracked by client)
     match /performance_metrics/{metricId} {
-      allow read: if isAdmin() || request.resource.data.userId == request.auth.uid;
+      allow read: if isAdmin() || resource.data.userId == request.auth.uid;
       allow create: if isAuthenticated();
       allow update: if false;
       allow delete: if false;
@@ -271,7 +271,7 @@ service cloud.firestore {
 
     // Conversion funnel (tracked by client)
     match /conversion_funnel/{funnelId} {
-      allow read: if isAdmin() || request.resource.data.userId == request.auth.uid;
+      allow read: if isAdmin() || resource.data.userId == request.auth.uid;
       allow create: if isAuthenticated();
       allow update: if false;
       allow delete: if false;
@@ -279,8 +279,8 @@ service cloud.firestore {
 
     // ============ MESSAGING COLLECTIONS ============
     match /messages/{messageId} {
-      allow read: if request.resource.data.senderId == request.auth.uid ||
-                     request.resource.data.recipientId == request.auth.uid;
+      allow read: if resource.data.senderId == request.auth.uid ||
+                     resource.data.recipientId == request.auth.uid;
       
       allow create: if isAuthenticated() && 
                       request.resource.data.senderId == request.auth.uid &&
@@ -291,7 +291,7 @@ service cloud.firestore {
     }
 
     match /conversations/{conversationId} {
-      allow read: if request.resource.data.participants.contains(request.auth.uid);
+      allow read: if resource.data.participants.contains(request.auth.uid);
       allow create: if isAuthenticated();
       allow update: if request.resource.data.participants.contains(request.auth.uid);
       allow delete: if isAdmin();
@@ -300,7 +300,7 @@ service cloud.firestore {
     // ============ PAYOUT REQUESTS COLLECTION ============
     match /payout_requests/{payoutId} {
       // Read: Vendor owner or admin
-      allow read: if request.resource.data.vendorId == request.auth.uid || isAdmin();
+      allow read: if resource.data.vendorId == request.auth.uid || isAdmin();
       
       // Create: Authenticated vendors
       allow create: if isAuthenticated() && request.resource.data.vendorId == request.auth.uid;
@@ -315,7 +315,7 @@ service cloud.firestore {
     // ============ SUPPORT TICKETS COLLECTION ============
     match /support_tickets/{ticketId} {
       // Read: User (own), admin
-      allow read: if request.resource.data.userId == request.auth.uid || isAdmin();
+      allow read: if resource.data.userId == request.auth.uid || isAdmin();
       
       // Create: Authenticated users
       allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
