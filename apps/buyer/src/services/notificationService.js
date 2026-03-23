@@ -149,8 +149,9 @@ export const notificationService = {
       
       return limit ? notifications.slice(0, limit) : notifications;
     } catch (error) {
-      console.error('Error fetching user notifications:', error);
-      throw error;
+      console.warn('Error fetching user notifications (returning empty):', error?.message);
+      // Return empty array instead of throwing to prevent UI breakage
+      return [];
     }
   },
 
@@ -165,18 +166,33 @@ export const notificationService = {
         orderBy(orderByField, orderDirection)
       );
       
-      return onSnapshot(q, (snapshot) => {
-        const notifications = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-        
-        const limitedNotifications = limit ? notifications.slice(0, limit) : notifications;
-        callback(limitedNotifications);
-      });
+      return onSnapshot(
+        q,
+        (snapshot) => {
+          try {
+            const notifications = snapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data()
+            }));
+            
+            const limitedNotifications = limit ? notifications.slice(0, limit) : notifications;
+            callback(limitedNotifications);
+          } catch (error) {
+            console.error('Error processing notifications snapshot:', error);
+            // Call with empty array on error to show nothing instead of breaking
+            callback([]);
+          }
+        },
+        (error) => {
+          console.warn('Notification listener error (continuing gracefully):', error?.message);
+          // Call with empty array on permission error instead of throwing
+          callback([]);
+        }
+      );
     } catch (error) {
-      console.error('Error setting up notifications listener:', error);
-      throw error;
+      console.warn('Error setting up notifications listener:', error?.message);
+      // Return no-op unsubscribe function
+      return () => {};
     }
   },
 
