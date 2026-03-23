@@ -6,58 +6,30 @@ const securityHeaders = {
   'Content-Security-Policy': "default-src 'self'; img-src 'self' data: https:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://firestore.googleapis.com https://firebase.googleapis.com; frame-ancestors 'none'; form-action 'self'"
 }
 
-// Plugin to ensure correct module loading order by reordering script tags
+// Plugin to exclude vendor-misc from modulepreload - load it dynamically instead
 const moduleOrderPlugin = {
   name: 'module-order',
   transformIndexHtml: {
     order: 'post',
     handler: (html) => {
-      // Extract the main script tag
-      const scriptMatch = html.match(/<script type="module"[^>]*src="\/([^"]+)"[^>]*><\/script>/);
-      const mainScript = scriptMatch ? scriptMatch[0] : null;
+      // Remove vendor-misc from modulepreload - it will be loaded dynamically
+      let result = html.replace(/<link rel="modulepreload"[^>]*href="\/vendor-misc\.js"[^>]*>\n?/g, '');
       
-      if (!mainScript) return html;
+      // Add a script that preloads vendor-misc dynamically after React is ready
+      const dynamicLoader = `
+    <script>
+      // Dynamically import vendor-misc after React loads to avoid forwardRef errors
+      setTimeout(function() {
+        const link = document.createElement('link');
+        link.rel = 'modulepreload';
+        link.crossOrigin = 'anonymous';
+        link.href = '/vendor-misc.js';
+        document.head.appendChild(link);
+      }, 100);
+    </script>`;
       
-      // Extract all modulepreload links
-      const preloadMatches = Array.from(html.matchAll(/<link rel="modulepreload"[^>]*href="\/([^"]+)"[^>]*>/g));
-      const preloadMap = new Map();
-      
-      for (const match of preloadMatches) {
-        preloadMap.set(match[1], match[0]);
-      }
-      
-      // Priority order for loading
-      const vendorOrder = ['vendor-react.js', 'vendor-charts.js', 'vendor-payments.js', 'vendor-firebase.js', 'admin.js', 'test-pages.js', 'logistics.js', 'vendor.js'];
-      
-      // Remove all modulepreload and script tags
-      let result = html.replace(/<link rel="modulepreload"[^>]*>\n/g, '');
-      result = result.replace(/<script type="module"[^>]*src="\/[^"]*"[^>]*><\/script>/g, '');
-      
-      // Rebuild modulepreload in correct order
-      let orderedPreloads = '';
-      const processedFiles = new Set();
-      
-      for (const vendor of vendorOrder) {
-        if (preloadMap.has(vendor)) {
-          orderedPreloads += preloadMap.get(vendor) + '\n    ';
-          processedFiles.add(vendor);
-        }
-      }
-      
-      // Add any remaining files (like vendor-misc.js) at the end
-      for (const [filename, link] of preloadMap) {
-        if (!processedFiles.has(filename)) {
-          orderedPreloads += link + '\n    ';
-        }
-      }
-      
-      // Add stylesheet and main script
-      if (mainScript) {
-        orderedPreloads += mainScript + '\n    ';
-      }
-      
-      // Insert right before the closing </head> tag
-      return result.replace(/<link rel="stylesheet"/, orderedPreloads + '<link rel="stylesheet"');
+      // Insert before closing head tag
+      return result.replace(/<\/head>/, dynamicLoader + '\n  </head>');
     }
   }
 }
