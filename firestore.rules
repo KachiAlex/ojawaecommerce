@@ -237,6 +237,46 @@ service cloud.firestore {
       allow write: if false; // Cloud Functions only
     }
 
+    // User sessions (tracked by client)
+    match /user_sessions/{sessionId} {
+      allow read: if isAdmin() || request.resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAdmin() || request.resource.data.userId == request.auth.uid;
+      allow delete: if false;
+    }
+
+    // Analytics events (tracked by client)
+    match /analytics_events/{eventId} {
+      allow read: if isAdmin() || request.resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated();
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // Error logs (tracked by client)
+    match /error_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated();
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // Performance metrics (tracked by client)
+    match /performance_metrics/{metricId} {
+      allow read: if isAdmin() || request.resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated();
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // Conversion funnel (tracked by client)
+    match /conversion_funnel/{funnelId} {
+      allow read: if isAdmin() || request.resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated();
+      allow update: if false;
+      allow delete: if false;
+    }
+
     // ============ MESSAGING COLLECTIONS ============
     match /messages/{messageId} {
       allow read: if request.resource.data.senderId == request.auth.uid ||

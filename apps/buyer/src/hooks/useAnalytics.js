@@ -944,8 +944,8 @@ export const usePerformanceTracking = (userId) => {
  */
 export const useSessionTracking = (userId, userRole) => {
   useEffect(() => {
-    // Only start session if userId is available
-    if (!userId) return;
+    // Only start session if userId and userRole are available
+    if (!userId || !userRole) return;
     
     adminAnalyticsService.startSession(userId, userRole);
 
