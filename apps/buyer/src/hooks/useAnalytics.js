@@ -908,7 +908,7 @@ export const useErrorTracking = (userId) => {
  */
 export const usePerformanceTracking = (userId) => {
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || !userId) return;
 
     const handlePageLoad = () => {
       const perfData = window.performance.timing;
@@ -944,6 +944,9 @@ export const usePerformanceTracking = (userId) => {
  */
 export const useSessionTracking = (userId, userRole) => {
   useEffect(() => {
+    // Only start session if userId is available
+    if (!userId) return;
+    
     adminAnalyticsService.startSession(userId, userRole);
 
     return () => {
