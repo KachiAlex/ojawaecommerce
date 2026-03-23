@@ -6,18 +6,15 @@ const securityHeaders = {
   'Content-Security-Policy': "default-src 'self'; img-src 'self' data: https:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://firestore.googleapis.com https://firebase.googleapis.com; frame-ancestors 'none'; form-action 'self'"
 }
 
-// Plugin to enforce strict module loading: React first, everything else after
-const moduleOrderPlugin = {
-  name: 'module-order',
+// Plugin to remove feature chunks from modulepreload - they'll be loaded on-demand
+const lazyLoadPlugin = {
+  name: 'lazy-load-features',
   transformIndexHtml: {
     order: 'post',
     handler: (html) => {
-      // Remove vendor-misc from ALL loading (no preload, no dynamic load)
-      // It will be lazy-loaded on-demand by the code that uses it
-      let result = html.replace(/<link rel="modulepreload"[^>]*href="\/vendor-misc\.js"[^>]*>\n?/g, '');
-      
-      // Remove any dynamic loader script we added before
-      result = result.replace(/<script>\s*\/\/\s*Dynamically[^<]*vendor-misc[^<]*<\/script>\n?/g, '');
+      // Remove all modulepreload links for feature chunks (admin, vendor, logistics, test-pages)
+      // These will be lazy-loaded when needed, not preloaded
+      let result = html.replace(/<link rel="modulepreload"[^>]*href="\/(admin|vendor|logistics|test-pages|tracking|Admin2)\.js"[^>]*>\n?/gi, '');
       
       return result;
     }
@@ -26,7 +23,7 @@ const moduleOrderPlugin = {
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), moduleOrderPlugin],
+  plugins: [react(), lazyLoadPlugin],
   // Environment variables are automatically available via import.meta.env
   // No need to hardcode API keys here - use .env file instead
   build: {
