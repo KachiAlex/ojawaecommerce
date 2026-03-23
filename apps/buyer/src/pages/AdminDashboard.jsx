@@ -1,11 +1,13 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import firebaseService from '../services/firebaseService';
 import { collection, query, where, getDocs, doc, updateDoc, deleteDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import FeaturedProductsManager from '../components/FeaturedProductsManager';
-import AdminAnalyticsDashboard from './AdminAnalyticsDashboard';
-import SecurityEventsDashboard from '../components/AdminSecurityEventsDashboard';
+
+// Lazy load components that depend on recharts (which uses React.createContext)
+const AdminAnalyticsDashboard = lazy(() => import('./AdminAnalyticsDashboard'));
+const SecurityEventsDashboard = lazy(() => import('../components/AdminSecurityEventsDashboard'));
 
 const AdminDashboard = () => {
   const { userProfile, currentUser } = useAuth();
@@ -1425,12 +1427,16 @@ const AdminDashboard = () => {
 
       {/* Analytics Tab */}
       {activeTab === 'analytics' && (
-        <AdminAnalyticsDashboard />
+        <Suspense fallback={<div className="p-4">Loading analytics...</div>}>
+          <AdminAnalyticsDashboard />
+        </Suspense>
       )}
 
       {/* Security Monitoring Tab */}
       {activeTab === 'security' && (
-        <SecurityEventsDashboard />
+        <Suspense fallback={<div className="p-4">Loading security events...</div>}>
+          <SecurityEventsDashboard />
+        </Suspense>
       )}
 
       {/* Bulk Message Modal */}
