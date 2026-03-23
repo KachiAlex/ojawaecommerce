@@ -2999,6 +2999,9 @@ export const notifications = {
         
         const limitedNotifications = limit ? notifications.slice(0, limit) : notifications;
         callback(limitedNotifications);
+      }, (error) => {
+        console.warn('[firebaseService] Notifications listener error (graceful fallback):', error?.message);
+        callback([]);
       });
     } catch (error) {
       console.error('Error setting up notifications listener:', error);
@@ -3256,6 +3259,9 @@ export const messagingService = {
           ...doc.data()
         }));
         callback(conversations);
+      }, (error) => {
+        console.warn('[firebaseService] Conversations listener error (graceful fallback):', error?.message);
+        callback([]);
       });
     } catch (error) {
       console.error('Error setting up conversations listener:', error);
@@ -3334,6 +3340,9 @@ export const messagingService = {
           ...doc.data()
         }));
         callback(messages);
+      }, (error) => {
+        console.warn('[firebaseService] Messages listener error (graceful fallback):', error?.message);
+        callback([]);
       });
     } catch (error) {
       console.error('Error setting up messages listener:', error);

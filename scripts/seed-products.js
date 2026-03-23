@@ -87,7 +87,7 @@ const sampleProducts = [
     price: 329.99,
     description: 'Professional-grade stand mixer with 5-quart stainless steel bowl.',
     category: 'home',
-    image: 'https://images.unsplash.com/photo-1585515656519-7d2e1d7b1f3e?w=400',
+    image: 'https://images.unsplash.com/photo-1578500494198-246f612d03b3?w=400',
     brand: 'KitchenAid',
     inStock: true,
     stockQuantity: 30,

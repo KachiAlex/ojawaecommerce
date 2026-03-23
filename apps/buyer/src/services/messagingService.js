@@ -91,6 +91,9 @@ export const messagingService = {
           ...doc.data()
         }));
         callback(conversations);
+      }, (error) => {
+        console.warn('[messagingService] Conversations listener error (graceful fallback):', error?.message);
+        callback([]);
       });
     } catch (error) {
       console.error('Error setting up conversations listener:', error);
@@ -176,6 +179,9 @@ export const messagingService = {
           ...doc.data()
         }));
         callback(messages);
+      }, (error) => {
+        console.warn('[messagingService] Messages listener error (graceful fallback):', error?.message);
+        callback([]);
       });
     } catch (error) {
       console.error('Error setting up messages listener:', error);

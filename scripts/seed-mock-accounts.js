@@ -204,7 +204,7 @@ async function main() {
         currency: '₦ NGN',
         description: 'Over-ear wireless headphones with ANC.',
         category: 'electronics',
-        image: 'https://images.unsplash.com/photo-1518443895914-8e0b0ed2865c?w=400',
+        image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400',
         brand: 'QuietSound',
         inStock: true,
         stock: 35

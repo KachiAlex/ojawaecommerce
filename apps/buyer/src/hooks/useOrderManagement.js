@@ -307,6 +307,9 @@ export const useOrderManagement = (userId, userType = 'buyer') => {
           return hasMeaningfulChange ? { ...order, ...updated } : order
         })
       })
+    }, (error) => {
+      console.warn('[useOrderManagement] Order listener error (graceful fallback):', error?.message)
+      setOrders([])
     })
 
     return () => unsubscribe()
