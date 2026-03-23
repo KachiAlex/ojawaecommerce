@@ -8,6 +8,7 @@ import OrdersFilterBar from '../components/OrdersFilterBar';
 import WalletTopUpModal from '../components/WalletTopUpModal';
 import VendorReviewModal from '../components/VendorReviewModal';
 import OrderConfirmationModal from '../components/OrderConfirmationModal';
+import OrderDetailsModal from '../components/OrderDetailsModal';
 import Receipt from '../components/Receipt';
 import ProductCard from '../components/ProductCard';
 import WishlistButton from '../components/WishlistButton';
@@ -58,6 +59,8 @@ const Buyer = () => {
   const [showTicketModal, setShowTicketModal] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [ticketInitialData, setTicketInitialData] = useState(null);
+  const [isOrderDetailsOpen, setIsOrderDetailsOpen] = useState(false);
+  const [selectedOrderForDetails, setSelectedOrderForDetails] = useState(null);
 
   // Check for receipt request from URL after orders are loaded
   useEffect(() => {
@@ -165,6 +168,16 @@ const Buyer = () => {
   const handleTicketCreated = async (ticketId) => {
     setShowTicketModal(false);
     await loadSupportTickets();
+  };
+
+  const openOrderDetailsModal = (order) => {
+    setSelectedOrderForDetails(order);
+    setIsOrderDetailsOpen(true);
+  };
+
+  const closeOrderDetailsModal = () => {
+    setIsOrderDetailsOpen(false);
+    setSelectedOrderForDetails(null);
   };
 
   const loadWishlist = async () => {
@@ -569,6 +582,12 @@ const Buyer = () => {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{order.walletId || 'N/A'}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
                           <div className="flex flex-col gap-2">
+                            <button
+                              onClick={() => openOrderDetailsModal(order)}
+                              className="text-emerald-600 hover:text-emerald-700 font-medium text-left text-sm"
+                            >
+                              👁️ View Details
+                            </button>
                             {(order.paymentStatus === 'escrow_funded' || order.paymentStatus === 'paid' || order.status === 'escrow_funded') && (
                               <button 
                                 onClick={() => openReceipt(order)} 
@@ -998,6 +1017,21 @@ const Buyer = () => {
             </div>
           )}
         </div>
+
+        {/* Order Details Modal */}
+        {isOrderDetailsOpen && selectedOrderForDetails && (
+          <OrderDetailsModal
+            open={isOrderDetailsOpen}
+            order={selectedOrderForDetails}
+            onClose={closeOrderDetailsModal}
+            onFundWallet={() => setActiveTab('wallet')}
+            onConfirmOrder={(order) => {
+              setOrderToConfirm(order);
+              setIsOrderConfirmationOpen(true);
+              closeOrderDetailsModal();
+            }}
+          />
+        )}
       </div>
     </div>
   );

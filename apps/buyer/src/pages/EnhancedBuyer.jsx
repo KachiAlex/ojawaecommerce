@@ -9,6 +9,7 @@ import OrderSatisfactionModal from '../components/OrderSatisfactionModal'
 import ReviewModal from '../components/ReviewModal'
 import ConfirmOrderModal from '../components/ConfirmOrderModal'
 import OrderTransactionModal from '../components/OrderTransactionModal'
+import OrderDetailsModal from '../components/OrderDetailsModal'
 import DisputeManagement from '../components/DisputeManagement'
 import DeliveryTrackingModal from '../components/DeliveryTrackingModal'
 import AdvancedDisputeModal from '../components/AdvancedDisputeModal'
@@ -44,6 +45,8 @@ const EnhancedBuyer = () => {
   const [selectedOrderForMessaging, setSelectedOrderForMessaging] = useState(null)
   const [isConfirmOrderModalOpen, setIsConfirmOrderModalOpen] = useState(false)
   const [selectedOrderForConfirmation, setSelectedOrderForConfirmation] = useState(null)
+  const [isOrderDetailsOpen, setIsOrderDetailsOpen] = useState(false)
+  const [selectedOrderForDetails, setSelectedOrderForDetails] = useState(null)
 
   const {
     orders,
@@ -138,6 +141,17 @@ const EnhancedBuyer = () => {
       errorLogger.error('Failed to perform order action', error, { orderId, action })
       alert(`Failed to ${action.replace('_', ' ')} order. Please try again.`)
     }
+  }
+
+  // Handle order details modal
+  const openOrderDetailsModal = (order) => {
+    setSelectedOrderForDetails(order)
+    setIsOrderDetailsOpen(true)
+  }
+
+  const closeOrderDetailsModal = () => {
+    setIsOrderDetailsOpen(false)
+    setSelectedOrderForDetails(null)
   }
 
   // Handle satisfaction confirmation
@@ -519,6 +533,12 @@ const EnhancedBuyer = () => {
                                   style={{ width: `${getOrderProgress(order)}%` }}
                                 />
                               </div>
+                              <button
+                                onClick={() => openOrderDetailsModal(order)}
+                                className="bg-emerald-100 text-emerald-700 px-4 py-2 rounded-md hover:bg-emerald-200 text-sm font-medium"
+                              >
+                                View Details
+                              </button>
                             </div>
                           </div>
                         </div>
@@ -633,6 +653,13 @@ const EnhancedBuyer = () => {
                             
                             {/* Order Actions */}
                             <div className="flex flex-wrap gap-2">
+                              <button
+                                onClick={() => openOrderDetailsModal(order)}
+                                className="bg-emerald-100 text-emerald-700 px-4 py-2 rounded-md hover:bg-emerald-200 text-sm font-medium"
+                              >
+                                View Details
+                              </button>
+                              
                               {getNextActions(order).map((action) => (
                                 <button
                                   key={action.status}
@@ -912,6 +939,21 @@ const EnhancedBuyer = () => {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Order Details Modal */}
+        {isOrderDetailsOpen && selectedOrderForDetails && (
+          <OrderDetailsModal
+            open={isOrderDetailsOpen}
+            order={selectedOrderForDetails}
+            onClose={closeOrderDetailsModal}
+            onFundWallet={handleTopUp}
+            onConfirmOrder={(order) => {
+              setSelectedOrderForConfirmation(order)
+              setIsConfirmOrderModalOpen(true)
+              closeOrderDetailsModal()
+            }}
+          />
         )}
       </div>
     </ComponentErrorBoundary>
