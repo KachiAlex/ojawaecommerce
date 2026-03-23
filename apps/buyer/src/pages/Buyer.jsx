@@ -899,6 +899,10 @@ const Buyer = () => {
             order={selectedOrder}
             onClose={() => setIsOrderDetailsOpen(false)}
             onFundWallet={handleFundFromOrder}
+            onConfirmOrder={(order) => {
+              setIsOrderDetailsOpen(false);
+              openOrderConfirmation(order);
+            }}
           />
 
           <WalletTopUpModal
