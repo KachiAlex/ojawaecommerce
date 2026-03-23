@@ -5,7 +5,6 @@ import { usePageTracking, useOrderTracking, useClickTracking } from '../hooks/us
 import firebaseService from '../services/firebaseService';
 import WalletManager from '../components/WalletManager';
 import OrdersFilterBar from '../components/OrdersFilterBar';
-import OrderDetailsModal from '../components/OrderDetailsModal';
 import WalletTopUpModal from '../components/WalletTopUpModal';
 import VendorReviewModal from '../components/VendorReviewModal';
 import OrderConfirmationModal from '../components/OrderConfirmationModal';
@@ -44,8 +43,6 @@ const Buyer = () => {
   const [loading, setLoading] = useState(true);
   const { currentUser } = useAuth();
   const [filters, setFilters] = useState({ status: '', vendor: '', from: '', to: '' });
-  const [selectedOrder, setSelectedOrder] = useState(null);
-  const [isOrderDetailsOpen, setIsOrderDetailsOpen] = useState(false);
   const [isWalletTopUpOpen, setIsWalletTopUpOpen] = useState(false);
   const [reviewVendor, setReviewVendor] = useState(null);
   const [isReviewOpen, setIsReviewOpen] = useState(false);
@@ -254,19 +251,12 @@ const Buyer = () => {
     });
   }, [orders, filters]);
 
-  const openOrderDetails = (order) => {
-    setSelectedOrder(order);
-    setIsOrderDetailsOpen(true);
-  };
-
   const openReceipt = (order) => {
     setReceiptOrder(order);
     setIsReceiptOpen(true);
   };
 
   const handleFundFromOrder = (order) => {
-    setSelectedOrder(order);
-    setIsOrderDetailsOpen(false);
     setIsWalletTopUpOpen(true);
   };
 
@@ -579,7 +569,6 @@ const Buyer = () => {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{order.walletId || 'N/A'}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
                           <div className="flex flex-col gap-2">
-                            <button onClick={() => openOrderDetails(order)} className="text-emerald-300 hover:text-emerald-200 font-medium text-left">View Details</button>
                             {(order.paymentStatus === 'escrow_funded' || order.paymentStatus === 'paid' || order.status === 'escrow_funded') && (
                               <button 
                                 onClick={() => openReceipt(order)} 
@@ -894,20 +883,9 @@ const Buyer = () => {
             <WalletManager userType="buyer" />
           )}
 
-          <OrderDetailsModal
-            open={isOrderDetailsOpen}
-            order={selectedOrder}
-            onClose={() => setIsOrderDetailsOpen(false)}
-            onFundWallet={handleFundFromOrder}
-            onConfirmOrder={(order) => {
-              setIsOrderDetailsOpen(false);
-              openOrderConfirmation(order);
-            }}
-          />
-
           <WalletTopUpModal
             open={isWalletTopUpOpen}
-            order={selectedOrder}
+            order={null}
             onClose={() => setIsWalletTopUpOpen(false)}
             onConfirm={handleConfirmTopUp}
           />
