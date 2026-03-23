@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Receipt from './Receipt';
 import SupportTicket from './SupportTicket';
+import firebaseService from '../services/firebaseService';
 
 // Currency formatting helper
 const formatCurrency = (amount, currencyValue) => {
@@ -35,16 +36,59 @@ const getStatusBadge = (status) => {
 const OrderDetailsModal = ({ open, order, onClose, onFundWallet, onConfirmOrder }) => {
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
   const [showReportIssue, setShowReportIssue] = useState(false);
+  const [vendorDetails, setVendorDetails] = useState(null);
+  const [loadingVendor, setLoadingVendor] = useState(false);
+
+  // Fetch vendor details if vendor name is missing
+  useEffect(() => {
+    const fetchVendorDetails = async () => {
+      if (!open || !order) return;
+      
+      // If we already have vendor name, no need to fetch
+      if (order.vendorName && order.vendorName !== 'Unknown') {
+        setVendorDetails(order);
+        return;
+      }
+
+      // If we have a vendorId, fetch the vendor details
+      if (order.vendorId) {
+        try {
+          setLoadingVendor(true);
+          const vendor = await firebaseService.users.getVendorProfile(order.vendorId);
+          if (vendor) {
+            setVendorDetails({
+              ...order,
+              vendorName: vendor.businessName || vendor.name || vendor.storeName || 'Unknown'
+            });
+          } else {
+            setVendorDetails(order);
+          }
+        } catch (error) {
+          console.error('Error fetching vendor details:', error);
+          setVendorDetails(order);
+        } finally {
+          setLoadingVendor(false);
+        }
+      } else {
+        setVendorDetails(order);
+      }
+    };
+
+    fetchVendorDetails();
+  }, [open, order]);
 
   if (!open || !order) return null;
 
-  const statusBadge = getStatusBadge(order.status);
-  const displayId = order.id?.slice(-8) || 'N/A';
+  // Use vendor details if available, otherwise use original order
+  const displayOrder = vendorDetails || order;
+
+  const statusBadge = getStatusBadge(displayOrder.status);
+  const displayId = displayOrder.id?.slice(-8) || 'N/A';
   
   // Determine what actions are available based on order status
-  const canConfirmOrder = ['delivered', 'escrow_funded', 'pending_vendor_confirmation'].includes(order.status);
-  const canViewReceipt = ['completed', 'delivered', 'escrow_funded', 'shipped'].includes(order.status);
-  const canFundWallet = order.status === 'pending_payment' || order.status === 'pending_wallet_funding';
+  const canConfirmOrder = ['delivered', 'escrow_funded', 'pending_vendor_confirmation'].includes(displayOrder.status);
+  const canViewReceipt = ['completed', 'delivered', 'escrow_funded', 'shipped'].includes(displayOrder.status);
+  const canFundWallet = displayOrder.status === 'pending_payment' || displayOrder.status === 'pending_wallet_funding';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -67,16 +111,16 @@ const OrderDetailsModal = ({ open, order, onClose, onFundWallet, onConfirmOrder 
           <div className={`${statusBadge.bg} ${statusBadge.text} rounded-lg p-4 flex items-center gap-3`}>
             <span className="text-2xl">{statusBadge.icon}</span>
             <div>
-              <p className="font-semibold text-sm">{order.status.replace(/_/g, ' ').toUpperCase()}</p>
+              <p className="font-semibold text-sm">{displayOrder.status.replace(/_/g, ' ').toUpperCase()}</p>
               <p className="text-xs opacity-80">
-                {order.status === 'pending_wallet_funding' && 'Waiting for wallet funding'}
-                {order.status === 'escrow_funded' && 'Funds held in escrow, vendor is preparing'}
-                {order.status === 'pending_vendor_confirmation' && 'Vendor confirming order'}
-                {order.status === 'shipped' && 'Order is in transit'}
-                {order.status === 'delivered' && 'Order delivered - please confirm receipt'}
-                {order.status === 'completed' && 'Order completed successfully'}
-                {order.status === 'disputed' && 'Order is under dispute'}
-                {order.status === 'cancelled' && 'Order has been cancelled'}
+                {displayOrder.status === 'pending_wallet_funding' && 'Waiting for wallet funding'}
+                {displayOrder.status === 'escrow_funded' && 'Funds held in escrow, vendor is preparing'}
+                {displayOrder.status === 'pending_vendor_confirmation' && 'Vendor confirming order'}
+                {displayOrder.status === 'shipped' && 'Order is in transit'}
+                {displayOrder.status === 'delivered' && 'Order delivered - please confirm receipt'}
+                {displayOrder.status === 'completed' && 'Order completed successfully'}
+                {displayOrder.status === 'disputed' && 'Order is under dispute'}
+                {displayOrder.status === 'cancelled' && 'Order has been cancelled'}
               </p>
             </div>
           </div>
@@ -85,26 +129,28 @@ const OrderDetailsModal = ({ open, order, onClose, onFundWallet, onConfirmOrder 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-gray-50 rounded-lg p-4">
               <p className="text-xs text-gray-600 font-semibold mb-1 uppercase">Vendor</p>
-              <p className="text-sm font-medium text-gray-900">{order.vendorName || 'Unknown'}</p>
+              <p className="text-sm font-medium text-gray-900">
+                {loadingVendor ? '...' : (displayOrder.vendorName || 'Unknown')}
+              </p>
             </div>
             <div className="bg-gray-50 rounded-lg p-4">
               <p className="text-xs text-gray-600 font-semibold mb-1 uppercase">Amount</p>
-              <p className="text-sm font-bold text-gray-900">{formatCurrency(order.totalAmount || 0, order.currency)}</p>
+              <p className="text-sm font-bold text-gray-900">{formatCurrency(displayOrder.totalAmount || 0, displayOrder.currency)}</p>
             </div>
             <div className="bg-gray-50 rounded-lg p-4">
               <p className="text-xs text-gray-600 font-semibold mb-1 uppercase">Date</p>
               <p className="text-sm font-medium text-gray-900">
-                {order.createdAt?.toDate ? order.createdAt.toDate().toLocaleDateString() : '—'}
+                {displayOrder.createdAt?.toDate ? displayOrder.createdAt.toDate().toLocaleDateString() : '—'}
               </p>
             </div>
             <div className="bg-gray-50 rounded-lg p-4">
               <p className="text-xs text-gray-600 font-semibold mb-1 uppercase">Wallet ID</p>
-              <p className="text-sm font-medium text-gray-900 truncate">{order.walletId || 'N/A'}</p>
+              <p className="text-sm font-medium text-gray-900 truncate">{displayOrder.walletId || 'N/A'}</p>
             </div>
           </div>
 
           {/* Delivery Information */}
-          {order.deliveryOption && (
+          {displayOrder.deliveryOption && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <div className="flex items-start gap-3">
                 <span className="text-xl">🚚</span>
@@ -114,19 +160,19 @@ const OrderDetailsModal = ({ open, order, onClose, onFundWallet, onConfirmOrder 
                     <div>
                       <p className="text-gray-600">Method</p>
                       <p className="font-medium text-gray-900">
-                        {order.deliveryOption === 'pickup' ? '🏪 Pickup' : '🚛 Delivery'}
+                        {displayOrder.deliveryOption === 'pickup' ? '🏪 Pickup' : '🚛 Delivery'}
                       </p>
                     </div>
-                    {order.deliveryAddress && (
+                    {displayOrder.deliveryAddress && (
                       <div className="md:col-span-2">
                         <p className="text-gray-600">Address</p>
-                        <p className="font-medium text-gray-900">{order.deliveryAddress}</p>
+                        <p className="font-medium text-gray-900">{displayOrder.deliveryAddress}</p>
                       </div>
                     )}
-                    {order.trackingId && (
+                    {displayOrder.trackingId && (
                       <div>
                         <p className="text-gray-600">Tracking ID</p>
-                        <p className="font-medium text-gray-900 font-mono text-xs">{order.trackingId}</p>
+                        <p className="font-medium text-gray-900 font-mono text-xs">{displayOrder.trackingId}</p>
                       </div>
                     )}
                   </div>
@@ -141,9 +187,9 @@ const OrderDetailsModal = ({ open, order, onClose, onFundWallet, onConfirmOrder 
               <span>📦</span> Items
             </h3>
             <div className="border rounded-lg overflow-hidden">
-              {(order.items || []).length > 0 ? (
+              {(displayOrder.items || []).length > 0 ? (
                 <div className="divide-y">
-                  {order.items.map((item, idx) => (
+                  {displayOrder.items.map((item, idx) => (
                     <div key={idx} className="p-4 flex items-center justify-between hover:bg-gray-50">
                       <div className="flex-1">
                         <p className="font-medium text-gray-900">{item.name || 'Item'}</p>
@@ -152,7 +198,7 @@ const OrderDetailsModal = ({ open, order, onClose, onFundWallet, onConfirmOrder 
                       <div className="text-right">
                         {item.price && (
                           <p className="text-sm font-medium text-gray-900">
-                            {formatCurrency(item.price, order.currency)}
+                            {formatCurrency(item.price, displayOrder.currency)}
                           </p>
                         )}
                         {item.quantity && (
@@ -172,23 +218,23 @@ const OrderDetailsModal = ({ open, order, onClose, onFundWallet, onConfirmOrder 
           <div className="bg-gray-50 rounded-lg p-4 space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-gray-600">Subtotal</span>
-              <span className="font-medium text-gray-900">{formatCurrency(order.subtotal || order.totalAmount || 0, order.currency)}</span>
+              <span className="font-medium text-gray-900">{formatCurrency(displayOrder.subtotal || displayOrder.totalAmount || 0, displayOrder.currency)}</span>
             </div>
-            {order.shippingFee > 0 && (
+            {displayOrder.shippingFee > 0 && (
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">Shipping</span>
-                <span className="font-medium text-gray-900">{formatCurrency(order.shippingFee, order.currency)}</span>
+                <span className="font-medium text-gray-900">{formatCurrency(displayOrder.shippingFee, displayOrder.currency)}</span>
               </div>
             )}
-            {order.tax > 0 && (
+            {displayOrder.tax > 0 && (
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">Tax</span>
-                <span className="font-medium text-gray-900">{formatCurrency(order.tax, order.currency)}</span>
+                <span className="font-medium text-gray-900">{formatCurrency(displayOrder.tax, displayOrder.currency)}</span>
               </div>
             )}
             <div className="border-t pt-2 flex justify-between">
               <span className="font-semibold text-gray-900">Total</span>
-              <span className="font-bold text-lg text-gray-900">{formatCurrency(order.totalAmount || 0, order.currency)}</span>
+              <span className="font-bold text-lg text-gray-900">{formatCurrency(displayOrder.totalAmount || 0, displayOrder.currency)}</span>
             </div>
           </div>
         </div>
@@ -213,7 +259,7 @@ const OrderDetailsModal = ({ open, order, onClose, onFundWallet, onConfirmOrder 
 
           {canFundWallet && onFundWallet && (
             <button
-              onClick={() => onFundWallet(order)}
+              onClick={() => onFundWallet(displayOrder)}
               className="px-4 py-2 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium"
             >
               💳 Fund Wallet
@@ -222,7 +268,7 @@ const OrderDetailsModal = ({ open, order, onClose, onFundWallet, onConfirmOrder 
 
           {canConfirmOrder && onConfirmOrder && (
             <button
-              onClick={() => onConfirmOrder(order)}
+              onClick={() => onConfirmOrder(displayOrder)}
               className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
             >
               ✅ Confirm Order
@@ -240,7 +286,7 @@ const OrderDetailsModal = ({ open, order, onClose, onFundWallet, onConfirmOrder 
 
       {/* Receipt Modal */}
       <Receipt
-        order={order}
+        order={displayOrder}
         isOpen={isReceiptOpen}
         onClose={() => setIsReceiptOpen(false)}
       />
@@ -251,13 +297,13 @@ const OrderDetailsModal = ({ open, order, onClose, onFundWallet, onConfirmOrder 
           <div className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <SupportTicket
               initialData={{
-                orderId: order.id,
+                orderId: displayOrder.id,
                 category: 'order',
                 orderDetails: {
-                  amount: order.totalAmount,
-                  status: order.status,
-                  vendorName: order.vendorName,
-                  date: order.createdAt?.toDate ? order.createdAt.toDate().toLocaleString() : 'N/A'
+                  amount: displayOrder.totalAmount,
+                  status: displayOrder.status,
+                  vendorName: displayOrder.vendorName,
+                  date: displayOrder.createdAt?.toDate ? displayOrder.createdAt.toDate().toLocaleString() : 'N/A'
                 }
               }}
               onTicketCreated={() => {
