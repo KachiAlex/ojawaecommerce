@@ -310,7 +310,7 @@ const CheckoutForm = ({ total, pricingBreakdown, cartItems, onSuccess, orderDeta
 const testModeEnabled = import.meta.env?.VITE_TEST_MODE === 'true';
 
 const Checkout = () => {
-  const { cartItems, getCartTotal, getPricingBreakdown, clearCart } = useCart();
+  const { cartItems, getCartTotal, getPricingBreakdown, clearCart, saveIntendedDestination } = useCart();
   const { currentUser } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -398,7 +398,13 @@ const Checkout = () => {
 
   useEffect(() => {
     if (!currentUser) {
-      navigate('/login');
+      // Save checkout as intended destination before redirecting to login
+      saveIntendedDestination('/checkout', null);
+      navigate('/login', { 
+        state: { 
+          message: 'Please sign in to complete your purchase'
+        } 
+      });
       return;
     }
 
@@ -413,7 +419,7 @@ const Checkout = () => {
     prefillAddresses();
     // Load wallet balance
     loadWalletBalance();
-  }, [currentUser, cartItems, navigate]);
+  }, [currentUser, cartItems, navigate, saveIntendedDestination]);
   
   // Logistics data is pre-calculated from cart
 
