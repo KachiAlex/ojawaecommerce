@@ -3,8 +3,7 @@ import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { usePageTracking, usePaymentTracking, useFunnelTracking } from '../hooks/useAnalytics';
-import { collection, addDoc, doc, getDoc } from 'firebase/firestore';
-import { db } from '../firebase/config';
+// Firestore removed: use backend REST services via firebaseService
 // import EnhancedLogisticsSelector from '../components/EnhancedLogisticsSelector'; // Disabled
 import firebaseService from '../services/firebaseService';
 import WalletBalanceCheck from '../components/WalletBalanceCheck';
@@ -92,8 +91,6 @@ const CheckoutForm = ({ total, pricingBreakdown, cartItems, onSuccess, orderDeta
   };
 
   const createOrderWithEscrow = async () => {
-    const idToken = await currentUser.getIdToken(true); // Force refresh to ensure token is valid
-
     const requestPayload = {
       totalAmount: total,
       currency: currencyCode,
@@ -116,9 +113,9 @@ const CheckoutForm = ({ total, pricingBreakdown, cartItems, onSuccess, orderDeta
 
     const response = await fetch(buildApiUrl('/createEscrowOrder'), {
       method: 'POST',
+      credentials: 'include',
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${idToken}`,
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({ data: requestPayload }),
     });
@@ -425,41 +422,28 @@ const Checkout = () => {
 
   const checkSelfPurchase = async () => {
     try {
-      // Get user profile to check if they're also a vendor
-      const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        const isVendor = userData.isVendor || userData.vendorProfile?.verificationStatus === 'verified';
-        
-        if (isVendor) {
-          // Check if any cart items belong to this vendor
-          const selfProducts = [];
-          
-          for (const item of cartItems) {
-            let itemVendorId = item.vendorId;
-            
-            // If vendorId not in cart item, fetch from product
-            if (!itemVendorId && item.id) {
-              try {
-                const productDoc = await getDoc(doc(db, 'products', item.id));
-                if (productDoc.exists()) {
-                  itemVendorId = productDoc.data().vendorId;
-                }
-              } catch (error) {
-                console.error('Error fetching product vendor:', error);
-              }
-            }
-            
-            if (itemVendorId === currentUser.uid) {
-              selfProducts.push(item);
+      // Get user profile to check vendor status via backend
+      const uid = currentUser.id || currentUser.uid;
+      const userData = await firebaseService.auth.getProfile(uid);
+      const isVendor = userData?.isVendor || userData?.vendorProfile?.verificationStatus === 'verified';
+      if (isVendor) {
+        const selfProducts = [];
+        for (const item of cartItems) {
+          let itemVendorId = item.vendorId;
+          if (!itemVendorId && item.id) {
+            try {
+              const product = await firebaseService.product.getById(item.id);
+              if (product) itemVendorId = product.vendorId;
+            } catch (error) {
+              console.error('Error fetching product vendor:', error);
             }
           }
-
-          if (selfProducts.length > 0) {
-            alert('You cannot purchase from your own vendor account. Please remove your own products from the cart.');
-            navigate('/cart');
-            return;
-          }
+          if (itemVendorId === uid) selfProducts.push(item);
+        }
+        if (selfProducts.length > 0) {
+          alert('You cannot purchase from your own vendor account. Please remove your own products from the cart.');
+          navigate('/cart');
+          return;
         }
       }
     } catch (error) {
@@ -470,8 +454,8 @@ const Checkout = () => {
   const loadWalletBalance = async () => {
     try {
       if (!currentUser) return;
-      
-      const walletData = await firebaseService.wallet.getUserWallet(currentUser.uid);
+      const uid = currentUser.id || currentUser.uid;
+      const walletData = await firebaseService.wallet.getUserWallet(uid);
       setWalletBalance(walletData?.balance || 0);
     } catch (error) {
       console.error('Failed to load wallet balance:', error);
@@ -481,26 +465,23 @@ const Checkout = () => {
 
   const prefillAddresses = async () => {
     try {
-      // Buyer address
-      const buyerDoc = await getDoc(doc(db, 'users', currentUser.uid));
-      if (buyerDoc.exists()) {
-        const data = buyerDoc.data();
-        if (data.address) setBuyerAddress(data.address);
-      }
+      // Buyer address from backend profile
+      const uid = currentUser.id || currentUser.uid;
+      const buyerProfile = await firebaseService.auth.getProfile(uid);
+      if (buyerProfile?.address) setBuyerAddress(buyerProfile.address);
 
       // Vendor address from first item
       let vendorId = cartItems[0]?.vendorId;
       if (!vendorId && cartItems[0]?.id) {
         try {
-          const prodSnap = await getDoc(doc(db, 'products', cartItems[0].id));
-          if (prodSnap.exists()) vendorId = prodSnap.data().vendorId;
+          const product = await firebaseService.product.getById(cartItems[0].id);
+          if (product) vendorId = product.vendorId;
         } catch (_) {}
       }
       if (vendorId) {
-        const vendorSnap = await getDoc(doc(db, 'users', vendorId));
-        if (vendorSnap.exists()) {
-          const v = vendorSnap.data();
-          const addr = v.vendorProfile?.businessAddress || v.address || '';
+        const vendorProfile = await firebaseService.auth.getProfile(vendorId);
+        if (vendorProfile) {
+          const addr = vendorProfile.vendorProfile?.businessAddress || vendorProfile.address || '';
           setVendorAddress(addr);
         }
       }

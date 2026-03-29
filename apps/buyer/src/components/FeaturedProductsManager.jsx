@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs, doc, updateDoc, query, where } from 'firebase/firestore';
-import { db } from '../firebase/config';
+import firebaseService from '../services/firebaseService';
 
 const FeaturedProductsManager = () => {
   const [allProducts, setAllProducts] = useState([]);
@@ -15,18 +14,10 @@ const FeaturedProductsManager = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        
-        // Get all products
-        const productsSnapshot = await getDocs(collection(db, 'products'));
-        const products = productsSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-
-        // Get featured products (products with isFeatured: true)
-        const featured = products.filter(product => product.isFeatured === true);
-        
-        setAllProducts(products);
+        // Get all products via REST
+        const products = await firebaseService.product.getAll({});
+        const featured = (products || []).filter(p => p.isFeatured === true);
+        setAllProducts(products || []);
         setFeaturedProducts(featured);
       } catch (error) {
         console.error('Error fetching products:', error);
@@ -42,11 +33,12 @@ const FeaturedProductsManager = () => {
   const toggleFeatured = async (productId, isCurrentlyFeatured) => {
     try {
       setSaving(true);
-      
-      const productRef = doc(db, 'products', productId);
-      await updateDoc(productRef, {
-        isFeatured: !isCurrentlyFeatured,
-        featuredAt: !isCurrentlyFeatured ? new Date() : null
+      // Update via backend API
+      await fetch(`/api/products/${encodeURIComponent(productId)}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isFeatured: !isCurrentlyFeatured, featuredAt: !isCurrentlyFeatured ? new Date().toISOString() : null })
       });
 
       // Update local state

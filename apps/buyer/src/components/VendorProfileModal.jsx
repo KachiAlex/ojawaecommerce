@@ -50,16 +50,23 @@ const VendorProfileModal = ({ isOpen, onClose, onUpdate }) => {
 
   const uploadFile = async (file, path) => {
     if (!file) return null;
-    
     try {
-      const { getStorage, ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
-      const { storage } = await import('../firebase/config');
-      
-      const storageRef = ref(storage, path);
-      const snapshot = await uploadBytes(storageRef, file);
-      const downloadURL = await getDownloadURL(snapshot.ref);
-      
-      return downloadURL;
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const form = new FormData();
+      form.append('file', file, safeName);
+      form.append('path', path);
+
+      const res = await fetch('/api/uploads', {
+        method: 'POST',
+        body: form,
+        credentials: 'include'
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`Upload failed: ${res.status} ${text}`);
+      }
+      const data = await res.json();
+      return data.url || data.location || null;
     } catch (error) {
       console.error('Error uploading file:', error);
       throw error;

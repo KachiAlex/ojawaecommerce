@@ -1,7 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../firebase/config';
 import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
 import { usePageTracking, useProductTracking, useClickTracking } from '../hooks/useAnalytics';
@@ -56,41 +54,25 @@ const ProductDetail = () => {
   useEffect(() => {
     const fetchProduct = async () => {
       try {
-        const productRef = doc(db, 'products', id);
-        const productSnap = await getDoc(productRef);
-        
-        if (productSnap.exists()) {
-          const productData = { id: productSnap.id, ...productSnap.data() };
-          setProduct(productData);
-          
-          // Fetch vendor info
+        const productData = await firebaseService.product.getById(id);
+        if (productData) {
+          setProduct({ id: productData.id || id, ...productData });
+
           if (productData.vendorId) {
             try {
-              const vendorRef = doc(db, 'users', productData.vendorId);
-              const vendorSnap = await getDoc(vendorRef);
-              
-              if (vendorSnap.exists()) {
-                const vendorData = vendorSnap.data();
-                // Get vendor phone number from multiple possible locations
-                const vendorPhone = vendorData.vendorProfile?.businessPhone || 
-                                   vendorData.phone || 
-                                   vendorData.phoneNumber || 
-                                   vendorData.contactPhone || 
-                                   '';
-                
-                setVendorInfo({
-                  id: productData.vendorId,
-                  name: vendorData.vendorProfile?.storeName || vendorData.displayName || vendorData.name || 'Vendor',
-                  address: vendorData.vendorProfile?.businessAddress || vendorData.address || 'Not specified',
-                  phone: vendorPhone
-                });
-              }
+              const vendorData = await firebaseService.auth.getProfile(productData.vendorId);
+              const vendorPhone = vendorData?.vendorProfile?.businessPhone || vendorData?.phone || vendorData?.phoneNumber || vendorData?.contactPhone || '';
+              setVendorInfo({
+                id: productData.vendorId,
+                name: vendorData?.vendorProfile?.storeName || vendorData?.displayName || vendorData?.name || 'Vendor',
+                address: vendorData?.vendorProfile?.businessAddress || vendorData?.address || 'Not specified',
+                phone: vendorPhone
+              });
             } catch (vendorError) {
               console.error('Error fetching vendor info:', vendorError);
             }
           }
         } else {
-          // Mock data for demo
           setProduct({
             id: id,
             name: 'Sample Product',

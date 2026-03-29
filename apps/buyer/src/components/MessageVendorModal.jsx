@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
-import { db } from '../firebase/config';
+import firebaseService from '../services/firebaseService';
 
 const MessageVendorModal = ({ isOpen, onClose, vendor, product, cartItems = null }) => {
   const { currentUser } = useAuth();
@@ -14,28 +13,17 @@ const MessageVendorModal = ({ isOpen, onClose, vendor, product, cartItems = null
   // Fetch vendor name from Firestore if not provided
   useEffect(() => {
     const fetchVendorName = async () => {
-      if (!vendorId || vendor?.name) return; // Skip if vendor name already provided or no vendorId
-      
+      if (!vendorId || vendor?.name) return;
       try {
-        const vendorDoc = await getDoc(doc(db, 'users', vendorId));
-        if (vendorDoc.exists()) {
-          const vendorData = vendorDoc.data();
-          const name = vendorData.displayName || 
-                      vendorData.name || 
-                      vendorData.businessName || 
-                      vendorData.storeName ||
-                      vendorData.email?.split('@')[0] ||
-                      'Vendor';
-          setVendorName(name);
-        }
+        const data = await firebaseService.auth.getProfile(vendorId);
+        const name = data?.displayName || data?.name || data?.vendorProfile?.businessName || data?.vendorProfile?.storeName || data?.email?.split?.('@')?.[0] || 'Vendor';
+        setVendorName(name);
       } catch (error) {
         console.error('Error fetching vendor name:', error);
       }
     };
 
-    if (isOpen && vendorId) {
-      fetchVendorName();
-    }
+    if (isOpen && vendorId) fetchVendorName();
   }, [isOpen, vendorId, vendor]);
 
   const handleSubmit = async (e) => {
@@ -70,8 +58,13 @@ const MessageVendorModal = ({ isOpen, onClose, vendor, product, cartItems = null
 
       console.log('Sending message:', messageData);
 
-      // Save to Firestore
-      await addDoc(collection(db, 'messages'), messageData);
+      // Send via backend messages endpoint
+      await fetch('/api/messages', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(messageData)
+      });
       
       console.log('Message sent successfully');
       setSuccess(true);

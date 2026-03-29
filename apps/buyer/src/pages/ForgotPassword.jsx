@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { sendPasswordResetEmail } from 'firebase/auth';
-import { auth } from '../firebase/config';
+import firebaseService from '../services/firebaseService';
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState('');
@@ -22,13 +21,8 @@ const ForgotPassword = () => {
       setError('');
       setLoading(true);
       
-      // Use actionCodeSettings to handle reCAPTCHA properly
-      const actionCodeSettings = {
-        url: `${window.location.origin}/login`,
-        handleCodeInApp: false,
-      };
-      
-      await sendPasswordResetEmail(auth, email, actionCodeSettings);
+      // Request backend to send password reset
+      await firebaseService.auth.sendPasswordReset(email);
       setSuccess(true);
       
       // Auto-close after 5 seconds

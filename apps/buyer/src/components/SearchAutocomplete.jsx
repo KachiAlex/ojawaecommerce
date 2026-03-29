@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, query, where, getDocs, limit, orderBy } from 'firebase/firestore';
-import { db } from '../firebase/config';
+import firebaseService from '../services/firebaseService';
 
 const SearchAutocomplete = ({ onSelect, onSearch, placeholder = "Search products...", initialQuery = "", products = [] }) => {
   const [searchTerm, setSearchTerm] = useState(initialQuery);
@@ -68,35 +67,20 @@ const SearchAutocomplete = ({ onSelect, onSearch, placeholder = "Search products
 
     try {
       setLoading(true);
-      const productsRef = collection(db, 'products');
-      // Use a simpler query that doesn't require a composite index
-      // Fetch active products and filter client-side
-      const q = query(
-        productsRef,
-        where('isActive', '==', true),
-        limit(50) // Fetch more products to search through client-side
-      );
-
-      const snapshot = await getDocs(q);
+      const res = await firebaseService.product.getAll({ isActive: true, limit: 50 });
+      const items = res || [];
       const searchLower = term.toLowerCase().trim();
-      
-      // Filter products client-side by search query
-      const filtered = snapshot.docs
-        .map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }))
+      const filtered = items
         .filter(product => {
-          // Client-side filtering for search query
           return (
             product.name?.toLowerCase().includes(searchLower) ||
             product.description?.toLowerCase().includes(searchLower) ||
             product.category?.toLowerCase().includes(searchLower) ||
             product.brand?.toLowerCase().includes(searchLower) ||
-            product.tags?.some(tag => tag.toLowerCase().includes(searchLower))
+            (product.tags || []).some(tag => tag.toLowerCase().includes(searchLower))
           );
         })
-        .slice(0, 8); // Limit to 8 suggestions
+        .slice(0, 8);
 
       setSuggestions(filtered);
       setIsOpen(filtered.length > 0);

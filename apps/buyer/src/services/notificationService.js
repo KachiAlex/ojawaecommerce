@@ -1,17 +1,5 @@
-import { 
-  collection, 
-  addDoc, 
-  query, 
-  where, 
-  orderBy, 
-  onSnapshot, 
-  doc, 
-  updateDoc, 
-  deleteDoc, 
-  getDocs,
-  serverTimestamp 
-} from 'firebase/firestore';
-import { db } from '../firebase/config';
+// Notification service (REST-backed)
+// All operations routed through /api/notifications/* endpoints
 
 // Notification types
 export const NOTIFICATION_TYPES = {
@@ -35,16 +23,15 @@ export const notificationService = {
   // Create a new notification
   async create(notificationData) {
     try {
-      const docRef = await addDoc(collection(db, 'notifications'), {
-        ...notificationData,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+      const res = await fetch('/api/notifications', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(notificationData)
       });
-      
-      return {
-        id: docRef.id,
-        ...notificationData
-      };
+      if (!res.ok) throw new Error(`Create failed: ${res.status}`);
+      const data = await res.json();
+      return data || { id: 'created', ...notificationData };
     } catch (error) {
       console.error('Error creating notification:', error);
       throw error;

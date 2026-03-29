@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useMessaging } from '../contexts/MessagingContext';
 import { useAuth } from '../contexts/AuthContext';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../firebase/config';
+import firebaseService from '../services/firebaseService';
 import MobileBottomSheet from './MobileBottomSheet';
 import MobileTouchHandler from './MobileTouchHandler';
 
@@ -51,20 +50,14 @@ const MessagingInterface = ({ isOpen, onClose, order = null, otherUserId = null 
         (async () => {
           const namePromises = namesToFetch.map(async (senderId) => {
             try {
-              const userRef = doc(db, 'users', senderId);
-              const snap = await getDoc(userRef);
-              if (snap.exists()) {
-                const data = snap.data();
-                // Get display name - prioritize vendor/business name, then display name, then email
-                const displayName = data.vendorProfile?.businessName || 
-                                   data.vendorProfile?.storeName ||
-                                   data.displayName || 
-                                   data.name || 
-                                   data.email?.split('@')[0] || 
-                                   senderId;
-                return { senderId, displayName };
-              }
-              return { senderId, displayName: senderId };
+              const data = await firebaseService.auth.getProfile(senderId);
+              const displayName = data?.vendorProfile?.businessName ||
+                                  data?.vendorProfile?.storeName ||
+                                  data?.displayName ||
+                                  data?.name ||
+                                  data?.email?.split?.('@')[0] ||
+                                  senderId;
+              return { senderId, displayName };
             } catch (error) {
               console.warn('Error fetching sender name:', error);
               return { senderId, displayName: senderId };

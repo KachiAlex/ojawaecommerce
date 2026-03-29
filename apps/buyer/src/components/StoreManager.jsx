@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { storeService, productTrackingService } from '../services/trackingService';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { storage } from '../firebase/config';
+// Uploads are handled by backend `/api/uploads` endpoint; no direct Firebase storage usage needed
 
 const StoreManager = () => {
   const { currentUser } = useAuth();
@@ -84,14 +83,23 @@ const StoreManager = () => {
 
   const handleFileUpload = async (file, type) => {
     if (!file) return null;
-    
     try {
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-      const path = `stores/${currentUser.uid}/${type}/${Date.now()}-${safeName}`;
-      const storageRef = ref(storage, path);
-      await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(storageRef);
-      return url;
+      const form = new FormData();
+      form.append('file', file, safeName);
+      form.append('path', `stores/${currentUser.uid}/${type}`);
+
+      const res = await fetch('/api/uploads', {
+        method: 'POST',
+        body: form,
+        credentials: 'include'
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`Upload failed: ${res.status} ${text}`);
+      }
+      const data = await res.json();
+      return data.url || data.location || null;
     } catch (error) {
       console.error('Error uploading file:', error);
       throw error;

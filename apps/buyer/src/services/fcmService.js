@@ -1,10 +1,3 @@
-import { getMessaging, getToken, onMessage } from 'firebase/messaging';
-import app from '../firebase/config';
-import { db } from '../firebase/config';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
-
-const messaging = getMessaging(app);
-
 let messagingSwRegistrationPromise = null;
 
 const registerMessagingServiceWorker = () => {
@@ -16,12 +9,12 @@ const registerMessagingServiceWorker = () => {
     messagingSwRegistrationPromise = navigator.serviceWorker
       .register('/firebase-messaging-sw.js')
       .then((registration) => {
-        console.log('Firebase messaging service worker registered');
+        console.log('Messaging service worker registered');
         return registration;
       })
       .catch((error) => {
         messagingSwRegistrationPromise = null;
-        console.warn('Failed to register Firebase messaging service worker:', error);
+        console.warn('Failed to register messaging service worker:', error);
         throw error;
       });
   }
@@ -29,8 +22,24 @@ const registerMessagingServiceWorker = () => {
   return messagingSwRegistrationPromise;
 };
 
-// VAPID key for web push (optional - FCM will work without it for basic functionality)
-const VAPID_KEY = 'BEl62iUYgUivLOI6SIKpGzlDq5y2p-4jlbVuBHTj-c0'; // Demo VAPID key for testing
+// Try to get VAPID public key from global or backend
+const fetchVapidPublicKey = async () => {
+  if (typeof window !== 'undefined' && window.__VAPID_PUBLIC_KEY__) {
+    return window.__VAPID_PUBLIC_KEY__;
+  }
+
+  try {
+    const res = await fetch('/api/push/vapidPublicKey');
+    if (res.ok) {
+      const json = await res.json();
+      return json.vapidPublicKey;
+    }
+  } catch (err) {
+    console.warn('Failed to fetch VAPID public key from backend:', err.message || err);
+  }
+
+  return null;
+};
 
 /**
  * Request notification permission from user
@@ -82,62 +91,40 @@ export const requestNotificationPermission = async () => {
  * @param {string} userId - User ID to associate token with
  * @returns {Promise<string|null>} - FCM token or null
  */
-export const getFCMToken = async (userId) => {
+export const getPushSubscription = async (userId) => {
   try {
-    // Skip FCM if VAPID key is not configured
-    if (!VAPID_KEY) {
-      console.log('FCM disabled - VAPID key not configured');
+    const vapidKey = await fetchVapidPublicKey();
+    if (!vapidKey) {
+      console.log('Push disabled - VAPID key not configured');
       return null;
     }
 
-    console.log('Getting FCM token for user:', userId);
-    
-    // Check if permission granted
     if (Notification.permission !== 'granted') {
       console.log('Notification permission not granted');
       return null;
     }
 
-    let serviceWorkerRegistration = null;
-    try {
-      serviceWorkerRegistration = await registerMessagingServiceWorker();
-    } catch (err) {
-      console.warn('FCM service worker registration failed (non-critical):', err.message);
-    }
+    const registration = await registerMessagingServiceWorker();
 
-    // Get token
-    const token = await getToken(messaging, {
-      vapidKey: VAPID_KEY,
-      serviceWorkerRegistration: serviceWorkerRegistration || undefined
+    const existing = await registration.pushManager.getSubscription();
+    if (existing) return existing;
+
+    const convertedKey = urlBase64ToUint8Array(vapidKey);
+    const subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: convertedKey
     });
 
-    if (token) {
-      console.log('FCM token obtained:', token.substring(0, 20) + '...');
-      
-      // Save token to Firestore
-      await saveFCMToken(userId, token);
-      
-      return token;
-    } else {
-      console.log('No FCM token available');
-      return null;
-    }
-  } catch (error) {
-    // Silently handle FCM token errors (not critical for app functionality)
-    // Only log in development mode
-    if (process.env.NODE_ENV === 'development') {
-      console.warn('FCM token error (non-critical):', error.code || error.message);
-    }
-    
-    // Handle specific errors silently
-    if (error.code === 'messaging/permission-blocked') {
-      // User blocked notifications - this is fine
-    } else if (error.code === 'messaging/failed-service-worker-registration') {
-      // Service worker issue - not critical
-    } else if (error.code === 'messaging/token-subscribe-failed') {
-      // FCM not fully configured - not critical
-    }
-    
+    // Send subscription to backend
+    await fetch('/api/push/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, subscription })
+    }).catch(err => console.warn('Failed to save subscription to backend:', err));
+
+    return subscription;
+  } catch (err) {
+    console.warn('getPushSubscription error:', err.message || err);
     return null;
   }
 };
@@ -147,18 +134,15 @@ export const getFCMToken = async (userId) => {
  * @param {string} userId - User ID
  * @param {string} token - FCM token
  */
-const saveFCMToken = async (userId, token) => {
+const saveSubscriptionToBackend = async (userId, subscription) => {
   try {
-    const userRef = doc(db, 'users', userId);
-    await updateDoc(userRef, {
-      fcmToken: token,
-      fcmTokenUpdatedAt: serverTimestamp()
+    await fetch('/api/push/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, subscription })
     });
-    
-    console.log('FCM token saved to Firestore');
-  } catch (error) {
-    console.error('Error saving FCM token:', error);
-    throw error;
+  } catch (err) {
+    console.warn('Failed to save subscription to backend:', err);
   }
 };
 
@@ -170,15 +154,14 @@ const saveFCMToken = async (userId, token) => {
  */
 export const subscribeToTopic = async (topic) => {
   try {
-    console.log(`Subscribing to topic: ${topic}`);
-    
-    // Note: Topic subscription is typically done on the backend
-    // via Cloud Functions for security reasons
-    // This is just a placeholder for the client-side API
-    
-    console.log('Topic subscription should be handled by backend');
-  } catch (error) {
-    console.error('Error subscribing to topic:', error);
+    // Forward topic subscription to backend
+    await fetch('/api/push/subscribe-topic', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topic })
+    });
+  } catch (err) {
+    console.warn('subscribeToTopic failed:', err);
   }
 };
 
@@ -190,12 +173,13 @@ export const subscribeToTopic = async (topic) => {
  */
 export const unsubscribeFromTopic = async (topic) => {
   try {
-    console.log(`Unsubscribing from topic: ${topic}`);
-    
-    // Note: Topic unsubscription is typically done on the backend
-    console.log('Topic unsubscription should be handled by backend');
-  } catch (error) {
-    console.error('Error unsubscribing from topic:', error);
+    await fetch('/api/push/unsubscribe-topic', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topic })
+    });
+  } catch (err) {
+    console.warn('unsubscribeFromTopic failed:', err);
   }
 };
 
@@ -205,37 +189,9 @@ export const unsubscribeFromTopic = async (topic) => {
  * @returns {Function} - Unsubscribe function
  */
 export const handleForegroundMessage = (callback) => {
-  try {
-    const unsubscribe = onMessage(messaging, (payload) => {
-      console.log('Foreground message received:', payload);
-      
-      // Call callback with payload
-      if (callback && typeof callback === 'function') {
-        callback(payload);
-      }
-      
-      // Show browser notification if permission granted
-      if (Notification.permission === 'granted') {
-        const { notification, data } = payload;
-        
-        const notificationOptions = {
-          body: notification?.body || '',
-          icon: notification?.icon || '/icon-192x192.png',
-          badge: '/badge-72x72.png',
-          tag: data?.notificationId || 'default',
-          data: data,
-          requireInteraction: data?.priority === 'urgent'
-        };
-        
-        new Notification(notification?.title || 'New Notification', notificationOptions);
-      }
-    });
-    
-    return unsubscribe;
-  } catch (error) {
-    console.error('Error setting up foreground message handler:', error);
-    return () => {}; // Return empty function
-  }
+  // Foreground delivery can be implemented via WebSocket/SSE. For now, fallback to no-op.
+  console.warn('Foreground messages not supported by push shim. Implement WebSocket or SSE for real-time foreground messages.');
+  return () => {};
 };
 
 /**
@@ -266,32 +222,18 @@ export const getPermissionStatus = () => {
  */
 export const initializeFCM = async (userId) => {
   try {
-    // Skip FCM if VAPID key is not configured
-    if (!VAPID_KEY) {
-      console.log('FCM disabled - VAPID key not configured');
+    console.log('Initializing push support...');
+
+    if (!isFCMSupported()) {
+      console.log('Push not supported in this browser');
       return null;
     }
 
-    console.log('Initializing FCM...');
-    
-    // Check if FCM supported
-    if (!isFCMSupported()) {
-      console.log('FCM not supported in this browser');
-      return null;
-    }
-    
-    // Request permission
     const permissionGranted = await requestNotificationPermission();
-    
-    if (!permissionGranted) {
-      console.log('Notification permission not granted');
-      return null;
-    }
-    
-    // Get FCM token
-    const token = await getFCMToken(userId);
-    
-    return token;
+    if (!permissionGranted) return null;
+
+    const subscription = await getPushSubscription(userId);
+    return subscription;
   } catch (error) {
     // Silently handle FCM initialization errors (not critical)
     if (process.env.NODE_ENV === 'development') {
@@ -307,13 +249,13 @@ export const initializeFCM = async (userId) => {
  */
 export const removeFCMToken = async (userId) => {
   try {
-    const userRef = doc(db, 'users', userId);
-    await updateDoc(userRef, {
-      fcmToken: null,
-      fcmTokenUpdatedAt: serverTimestamp()
+    // Tell backend to remove subscription for this user
+    await fetch('/api/push/unsubscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId })
     });
-    
-    console.log('FCM token removed from Firestore');
+    console.log('Push subscription removed via backend');
   } catch (error) {
     console.error('Error removing FCM token:', error);
   }
@@ -321,7 +263,7 @@ export const removeFCMToken = async (userId) => {
 
 export default {
   requestNotificationPermission,
-  getFCMToken,
+  getPushSubscription,
   subscribeToTopic,
   unsubscribeFromTopic,
   handleForegroundMessage,
@@ -330,4 +272,16 @@ export default {
   initializeFCM,
   removeFCMToken
 };
+
+// Helper to convert VAPID key
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
 

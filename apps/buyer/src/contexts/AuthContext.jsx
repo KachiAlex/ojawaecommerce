@@ -1,19 +1,4 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { 
-  onAuthStateChanged, 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  signOut,
-  updateProfile,
-  GoogleAuthProvider,
-  signInWithPopup,
-  signInWithRedirect,
-  getRedirectResult,
-  sendEmailVerification,
-  reload
-} from 'firebase/auth';
-import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
-import { auth, db } from '../firebase/config';
 import firebaseService from '../services/firebaseService';
 import { storeService } from '../services/trackingService';
 import emailOTPService from '../utils/emailOTPService';
@@ -38,83 +23,57 @@ export const AuthProvider = ({ children }) => {
   const [newUserType, setNewUserType] = useState('buyer');
   const [lastVerificationEmailSentAt, setLastVerificationEmailSentAt] = useState(null);
 
-  const getActionCodeSettings = () => {
-    if (typeof window === 'undefined') {
-      return undefined;
+  const getActionCodeSettings = () => ({ url: `${typeof window !== 'undefined' ? window.location.origin : ''}/login`, handleCodeInApp: false });
+
+  const triggerVerificationEmail = async (email) => {
+    if (!email) throw new Error('No email provided for verification.');
+    try {
+      await emailOTPService.sendOTP(email, 'verification', {
+        subject: 'Verify Your Ojawa E-commerce Account',
+        customMessage: 'Complete your registration with this verification code.'
+      });
+      setLastVerificationEmailSentAt(new Date());
+    } catch (err) {
+      console.error('Error sending verification email via OTP service:', err);
+      throw err;
     }
-    return {
-      url: `${window.location.origin}/login`,
-      handleCodeInApp: false
-    };
   };
 
-  const triggerVerificationEmail = async (targetUser = auth.currentUser) => {
-    if (!targetUser) {
-      throw new Error('No authenticated user to verify.');
-    }
-    await sendEmailVerification(targetUser, getActionCodeSettings());
-    setLastVerificationEmailSentAt(new Date());
-  };
-
-  const sendVerificationEmail = async () => {
-    await triggerVerificationEmail();
+  const sendVerificationEmail = async (email) => {
+    return triggerVerificationEmail(email);
   };
 
   const refreshUser = async () => {
-    if (!auth.currentUser) return null;
-    await reload(auth.currentUser);
-    setCurrentUser(auth.currentUser);
-    return auth.currentUser;
+    try {
+      const res = await fetch('/api/auth/me', { credentials: 'include' });
+      if (!res.ok) return null;
+      const data = await res.json();
+      setCurrentUser(data?.user || data || null);
+      setUserProfile(data?.profile || data?.user || null);
+      return data;
+    } catch (err) {
+      return null;
+    }
   };
 
-  // Sign up function
+  // Sign up function (REST-backed)
   const signup = async (email, password, userData) => {
     try {
-      const { user } = await createUserWithEmailAndPassword(auth, email, password);
-      
-      // Update the user's display name
-      await updateProfile(user, {
-        displayName: userData.displayName
-      });
-
-      // Create user profile in Firestore - All users start as buyers
-      const userProfileData = {
-        uid: user.uid,
-        email: user.email,
-        displayName: userData.displayName,
-        phone: userData.phone || '',
-        address: userData.address || '',
-        createdAt: new Date(),
-        role: userData.role || 'buyer', // Allow admin to set role during registration
-        isVendor: false, // Can become vendor through onboarding
-        isLogisticsPartner: false, // Can become logistics through onboarding
-        isAdmin: userData.role === 'admin', // Admin flag
-        vendorProfile: null, // Will be populated after vendor onboarding
-        logisticsProfile: null, // Will be populated after logistics onboarding
-        suspended: false // User suspension status
-      };
-
-      await setDoc(doc(db, 'users', user.uid), userProfileData);
-      setUserProfile(userProfileData);
-      try {
-        await triggerVerificationEmail(user);
-      } catch (verificationError) {
-        console.error('Error sending verification email:', verificationError);
+      const res = await firebaseService.auth.signup(email, password, userData || {});
+      const userId = res?.id || res?.uid || res?.user?.id || res?.user?.uid;
+      if (userId) {
+        try {
+          await firebaseService.wallet.createWallet(userId, userData?.userType || 'buyer');
+        } catch (walletError) {
+          console.error('Error creating wallet:', walletError);
+        }
       }
-      
-      // Create wallet for new user
-      try {
-        await firebaseService.wallet.createWallet(user.uid, userData.userType || 'buyer');
-      } catch (walletError) {
-        console.error('Error creating wallet:', walletError);
-        // Don't fail registration if wallet creation fails
-      }
-      
-      // Show wallet education for new users
-      setNewUserType(userData.userType || 'buyer');
+      setNewUserType(userData?.userType || 'buyer');
       setShowEscrowEducation(true);
-      
-      return user;
+      try {
+        if (email) await triggerVerificationEmail(email);
+      } catch (_) {}
+      return res;
     } catch (error) {
       throw error;
     }
@@ -122,13 +81,13 @@ export const AuthProvider = ({ children }) => {
 
   const resendVerificationEmailWithPassword = async (email, password) => {
     try {
-      const { user } = await signInWithEmailAndPassword(auth, email, password);
-      if (user.emailVerified) {
-        await signOut(auth);
+      const res = await firebaseService.auth.signin(email, password);
+      if (res?.emailVerified) {
+        await firebaseService.auth.signout();
         return { alreadyVerified: true };
       }
-      await triggerVerificationEmail(user);
-      await signOut(auth);
+      await triggerVerificationEmail(email);
+      await firebaseService.auth.signout();
       return { success: true };
     } catch (error) {
       console.error('Error resending verification email with password:', error);
@@ -143,239 +102,52 @@ export const AuthProvider = ({ children }) => {
     return error;
   };
 
-  // Sign in function with improved error handling
+  // Sign in function (REST-backed)
   const signin = async (email, password) => {
     try {
-      console.log('🔐 AuthContext: Signing in user:', email);
-      const { user } = await signInWithEmailAndPassword(auth, email, password);
-      console.log('✅ AuthContext: Sign in successful, user:', user.uid);
+      console.log('🔐 AuthContext: Signing in user via REST:', email);
+      const res = await firebaseService.auth.signin(email, password);
+      const user = res?.user || res;
+      if (!user) throw new Error('Invalid signin response from server');
 
-      if (!user.emailVerified) {
-        console.warn('⚠️ AuthContext: User email not verified, blocking sign-in');
+      if (res?.emailVerified === false) {
         try {
-          await triggerVerificationEmail(user);
+          await triggerVerificationEmail(email);
         } catch (verificationError) {
           console.error('Error auto-sending verification email on signin:', verificationError);
         }
-        await signOut(auth);
+        await firebaseService.auth.signout();
         throw createUnverifiedEmailError(email);
       }
-      
-      // Fetch user profile to check role
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        console.log('👤 AuthContext: User profile:', { 
-          role: userData.role, 
-          email: userData.email,
-          displayName: userData.displayName 
-        });
-        
-        // If user has an unrecognized role, default to 'buyer'
-        if (userData.role && !['buyer', 'vendor', 'logistics', 'admin'].includes(userData.role)) {
-          console.warn('⚠️ AuthContext: Unknown role detected:', userData.role, '- defaulting to buyer');
-        }
-      } else {
-        console.warn('⚠️ AuthContext: User profile not found in Firestore');
+
+      try {
+        const profile = res?.profile || (user?.id || user?.uid ? await firebaseService.auth.getProfile(user.id || user.uid) : null);
+        if (profile) setUserProfile(profile);
+      } catch (e) {
+        console.warn('Unable to load user profile after signin:', e);
       }
-      
+
+      setCurrentUser(user);
       return user;
     } catch (error) {
       console.error('❌ AuthContext: Sign in failed:', error);
-      console.error('❌ AuthContext: Error code:', error.code);
-      console.error('❌ AuthContext: Error message:', error.message);
       throw error;
     }
   };
 
-  // Google Sign-In function with improved error handling, timeout, and redirect fallback
+  // Google Sign-In simplified to backend redirect
   const signInWithGoogle = async (userType = 'buyer') => {
     try {
-      console.log('🔐 AuthContext: Starting Google Sign-In as:', userType);
-      
-      // Validate userType
       const validUserTypes = ['buyer', 'vendor', 'logistics', 'existing'];
       const normalizedUserType = validUserTypes.includes(userType) ? userType : 'buyer';
-      
-      const provider = new GoogleAuthProvider();
-      provider.addScope('email');
-      provider.addScope('profile');
-      provider.setCustomParameters({
-        prompt: 'consent' // Force consent screen for better reliability
-      });
-      
-      // Store userType for redirect flow with timestamp
-      if (normalizedUserType) {
-        sessionStorage.setItem('google_signin_usertype', normalizedUserType);
-        sessionStorage.setItem('google_signin_timestamp', Date.now().toString());
-      }
-      
-      // Improved mobile detection
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      const isTablet = /iPad|Android/i.test(navigator.userAgent) && window.innerWidth >= 768;
-      
-      if (isMobile || isTablet) {
-        // Use redirect flow for mobile
-        console.log('📱 Mobile/Tablet detected, using redirect flow');
-        await signInWithRedirect(auth, provider);
-        return null; // Will complete after redirect
-      }
-      
-      // Use popup for desktop with timeout
-      let result;
-      try {
-        console.log('💻 Desktop detected, using popup flow');
-        
-        // Create a timeout promise to prevent hanging
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('TIMEOUT')), 60000); // 60 second timeout
-        });
-        
-        // Race between sign-in and timeout
-        result = await Promise.race([
-          signInWithPopup(auth, provider),
-          timeoutPromise
-        ]);
-      } catch (popupError) {
-        console.log('⚠️ Popup error:', popupError.message || popupError.code);
-        
-        // If timeout, suggest manual retry
-        if (popupError.message === 'TIMEOUT') {
-          throw new Error('Sign-in timed out. Please try again or allow popups for this site.');
-        }
-        
-        // If popup fails, try redirect as fallback
-        if (popupError.code === 'auth/popup-blocked' || 
-            popupError.code === 'auth/popup-closed-by-user' ||
-            popupError.code === 'auth/cancelled-popup-request') {
-          console.log('⚠️ Popup blocked/failed, falling back to redirect');
-          await signInWithRedirect(auth, provider);
-          return null; // Will complete after redirect
-        }
-        throw popupError;
-      }
-      
-      // Clear stored userType on successful popup sign-in
-      sessionStorage.removeItem('google_signin_usertype');
-      sessionStorage.removeItem('google_signin_timestamp');
-      
-      const user = result.user;
-      console.log('✅ AuthContext: Google Sign-In successful, user:', user.uid);
-
-      if (!user.emailVerified) {
-        console.warn('⚠️ AuthContext: Google user email not verified, blocking sign-in');
-        try {
-          await triggerVerificationEmail(user);
-        } catch (verificationError) {
-          console.error('Error auto-sending verification email for Google user:', verificationError);
-        }
-        await signOut(auth);
-        throw createUnverifiedEmailError(user.email);
-      }
-      
-      // Validate user data
-      if (!user.email) {
-        throw new Error('Unable to retrieve email from Google account. Please try again.');
-      }
-      
-      // Check if user already exists in Firestore with retry
-      let userDoc;
-      let retries = 3;
-      while (retries > 0) {
-        try {
-          userDoc = await getDoc(doc(db, 'users', user.uid));
-          break;
-        } catch (docError) {
-          retries--;
-          if (retries === 0) throw new Error('Unable to check user profile. Please try again.');
-          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
-        }
-      }
-      
-      if (!userDoc.exists()) {
-        // New user - create profile
-        console.log('👤 AuthContext: New Google user, creating profile');
-        const userProfileData = {
-          uid: user.uid,
-          email: user.email,
-          displayName: user.displayName || user.email?.split('@')[0],
-          name: user.displayName || user.email?.split('@')[0],
-          photoURL: user.photoURL || '',
-          phone: user.phoneNumber || '',
-          address: '',
-          createdAt: new Date(),
-          role: normalizedUserType === 'existing' ? 'buyer' : normalizedUserType,
-          isVendor: normalizedUserType === 'vendor',
-          isLogisticsPartner: normalizedUserType === 'logistics',
-          isAdmin: false,
-          vendorProfile: null,
-          logisticsProfile: null,
-          suspended: false,
-          signInMethod: 'google'
-        };
-
-        // Save profile with retry
-        retries = 3;
-        while (retries > 0) {
-          try {
-        await setDoc(doc(db, 'users', user.uid), userProfileData);
-        setUserProfile(userProfileData);
-            break;
-          } catch (saveError) {
-            retries--;
-            if (retries === 0) {
-              console.error('Failed to save user profile after retries:', saveError);
-              throw new Error('Unable to complete sign-up. Please try again.');
-            }
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          }
-        }
-        
-        // Create wallet for new user with error handling
-        try {
-          await firebaseService.wallet.createWallet(user.uid, normalizedUserType || 'buyer');
-          console.log('✅ Wallet created successfully');
-        } catch (walletError) {
-          console.error('⚠️ Error creating wallet (non-critical):', walletError);
-          // Don't fail sign-up if wallet creation fails
-        }
-        
-        // Show wallet education for new users
-        setNewUserType(normalizedUserType === 'existing' ? 'buyer' : normalizedUserType);
-        setShowEscrowEducation(true);
-      } else {
-        // Existing user - just load profile
-        console.log('👤 AuthContext: Existing Google user, loading profile');
-        const userData = userDoc.data();
-        setUserProfile(userData);
-      }
-      
-      return user;
+      sessionStorage.setItem('google_signin_usertype', normalizedUserType);
+      sessionStorage.setItem('google_signin_timestamp', Date.now().toString());
+      window.location.href = `/api/auth/google?userType=${encodeURIComponent(normalizedUserType)}`;
+      return null;
     } catch (error) {
-      console.error('❌ AuthContext: Google Sign-In failed:', error);
-      
-      // Clear stored data on error
+      console.error('❌ AuthContext: Google Sign-In redirect failed:', error);
       sessionStorage.removeItem('google_signin_usertype');
       sessionStorage.removeItem('google_signin_timestamp');
-      
-      // Handle account exists with different credential
-      if (error.code === 'auth/account-exists-with-different-credential') {
-        const email = error.customData?.email;
-        throw new Error(`An account already exists with ${email}. Please sign in with your email and password, or use the same Google account you used to sign up.`);
-      }
-      
-      // Don't retry on user cancellation or popup blocked
-      if (error.code === 'auth/popup-closed-by-user' || 
-          error.code === 'auth/cancelled-popup-request') {
-        console.log('ℹ️ User cancelled Google Sign-In');
-        return null;
-      }
-      
-      // Provide more specific error messages
-      if (error.message.includes('timeout')) {
-        throw new Error('Sign-in timed out. Please check your internet connection and try again.');
-      }
-      
       throw error;
     }
   };
@@ -394,20 +166,29 @@ export const AuthProvider = ({ children }) => {
         ]);
       } catch (_) {}
 
-      await signOut(auth);
+      await firebaseService.auth.signout();
       setUserProfile(null);
     } catch (error) {
       throw error;
     }
   };
 
-  // Update user profile
+  // Update user profile (via backend)
   const updateUserProfile = async (updates) => {
     try {
       if (!currentUser) throw new Error('No user logged in');
-      
-      await setDoc(doc(db, 'users', currentUser.uid), updates, { merge: true });
-      setUserProfile(prev => ({ ...prev, ...updates }));
+      const userId = currentUser.id || currentUser.uid;
+      if (!userId) throw new Error('Unable to determine user id');
+      const res = await fetch(`/api/users/${encodeURIComponent(userId)}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+      if (!res.ok) throw new Error('Failed to update profile');
+      const updated = await res.json();
+      setUserProfile(prev => ({ ...prev, ...updated }));
+      return updated;
     } catch (error) {
       throw error;
     }
@@ -457,7 +238,8 @@ export const AuthProvider = ({ children }) => {
 
       // Create vendor wallet
       try {
-        await firebaseService.wallet.createWallet(currentUser.uid, 'vendor');
+        const uid = currentUser.id || currentUser.uid;
+        await firebaseService.wallet.createWallet(uid, 'vendor');
       } catch (walletError) {
         console.error('Error creating vendor wallet:', walletError);
       }
@@ -472,168 +254,49 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Listen for auth state changes - Simplified for faster admin access
+  // Load current session/profile on mount
   useEffect(() => {
-    // Check for redirect result first (for mobile Google Sign-In)
-    getRedirectResult(auth)
-      .then(async (result) => {
-        if (result) {
-          console.log('✅ AuthContext: Redirect result received');
-          const user = result.user;
-          
-          // Get stored userType from redirect with timestamp check
-          const storedUserType = sessionStorage.getItem('google_signin_usertype') || 'buyer';
-          const storedTimestamp = sessionStorage.getItem('google_signin_timestamp');
-          
-          // Clear stored data
-          sessionStorage.removeItem('google_signin_usertype');
-          sessionStorage.removeItem('google_signin_timestamp');
-          
-          // Validate timestamp (discard if older than 10 minutes)
-          if (storedTimestamp && Date.now() - parseInt(storedTimestamp) > 600000) {
-            console.warn('⚠️ Redirect result too old, ignoring');
-            return;
-          }
-          
-          // Normalize userType
-          const validUserTypes = ['buyer', 'vendor', 'logistics', 'existing'];
-          const normalizedUserType = validUserTypes.includes(storedUserType) ? storedUserType : 'buyer';
-          
-          // Check if user profile exists with retry
-          let userDoc;
-          let retries = 3;
-          while (retries > 0) {
-            try {
-              userDoc = await getDoc(doc(db, 'users', user.uid));
-              break;
-            } catch (docError) {
-              console.error('Error fetching user doc, retrying...', docError);
-              retries--;
-              if (retries === 0) {
-                console.error('Failed to fetch user doc after retries');
-                return;
-              }
-              await new Promise(resolve => setTimeout(resolve, 1000));
-            }
-          }
-          
-          if (!userDoc || !userDoc.exists()) {
-            // New user from redirect - create profile
-            console.log('👤 New user from redirect, creating profile');
-            const userProfileData = {
-              uid: user.uid,
-              email: user.email,
-              displayName: user.displayName || user.email?.split('@')[0],
-              name: user.displayName || user.email?.split('@')[0],
-              photoURL: user.photoURL || '',
-              phone: user.phoneNumber || '',
-              address: '',
-              createdAt: new Date(),
-              role: normalizedUserType === 'existing' ? 'buyer' : normalizedUserType,
-              isVendor: normalizedUserType === 'vendor',
-              isLogisticsPartner: normalizedUserType === 'logistics',
-              isAdmin: false,
-              vendorProfile: null,
-              logisticsProfile: null,
-              suspended: false,
-              signInMethod: 'google'
-            };
-
-            // Save with retry
-            retries = 3;
-            while (retries > 0) {
-              try {
-            await setDoc(doc(db, 'users', user.uid), userProfileData);
-            setUserProfile(userProfileData);
-                console.log('✅ User profile created successfully');
-                break;
-              } catch (saveError) {
-                retries--;
-                if (retries === 0) {
-                  console.error('Failed to save user profile:', saveError);
-                  return;
-                }
-                await new Promise(resolve => setTimeout(resolve, 1000));
-              }
-            }
-            
-            // Create wallet with correct userType
-            try {
-              await firebaseService.wallet.createWallet(user.uid, normalizedUserType === 'existing' ? 'buyer' : normalizedUserType);
-              console.log('✅ Wallet created successfully');
-            } catch (walletError) {
-              console.error('⚠️ Error creating wallet (non-critical):', walletError);
-            }
-            
-            setNewUserType(normalizedUserType === 'existing' ? 'buyer' : normalizedUserType);
-            setShowEscrowEducation(true);
-          } else {
-            // Existing user from redirect - load profile
-            console.log('👤 Existing user from redirect, loading profile');
-            const userData = userDoc.data();
-            setUserProfile(userData);
-          }
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch('/api/auth/me', { credentials: 'include' });
+        if (!mounted) return;
+        if (res.ok) {
+          const data = await res.json();
+          setCurrentUser(data?.user || data?.session || data || null);
+          setUserProfile(data?.profile || data?.user?.profile || data?.profile || data?.user || null);
+        } else {
+          setCurrentUser(null);
+          setUserProfile(null);
         }
-      })
-      .catch((error) => {
-        console.error('❌ AuthContext: Redirect result error:', error);
-        // Clear any stale session data on error
-        sessionStorage.removeItem('google_signin_usertype');
-        sessionStorage.removeItem('google_signin_timestamp');
-      });
-    
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setCurrentUser(user);
-      
-      if (user) {
-        // Fetch user profile from Firestore
-        try {
-          const userDoc = await getDoc(doc(db, 'users', user.uid));
-          if (userDoc.exists()) {
-            setUserProfile(userDoc.data());
-          }
-        } catch (error) {
-          console.error('Error fetching user profile:', error);
-        }
-      } else {
-        setUserProfile(null);
+      } catch (error) {
+        console.error('Error loading auth session:', error);
+      } finally {
+        setLoading(false);
       }
-      
-      // Set loading to false immediately for faster admin access
-      setLoading(false);
-    });
+    })();
 
-    return unsubscribe;
+    return () => { mounted = false; };
   }, []);
 
   // Add OTP-based login method
   const signInWithOTP = async (email, verifiedAt) => {
     try {
-      // This would typically verify the OTP with a Cloud Function
-      // For now, we'll create a session based on the verified timestamp
-      const userDoc = await getDoc(doc(db, 'users', email));
-      
-      if (!userDoc.exists()) {
-        throw new Error('No account found with this email address');
-      }
-
-      const userData = userDoc.data();
-      
-      // Update last login and OTP verification
-      await updateDoc(doc(db, 'users', email), {
-        lastLoginAt: new Date(),
-        lastOTPLoginAt: verifiedAt,
-        loginMethod: 'otp'
+      // Delegate OTP verification/login to backend
+      const res = await fetch('/api/auth/otp-login', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, verifiedAt })
       });
-
-      // Set user profile (authentication would be handled by a secure token system)
-      setUserProfile(userData);
-      
-      return {
-        success: true,
-        user: userData,
-        loginMethod: 'otp'
-      };
+      if (!res.ok) {
+        const txt = await res.text().catch(() => '');
+        throw new Error(`OTP login failed: ${res.status} ${txt}`);
+      }
+      const data = await res.json();
+      setUserProfile(data?.profile || data?.user || null);
+      setCurrentUser(data?.user || null);
+      return { success: true, user: data?.user || data?.profile, loginMethod: 'otp' };
     } catch (error) {
       console.error('OTP login error:', error);
       throw error;
@@ -641,22 +304,14 @@ export const AuthProvider = ({ children }) => {
   };
 
   // Enhanced email verification with OTP
-  const sendVerificationEmailWithOTP = async (targetUser = auth.currentUser) => {
-    if (!targetUser) {
-      throw new Error('No authenticated user to verify.');
-    }
-
+  const sendVerificationEmailWithOTP = async (targetUser) => {
+    const email = (targetUser && (targetUser.email || targetUser)) || userProfile?.email || currentUser?.email;
+    if (!email) throw new Error('No email available to send verification to.');
     try {
-      // Send OTP instead of traditional email verification
-      const result = await emailOTPService.sendOTP(
-        targetUser.email,
-        'verification',
-        {
-          subject: 'Verify Your Ojawa E-commerce Account',
-          customMessage: 'Complete your registration with this verification code.'
-        }
-      );
-
+      const result = await emailOTPService.sendOTP(email, 'verification', {
+        subject: 'Verify Your Ojawa E-commerce Account',
+        customMessage: 'Complete your registration with this verification code.'
+      });
       setLastVerificationEmailSentAt(new Date());
       return result;
     } catch (error) {

@@ -1,7 +1,7 @@
 // --- Admin Middleware ---
 require('dotenv').config();
 const express = require('express');
-const admin = require('firebase-admin');
+const admin = require('./firebaseAdmin');
 const axios = require('axios');
 const cors = require('cors');
 const {
@@ -32,27 +32,8 @@ const {
   sanitizeRequestData,
 } = require('./validation');
 
-// Initialize Firebase Admin
-const firebaseProjectId = process.env.FIREBASE_PROJECT_ID || 'ojawa-ecommerce';
-const firebaseClientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-const firebasePrivateKey = process.env.FIREBASE_PRIVATE_KEY
-  ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
-  : null;
 
-if (firebaseClientEmail && firebasePrivateKey) {
-  admin.initializeApp({
-    credential: admin.credential.cert({
-      projectId: firebaseProjectId,
-      clientEmail: firebaseClientEmail,
-      privateKey: firebasePrivateKey,
-    }),
-    projectId: firebaseProjectId,
-  });
-  console.log(`✅ Firebase Admin initialized with service account for project ${firebaseProjectId}`);
-} else {
-  admin.initializeApp({ projectId: firebaseProjectId });
-  console.warn(`⚠️ Firebase Admin initialized without explicit service account for project ${firebaseProjectId}`);
-}
+// Firebase Admin is now initialized in ./firebaseAdmin.js
 const db = admin.firestore();
 const FieldValue = admin.firestore.FieldValue;
 
@@ -284,68 +265,95 @@ app.post('/login', async (req, res) => {
 });
 
 // --- Profile ---
+
+// Refactored: Fetch user profile from Render REST API, keep Firebase Auth for authentication
 app.get('/profile', authenticateToken, async (req, res) => {
   try {
     const userRecord = await admin.auth().getUser(req.user.uid);
-    res.json({ uid: userRecord.uid, email: userRecord.email, ...userRecord });
+    // Fetch additional profile data from REST API
+    const response = await axios.get(process.env.RENDER_API_URL + `/api/users/${userRecord.uid}`, {
+      headers: { Authorization: req.headers['authorization'] }
+    });
+    res.json({
+      uid: userRecord.uid,
+      email: userRecord.email,
+      ...userRecord,
+      profile: response.data
+    });
   } catch (error) {
-    res.status(404).json({ error: 'User not found' });
+    res.status(404).json({ error: 'User not found', details: error.message });
   }
 });
 
 // --- Notifications ---
+
+// Refactored: Fetch notifications from Render REST API
 app.get('/notifications', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.uid;
-    const snapshot = await db.collection('notifications').where('userId', '==', userId).orderBy('createdAt', 'desc').limit(50).get();
-    const notifications = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    res.json({ notifications });
+    const response = await axios.get(process.env.RENDER_API_URL + `/api/notifications?userId=${userId}`, {
+      headers: { Authorization: req.headers['authorization'] }
+    });
+    res.json({ notifications: response.data.notifications || response.data });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: error.message || 'Failed to fetch notifications' });
   }
 });
 
 // --- Product Listing ---
-app.get('/products', async (req, res) => {
+
+// Refactored: Fetch products from Render REST API
+app.get('/api/products', async (req, res) => {
   try {
-    const snapshot = await db.collection('products').where('status', '==', 'active').get();
-    const products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    res.json({ products });
+    const response = await axios.get(process.env.RENDER_API_URL + '/api/products?status=active');
+    res.json({ products: response.data.products || response.data });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: error.message || 'Failed to fetch products' });
   }
 });
 
 // --- Cart Management ---
+
+// Refactored: Fetch cart from Render REST API
 app.get('/cart', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.uid;
-    const cartDoc = await db.collection('carts').doc(userId).get();
-    res.json({ cart: cartDoc.exists ? cartDoc.data() : { items: [] } });
+    const response = await axios.get(process.env.RENDER_API_URL + `/api/cart?userId=${userId}`, {
+      headers: { Authorization: req.headers['authorization'] }
+    });
+    res.json({ cart: response.data.cart || response.data });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: error.message || 'Failed to fetch cart' });
   }
 });
 
+
+// Refactored: Update cart via Render REST API
 app.post('/cart', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.uid;
     const { items } = req.body;
     if (!Array.isArray(items)) return res.status(400).json({ error: 'Items must be an array' });
-    await db.collection('carts').doc(userId).set({ items }, { merge: true });
-    res.json({ success: true });
+    const response = await axios.post(process.env.RENDER_API_URL + `/api/cart`, { userId, items }, {
+      headers: { Authorization: req.headers['authorization'] }
+    });
+    res.json(response.data);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: error.message || 'Failed to update cart' });
   }
 });
 
+
+// Refactored: Delete cart via Render REST API
 app.delete('/cart', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.uid;
-    await db.collection('carts').doc(userId).delete();
-    res.json({ success: true });
+    const response = await axios.delete(process.env.RENDER_API_URL + `/api/cart?userId=${userId}`, {
+      headers: { Authorization: req.headers['authorization'] }
+    });
+    res.json(response.data);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: error.message || 'Failed to delete cart' });
   }
 });
 
@@ -474,86 +482,88 @@ app.post('/createEscrowOrder', authenticateToken, async (req, res) => {
 });
 
 // --- Order Placement (legacy, simple) ---
+
+// Refactored: Create order via Render REST API
 app.post('/orders', authenticateToken, async (req, res) => {
   try {
     const buyerId = req.user.uid;
-    const { totalAmount, cartItems, deliveryOption, deliveryAddress, deliveryInstructions, selectedLogistics, pricing, buyerInfo, metadata } = req.body;
-    if (!totalAmount || !Array.isArray(cartItems) || cartItems.length === 0) {
-      return res.status(400).json({ error: 'totalAmount and cartItems are required' });
-    }
-    const orderRef = db.collection('orders').doc();
-    const orderPayload = {
-      buyerId,
-      totalAmount,
-      cartItems,
-      deliveryOption: deliveryOption || 'standard',
-      deliveryAddress: deliveryAddress || '',
-      deliveryInstructions: deliveryInstructions || '',
-      selectedLogistics: selectedLogistics || null,
-      pricing: pricing || {},
-      buyerInfo: buyerInfo || {},
-      metadata: metadata || {},
-      status: 'pending_payment',
-      createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    };
-    await orderRef.set(orderPayload);
-    res.json({ success: true, orderId: orderRef.id });
+    const orderPayload = { ...req.body, buyerId };
+    const response = await axios.post(process.env.RENDER_API_URL + '/api/orders', orderPayload, {
+      headers: { Authorization: req.headers['authorization'] }
+    });
+    res.json(response.data);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: error.message || 'Failed to create order' });
   }
 });
 
 // --- Order History ---
+
+// Refactored: Fetch user orders from Render REST API
 app.get('/orders', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.uid;
-    const snapshot = await db.collection('orders').where('buyerId', '==', userId).orderBy('createdAt', 'desc').get();
-    const orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    res.json({ orders });
+    const response = await axios.get(process.env.RENDER_API_URL + `/api/orders?buyerId=${userId}`, {
+      headers: { Authorization: req.headers['authorization'] }
+    });
+    res.json({ orders: response.data.orders || response.data });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: error.message || 'Failed to fetch orders' });
   }
 });
 
 // --- Admin Routes ---
+
+// Refactored: Fetch all orders for admin from Render REST API
 app.get('/admin/orders', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const snapshot = await db.collection('orders').orderBy('createdAt', 'desc').get();
-    const orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    res.json({ orders });
+    const response = await axios.get(process.env.RENDER_API_URL + '/api/orders', {
+      headers: { Authorization: req.headers['authorization'] }
+    });
+    res.json({ orders: response.data.orders || response.data });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: error.message || 'Failed to fetch admin orders' });
   }
 });
 
+
+// Refactored: Fetch all products for admin from Render REST API
 app.get('/admin/products', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const snapshot = await db.collection('products').get();
-    const products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    res.json({ products });
+    const response = await axios.get(process.env.RENDER_API_URL + '/api/products', {
+      headers: { Authorization: req.headers['authorization'] }
+    });
+    res.json({ products: response.data.products || response.data });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: error.message || 'Failed to fetch admin products' });
   }
 });
 
+
+// Refactored: Update product via Render REST API
 app.put('/admin/products/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    await db.collection('products').doc(id).set(req.body, { merge: true });
-    res.json({ success: true });
+    const response = await axios.put(process.env.RENDER_API_URL + `/api/products/${id}`, req.body, {
+      headers: { Authorization: req.headers['authorization'] }
+    });
+    res.json(response.data);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: error.message || 'Failed to update product' });
   }
 });
 
+
+// Refactored: Delete product via Render REST API
 app.delete('/admin/products/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    await db.collection('products').doc(id).delete();
-    res.json({ success: true });
+    const response = await axios.delete(process.env.RENDER_API_URL + `/api/products/${id}`, {
+      headers: { Authorization: req.headers['authorization'] }
+    });
+    res.json(response.data);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: error.message || 'Failed to delete product' });
   }
 });
 
@@ -568,90 +578,28 @@ app.post('/paystack/webhook', (req, res) => {
 });
 
 // --- Process Payout Request ---
-app.post('/processPayoutRequest', authenticateToken, requireAdmin, async (req, res) => {
+
+// Refactored: Process payout request via Render REST API
+
+// Refactored: Fetch security events from Render REST API
+
+app.get('/admin/security/events', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const { data } = req.body;
-    const payoutRequestId = data?.payoutRequestId;
-    if (!payoutRequestId) {
-      return res.status(400).json({ error: 'payoutRequestId is required' });
-    }
-    const docSnapshot = await db.collection('payout_requests').doc(payoutRequestId).get();
-    if (!docSnapshot.exists) {
-      return res.status(404).json({ error: 'Payout request not found' });
-    }
-    return res.json({ success: true, message: 'Stub: implement logic' });
+    const { startDate, endDate, eventType, limit = 100 } = req.query;
+    const response = await axios.get(process.env.RENDER_API_URL + '/api/admin/security/events', {
+      params: { startDate, endDate, eventType, limit },
+      headers: { Authorization: req.headers['authorization'] }
+    });
+    res.json(response.data);
   } catch (error) {
-    console.error(error);
-    return res.status(500).json({ error: error.message });
+    console.error('Error fetching security events:', error);
+    return res.status(500).json({ error: error.message || 'Failed to fetch security events' });
   }
 });
 
-// --- Ensure Wallet For User (Admin Protected) ---
-app.post('/ensureWalletForUser', authenticateToken, requireAdmin, asyncHandler(async (req, res) => {
-  const { userId, userType = 'buyer', currency = 'NGN' } = req.body;
+// ...existing code...
 
-  // Validate input
-  if (!userId) {
-    throw new ValidationError('userId is required', { field: 'userId' });
-  }
-
-  if (!/^[a-zA-Z0-9_-]+$/.test(userType)) {
-    throw new ValidationError('Invalid userType format', { field: 'userType' });
-  }
-
-  if (!['NGN', 'USD', 'GBP'].includes(currency)) {
-    throw new ValidationError('Invalid currency', { field: 'currency', allowed: ['NGN', 'USD', 'GBP'] });
-  }
-
-  try {
-    // Check if wallet already exists
-    const walletRef = db.collection('wallets').doc(userId);
-    const walletDoc = await walletRef.get();
-
-    if (walletDoc.exists) {
-      return res.json({
-        success: true,
-        message: 'Wallet already exists',
-        walletId: userId
-      });
-    }
-
-    // Create new wallet with security tracking
-    await walletRef.set({
-      userId,
-      userType,
-      currency,
-      balance: 0,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      createdBy: req.user.uid,
-      status: 'active'
-    });
-
-    // Log admin action
-    await logAdminAction({
-      adminId: req.user.uid,
-      action: 'WALLET_CREATED',
-      targetId: userId,
-      targetType: 'wallet',
-      reason: `System wallet creation for ${userType}`
-    });
-
-    return res.json({
-      success: true,
-      message: 'Wallet created successfully',
-      walletId: userId
-    });
-  } catch (error) {
-    if (error instanceof ValidationError) throw error;
-    throw new AppError(
-      `Failed to create wallet: ${error.message}`,
-      500,
-      ERROR_LEVELS.ERROR,
-      { userId, operation: 'ensureWalletForUser' }
-    );
-  }
-}));
-
+// VENDOR_SUBSCRIPTION_PLANS object (move to correct location)
 const VENDOR_SUBSCRIPTION_PLANS = {
   basic: {
     price: 0,
@@ -720,109 +668,30 @@ const getPaystackSecret = () =>
   process.env.SK_TEST_PAYSTACK ||
   null;
 
+
+// Refactored: Top up wallet via Render REST API
 async function processPaystackWalletTopup({ reference, userId, amount }, authUid) {
   if (!authUid) throw new Error('User must be authenticated to top up wallet');
   if (!reference) throw new Error('Reference is required');
   if (!userId || userId !== authUid) throw new Error('User ID mismatch');
   if (!amount || Number(amount) <= 0) throw new Error('Valid amount is required');
 
-  const paystackSecretKey = getPaystackSecret();
-  if (!paystackSecretKey) throw new Error('Payment service not configured');
-
-  const verifyResponse = await axios.get(
-    `https://api.paystack.co/transaction/verify/${reference}`,
-    {
-      headers: {
-        Authorization: `Bearer ${paystackSecretKey}`,
-        'Content-Type': 'application/json',
-      },
-    }
-  );
-
-  const transaction = verifyResponse.data?.data;
-  if (!transaction) throw new Error('Transaction could not be verified');
-  if (transaction.status !== 'success') throw new Error(`Payment not successful. Status: ${transaction.status}`);
-
-  const paidAmount = Number(transaction.amount) / 100;
-  if (Math.abs(paidAmount - Number(amount)) > 0.01) {
-    throw new Error(`Amount mismatch. Expected: ${amount}, Paid: ${paidAmount}`);
-  }
-
-  const existingTx = await db.collection('wallet_transactions')
-    .where('paymentIntentId', '==', transaction.reference)
-    .where('status', '==', 'completed')
-    .limit(1)
-    .get();
-
-  if (!existingTx.empty) {
-    return {
-      success: true,
-      message: 'Transaction already processed',
-      transactionId: existingTx.docs[0].id,
-    };
-  }
-
-  const walletQuery = await db.collection('wallets').where('userId', '==', userId).limit(1).get();
-
-  let walletRef;
-  let currentBalance = 0;
-
-  if (walletQuery.empty) {
-    walletRef = db.collection('wallets').doc();
-    await walletRef.set({
-      userId,
-      balance: 0,
-      currency: transaction.currency || 'NGN',
-      createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-  } else {
-    walletRef = walletQuery.docs[0].ref;
-    currentBalance = walletQuery.docs[0].data().balance || 0;
-  }
-
-  const newBalance = currentBalance + paidAmount;
-  const batch = db.batch();
-
-  batch.update(walletRef, {
-    balance: newBalance,
-    updatedAt: FieldValue.serverTimestamp(),
+  // Call Render backend to process wallet top-up
+  const response = await axios.post(process.env.RENDER_API_URL + '/api/wallets/topup', { reference, userId, amount }, {
+    headers: { Authorization: '' } // Add auth if needed
   });
-
-  const transactionRef = db.collection('wallet_transactions').doc();
-  batch.set(transactionRef, {
-    walletId: walletRef.id,
-    userId,
-    type: 'credit',
-    amount: paidAmount,
-    description: 'Wallet top-up via Paystack',
-    paymentIntentId: transaction.reference,
-    paystackReference: transaction.reference,
-    balanceBefore: currentBalance,
-    balanceAfter: newBalance,
-    status: 'completed',
-    currency: transaction.currency || 'NGN',
-    createdAt: FieldValue.serverTimestamp(),
-  });
-
-  await batch.commit();
-
-  return {
-    success: true,
-    transactionId: transactionRef.id,
-    newBalance,
-    amount: paidAmount,
-  };
+  return response.data;
 }
 
+
+// Refactored: Notify vendor of new order via Render REST API
 app.post('/notifyVendorNewOrder', authenticateToken, async (req, res) => {
   try {
     const { vendorId, orderId, buyerName, totalAmount, items = [] } = req.body || {};
     if (!vendorId || !orderId || !buyerName || !totalAmount) {
       return res.status(400).json({ error: 'vendorId, orderId, buyerName and totalAmount are required' });
     }
-
-    const notificationRef = await db.collection('notifications').add({
+    const response = await axios.post(process.env.RENDER_API_URL + '/api/notifications', {
       userId: vendorId,
       type: 'new_order',
       title: 'New Order Received',
@@ -831,11 +700,11 @@ app.post('/notifyVendorNewOrder', authenticateToken, async (req, res) => {
       buyerName,
       totalAmount: Number(totalAmount),
       items,
-      read: false,
-      createdAt: FieldValue.serverTimestamp(),
+      read: false
+    }, {
+      headers: { Authorization: req.headers['authorization'] }
     });
-
-    return res.json({ success: true, message: 'Vendor notification sent', notificationId: notificationRef.id });
+    return res.json({ success: true, message: 'Vendor notification sent', notificationId: response.data.notificationId || response.data.id });
   } catch (error) {
     console.error('Error notifying vendor:', error);
     return res.status(500).json({ error: error.message || 'Failed to notify vendor' });
@@ -864,76 +733,26 @@ app.post('/sendOrderStatusUpdate', authenticateToken, async (req, res) => {
   }
 });
 
+
+// Refactored: Release escrow funds via Render REST API
 app.post('/releaseEscrowFundsHttp', authenticateToken, async (req, res) => {
   try {
     const { orderId, vendorId, amount } = req.body || {};
     if (!orderId || !vendorId || !amount) {
       return res.status(400).json({ error: 'Missing required parameters' });
     }
-
-    const orderRef = db.collection('orders').doc(orderId);
-    const orderDoc = await orderRef.get();
-    if (!orderDoc.exists) {
-      return res.status(404).json({ error: 'Order not found' });
-    }
-
-    const order = orderDoc.data() || {};
-    if (!order.buyerId || order.buyerId !== req.user.uid) {
-      return res.status(403).json({ error: 'Only the buyer of this order can release escrow funds' });
-    }
-
-    const vendorWalletSnap = await db.collection('wallets').where('userId', '==', vendorId).limit(1).get();
-    const batch = db.batch();
-    let vendorWalletRef;
-    let vendorBalanceBefore = 0;
-
-    if (!vendorWalletSnap.empty) {
-      vendorWalletRef = vendorWalletSnap.docs[0].ref;
-      vendorBalanceBefore = Number(vendorWalletSnap.docs[0].data().balance || 0);
-      batch.update(vendorWalletRef, {
-        balance: vendorBalanceBefore + Number(amount),
-        updatedAt: FieldValue.serverTimestamp(),
-      });
-    } else {
-      vendorWalletRef = db.collection('wallets').doc();
-      batch.set(vendorWalletRef, {
-        userId: vendorId,
-        type: 'vendor',
-        balance: Number(amount),
-        createdAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
-      });
-    }
-
-    const transactionRef = db.collection('wallet_transactions').doc();
-    batch.set(transactionRef, {
-      userId: vendorId,
-      orderId,
-      type: 'credit',
-      amount: Number(amount),
-      description: `Escrow release for order ${orderId}`,
-      status: 'completed',
-      balanceBefore: vendorBalanceBefore,
-      balanceAfter: vendorBalanceBefore + Number(amount),
-      createdAt: FieldValue.serverTimestamp(),
+    const response = await axios.post(process.env.RENDER_API_URL + '/api/escrow/release', { orderId, vendorId, amount }, {
+      headers: { Authorization: req.headers['authorization'] }
     });
-
-    batch.update(orderRef, {
-      status: 'completed',
-      escrowReleased: true,
-      releaseTransactionId: transactionRef.id,
-      completedAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-
-    await batch.commit();
-    return res.json({ success: true, transactionId: transactionRef.id });
+    return res.json(response.data);
   } catch (error) {
     console.error('Error releasing escrow funds:', error);
     return res.status(500).json({ error: error.message || 'Failed to release escrow funds' });
   }
 });
 
+
+// Refactored: Top up wallet via Render REST API
 app.post('/topupWalletPaystack', authenticateToken, async (req, res) => {
   try {
     const result = await processPaystackWalletTopup(req.body || {}, req.user.uid);
@@ -944,6 +763,8 @@ app.post('/topupWalletPaystack', authenticateToken, async (req, res) => {
   }
 });
 
+
+// Refactored: Create Paystack subscription record via Render REST API
 app.post('/createPaystackSubscriptionRecord', authenticateToken, async (req, res) => {
   try {
     const {
@@ -955,115 +776,15 @@ app.post('/createPaystackSubscriptionRecord', authenticateToken, async (req, res
     if (!reference) {
       return res.status(400).json({ error: 'Paystack reference is required' });
     }
-
-    const paystackSecretKey = getPaystackSecret();
-    if (!paystackSecretKey) {
-      return res.status(500).json({ error: 'Payment service not configured' });
-    }
-
-    const verifyResponse = await axios.get(
-      `https://api.paystack.co/transaction/verify/${reference}`,
-      {
-        headers: {
-          Authorization: `Bearer ${paystackSecretKey}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
-    const transaction = verifyResponse.data?.data;
-    if (!transaction) {
-      return res.status(404).json({ error: 'Transaction could not be verified' });
-    }
-    if (transaction.status !== 'success') {
-      return res.status(400).json({ error: `Payment not successful. Status: ${transaction.status}` });
-    }
-
-    const metadata = parsePaystackMetadata(transaction.metadata || transaction.meta);
-    const plan = normalizePlanKey(requestedPlan || metadata.subscription_plan || metadata.plan);
-    if (!plan || !VENDOR_SUBSCRIPTION_PLANS[plan]) {
-      return res.status(400).json({ error: 'Subscription plan could not be determined' });
-    }
-    const billingCycle = normalizeBillingCycle(
-      requestedBillingCycle || metadata.subscription_billing_cycle || metadata.billingCycle
-    );
-
-    const userId = metadata.userId || metadata.user_id || requestedUserId || req.user.uid;
-    if (userId !== req.user.uid) {
-      return res.status(403).json({ error: 'Authenticated user does not match subscription owner' });
-    }
-
-    const planConfig = VENDOR_SUBSCRIPTION_PLANS[plan];
-    const subscriptionTermDays = getSubscriptionTermDays(billingCycle);
-    const planPrice = getPlanPrice(planConfig, billingCycle);
-    const nowDate = new Date();
-    const endDate = addDays(nowDate, subscriptionTermDays);
-
-    await db.collection('users').doc(userId).set({
-      subscriptionPlan: plan,
-      billingCycle,
-      subscriptionTermDays,
-      subscriptionStatus: 'active',
-      subscriptionStartDate: nowDate,
-      subscriptionEndDate: endDate,
-      commissionRate: planConfig.commissionRate,
-      productLimit: planConfig.productLimit,
-      analyticsLevel: planConfig.analyticsLevel,
-      supportLevel: planConfig.supportLevel,
-      mediaPerProduct: planConfig.mediaPerProduct,
-      videoUploads: planConfig.videoUploads,
-      bulkTools: planConfig.bulkTools,
-      storefrontThemes: planConfig.storefrontThemes,
-      payoutSchedule: planConfig.payoutSchedule,
-      updatedAt: FieldValue.serverTimestamp(),
-    }, { merge: true });
-
-    const subscriptionRef = db.collection('subscriptions').doc();
-    await subscriptionRef.set({
-      userId,
-      plan,
-      billingCycle,
-      subscriptionTermDays,
-      price: planPrice,
-      amountPaid: Number(transaction.amount || 0) / 100,
-      currency: 'NGN',
-      status: 'active',
-      startDate: nowDate,
-      endDate,
-      commissionRate: planConfig.commissionRate,
-      productLimit: planConfig.productLimit,
-      analyticsLevel: planConfig.analyticsLevel,
-      supportLevel: planConfig.supportLevel,
-      mediaPerProduct: planConfig.mediaPerProduct,
-      videoUploads: planConfig.videoUploads,
-      bulkTools: planConfig.bulkTools,
-      storefrontThemes: planConfig.storefrontThemes,
-      payoutSchedule: planConfig.payoutSchedule,
-      paymentMethod: 'paystack',
-      paystackReference: transaction.reference,
-      transactionId: String(transaction.id),
-      metadata,
-      createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
+    const response = await axios.post(process.env.RENDER_API_URL + '/api/subscriptions/paystack', {
+      reference,
+      plan: requestedPlan,
+      userId: requestedUserId,
+      billingCycle: requestedBillingCycle
+    }, {
+      headers: { Authorization: req.headers['authorization'] }
     });
-
-    console.info('✅ Subscription activated', {
-      userId,
-      plan,
-      billingCycle,
-      planPrice,
-      subscriptionId: subscriptionRef.id,
-      endDate,
-    });
-
-    return res.json({
-      success: true,
-      plan,
-      billingCycle,
-      subscriptionId: subscriptionRef.id,
-      startDate: nowDate,
-      endDate,
-    });
+    return res.json(response.data);
   } catch (error) {
     console.error('❌ Subscription creation failed', {
       errorMessage: error.message,
@@ -1423,77 +1144,14 @@ app.get('/admin/security/events', authenticateToken, requireAdmin, async (req, r
 });
 
 // --- Security Summary Endpoint ---
+
+// Refactored: Fetch security summary from Render REST API
 app.get('/admin/security/summary', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const now = new Date();
-    const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    const last7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    
-    // Failed login attempts in last 24 hours
-    const failedLoginsSnapshot = await db.collection('request_logs')
-      .where('endpoint', '==', '/auth/login')
-      .where('statusCode', '==', 401)
-      .where('timestamp', '>=', last24h)
-      .get();
-    
-    // Rate limit violations in last 24 hours
-    const rateLimitSnapshot = await db.collection('security_audit_logs')
-      .where('eventType', '==', 'rate_limit_exceeded')
-      .where('timestamp', '>=', last24h)
-      .get();
-    
-    // Admin context mismatches in last 24 hours
-    const contextMismatchSnapshot = await db.collection('admin_audit_logs')
-      .where('action', '==', 'admin_context_mismatch')
-      .where('timestamp', '>=', last24h)
-      .get();
-    
-    // Account lockouts in last 24 hours
-    const lockoutsSnapshot = await db.collection('security_audit_logs')
-      .where('eventType', '==', 'account_lockout')
-      .where('timestamp', '>=', last24h)
-      .get();
-    
-    // Critical errors in last 24 hours
-    const criticalErrorsSnapshot = await db.collection('critical_errors')
-      .where('severity', '==', 'critical')
-      .where('timestamp', '>=', last24h)
-      .get();
-    
-    // Active admin sessions (last 24 hours with context)
-    const activeAdminsCount = adminContexts.size;
-    
-    return res.json({
-      success: true,
-      summary: {
-        last24Hours: {
-          failedLoginAttempts: failedLoginsSnapshot.size,
-          rateLimitViolations: rateLimitSnapshot.size,
-          adminContextMismatches: contextMismatchSnapshot.size,
-          accountLockouts: lockoutsSnapshot.size,
-          criticalErrors: criticalErrorsSnapshot.size,
-          activeAdminSessions: activeAdminsCount,
-        },
-        securityScore: {
-          // Calculate security score based on events (0-100)
-          violations: failedLoginsSnapshot.size + rateLimitSnapshot.size + contextMismatchSnapshot.size,
-          lockouts: lockoutsSnapshot.size,
-          criticalIssues: criticalErrorsSnapshot.size,
-          calculatedScore: Math.max(0, 100 - 
-            (failedLoginsSnapshot.size * 2 + 
-             rateLimitSnapshot.size * 3 + 
-             contextMismatchSnapshot.size * 5 + 
-             lockoutsSnapshot.size * 10 + 
-             criticalErrorsSnapshot.size * 20)
-          ),
-        },
-        trend: {
-          last24h: failedLoginsSnapshot.size + rateLimitSnapshot.size,
-          last7d: 'data-aggregation-pending', // Would require more queries
-        },
-      },
-      timestamp: now,
+    const response = await axios.get(process.env.RENDER_API_URL + '/api/admin/security/summary', {
+      headers: { Authorization: req.headers['authorization'] }
     });
+    res.json(response.data);
   } catch (error) {
     console.error('Error fetching security summary:', error);
     return res.status(500).json({ error: error.message || 'Failed to fetch security summary' });

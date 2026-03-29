@@ -1,6 +1,5 @@
-// Analytics Tracking Service
-import { collection, addDoc, serverTimestamp, query, where, getDocs, orderBy } from 'firebase/firestore';
-import { db } from '../firebase/config';
+// Analytics Tracking Service (REST-backed)
+// All events routed to /api/analytics/* endpoints
 
 class AnalyticsService {
   // Track store visit
@@ -9,15 +8,20 @@ class AnalyticsService {
       const visitData = {
         vendorId,
         type: 'store_visit',
-        timestamp: serverTimestamp(),
         ...visitorData,
         userAgent: navigator.userAgent,
         referrer: document.referrer,
         url: window.location.href
       };
-
-      const docRef = await addDoc(collection(db, 'analytics'), visitData);
-      return docRef.id;
+      const res = await fetch('/api/analytics/track', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(visitData)
+      });
+      if (!res.ok) throw new Error(`Track failed: ${res.status}`);
+      const data = await res.json();
+      return data.id || 'tracked';
     } catch (error) {
       console.error('Error tracking store visit:', error);
     }

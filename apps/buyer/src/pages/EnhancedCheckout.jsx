@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react'
 import { useCart } from '../contexts/CartContext'
 import { useAuth } from '../contexts/AuthContext'
 import { useNavigate } from 'react-router-dom'
-import { collection, addDoc, doc, getDoc } from 'firebase/firestore'
-import { db } from '../firebase/config'
+// Use backend REST services instead of direct Firestore access
 import LogisticsSelector from '../components/LogisticsSelector'
 import PaymentRetryModal from '../components/PaymentRetryModal'
 import { LoadingSpinner } from '../components/LoadingStates'
@@ -178,9 +177,9 @@ const EnhancedCheckoutForm = ({ total, cartItems, onSuccess, orderDetails }) => 
         let resolvedVendorId = item.vendorId
         if (!resolvedVendorId && item.id) {
           try {
-            const prodSnap = await getDoc(doc(db, 'products', item.id))
-            if (prodSnap.exists()) {
-              resolvedVendorId = prodSnap.data().vendorId || resolvedVendorId
+            const prod = await firebaseService.product.getById(item.id)
+            if (prod) {
+              resolvedVendorId = prod.vendorId || resolvedVendorId
             }
           } catch (_) {}
         }

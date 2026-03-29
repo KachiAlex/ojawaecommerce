@@ -27,24 +27,19 @@ const Wishlist = () => {
       // Get wishlist items
       const items = await firebaseService.wishlist.getWishlist(currentUser.uid);
 
-      // Fetch full product details
+      // Fetch full product details via REST productService
       if (items.length > 0) {
         const productIds = items.map(item => item.productId);
-
-        // Fetch products by their IDs
         const fetchedProducts = [];
         for (const productId of productIds) {
           try {
-            const productDoc = await getDoc(doc(db, 'products', productId));
-            if (productDoc.exists()) {
-              fetchedProducts.push({ id: productDoc.id, ...productDoc.data() });
-            }
+            const p = await firebaseService.product.getById(productId);
+            if (p) fetchedProducts.push({ id: p.id || productId, ...p });
           } catch (err) {
             console.error(`Error fetching product ${productId}:`, err);
           }
         }
 
-        // Merge with wishlist data
         const mergedProducts = items.map(item => {
           const product = fetchedProducts.find(p => p.id === item.productId);
           return product ? { ...product, ...item } : null;

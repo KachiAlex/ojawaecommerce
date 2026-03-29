@@ -1,7 +1,5 @@
 import { useState } from 'react';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
-import { auth, db } from '../firebase/config';
+import firebaseService from '../services/firebaseService';
 import { useNavigate } from 'react-router-dom';
 
 const AdminLogin = () => {
@@ -16,31 +14,19 @@ const AdminLogin = () => {
     e.preventDefault();
     setLoading(true);
     setError('');
-
     try {
-      // Sign in with Firebase Auth
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-
-      // Check if user has admin role in Firestore
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      
-      if (!userDoc.exists()) {
-        throw new Error('User profile not found');
-      }
-
-      const userData = userDoc.data();
-      
-      if (userData.role !== 'admin') {
-        // Sign out the user if they're not admin
-        await auth.signOut();
+      const res = await firebaseService.auth.signin(email, password);
+      const user = res?.user || res;
+      const userId = user?.id || user?.uid;
+      if (!userId) throw new Error('Invalid user returned from signin');
+      const profile = await firebaseService.auth.getProfile(userId);
+      if (!profile) throw new Error('User profile not found');
+      if (profile.role !== 'admin') {
+        await firebaseService.auth.signout();
         throw new Error('Access denied. Admin privileges required.');
       }
-
-      // Admin login successful, redirect to admin dashboard
       console.log('✅ Admin login successful, redirecting to admin dashboard');
       navigate('/admin', { replace: true });
-      
     } catch (error) {
       console.error('Admin login error:', error);
       setError(error.message || 'Login failed. Please check your credentials.');

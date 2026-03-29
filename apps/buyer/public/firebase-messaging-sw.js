@@ -1,21 +1,35 @@
-// Firebase Messaging Service Worker (kept lightweight post-PWA removal)
-importScripts('https://www.gstatic.com/firebasejs/10.12.3/firebase-app-compat.js')
-importScripts('https://www.gstatic.com/firebasejs/10.12.3/firebase-messaging-compat.js')
-
-const firebaseConfig = {
-  apiKey: "AIzaSyDV7ri3eu2M5apQqhhxoX9yhKXWXuqpsYc",
-  authDomain: "ojawa-ecommerce.firebaseapp.com",
-  projectId: "ojawa-ecommerce",
-  storageBucket: "ojawa-ecommerce.firebasestorage.app",
-  messagingSenderId: "630985044975",
-  appId: "1:630985044975:web:3b421d368eea0c56ac3c1a",
-  measurementId: "G-W3PF1KBMPN"
-}
-
-firebase.initializeApp(firebaseConfig)
-const messaging = firebase.messaging()
+// Service worker handling push notifications from Render backend.
+// Firebase messaging removed after migration.
 
 const DEFAULT_ICON = '/logos/ojawa-logo.png'
+
+// Listen for push events and display notifications using payloads sent by the Render backend.
+self.addEventListener('push', (event) => {
+  console.log('Push event received (backend):', event);
+
+  if (!event.data) return;
+
+  try {
+    const payload = event.data.json();
+    const { title = 'Notification', body = '', icon = DEFAULT_ICON, data = {}, actions = [] } = payload;
+
+    const notificationOptions = {
+      body,
+      icon,
+      badge: icon,
+      tag: data.notificationId || 'default',
+      actions: actions,
+      data,
+      requireInteraction: data.priority === 'urgent',
+      vibrate: data.priority === 'urgent' ? [200, 100, 200] : [200],
+      silent: data.priority === 'low'
+    };
+
+    event.waitUntil(self.registration.showNotification(title, notificationOptions));
+  } catch (err) {
+    console.error('Error handling push event:', err);
+  }
+});
 
 messaging.onBackgroundMessage((payload) => {
   console.log('Received background message:', payload)

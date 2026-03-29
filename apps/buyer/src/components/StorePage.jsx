@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
-import { db } from '../firebase/config';
 import { useAuth } from '../contexts/AuthContext';
-import MessageVendorModal from './MessageVendorModal';
+import { getStoreOptimized } from '../services/optimizedFirebaseService';
 import firebaseService from '../services/firebaseService';
+import MessageVendorModal from './MessageVendorModal';
 
 const StorePage = () => {
   const { storeSlug } = useParams();

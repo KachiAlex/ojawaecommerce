@@ -1,8 +1,25 @@
 import { useState, useEffect, useMemo } from 'react';
-import { collection, query, orderBy, onSnapshot, where, limit as limitQuery } from 'firebase/firestore';
-import { db } from '../firebase/config';
 import { errorLogger } from '../utils/errorLogger';
 import { usePageVisibility } from './usePageVisibility';
+
+const api = {
+  async request(path, options = {}) {
+    const res = await fetch(path, {
+      credentials: 'include',
+      headers: { Accept: 'application/json', ...(options.headers || {}) },
+      ...options,
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      const err = new Error(`Products API ${path} failed: ${res.status} ${res.statusText} ${text}`);
+      err.status = res.status;
+      throw err;
+    }
+    const ct = res.headers.get('content-type') || '';
+    if (ct.includes('application/json')) return res.json();
+    return res.text();
+  }
+};
 
 export const useRealTimeProducts = (filters = {}) => {
   const [products, setProducts] = useState([]);
@@ -19,102 +36,58 @@ export const useRealTimeProducts = (filters = {}) => {
   } = filters;
 
   useEffect(() => {
-    if (!isPageVisible) {
-      setLoading(false);
-      return undefined;
-    }
+    let stopped = false;
+    let intervalId = null;
 
-    let unsubscribe = null;
-
-    const setupRealTimeListener = () => {
+    const fetchProducts = async () => {
       try {
         setLoading(true);
         setError(null);
 
-        // Build the query
-        let q = collection(db, 'products');
+        const params = new URLSearchParams();
+        if (category && category !== 'all') params.append('category', category);
+        if (vendorId) params.append('vendorId', vendorId);
+        if (status && status !== 'all') params.append('status', status);
+        else if (showActiveOnly === true) params.append('status', 'active');
+        if (limitCount) params.append('limit', String(limitCount));
 
-        // Apply filters
-        if (category && category !== 'all') {
-          q = query(q, where('category', '==', category));
+        const res = await api.request(`/api/products?${params.toString()}`);
+        const items = (res.items || res || []).map(item => ({
+          ...item,
+          id: item.id || item._id || item.productId,
+          stock: item.stock || item.stockQuantity || 0,
+          inStock: item.inStock !== false && (item.stock || item.stockQuantity || 0) > 0,
+          createdAt: item.createdAt ? new Date(item.createdAt) : new Date(),
+          updatedAt: item.updatedAt ? new Date(item.updatedAt) : new Date()
+        }));
+
+        if (!stopped) {
+          setProducts(items);
+          setLoading(false);
         }
-
-        if (vendorId) {
-          q = query(q, where('vendorId', '==', vendorId));
-        }
-
-        // Only show approved (active) products to buyers by default
-        // Unless explicitly overridden (e.g., for admin/vendor views)
-        if (status && status !== 'all') {
-          q = query(q, where('status', '==', status));
-        } else if (showActiveOnly === true) {
-          q = query(q, where('status', '==', 'active'));
-        }
-
-        // Always order by creation date (newest first)
-        q = query(q, orderBy('createdAt', 'desc'));
-
-        // Apply limit to cap snapshot size
-        if (limitCount) {
-          q = query(q, limitQuery(limitCount));
-        }
-
-        // Set up real-time listener
-        unsubscribe = onSnapshot(
-          q,
-          (snapshot) => {
-            const productsData = snapshot.docs.map(doc => {
-              const data = doc.data();
-              return {
-                id: doc.id,
-                ...data,
-                // Ensure stock fields are properly handled
-                stock: data.stock || data.stockQuantity || 0,
-                inStock: data.inStock !== false && (data.stock || data.stockQuantity || 0) > 0,
-                // Handle timestamps
-                createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt || Date.now()),
-                updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : new Date(data.updatedAt || Date.now())
-              };
-            });
-
-            console.log('[useRealTimeProducts] Snapshot update', {
-              total: snapshot.size,
-              afterFiltering: productsData.length,
-              filters
-            });
-            setProducts(productsData);
-            setLoading(false);
-            
-            console.log(`Real-time products updated: ${productsData.length} products`);
-          },
-          (error) => {
-            console.error('Real-time products listener error:', error);
-            setError('Failed to load products in real-time');
-            setLoading(false);
-            errorLogger.error('Real-time products listener failed', error);
-          }
-        );
-
-      } catch (error) {
-        console.error('Error setting up real-time listener:', error);
-        setError('Failed to setup real-time listener');
+      } catch (err) {
+        console.error('Failed to fetch products (polling):', err);
+        setError('Failed to load products');
         setLoading(false);
-        errorLogger.error('Failed to setup real-time products listener', error);
+        errorLogger.error('Polling products failed', err);
       }
     };
 
-    setupRealTimeListener();
+    if (isPageVisible) {
+      fetchProducts();
+      // Poll every 15 seconds for updates
+      intervalId = setInterval(fetchProducts, 15000);
+    } else {
+      setLoading(false);
+    }
 
-    // Cleanup function
     return () => {
-      if (unsubscribe) {
-        unsubscribe();
-        console.log('Real-time products listener cleaned up');
-      }
+      stopped = true;
+      if (intervalId) clearInterval(intervalId);
     };
   }, [category, vendorId, status, showActiveOnly, limitCount, isPageVisible]);
 
-  // Memoized filtered products
+  // Memoized filtered products (same as before)
   const filteredProducts = useMemo(() => {
     if (!products.length) return [];
 

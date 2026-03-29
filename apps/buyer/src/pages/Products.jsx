@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Link, useSearchParams, useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { Link, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useCart } from '../contexts/CartContext';
 import { usePageTracking, useProductTracking, useClickTracking } from '../hooks/useAnalytics';
 import ProductCard from '../components/ProductCard';
@@ -11,8 +11,7 @@ import SearchAutocomplete from '../components/SearchAutocomplete';
 import ProductComparison from '../components/ProductComparison';
 import ProductFilterSidebar from '../components/ProductFilterSidebar';
 import WishlistButton from '../components/WishlistButton';
-import { collection, query, getDocs, where } from 'firebase/firestore';
-import { db } from '../firebase/config';
+import firebaseService from '../services/firebaseService';
 
 function normalizeSidebarFilters(filters = {}) {
   return {
@@ -29,7 +28,6 @@ function normalizeSidebarFilters(filters = {}) {
 
 const Products = () => {
   console.log('🛍️ Products: Component function called');
-  const [, _currentUser] = useAuth();
   const { addToCart } = useCart();
   const navigate = useNavigate();
   
@@ -71,8 +69,7 @@ const Products = () => {
   });
   const [brands, setBrands] = useState([]);
 
-  const [, _searchParams] = useSearchParams();
-  const [, _setSidebarFilters] = useState(() => normalizeSidebarFilters());
+  const [sidebarFilters, setSidebarFilters] = useState(() => normalizeSidebarFilters());
   const [isFilterSidebarOpen, setIsFilterSidebarOpen] = useState(true);
 
   // Price slider constants and derived percentages for styled track
@@ -88,18 +85,9 @@ const Products = () => {
       setLoading(true);
       setError(null);
 
-      // Check if db is available
-      if (!db) {
-        throw new Error('Database not initialized');
-      }
-
-      // Use simple query to avoid Firestore internal errors
-      const q = query(collection(db, 'products'));
-      console.log('🛍️ Products: Executing Firestore query...');
-
-      const snapshot = await getDocs(q);
-      let allProducts = snapshot.docs.map(doc => {
-        const data = doc.data();
+      // Fetch products from backend REST API
+      const resItems = await firebaseService.product.getAll();
+      let allProducts = (resItems || []).map(data => {
         
         // Handle images - ensure we have proper image URLs
         let images = [];
@@ -127,7 +115,7 @@ const Products = () => {
         }
         
         const product = {
-          id: doc.id,
+          id: data.id || data._id || data.productId,
           ...data,
           // Ensure required fields exist
           name: data.name || 'Unnamed Product',
@@ -240,30 +228,16 @@ const Products = () => {
   // Fetch categories and brands
   const fetchCategories = useCallback(async () => {
     try {
-      // Direct Firestore query to get categories
-      const q = query(
-        collection(db, 'products'),
-        where('isActive', '==', true)
-      );
-      
-      const snapshot = await getDocs(q);
+      // Derive categories and brands from backend products
+      const items = await firebaseService.product.getAll();
       const categoriesSet = new Set();
       const brandsSet = new Set();
-      
-      snapshot.docs.forEach(doc => {
-        const data = doc.data();
-        if (data.category) {
-          categoriesSet.add(data.category);
-        }
-        if (data.brand) {
-          brandsSet.add(data.brand);
-        }
+      (items || []).forEach(d => {
+        if (d.category) categoriesSet.add(d.category);
+        if (d.brand) brandsSet.add(d.brand);
       });
-
-      const categoriesData = Array.from(categoriesSet).sort();
-      const brandsData = Array.from(brandsSet).sort();
-      setCategories(categoriesData);
-      setBrands(brandsData);
+      setCategories(Array.from(categoriesSet).sort());
+      setBrands(Array.from(brandsSet).sort());
     } catch (err) {
       console.error('Error fetching categories:', err);
       // Fallback categories
@@ -305,8 +279,10 @@ const Products = () => {
   // Handle sidebar filter changes
   const handleSidebarFilterChange = (filters) => {
     console.log('🛍️ Products: Sidebar filters changed:', filters);
+    const normalizedFilters = normalizeSidebarFilters(filters);
+    setSidebarFilters(normalizedFilters);
     // Apply filters to products
-    const filtered = applySidebarFilters(allFilteredProducts, filters);
+    const filtered = applySidebarFilters(allFilteredProducts, normalizedFilters);
     setFilteredProducts(filtered);
     setProducts(filtered);
   };
@@ -413,7 +389,7 @@ const Products = () => {
     }
 
     const filtersToApply = {
-      ...(_setSidebarFilters() || {}),
+      ...sidebarFilters,
       searchQuery: searchQuery || ''
     };
 
@@ -421,7 +397,7 @@ const Products = () => {
     setFilteredProducts(productsToDisplay);
     setProducts(productsToDisplay);
     setHasMore(false);
-  }, [allFilteredProducts, searchQuery, loading, applySidebarFilters]);
+  }, [allFilteredProducts, searchQuery, loading, applySidebarFilters, sidebarFilters]);
 
   if (error) {
     return (
@@ -752,7 +728,7 @@ const Products = () => {
         )}
 
         {/* Products Grid */}
-        <Framer.AnimatePresence mode="wait">
+        <AnimatePresence mode="wait">
         {loading && filteredProducts.length === 0 ? (
             <motion.div
               key="loading"
@@ -825,7 +801,7 @@ const Products = () => {
                 className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
                 layout
               >
-                <Framer.AnimatePresence mode="wait">
+                <AnimatePresence mode="wait">
                   {filteredProducts.map((product, index) => (
                     <motion.div
                       key={product.id}
@@ -891,7 +867,7 @@ const Products = () => {
                       </div>
                     </motion.div>
               ))}
-                </Framer.AnimatePresence>
+                </AnimatePresence>
               </motion.div>
 
             {/* Load More Button */}
@@ -926,7 +902,7 @@ const Products = () => {
             )}
             </motion.div>
         )}
-        </Framer.AnimatePresence>
+        </AnimatePresence>
 
         {/* Results Count */}
         {products.length > 0 && (

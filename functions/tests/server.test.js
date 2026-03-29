@@ -1,5 +1,5 @@
 const request = require('supertest');
-const admin = require('firebase-admin');
+// Firebase removed: tests now use REST backend
 const app = require('../server');
 
 // Mock Firebase Admin for testing (optional: configure emulator or use test credentials)
@@ -16,7 +16,7 @@ describe('Ojawa Backend API', () => {
   });
 
   it('should list products', async () => {
-    const res = await request(app).get('/products');
+    const res = await request(app).get('/api/products');
     expect(res.statusCode).toBe(200);
     expect(Array.isArray(res.body.products)).toBe(true);
   });

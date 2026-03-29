@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useMessaging } from '../contexts/MessagingContext';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../firebase/config';
+import firebaseService from '../services/firebaseService';
 
 const Messages = () => {
   const { currentUser } = useAuth();
@@ -166,19 +165,14 @@ const Messages = () => {
         (async () => {
           const namePromises = namesToFetch.map(async (senderId) => {
             try {
-              const userRef = doc(db, 'users', senderId);
-              const snap = await getDoc(userRef);
-              if (snap.exists()) {
-                const data = snap.data();
-                return { senderId, displayName: resolveDisplayName(data, senderId) };
-              }
-              return { senderId, displayName: senderId };
+              const data = await firebaseService.auth.getProfile(senderId);
+              return { senderId, displayName: resolveDisplayName(data, senderId) };
             } catch (error) {
               console.warn('Error fetching sender name:', error);
               return { senderId, displayName: senderId };
             }
           });
-          
+
           const names = await Promise.all(namePromises);
           setSenderNames(current => {
             const updated = { ...current };
@@ -216,16 +210,14 @@ const Messages = () => {
 
   // Resolve other participant's display name (vendor or user)
   useEffect(() => {
-    const fetchName = async () => {
+        const fetchName = async () => {
       try {
         if (!otherParticipantId) {
           setOtherParticipantName('');
           return;
         }
-        const userRef = doc(db, 'users', otherParticipantId);
-        const snap = await getDoc(userRef);
-        if (snap.exists()) {
-          const data = snap.data();
+        const data = await firebaseService.auth.getProfile(otherParticipantId);
+        if (data) {
           setOtherParticipantName(resolveDisplayName(data, otherParticipantId));
         } else {
           setOtherParticipantName(otherParticipantId);
