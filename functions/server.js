@@ -340,20 +340,14 @@ app.post('/createEscrowOrder', authenticateToken, async (req, res) => {
     }
 
     // [MIGRATION] TODO: Implement escrow order creation using backend DB/REST API.
-    return res.json({ success: true, orderId: 'mock-order-id' });
-      message: `Your order ${orderResult.orderId} has been created and funds are held in escrow.`,
-      orderId: orderResult.orderId,
-      read: false,
-      createdAt: FieldValue.serverTimestamp(),
-    }).catch((e) => console.warn('Notification failed:', e));
-
+    // Temporary mock response for Render deployment and smoke tests.
     return res.json({
       result: {
         success: true,
-        orderId: orderResult.orderId,
-        walletTransactionId: orderResult.walletTransactionId,
+        orderId: 'mock-order-id',
+        walletTransactionId: null,
         escrowStatus: 'funds_on_hold',
-        remainingBalance: orderResult.balanceAfter,
+        remainingBalance: 0,
       },
     });
   } catch (error) {
