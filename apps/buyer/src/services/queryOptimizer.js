@@ -19,19 +19,10 @@
  *   const next = await paginatedQuery.getNextPage();
  */
 
-import { 
-  db, 
-  collection, 
-  query, 
-  where, 
-  orderBy, 
-  limit,
-  startAfter,
-  getDocs,
-  getCountFromServer
-} from '../config/firebase';
-
+import axios from 'axios'
 import { analyticsCache } from './analyticsCache';
+
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3000'
 
 class QueryOptimizationService {
   constructor() {
@@ -92,38 +83,19 @@ class QueryOptimizationService {
             }
           }
 
-          // Build query
-          let q = query(collection(db, collectionName));
-
-          // Add filters
-          state.filters.forEach(filter => {
-            q = query(q, where(filter.field, filter.operator, filter.value));
-          });
-
-          // Add ordering
-          q = query(q, orderBy(orderByField, orderDirection));
-
-          // Paginate
-          if (pageNumber > 1) {
-            const previousPageData = state.pages.get(pageNumber - 1);
-            if (previousPageData && previousPageData.length > 0) {
-              const lastDoc = previousPageData[previousPageData.length - 1];
-              q = query(q, startAfter(lastDoc[orderByField]));
+          // Request backend for paginated data (server handles filters/order/pagination)
+          const resp = await axios.get(`${API_BASE}/api/${collectionName}`, {
+            params: {
+              page: pageNumber,
+              pageSize,
+              orderBy: orderByField,
+              orderDirection,
+              filters: JSON.stringify(state.filters || [])
             }
-          }
-
-          // Limit
-          q = query(q, limit(pageSize + 1)); // +1 to check if more pages exist
-
-          const snapshot = await getDocs(q);
-          const docs = snapshot.docs.slice(0, pageSize);
-          const hasMore = snapshot.docs.length > pageSize;
-
-          const data = docs.map((doc, index) => ({
-            id: doc.id,
-            ...doc.data(),
-            _docRef: doc // Store for pagination
-          }));
+          });
+          const respData = resp?.data || {};
+          const data = respData.items || respData.data || [];
+          const hasMore = !!respData.hasMore;
 
           // Cache result
           if (state.cacheKey) {
@@ -137,7 +109,7 @@ class QueryOptimizationService {
 
           state.pages.set(pageNumber, data);
           state.currentPage = pageNumber;
-          state.lastSnapshot = docs[docs.length - 1];
+          state.lastSnapshot = data.length > 0 ? data[data.length - 1] : null;
 
           return { data, hasMore, pageNumber, pageSize };
         } catch (error) {
@@ -169,14 +141,9 @@ class QueryOptimizationService {
             return state.totalCount;
           }
 
-          let q = query(collection(db, collectionName));
-          state.filters.forEach(filter => {
-            q = query(q, where(filter.field, filter.operator, filter.value));
-          });
-
-          const snapshot = await getCountFromServer(q);
-          state.totalCount = snapshot.data().count;
-          return state.totalCount;
+          const resp = await axios.get(`${API_BASE}/api/${collectionName}/count`, { params: { filters: JSON.stringify(state.filters || []) } })
+          state.totalCount = resp?.data?.count || 0
+          return state.totalCount
         } catch (error) {
           console.error('Count error:', error);
           return 0;
@@ -224,27 +191,16 @@ class QueryOptimizationService {
             return cached;
           }
 
-          let q = query(collection(db, collectionName));
-
-          filters.forEach(filter => {
-            q = query(q, where(filter.field, filter.operator, filter.value));
-          });
-
-          if (orderByField) {
-            q = query(q, orderBy(orderByField.field, orderByField.direction || 'asc'));
-          }
-
-          if (limitValue) {
-            q = query(q, limit(limitValue));
-          }
-
-          const snapshot = await getDocs(q);
-          const data = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-          }));
-
-          analyticsCache.set(cacheKey, data, 300000);
+           // Use REST endpoint to perform the filtered/ordered/limited query
+           const params = {
+             filters: JSON.stringify(filters || []),
+             orderBy: orderByField ? JSON.stringify(orderByField) : undefined,
+             limit: limitValue || undefined
+           };
+           const resp = await axios.get(`${API_BASE}/api/${collectionName}`, { params });
+           const data = resp?.data?.items || resp?.data?.data || resp?.data || [];
+ 
+           analyticsCache.set(cacheKey, data, 300000);
           this.stats.cacheMisses++;
           this.stats.batchedQueries++;
 
@@ -283,9 +239,8 @@ class QueryOptimizationService {
       const estimatedCost = filterCost * (complexityMultiplier[complexity] || 1);
       
       // Get document count for reference
-      const q = query(collection(db, collectionName));
-      const snapshot = await getCountFromServer(q);
-      const docCount = snapshot.data().count;
+      const resp = await axios.get(`${API_BASE}/api/${collectionName}/count`, { params: { filters: JSON.stringify(filters || []) } });
+      const docCount = resp?.data?.count || 0;
 
       return {
         operation: 'read',

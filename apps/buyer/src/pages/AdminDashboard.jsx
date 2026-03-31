@@ -1,8 +1,6 @@
 import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import firebaseService from '../services/firebaseService';
-import { collection, query, where, getDocs, doc, updateDoc, deleteDoc, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebase/config';
 import FeaturedProductsManager from '../components/FeaturedProductsManager';
 
 // Lazy load components that depend on recharts (which uses React.createContext)
@@ -66,20 +64,20 @@ const AdminDashboard = () => {
     try {
       setLoading(true);
       
-      const [usersResult, ordersResult, disputesResult, productsSnapshot, transactionsSnapshot, messagesSnapshot, ticketsSnapshot] = await Promise.all([
+      const [usersResult, ordersResult, disputesResult, productsRes, transactionsRes, messagesRes, ticketsRes] = await Promise.all([
         firebaseService.admin.getAllUsers({ pageSize: 50 }),
         firebaseService.admin.getAllOrders({ pageSize: 100 }),
         firebaseService.admin.getAllDisputes({ pageSize: 100 }),
-        getDocs(collection(db, 'products')),
-        getDocs(collection(db, 'wallet_transactions')),
-        getDocs(collection(db, 'admin_messages')),
-        getDocs(collection(db, 'support_tickets'))
+        fetch('/api/products', { credentials: 'include' }),
+        fetch('/api/wallet_transactions', { credentials: 'include' }),
+        fetch('/api/admin_messages', { credentials: 'include' }),
+        fetch('/api/support_tickets', { credentials: 'include' })
       ]);
-      
+
       const usersList = usersResult.items || [];
       const ordersList = ordersResult.items || [];
       const disputesList = disputesResult.items || [];
-      const productsList = productsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const productsList = productsRes.ok ? (await productsRes.json()).items || [] : [];
       setAllProducts(productsList);
       
       // Store initial users and pagination info
@@ -99,22 +97,13 @@ const AdminDashboard = () => {
       setVendors(vendorsList);
       setLogistics(logisticsList);
       
-      const transactionsList = transactionsSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      const transactionsList = transactionsRes.ok ? (await transactionsRes.json()).items || [] : [];
       setEscrowTransactions(transactionsList);
-      
-      const messagesList = messagesSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+
+      const messagesList = messagesRes.ok ? (await messagesRes.json()).items || [] : [];
       setMessages(messagesList);
-      
-      const ticketsList = ticketsSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+
+      const ticketsList = ticketsRes.ok ? (await ticketsRes.json()).items || [] : [];
       setSupportTickets(ticketsList);
       
       const analyticsData = {
@@ -174,10 +163,9 @@ const AdminDashboard = () => {
       if (!showUserModal || !selectedUser) return;
       try {
         setSelectedUserLoading(true);
-        const ratingsSnap = await getDocs(
-          query(collection(db, 'ratings'), where('rateeId', '==', selectedUser.id))
-        );
-        const ratings = ratingsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const res = await fetch(`/api/ratings?rateeId=${encodeURIComponent(selectedUser.id)}`, { credentials: 'include' });
+        const data = res.ok ? await res.json() : { items: [] };
+        const ratings = data.items || [];
         setSelectedUserRatings(ratings);
       } catch (e) {
         console.error('Error loading user ratings:', e);
@@ -221,11 +209,11 @@ const AdminDashboard = () => {
   // Product Management
   const handleApproveProduct = async (productId) => {
     try {
-      await updateDoc(doc(db, 'products', productId), {
-        status: 'active',
-        approvedAt: serverTimestamp(),
-        approvedBy: currentUser.uid,
-        updatedAt: serverTimestamp()
+      await fetch(`/api/products/${encodeURIComponent(productId)}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'active', approvedAt: new Date().toISOString(), approvedBy: currentUser.uid, updatedAt: new Date().toISOString() })
       });
       await fetchAdminData();
       alert('Product approved successfully!');
@@ -237,12 +225,11 @@ const AdminDashboard = () => {
 
   const handleRejectProduct = async (productId) => {
     try {
-      await updateDoc(doc(db, 'products', productId), {
-        status: 'rejected',
-        rejectionReason: rejectionReason,
-        rejectedAt: serverTimestamp(),
-        rejectedBy: currentUser.uid,
-        updatedAt: serverTimestamp()
+      await fetch(`/api/products/${encodeURIComponent(productId)}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'rejected', rejectionReason: rejectionReason, rejectedAt: new Date().toISOString(), rejectedBy: currentUser.uid, updatedAt: new Date().toISOString() })
       });
       setRejectionReason('');
       await fetchAdminData();
@@ -256,12 +243,11 @@ const AdminDashboard = () => {
   // User Management
   const handleSuspendUser = async (userId, suspended, reason = '') => {
     try {
-      await updateDoc(doc(db, 'users', userId), {
-        suspended: suspended,
-        suspensionReason: reason,
-        suspendedAt: suspended ? serverTimestamp() : null,
-        suspendedBy: currentUser.uid,
-        updatedAt: serverTimestamp()
+      await fetch(`/api/users/${encodeURIComponent(userId)}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ suspended, suspensionReason: reason, suspendedAt: suspended ? new Date().toISOString() : null, suspendedBy: currentUser.uid, updatedAt: new Date().toISOString() })
       });
       await fetchAdminData();
       alert(`User ${suspended ? 'suspended' : 'activated'} successfully!`);
@@ -276,7 +262,7 @@ const AdminDashboard = () => {
       return;
     }
     try {
-      await deleteDoc(doc(db, 'users', userId));
+      await fetch(`/api/users/${encodeURIComponent(userId)}`, { method: 'DELETE', credentials: 'include' });
       await fetchAdminData();
       alert('User deleted successfully!');
     } catch (error) {
@@ -290,21 +276,20 @@ const AdminDashboard = () => {
     try {
       const dispute = disputes.find(d => d.id === disputeId);
       if (!dispute) return;
-
-      await updateDoc(doc(db, 'disputes', disputeId), {
-        status: 'resolved',
-        resolution: resolution,
-        resolvedAt: serverTimestamp(),
-        resolvedBy: currentUser.uid,
-        updatedAt: serverTimestamp()
+      await fetch(`/api/disputes/${encodeURIComponent(disputeId)}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'resolved', resolution: resolution, resolvedAt: new Date().toISOString(), resolvedBy: currentUser.uid, updatedAt: new Date().toISOString() })
       });
 
       // If resolution is to refund buyer, reverse the escrow
       if (resolution === 'refund_buyer' && dispute.orderId) {
-        await updateDoc(doc(db, 'orders', dispute.orderId), {
-          status: 'refunded',
-          refundedAt: serverTimestamp(),
-          refundedBy: currentUser.uid
+        await fetch(`/api/orders/${encodeURIComponent(dispute.orderId)}`, {
+          method: 'PATCH',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'refunded', refundedAt: new Date().toISOString(), refundedBy: currentUser.uid })
         });
       }
 
@@ -319,16 +304,18 @@ const AdminDashboard = () => {
   // Escrow Transaction Management
   const handleReverseEscrow = async (transactionId, orderId) => {
     try {
-      await updateDoc(doc(db, 'wallet_transactions', transactionId), {
-        status: 'reversed',
-        reversedAt: serverTimestamp(),
-        reversedBy: currentUser.uid
+      await fetch(`/api/wallet_transactions/${encodeURIComponent(transactionId)}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'reversed', reversedAt: new Date().toISOString(), reversedBy: currentUser.uid })
       });
 
-      await updateDoc(doc(db, 'orders', orderId), {
-        status: 'refunded',
-        refundedAt: serverTimestamp(),
-        refundedBy: currentUser.uid
+      await fetch(`/api/orders/${encodeURIComponent(orderId)}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'refunded', refundedAt: new Date().toISOString(), refundedBy: currentUser.uid })
       });
 
       await fetchAdminData();
@@ -395,37 +382,23 @@ const AdminDashboard = () => {
         content: messageContent,
         recipients: messageRecipients,
         sentBy: currentUser.uid,
-        sentAt: serverTimestamp(),
+        sentAt: new Date().toISOString(),
         type: 'admin_broadcast'
       };
 
-      await addDoc(collection(db, 'admin_messages'), messageData);
+      await fetch('/api/admin_messages', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(messageData) });
 
       // Create notifications for recipients
+      const notify = async (user) => {
+        await fetch('/api/notifications', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id, type: 'admin_message', title: messageTitle, message: messageContent, read: false, createdAt: new Date().toISOString() }) });
+      };
+
       if (messageRecipients === 'all') {
         const allUsers = users;
-        for (const user of allUsers) {
-          await addDoc(collection(db, 'notifications'), {
-            userId: user.id,
-            type: 'admin_message',
-            title: messageTitle,
-            message: messageContent,
-            read: false,
-            createdAt: serverTimestamp()
-          });
-        }
+        for (const user of allUsers) await notify(user);
       } else if (messageRecipients === 'vendors') {
         const vendorUsers = users.filter(u => u.isVendor);
-        for (const user of vendorUsers) {
-          await addDoc(collection(db, 'notifications'), {
-            userId: user.id,
-            type: 'admin_message',
-            title: messageTitle,
-            message: messageContent,
-            read: false,
-            createdAt: serverTimestamp()
-          });
-        }
+        for (const user of vendorUsers) await notify(user);
       }
 
       setMessageTitle('');

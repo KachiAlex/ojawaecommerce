@@ -21,8 +21,6 @@ import NotificationPreferences from '../components/NotificationPreferences';
 import DashboardSwitcher from '../components/DashboardSwitcher';
 import VendorBilling from '../components/VendorBilling';
 import BulkOperations from '../components/BulkOperations';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../firebase/config';
 import PayoutStatusSummary from '../components/PayoutStatusSummary';
 // import UnifiedVendorStore from '../components/UnifiedVendorStore'; // Removed - using simple overview instead
 
@@ -126,17 +124,9 @@ const VendorMessagesTabContent = ({
         (async () => {
           const namePromises = namesToFetch.map(async (senderId) => {
             try {
-              const userRef = doc(db, 'users', senderId);
-              const snap = await getDoc(userRef);
-              if (snap.exists()) {
-                const data = snap.data();
-                // Get display name - prioritize vendor/business name, then display name, then email
-                const displayName = data.vendorProfile?.businessName || 
-                                   data.vendorProfile?.storeName ||
-                                   data.displayName || 
-                                   data.name || 
-                                   data.email?.split('@')[0] || 
-                                   senderId;
+              const data = await firebaseService.user.get(senderId).catch(() => null);
+              if (data) {
+                const displayName = data.vendorProfile?.businessName || data.vendorProfile?.storeName || data.displayName || data.name || data.email?.split('@')[0] || senderId;
                 return { senderId, displayName };
               }
               return { senderId, displayName: senderId };
@@ -193,10 +183,8 @@ const VendorMessagesTabContent = ({
           setOtherParticipantName('');
           return;
         }
-        const userRef = doc(db, 'users', otherParticipantId);
-        const snap = await getDoc(userRef);
-        if (snap.exists()) {
-          const data = snap.data();
+        const data = await firebaseService.user.get(otherParticipantId).catch(() => null);
+        if (data) {
           const userName = data.displayName || data.name || data.email || otherParticipantId;
           setOtherParticipantName(userName);
         } else {

@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import firebaseService from '../services/firebaseService';
-import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
-import { db } from '../firebase/config';
+import axios from 'axios';
+
+const API_BASE = import.meta.env.VITE_API_BASE || 'https://ojawaecommerce.onrender.com';
 
 const PriceDropAlert = ({ productId, currentPrice, onPriceDrop }) => {
   const { currentUser } = useAuth();
@@ -18,12 +18,11 @@ const PriceDropAlert = ({ productId, currentPrice, onPriceDrop }) => {
 
   const checkIfWatching = async () => {
     try {
-      const alertRef = doc(db, 'price_alerts', `${currentUser.uid}_${productId}`);
-      const alertDoc = await getDoc(alertRef);
-      
-      if (alertDoc.exists()) {
+      const res = await axios.get(`${API_BASE}/api/alerts/${currentUser.uid}/${productId}`);
+      const alert = res?.data?.alert || null;
+      if (alert) {
         setIsWatching(true);
-        setAlertPrice(alertDoc.data().alertPrice);
+        setAlertPrice(alert.alertPrice || null);
       }
     } catch (error) {
       console.error('Error checking price alert:', error);
@@ -45,13 +44,12 @@ const PriceDropAlert = ({ productId, currentPrice, onPriceDrop }) => {
         return;
       }
 
-      await firebaseService.alerts.createPriceAlert({
+      await axios.post(`${API_BASE}/api/alerts`, {
         userId: currentUser.uid,
         productId,
         currentPrice,
         alertPrice,
-        productName: 'Product', // Should be passed as prop
-        createdAt: new Date()
+        productName: 'Product'
       });
 
       setIsWatching(true);
@@ -67,7 +65,7 @@ const PriceDropAlert = ({ productId, currentPrice, onPriceDrop }) => {
   const handleRemoveAlert = async () => {
     try {
       setLoading(true);
-      await firebaseService.alerts.removePriceAlert(currentUser.uid, productId);
+      await axios.delete(`${API_BASE}/api/alerts/${currentUser.uid}/${productId}`);
       setIsWatching(false);
       setAlertPrice(null);
     } catch (error) {

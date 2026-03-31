@@ -1,6 +1,4 @@
-import { collection, getDocs, updateDoc, doc, getDoc, query, limit } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage } from '../firebase/config';
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3000';
 import { generateThumbnail } from './thumbnailGenerator';
 
 /**
@@ -9,17 +7,10 @@ import { generateThumbnail } from './thumbnailGenerator';
  */
 export const generateThumbnailsForAllProducts = async (onProgress = null, batchSize = 10) => {
   try {
-    // Fetch all products
-    const productsQuery = query(
-      collection(db, 'products'),
-      limit(1000) // Adjust based on your needs
-    );
-    
-    const snapshot = await getDocs(productsQuery);
-    const products = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    // Fetch all products from backend
+    const res = await fetch(`${API_BASE}/api/products?limit=1000`, { credentials: 'include' });
+    const payload = await res.json().catch(() => ({}));
+    const products = payload.items || payload.products || [];
     
     console.log(`Found ${products.length} products to process`);
     
@@ -86,20 +77,25 @@ export const generateThumbnailsForAllProducts = async (onProgress = null, batchS
             try {
               const thumbnailBlob = await generateThumbnail(imageUrl, 300, 300, 0.85);
               
-              // Upload thumbnail to Firebase Storage
-              const vendorId = product.vendorId || 'unknown';
-              const thumbnailPath = `products/${vendorId}/thumbnails/${product.id}-thumb.jpg`;
-              const thumbnailRef = ref(storage, thumbnailPath);
-              
-              await uploadBytes(thumbnailRef, thumbnailBlob);
-              const thumbnailUrl = await getDownloadURL(thumbnailRef);
-              
-              // Update product with thumbnail
-              const productRef = doc(db, 'products', product.id);
-              await updateDoc(productRef, {
-                thumbnail: thumbnailUrl,
-                thumbnails: [thumbnailUrl] // Also set thumbnails array
+              // Upload thumbnail to backend which should store and update product
+              const form = new FormData();
+              form.append('file', thumbnailBlob, `${product.id}-thumb.jpg`);
+
+              const uploadRes = await fetch(`${API_BASE}/api/products/${encodeURIComponent(product.id)}/thumbnail`, {
+                method: 'POST',
+                credentials: 'include',
+                body: form
               });
+
+              if (!uploadRes.ok) {
+                throw new Error(`Thumbnail upload failed: ${uploadRes.status} ${uploadRes.statusText}`);
+              }
+
+              const uploadJson = await uploadRes.json().catch(() => ({}));
+              const thumbnailUrl = uploadJson.thumbnailUrl || uploadJson.url || null;
+              if (!thumbnailUrl) {
+                throw new Error('Upload succeeded but no thumbnail URL returned');
+              }
               
               generated++;
               console.log(`✅ Generated thumbnail for product: ${product.name}`);
@@ -162,12 +158,9 @@ export const generateThumbnailForProduct = async (productId, productData = null)
     let product = productData;
     
     if (!product) {
-      const productRef = doc(db, 'products', productId);
-      const productSnap = await getDoc(productRef);
-      if (!productSnap.exists()) {
-        throw new Error('Product not found');
-      }
-      product = { id: productSnap.id, ...productSnap.data() };
+      const res = await fetch(`${API_BASE}/api/products/${encodeURIComponent(productId)}`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Product not found');
+      product = await res.json();
     }
     
     // Check if thumbnail already exists
@@ -194,21 +187,24 @@ export const generateThumbnailForProduct = async (productId, productData = null)
     // Generate thumbnail
     const thumbnailBlob = await generateThumbnail(imageUrl, 300, 300, 0.85);
     
-    // Upload to Firebase Storage
-    const vendorId = product.vendorId || 'unknown';
-    const thumbnailPath = `products/${vendorId}/thumbnails/${product.id}-thumb.jpg`;
-    const thumbnailRef = ref(storage, thumbnailPath);
-    
-    await uploadBytes(thumbnailRef, thumbnailBlob);
-    const thumbnailUrl = await getDownloadURL(thumbnailRef);
-    
-    // Update product
-    const productRef = doc(db, 'products', product.id);
-    await updateDoc(productRef, {
-      thumbnail: thumbnailUrl,
-      thumbnails: [thumbnailUrl]
+    // Upload to backend and let it persist the thumbnail and update product
+    const form = new FormData();
+    form.append('file', thumbnailBlob, `${product.id}-thumb.jpg`);
+
+    const uploadRes = await fetch(`${API_BASE}/api/products/${encodeURIComponent(product.id)}/thumbnail`, {
+      method: 'POST',
+      credentials: 'include',
+      body: form
     });
-    
+
+    if (!uploadRes.ok) {
+      const text = await uploadRes.text().catch(() => '');
+      throw new Error(`Thumbnail upload failed: ${uploadRes.status} ${uploadRes.statusText} ${text}`);
+    }
+
+    const uploadJson = await uploadRes.json().catch(() => ({}));
+    const thumbnailUrl = uploadJson.thumbnailUrl || uploadJson.url || null;
+
     return {
       success: true,
       thumbnail: thumbnailUrl,

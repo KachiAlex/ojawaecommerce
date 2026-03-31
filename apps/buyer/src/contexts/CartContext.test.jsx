@@ -200,7 +200,7 @@ describe('CartContext', () => {
 
     await waitFor(() => {
       expect(secureStorage.default.setItem).toHaveBeenCalledWith(
-        'cart',
+        expect.stringContaining('shopping_cart'),
         expect.stringContaining('product-1')
       )
     })

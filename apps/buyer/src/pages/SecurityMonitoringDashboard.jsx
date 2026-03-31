@@ -13,6 +13,7 @@ const SecurityMonitoringDashboard = () => {
   const [criticalErrors, setCriticalErrors] = useState([]);
   const [timeRange, setTimeRange] = useState('24h'); // 24h, 7d, 30d
   const [selectedFilter, setSelectedFilter] = useState('all');
+  const [error, setError] = useState(null);
 
   const API_BASE_URL = process.env.REACT_APP_FUNCTIONS_URL || 'http://localhost:8080';
 
@@ -20,6 +21,7 @@ const SecurityMonitoringDashboard = () => {
   const fetchSecurityData = async () => {
     try {
       setLoading(true);
+      setError(null);
       const token = await getIdToken();
 
       const [auditRes, errorRes, statsRes] = await Promise.all([
@@ -49,6 +51,7 @@ const SecurityMonitoringDashboard = () => {
         setSecurityData(data);
       }
     } catch (error) {
+      setError(error.message || 'Failed to load security data.');
       console.error('Error fetching security data:', error);
     } finally {
       setLoading(false);
@@ -84,6 +87,13 @@ const SecurityMonitoringDashboard = () => {
       <div className="p-6 text-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
         <p className="mt-4 text-teal-300">Loading security data...</p>
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="p-6 text-center">
+        <p className="text-red-400 font-semibold">{error}</p>
       </div>
     );
   }

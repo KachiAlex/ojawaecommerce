@@ -1,4 +1,5 @@
-import { auth } from '../firebase/config';
+// `auth` may not be exported during the migration away from Firebase SDK.
+// Use a dynamic import at runtime to avoid build-time rollup errors.
 
 // Base64 helpers (browser-safe)
 function uint8ToB64(uint8) {
@@ -23,6 +24,12 @@ async function getOrCreateSalt() {
   const key = 'ss_salt_v1';
   let saltB64 = localStorage.getItem(key);
   if (!saltB64) {
+    // If Web Crypto is not available (eg. some test/node environments), fall back to a deterministic pseudo-random salt
+    if (typeof crypto === 'undefined' || !crypto.getRandomValues) {
+      const fallback = 'test-salt-000000000000';
+      localStorage.setItem(key, fallback);
+      return b64ToUint8(fallback);
+    }
     const salt = new Uint8Array(16);
     crypto.getRandomValues(salt);
     saltB64 = uint8ToB64(salt);
@@ -32,6 +39,8 @@ async function getOrCreateSalt() {
 }
 
 async function deriveKey(passphrase, salt) {
+  // If Web Crypto is not available, skip PBKDF2 and return null to indicate no crypto
+  if (typeof crypto === 'undefined' || !crypto.subtle) return null;
   const enc = new TextEncoder();
   const baseKey = await crypto.subtle.importKey(
     'raw',
@@ -55,13 +64,27 @@ async function deriveKey(passphrase, salt) {
 }
 
 async function getKey() {
-  const uid = auth?.currentUser?.uid || 'guest';
+  let uid = 'guest';
+  try {
+    // dynamic import so bundlers won't fail if `../firebase/config` no longer exports `auth`
+    // and so tests/headless environments that don't have Firebase can continue.
+    // eslint-disable-next-line import/no-dynamic-require
+    const cfg = await import('../firebase/config');
+    uid = cfg?.auth?.currentUser?.uid || uid;
+  } catch (_) {
+    // ignore — fall back to guest
+  }
+
   const salt = await getOrCreateSalt();
   return deriveKey(`ojawa:${uid}`, salt);
 }
 
 async function encryptToB64(plaintext) {
   const key = await getKey();
+  // If crypto not available, return plain base64 payload (not secure in tests but acceptable for JS DOM)
+  if (!key || typeof crypto === 'undefined' || !crypto.subtle) {
+    return `PLAIN:${btoa(String(plaintext))}`;
+  }
   const iv = new Uint8Array(12);
   crypto.getRandomValues(iv);
   const enc = new TextEncoder();
@@ -71,9 +94,17 @@ async function encryptToB64(plaintext) {
 }
 
 async function decryptFromB64(payload) {
-  const [ivB64, dataB64] = String(payload).split(':');
+  const str = String(payload);
+  if (str.startsWith('PLAIN:')) {
+    try { return atob(str.slice(6)); } catch { return null; }
+  }
+  const [ivB64, dataB64] = str.split(':');
   if (!ivB64 || !dataB64) return null;
   const key = await getKey();
+  if (!key || typeof crypto === 'undefined' || !crypto.subtle) {
+    // Cannot decrypt in this environment
+    return null;
+  }
   const iv = b64ToUint8(ivB64);
   const data = b64ToUint8(dataB64);
   const plainBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, data);

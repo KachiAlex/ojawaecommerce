@@ -3,8 +3,9 @@
  * Handles all error management, structured logging, and error recovery
  */
 
-const admin = require('firebase-admin');
-const db = admin.firestore();
+// Firebase removed: errorHandler now uses REST backend
+// TODO: Replace db operations with REST API/backend DB calls
+// const db = ...
 
 // Error severity levels
 const ERROR_LEVELS = {
@@ -63,7 +64,7 @@ class RateLimitError extends AppError {
 // Structured logging function
 async function logError(error, requestContext = {}) {
   const errorLog = {
-    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    timestamp: new Date().toISOString(),
     message: error.message,
     level: error.level || ERROR_LEVELS.ERROR,
     name: error.name || 'UnknownError',
@@ -88,12 +89,8 @@ async function logError(error, requestContext = {}) {
     console.warn(logMessage, errorLog.context);
   }
 
-  // Store in Firestore for monitoring & audit
-  try {
-    await db.collection('error_logs').add(errorLog);
-  } catch (dbError) {
-    console.error('Failed to log error to Firestore:', dbError.message);
-  }
+  // TODO: Store errorLog in backend DB or via REST API for monitoring & audit
+  // Example: await fetch('https://your-backend/logs', { method: 'POST', body: JSON.stringify(errorLog) })
 
   return errorLog;
 }
@@ -153,11 +150,8 @@ function createRequestLogger(options = {}) {
           type: 'success',
         }).catch(err => console.error('Failed to log request:', err.message));
       }
-
-      return originalJson(data);
-    };
-
-    next();
+            // TODO: Store requestLog/responseLog in backend DB or via REST API
+            // Example: await fetch('https://your-backend/request-logs', { method: 'POST', body: JSON.stringify({ ...requestLog, ...responseLog, type: 'success' }) })
   };
 }
 
@@ -192,12 +186,8 @@ function errorHandlerMiddleware(err, req, res, next) {
       context: requestContext,
       stack: appError.stack,
     }).catch(err => console.error('Failed to log critical error:', err.message));
-  }
-
-  // Send error response
-  res.status(appError.statusCode).json({
-    success: false,
-    error: {
+        // TODO: Store error log if critical in backend DB or via REST API
+        // Example: await fetch('https://your-backend/critical-errors', { method: 'POST', body: JSON.stringify({ ... }) })
       message: appError.message,
       code: appError.name,
       requestId: req.requestId,

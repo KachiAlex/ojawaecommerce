@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '../firebase/config';
+import firebaseService from '../services/firebaseService';
 
 const AdminSetup = () => {
   const { currentUser, userProfile } = useAuth();
@@ -16,14 +15,11 @@ const AdminSetup = () => {
     
     setLoading(true);
     try {
-      await updateDoc(doc(db, 'users', currentUser.uid), {
-        role: 'admin',
-        isAdmin: true
-      });
+      await firebaseService.user.update(currentUser.uid, { role: 'admin', isAdmin: true });
       setMessage('✅ You are now an admin! Please refresh the page.');
     } catch (error) {
       console.error('Error making user admin:', error);
-      setMessage('❌ Failed to make user admin: ' + error.message);
+      setMessage('❌ Failed to make user admin: ' + (error.message || error));
     } finally {
       setLoading(false);
     }

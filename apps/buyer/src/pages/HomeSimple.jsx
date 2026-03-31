@@ -2,8 +2,7 @@ import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import Footer from '../components/Footer';
 import { useAuth } from '../contexts/AuthContext';
-import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
-import { db } from '../firebase/config';
+import firebaseService from '../services/firebaseService';
 
 const HomeSimple = () => {
   const { currentUser, userProfile } = useAuth();
@@ -19,18 +18,8 @@ const HomeSimple = () => {
     const fetchFeaturedProducts = async () => {
       try {
         setLoading(true);
-        const q = query(
-          collection(db, 'products'),
-          where('status', '==', 'active'),
-          orderBy('createdAt', 'desc'),
-          limit(8)
-        );
-        const snapshot = await getDocs(q);
-        const products = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-        setFeaturedProducts(products);
+        const products = await firebaseService.product.getAll({ status: 'active', limit: 8 });
+        setFeaturedProducts(products || []);
       } catch (error) {
         console.error('Error fetching products:', error);
         setFeaturedProducts([]);

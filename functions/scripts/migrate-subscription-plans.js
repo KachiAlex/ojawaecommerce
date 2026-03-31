@@ -1,5 +1,5 @@
 require('dotenv').config();
-const admin = require('firebase-admin');
+// Firebase removed: migration now uses REST backend
 
 const shouldApply = process.argv.includes('--apply');
 const useEmulator = process.argv.includes('--use-emulator');

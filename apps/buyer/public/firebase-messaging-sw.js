@@ -3,6 +3,89 @@
 
 const DEFAULT_ICON = '/logos/ojawa-logo.png'
 
+function sanitizeAppUrl(candidate) {
+  if (!candidate || typeof candidate !== 'string') return '/buyer'
+
+  try {
+    const resolved = new URL(candidate, self.location.origin)
+    if (resolved.origin !== self.location.origin) {
+      return '/buyer'
+    }
+    return `${resolved.pathname}${resolved.search}${resolved.hash}` || '/buyer'
+  } catch (_) {
+    return candidate.startsWith('/') ? candidate : '/buyer'
+  }
+}
+
+function getNotificationActions(type) {
+  const actions = []
+
+  switch (type) {
+    case 'order_update':
+      actions.push(
+        { action: 'view_order', title: 'View Order' },
+        { action: 'track_order', title: 'Track Order' }
+      )
+      break
+    case 'payment_success':
+      actions.push(
+        { action: 'view_receipt', title: 'View Receipt' },
+        { action: 'continue_shopping', title: 'Continue Shopping' }
+      )
+      break
+    case 'shipment_update':
+      actions.push(
+        { action: 'track_shipment', title: 'Track Shipment' },
+        { action: 'view_details', title: 'View Details' }
+      )
+      break
+    case 'dispute_alert':
+      actions.push(
+        { action: 'resolve_dispute', title: 'Resolve Dispute' },
+        { action: 'contact_support', title: 'Contact Support' }
+      )
+      break
+  }
+
+  return actions
+}
+
+function handleNotificationPush(payload) {
+  const { title = 'Notification', body = '', icon = DEFAULT_ICON, badge, data = {}, actions } = payload
+
+  const notificationOptions = {
+    body,
+    icon,
+    badge: badge || icon || DEFAULT_ICON,
+    tag: data.notificationId || 'default',
+    requireInteraction: data.priority === 'urgent',
+    actions: actions || getNotificationActions(data.type),
+    data,
+    vibrate: data.priority === 'urgent' ? [200, 100, 200] : [200],
+    silent: data.priority === 'low'
+  }
+
+  return self.registration.showNotification(title, notificationOptions)
+}
+
+function handleDataPush(payload) {
+  console.log('Data push received:', payload)
+
+  if (payload.action === 'update_cache') {
+    updateCache(payload.data)
+  } else if (payload.action === 'sync_data') {
+    syncData(payload.data)
+  }
+}
+
+function updateCache(data) {
+  console.log('Updating cache with:', data)
+}
+
+function syncData(data) {
+  console.log('Syncing data:', data)
+}
+
 // Listen for push events and display notifications using payloads sent by the Render backend.
 self.addEventListener('push', (event) => {
   console.log('Push event received (backend):', event);
@@ -11,45 +94,15 @@ self.addEventListener('push', (event) => {
 
   try {
     const payload = event.data.json();
-    const { title = 'Notification', body = '', icon = DEFAULT_ICON, data = {}, actions = [] } = payload;
-
-    const notificationOptions = {
-      body,
-      icon,
-      badge: icon,
-      tag: data.notificationId || 'default',
-      actions: actions,
-      data,
-      requireInteraction: data.priority === 'urgent',
-      vibrate: data.priority === 'urgent' ? [200, 100, 200] : [200],
-      silent: data.priority === 'low'
-    };
-
-    event.waitUntil(self.registration.showNotification(title, notificationOptions));
+    event.waitUntil(
+      payload.type === 'data'
+        ? Promise.resolve(handleDataPush(payload))
+        : handleNotificationPush(payload)
+    );
   } catch (err) {
     console.error('Error handling push event:', err);
   }
 });
-
-messaging.onBackgroundMessage((payload) => {
-  console.log('Received background message:', payload)
-
-  const { notification = {}, data = {} } = payload
-
-  const notificationOptions = {
-    body: notification.body,
-    icon: notification.icon || DEFAULT_ICON,
-    badge: DEFAULT_ICON,
-    tag: data.notificationId || 'default',
-    requireInteraction: data.priority === 'urgent',
-    actions: getNotificationActions(data.type),
-    data,
-    vibrate: data.priority === 'urgent' ? [200, 100, 200] : [200],
-    silent: data.priority === 'low'
-  }
-
-  return self.registration.showNotification(notification.title, notificationOptions)
-})
 
 // Handle notification click
 self.addEventListener('notificationclick', (event) => {
@@ -64,7 +117,7 @@ self.addEventListener('notificationclick', (event) => {
   let targetUrl = '/'
   
   if (url) {
-    targetUrl = url
+    targetUrl = sanitizeAppUrl(url)
   } else {
     switch (type) {
       case 'order_update':
@@ -108,14 +161,14 @@ self.addEventListener('notificationclick', (event) => {
       // Check if app is already open
       for (const client of clientList) {
         if (client.url.includes(self.location.origin) && 'focus' in client) {
-          client.navigate(targetUrl)
+          client.navigate(sanitizeAppUrl(targetUrl))
           return client.focus()
         }
       }
       
       // Open new window if app is not open
       if (clients.openWindow) {
-        return clients.openWindow(targetUrl)
+        return clients.openWindow(sanitizeAppUrl(targetUrl))
       }
     })
   )
@@ -143,105 +196,6 @@ self.addEventListener('notificationclose', (event) => {
     })
   }
 })
-
-// Get notification actions based on type
-function getNotificationActions(type) {
-  const actions = []
-  
-  switch (type) {
-    case 'order_update':
-      actions.push(
-        { action: 'view_order', title: 'View Order' },
-        { action: 'track_order', title: 'Track Order' }
-      )
-      break
-    case 'payment_success':
-      actions.push(
-        { action: 'view_receipt', title: 'View Receipt' },
-        { action: 'continue_shopping', title: 'Continue Shopping' }
-      )
-      break
-    case 'shipment_update':
-      actions.push(
-        { action: 'track_shipment', title: 'Track Shipment' },
-        { action: 'view_details', title: 'View Details' }
-      )
-      break
-    case 'dispute_alert':
-      actions.push(
-        { action: 'resolve_dispute', title: 'Resolve Dispute' },
-        { action: 'contact_support', title: 'Contact Support' }
-      )
-      break
-  }
-  
-  return actions
-}
-
-// Handle push events
-self.addEventListener('push', (event) => {
-  console.log('Push event received:', event)
-
-  if (event.data) {
-    try {
-      const payload = event.data.json()
-      console.log('Push payload:', payload)
-      
-      // Handle different push types
-      if (payload.type === 'notification') {
-        handleNotificationPush(payload)
-      } else if (payload.type === 'data') {
-        handleDataPush(payload)
-      }
-    } catch (error) {
-      console.error('Error parsing push data:', error)
-    }
-  }
-})
-
-// Handle notification push
-function handleNotificationPush(payload) {
-  const { title, body, icon, badge, data = {}, actions } = payload
-  
-  const notificationOptions = {
-    body,
-    icon: icon || DEFAULT_ICON,
-    badge: badge || DEFAULT_ICON,
-    tag: data.notificationId || 'default',
-    requireInteraction: data.priority === 'urgent',
-    actions: actions || getNotificationActions(data.type),
-    data,
-    vibrate: data.priority === 'urgent' ? [200, 100, 200] : [200],
-    silent: data.priority === 'low'
-  }
-
-  return self.registration.showNotification(title, notificationOptions)
-}
-
-// Handle data push
-function handleDataPush(payload) {
-  // Handle silent data pushes
-  console.log('Data push received:', payload)
-  
-  // Update app state or cache
-  if (payload.action === 'update_cache') {
-    updateCache(payload.data)
-  } else if (payload.action === 'sync_data') {
-    syncData(payload.data)
-  }
-}
-
-// Update cache
-function updateCache(data) {
-  // Implementation for cache updates
-  console.log('Updating cache with:', data)
-}
-
-// Sync data
-function syncData(data) {
-  // Implementation for data synchronization
-  console.log('Syncing data:', data)
-}
 
 // Handle service worker updates
 self.addEventListener('message', (event) => {

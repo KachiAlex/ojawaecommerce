@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { orderWorkflowManager, ORDER_STATUS } from '../services/orderWorkflow'
-import firebaseService from '../services/firebaseService'
+import axios from 'axios'
 import { errorLogger } from '../utils/errorLogger'
-import { collection, query, where, onSnapshot } from 'firebase/firestore'
-import { db } from '../firebase/config'
+
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3000'
 
 export const useOrderManagement = (userId, userType = 'buyer') => {
   const [orders, setOrders] = useState([])
@@ -24,13 +24,11 @@ export const useOrderManagement = (userId, userType = 'buyer') => {
       setLoading(true)
       setError(null)
       
-      const ordersData = await firebaseService.orders.getByUserPaged({
-        userId,
-        userType,
-        pageSize: 50
+      const resp = await axios.get(`${API_BASE}/api/users/${userId}/orders`, {
+        params: { userType, pageSize: 50 }
       })
-      
-      setOrders(ordersData.items || [])
+      const ordersData = resp?.data || {}
+      setOrders(ordersData.items || ordersData || [])
     } catch (error) {
       errorLogger.error('Failed to fetch orders', error, { userId, userType })
       setError('Failed to load orders')
@@ -57,8 +55,8 @@ export const useOrderManagement = (userId, userType = 'buyer') => {
       
       // Update selected order if it's the one being updated
       if (selectedOrder && selectedOrder.id === orderId) {
-        const updatedOrder = await firebaseService.orders.getById(orderId)
-        setSelectedOrder(updatedOrder)
+        const resp = await axios.get(`${API_BASE}/api/orders/${orderId}`)
+        setSelectedOrder(resp?.data || null)
       }
       
       return result
@@ -268,51 +266,19 @@ export const useOrderManagement = (userId, userType = 'buyer') => {
   useEffect(() => {
     if (!userId) return undefined
 
-    const field = userType === 'buyer' ? 'buyerId' : 'vendorId'
-    const ordersRef = collection(db, 'orders')
-    const q = query(ordersRef, where(field, '==', userId))
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setOrders((current) => {
-        if (!Array.isArray(current) || current.length === 0) {
-          return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-        }
-
-        const updates = {}
-        snapshot.docChanges().forEach((change) => {
-          if (change.type === 'modified') {
-            updates[change.doc.id] = change.doc.data()
-          }
-        })
-
-        if (Object.keys(updates).length === 0) {
-          return current
-        }
-
-        return current.map((order) => {
-          if (!updates[order.id]) {
-            return order
-          }
-          const updated = updates[order.id]
-          const interestingFields = ['payoutStatus', 'payoutTotals', 'payoutRequestId', 'payoutStakeholders', 'vat']
-          const hasMeaningfulChange = interestingFields.some((fieldName) => {
-            const prevValue = order[fieldName]
-            const nextValue = updated[fieldName]
-            if (typeof prevValue === 'object' || typeof nextValue === 'object') {
-              return JSON.stringify(prevValue || null) !== JSON.stringify(nextValue || null)
-            }
-            return prevValue !== nextValue
-          })
-
-          return hasMeaningfulChange ? { ...order, ...updated } : order
-        })
-      })
-    }, (error) => {
-      console.warn('[useOrderManagement] Order listener error (graceful fallback):', error?.message)
-      setOrders([])
-    })
-
-    return () => unsubscribe()
+    // Polling fallback to simulate real-time updates (replaces Firestore onSnapshot)
+    if (!userId) return undefined
+    const intervalMs = 10000
+    const poll = async () => {
+      try {
+        await fetchOrders()
+      } catch (e) {
+        console.warn('[useOrderManagement] Polling error:', e?.message)
+      }
+    }
+    const timer = setInterval(poll, intervalMs)
+    // immediate fetch is handled elsewhere (fetchOrders on mount)
+    return () => clearInterval(timer)
   }, [userId, userType])
 
   return {

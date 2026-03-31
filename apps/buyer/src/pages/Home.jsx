@@ -11,8 +11,7 @@ import ProductQuickView from '../components/ProductQuickView';
 import { ProductListSkeleton, PageLoadingSkeleton } from '../components/LoadingStates';
 import { useAuth } from '../contexts/AuthContext';
 import { useRealTimeProducts } from '../hooks/useRealTimeProducts';
-import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '../firebase/config';
+// Removed unused Firestore imports (migration to REST-based services)
 
 const categories = [
   'Fashion',

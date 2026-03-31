@@ -1,5 +1,5 @@
-import { collection, addDoc } from 'firebase/firestore';
-import { db } from '../firebase/config';
+import axios from 'axios'
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3000'
 
 export const sampleProducts = [
   {
@@ -172,17 +172,15 @@ export const sampleCategories = [
 
 export const addSampleProducts = async () => {
   try {
-    const productsRef = collection(db, 'products');
-    
     for (const product of sampleProducts) {
-      await addDoc(productsRef, {
+      await axios.post(`${API_BASE}/api/products`, {
         ...product,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      });
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      })
     }
-    
-    console.log('Sample products added successfully!');
+
+    console.log('Sample products added successfully!')
   } catch (error) {
     console.error('Error adding sample products:', error);
     throw error;
@@ -191,17 +189,15 @@ export const addSampleProducts = async () => {
 
 export const addSampleCategories = async () => {
   try {
-    const categoriesRef = collection(db, 'categories');
-    
     for (const category of sampleCategories) {
-      await addDoc(categoriesRef, {
+      await axios.post(`${API_BASE}/api/categories`, {
         ...category,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      });
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      })
     }
-    
-    console.log('Sample categories added successfully!');
+
+    console.log('Sample categories added successfully!')
   } catch (error) {
     console.error('Error adding sample categories:', error);
     throw error;

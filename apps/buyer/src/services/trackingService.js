@@ -1,17 +1,6 @@
-import { 
-  collection, 
-  doc, 
-  addDoc, 
-  updateDoc, 
-  getDoc, 
-  getDocs, 
-  query, 
-  where, 
-  orderBy, 
-  serverTimestamp,
-  writeBatch
-} from 'firebase/firestore';
-import { db } from '../firebase/config';
+import axios from 'axios'
+
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3000'
 
 // ===============================
 // ID GENERATION UTILITIES
@@ -82,8 +71,8 @@ export const walletTrackingService = {
         balance: 0,
         currency: 'NGN',
         status: 'active',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
         // Additional tracking fields
         totalTransactions: 0,
         totalCredits: 0,
@@ -97,8 +86,11 @@ export const walletTrackingService = {
         throw new Error(`Wallet ID ${walletId} already exists`);
       }
       
-      const docRef = await addDoc(collection(db, 'wallets'), walletData);
-      return { id: docRef.id, walletId, ...walletData };
+      // Use REST endpoint to create wallet record while backend is migrated
+      const resp = await axios.post(`${API_BASE}/api/wallets`, {
+        ...walletData
+      })
+      return { id: resp?.data?.id || resp?.data?._id || null, walletId, ...walletData };
     } catch (error) {
       console.error('Error creating wallet with tracking:', error);
       throw error;
@@ -108,17 +100,11 @@ export const walletTrackingService = {
   // Get wallet by our custom tracking ID
   async getWalletByTrackingId(walletId) {
     try {
-      const q = query(
-        collection(db, 'wallets'),
-        where('walletId', '==', walletId)
-      );
-      
-      const snapshot = await getDocs(q);
-      if (!snapshot.empty) {
-        const walletDoc = snapshot.docs[0];
-        return { id: walletDoc.id, ...walletDoc.data() };
-      }
-      return null;
+      const resp = await axios.get(`${API_BASE}/api/wallets`, { params: { walletId } });
+      const wallets = resp?.data?.wallets || resp?.data || [];
+      const wallet = Array.isArray(wallets) ? wallets[0] : wallets;
+      if (!wallet) return null;
+      return { id: wallet.id || wallet._id || wallet.walletId, ...wallet };
     } catch (error) {
       console.error('Error fetching wallet by tracking ID:', error);
       throw error;
@@ -132,22 +118,14 @@ export const walletTrackingService = {
         console.error('Invalid user ID provided:', userId);
         return null;
       }
-
-      const q = query(
-        collection(db, 'wallets'),
-        where('userId', '==', userId)
-      );
-      
-      const snapshot = await getDocs(q);
-      if (!snapshot.empty) {
-        const walletDoc = snapshot.docs[0];
-        return { id: walletDoc.id, ...walletDoc.data() };
+      const resp = await axios.get(`${API_BASE}/api/wallets`, { params: { userId } });
+      const wallets = resp?.data?.wallets || resp?.data || [];
+      const wallet = Array.isArray(wallets) ? wallets[0] : wallets;
+      if (!wallet) {
+        console.log(`No wallet found for user ${userId}`);
+        return null;
       }
-      
-      // If no wallet found, return null instead of trying to create one
-      // Wallet creation should be handled explicitly during user registration
-      console.log(`No wallet found for user ${userId}`);
-      return null;
+      return { id: wallet.id || wallet._id || null, ...wallet };
     } catch (error) {
       console.error('Error fetching wallet by user ID:', error);
       return null; // Return null instead of throwing
@@ -161,11 +139,10 @@ export const walletTrackingService = {
       if (!wallet) {
         throw new Error('Wallet not found');
       }
-
       const updates = {
         totalTransactions: (wallet.totalTransactions || 0) + 1,
-        lastTransactionAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+        lastTransactionAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       };
 
       if (transactionType === 'credit') {
@@ -174,9 +151,14 @@ export const walletTrackingService = {
         updates.totalDebits = (wallet.totalDebits || 0) + amount;
       }
 
-      const walletRef = doc(db, 'wallets', wallet.id);
-      await updateDoc(walletRef, updates);
-      
+      // Update via REST
+      try {
+        await axios.put(`${API_BASE}/api/wallets/${wallet.id}`, updates);
+      } catch (error) {
+        // Try with _id fallback
+        await axios.put(`${API_BASE}/api/wallets/${wallet._id || wallet.id}`, updates).catch(() => {});
+      }
+
       return { ...wallet, ...updates };
     } catch (error) {
       console.error('Error updating wallet stats:', error);
@@ -202,13 +184,9 @@ export const productTrackingService = {
       // Fetch vendor email to ensure complete vendor reference
       let vendorEmail = productData.vendorEmail;
       try {
-        const vendorDoc = await getDoc(doc(db, 'users', vendorId));
-        if (vendorDoc.exists()) {
-          const vendorData = vendorDoc.data();
-          vendorEmail = vendorEmail || vendorData.email || null;
-        } else {
-          throw new Error(`Vendor with ID ${vendorId} does not exist`);
-        }
+        const vRes = await axios.get(`${API_BASE}/api/users/${vendorId}`);
+        const vendorData = vRes?.data || {};
+        vendorEmail = vendorEmail || vendorData.email || null;
       } catch (vendorError) {
         console.error('Error fetching vendor email for tracking:', vendorError);
         throw new Error(`Invalid vendorId: ${vendorId}. Vendor not found in users collection.`);
@@ -217,23 +195,15 @@ export const productTrackingService = {
       // Check for duplicate products (same name from same vendor)
       if (productData.name) {
         try {
-          const productsRef = collection(db, 'products');
-          const duplicateQuery = query(
-            productsRef,
-            where('vendorId', '==', vendorId),
-            where('name', '==', productData.name.trim())
-          );
-          const duplicateSnapshot = await getDocs(duplicateQuery);
-          
-          if (!duplicateSnapshot.empty) {
+          const dupRes = await axios.get(`${API_BASE}/api/products`, { params: { vendorId, name: productData.name.trim() } });
+          const dupProducts = dupRes?.data?.products || dupRes?.data || [];
+          if (Array.isArray(dupProducts) && dupProducts.length > 0) {
             throw new Error(`A product with the name "${productData.name}" already exists. Please use a different name or edit the existing product.`);
           }
         } catch (duplicateError) {
-          // If it's our custom duplicate error, throw it
-          if (duplicateError.message.includes('already exists')) {
+          if (duplicateError.message && duplicateError.message.includes('already exists')) {
             throw duplicateError;
           }
-          // Otherwise, log and continue (query might have failed for other reasons)
           console.warn('Error checking for duplicate products:', duplicateError);
         }
       }
@@ -244,8 +214,8 @@ export const productTrackingService = {
         vendorId, // Always required - primary reference
         vendorEmail: vendorEmail || productData.vendorEmail || null, // Secondary reference for queries
         storeId, // Optional store assignment
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
         // Additional tracking fields
         viewCount: 0,
         orderCount: 0,
@@ -260,8 +230,9 @@ export const productTrackingService = {
         throw new Error(`Product tracking number ${trackingNumber} already exists`);
       }
 
-      const docRef = await addDoc(collection(db, 'products'), productPayload);
-      return { id: docRef.id, trackingNumber, ...productPayload };
+      const createRes = await axios.post(`${API_BASE}/api/products`, productPayload);
+      const created = createRes?.data || {};
+      return { id: created.id || created._id || null, trackingNumber, ...productPayload };
     } catch (error) {
       console.error('Error creating product with tracking:', error);
       throw error;
@@ -271,17 +242,11 @@ export const productTrackingService = {
   // Get product by tracking number
   async getProductByTrackingNumber(trackingNumber) {
     try {
-      const q = query(
-        collection(db, 'products'),
-        where('trackingNumber', '==', trackingNumber)
-      );
-      
-      const snapshot = await getDocs(q);
-      if (!snapshot.empty) {
-        const productDoc = snapshot.docs[0];
-        return { id: productDoc.id, ...productDoc.data() };
-      }
-      return null;
+      const resp = await axios.get(`${API_BASE}/api/products`, { params: { trackingNumber } });
+      const products = resp?.data?.products || resp?.data || [];
+      const prod = Array.isArray(products) ? products[0] : products;
+      if (!prod) return null;
+      return { id: prod.id || prod._id || null, ...prod };
     } catch (error) {
       console.error('Error fetching product by tracking number:', error);
       throw error;
@@ -291,17 +256,11 @@ export const productTrackingService = {
   // Update product tracking statistics
   async updateProductStats(productId, action, data = {}) {
     try {
-      const productRef = doc(db, 'products', productId);
-      const productSnap = await getDoc(productRef);
-      
-      if (!productSnap.exists()) {
-        throw new Error('Product not found');
-      }
-
-      const currentData = productSnap.data();
-      const updates = {
-        updatedAt: serverTimestamp()
-      };
+      // Fetch current product via REST
+      const pRes = await axios.get(`${API_BASE}/api/products/${productId}`);
+      const currentData = pRes?.data || null;
+      if (!currentData) throw new Error('Product not found');
+      const updates = { updatedAt: new Date().toISOString() };
 
       switch (action) {
         case 'view':
@@ -310,7 +269,7 @@ export const productTrackingService = {
         case 'order':
           updates.orderCount = (currentData.orderCount || 0) + 1;
           updates.totalRevenue = (currentData.totalRevenue || 0) + (data.amount || 0);
-          updates.lastOrderedAt = serverTimestamp();
+          updates.lastOrderedAt = new Date().toISOString();
           break;
         case 'stock_update':
           updates.stock = data.stock;
@@ -318,7 +277,9 @@ export const productTrackingService = {
           break;
       }
 
-      await updateDoc(productRef, updates);
+      await axios.put(`${API_BASE}/api/products/${productId}`, updates).catch(async () => {
+        await axios.put(`${API_BASE}/api/products/${productId}`, updates).catch(() => {});
+      });
       return { ...currentData, ...updates };
     } catch (error) {
       console.error('Error updating product stats:', error);
@@ -369,8 +330,8 @@ export const storeService = {
           ...storeData.settings
         },
         shareableLink: storeLink,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
         // Tracking fields
         totalProducts: 0,
         totalOrders: 0,
@@ -386,8 +347,9 @@ export const storeService = {
         throw new Error(`Store ID ${storeId} already exists`);
       }
 
-      const docRef = await addDoc(collection(db, 'stores'), storePayload);
-      return { id: docRef.id, storeId, shareableLink: storeLink, ...storePayload };
+      const res = await axios.post(`${API_BASE}/api/stores`, storePayload);
+      const created = res?.data || {};
+      return { id: created.id || created._id || null, storeId, shareableLink: storeLink, ...storePayload };
     } catch (error) {
       console.error('Error creating store:', error);
       throw error;
@@ -403,17 +365,10 @@ export const storeService = {
   // Get store by tracking ID
   async getStoreByTrackingId(storeId) {
     try {
-      const q = query(
-        collection(db, 'stores'),
-        where('storeId', '==', storeId)
-      );
-      
-      const snapshot = await getDocs(q);
-      if (!snapshot.empty) {
-        const storeDoc = snapshot.docs[0];
-        return { id: storeDoc.id, ...storeDoc.data() };
-      }
-      return null;
+      const resp = await axios.get(`${API_BASE}/api/stores`, { params: { storeId } });
+      const stores = resp?.data?.stores || resp?.data || [];
+      const store = Array.isArray(stores) ? stores[0] : stores;
+      return store ? { id: store.id || store._id || null, ...store } : null;
     } catch (error) {
       console.error('Error fetching store by tracking ID:', error);
       throw error;
@@ -423,14 +378,8 @@ export const storeService = {
   // Get stores by vendor ID
   async getStoresByVendor(vendorId) {
     try {
-      const q = query(
-        collection(db, 'stores'),
-        where('vendorId', '==', vendorId),
-        orderBy('createdAt', 'desc')
-      );
-      
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const resp = await axios.get(`${API_BASE}/api/stores`, { params: { vendorId, orderBy: 'createdAt', orderDirection: 'desc' } })
+      return resp?.data?.stores || resp?.data || []
     } catch (error) {
       console.error('Error fetching stores by vendor:', error);
       throw error;
@@ -440,18 +389,14 @@ export const storeService = {
   // Get store by slug (store name converted to slug)
   async getStoreBySlug(storeSlug) {
     try {
-      const q = query(collection(db, 'stores'));
-      const snapshot = await getDocs(q);
-      
-      for (const doc of snapshot.docs) {
-        const store = { id: doc.id, ...doc.data() };
+      const resp = await axios.get(`${API_BASE}/api/stores`)
+      const stores = resp?.data?.stores || resp?.data || []
+      for (const store of stores) {
         const storeName = store.name || store.storeName || '';
         const slug = storeName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
-        if (slug === storeSlug) {
-          return store;
-        }
+        if (slug === storeSlug) return store;
       }
-      return null;
+      return null
     } catch (error) {
       console.error('Error fetching store by slug:', error);
       throw error;
@@ -462,30 +407,14 @@ export const storeService = {
   async updateStoreStats(storeId, action, data = {}) {
     try {
       const store = await this.getStoreByTrackingId(storeId);
-      if (!store) {
-        throw new Error('Store not found');
-      }
-
-      const updates = {
-        updatedAt: serverTimestamp()
-      };
-
+      if (!store) throw new Error('Store not found');
+      const updates = { updatedAt: new Date().toISOString() };
       switch (action) {
-        case 'product_added':
-          updates.totalProducts = (store.totalProducts || 0) + 1;
-          break;
-        case 'product_removed':
-          updates.totalProducts = Math.max((store.totalProducts || 0) - 1, 0);
-          break;
-        case 'order_completed':
-          updates.totalOrders = (store.totalOrders || 0) + 1;
-          updates.totalRevenue = (store.totalRevenue || 0) + (data.amount || 0);
-          break;
+        case 'product_added': updates.totalProducts = (store.totalProducts || 0) + 1; break;
+        case 'product_removed': updates.totalProducts = Math.max((store.totalProducts || 0) - 1, 0); break;
+        case 'order_completed': updates.totalOrders = (store.totalOrders || 0) + 1; updates.totalRevenue = (store.totalRevenue || 0) + (data.amount || 0); break;
       }
-
-      const storeRef = doc(db, 'stores', store.id);
-      await updateDoc(storeRef, updates);
-      
+      await axios.put(`${API_BASE}/api/stores/${store.id}`, updates)
       return { ...store, ...updates };
     } catch (error) {
       console.error('Error updating store stats:', error);
@@ -496,27 +425,13 @@ export const storeService = {
   // Assign product to store
   async assignProductToStore(productId, storeId) {
     try {
-      const batch = writeBatch(db);
-      
-      // Update product with store assignment
-      const productRef = doc(db, 'products', productId);
-      batch.update(productRef, {
-        storeId,
-        updatedAt: serverTimestamp()
-      });
-
-      // Update store product count
-      const store = await this.getStoreByTrackingId(storeId);
+      // Update product assignment via REST API
+      await axios.put(`${API_BASE}/api/products/${productId}`, { storeId, updatedAt: new Date().toISOString() })
+      const store = await this.getStoreByTrackingId(storeId)
       if (store) {
-        const storeRef = doc(db, 'stores', store.id);
-        batch.update(storeRef, {
-          totalProducts: (store.totalProducts || 0) + 1,
-          updatedAt: serverTimestamp()
-        });
+        await axios.put(`${API_BASE}/api/stores/${store.id}`, { totalProducts: (store.totalProducts || 0) + 1, updatedAt: new Date().toISOString() })
       }
-
-      await batch.commit();
-      return true;
+      return true
     } catch (error) {
       console.error('Error assigning product to store:', error);
       throw error;
@@ -526,16 +441,8 @@ export const storeService = {
   // Get products by store
   async getProductsByStore(storeId, limit = 50) {
     try {
-      const q = query(
-        collection(db, 'products'),
-        where('storeId', '==', storeId),
-        where('isActive', '==', true),
-        orderBy('createdAt', 'desc'),
-        limit(limit)
-      );
-      
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const resp = await axios.get(`${API_BASE}/api/products`, { params: { storeId, isActive: true, orderBy: 'createdAt', orderDirection: 'desc', limit } })
+      return resp?.data?.products || resp?.data || []
     } catch (error) {
       console.error('Error fetching products by store:', error);
       throw error;
@@ -556,8 +463,8 @@ export const orderTrackingService = {
       const orderPayload = {
         ...orderData,
         trackingNumber, // Our custom tracking number
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
         // Additional tracking fields
         status: 'pending',
         paymentStatus: 'pending',
@@ -570,8 +477,9 @@ export const orderTrackingService = {
         throw new Error(`Order tracking number ${trackingNumber} already exists`);
       }
 
-      const docRef = await addDoc(collection(db, 'orders'), orderPayload);
-      return { id: docRef.id, trackingNumber, ...orderPayload };
+      const resp = await axios.post(`${API_BASE}/api/orders`, orderPayload);
+      const created = resp?.data || {};
+      return { id: created.id || created._id || null, trackingNumber, ...orderPayload };
     } catch (error) {
       console.error('Error creating order with tracking:', error);
       throw error;
@@ -581,17 +489,10 @@ export const orderTrackingService = {
   // Get order by tracking number
   async getOrderByTrackingNumber(trackingNumber) {
     try {
-      const q = query(
-        collection(db, 'orders'),
-        where('trackingNumber', '==', trackingNumber)
-      );
-      
-      const snapshot = await getDocs(q);
-      if (!snapshot.empty) {
-        const orderDoc = snapshot.docs[0];
-        return { id: orderDoc.id, ...orderDoc.data() };
-      }
-      return null;
+      const resp = await axios.get(`${API_BASE}/api/orders`, { params: { trackingNumber } });
+      const orders = resp?.data?.orders || resp?.data || [];
+      const order = Array.isArray(orders) ? orders[0] : orders;
+      return order ? { id: order.id || order._id || null, ...order } : null;
     } catch (error) {
       console.error('Error fetching order by tracking number:', error);
       throw error;
@@ -601,11 +502,10 @@ export const orderTrackingService = {
   // Update order status
   async updateOrderStatus(orderId, status, additionalData = {}) {
     try {
-      const orderRef = doc(db, 'orders', orderId);
-      await updateDoc(orderRef, {
+      await axios.put(`${API_BASE}/api/orders/${orderId}`, {
         status,
         ...additionalData,
-        updatedAt: serverTimestamp()
+        updatedAt: new Date().toISOString()
       });
       
       return true;

@@ -3,8 +3,10 @@
  * Handles delivery fee calculations with dynamic pricing and partner integration
  */
 
-import { collection, doc, getDocs, query, where, addDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import axios from 'axios'
 import { db } from '../firebase/config';
+
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3000'
 
 class LogisticsPricingService {
   constructor() {
@@ -362,57 +364,40 @@ class LogisticsPricingService {
   async getLogisticsPartner(preferredPartner, zone) {
     try {
       if (preferredPartner) {
-        const partnerDoc = await getDocs(query(
-          collection(db, 'logisticsPartners'),
-          where('id', '==', preferredPartner)
-        ));
-        if (!partnerDoc.empty) {
-          const partner = partnerDoc.docs[0].data();
-          return { id: partner.id, name: partner.name, rating: partner.rating || 4.0 };
+        try {
+          const resp = await axios.get(`${API_BASE}/api/logisticsPartners`, { params: { id: preferredPartner } })
+          const partners = resp?.data?.partners || resp?.data || []
+          if (partners.length > 0) return { id: partners[0].id, name: partners[0].name, rating: partners[0].rating || 4.0 }
+        } catch (e) {
+          console.warn('Preferred partner lookup failed:', e)
         }
       }
 
-      // First try legacy logisticsPartners collection filtered by zone
+      // Query legacy partners by zone via REST
       try {
-        const partnersQuery = query(
-          collection(db, 'logisticsPartners'),
-          where('isActive', '==', true),
-          where('zones', 'array-contains', zone)
-        );
-        const partnersSnapshot = await getDocs(partnersQuery);
-        if (!partnersSnapshot.empty) {
-          const partners = partnersSnapshot.docs.map(doc => doc.data());
-          const bestPartner = partners.reduce((best, current) =>
-            (current.rating || 0) > (best.rating || 0) ? current : best
-          );
-          return { id: bestPartner.id, name: bestPartner.name, rating: bestPartner.rating || 4.0 };
+        const resp = await axios.get(`${API_BASE}/api/logisticsPartners`, { params: { isActive: true, zone } })
+        const partners = resp?.data?.partners || resp?.data || []
+        if (partners.length > 0) {
+          const best = partners.reduce((best, cur) => (cur.rating || 0) > (best.rating || 0) ? cur : best)
+          return { id: best.id, name: best.name, rating: best.rating || 4.0 }
         }
-      } catch (error) {
-        console.warn('Failed to query legacy logistics partners:', error)
+      } catch (e) {
+        console.warn('Failed to query legacy logistics partners:', e)
       }
 
-      // Fallback: use logistics_companies (status == 'active'), prefer highest rating
+      // Fallback to logistics companies
       try {
-        const companiesSnapshot = await getDocs(
-          query(
-            collection(db, 'logistics_companies'),
-            where('status', '==', 'active')
-          )
-        );
-        if (!companiesSnapshot.empty) {
-          const companies = companiesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-          // Optionally filter by zone if company defines zones
-          const filtered = companies.filter(c => Array.isArray(c.zones) ? c.zones.includes(zone) : true);
-          const best = (filtered.length ? filtered : companies).reduce((best, current) =>
-            (current.rating || 0) > (best.rating || 0) ? current : best
-          );
-          return { id: best.id, name: best.name || best.companyName || 'Logistics Partner', rating: best.rating || 4.0 };
+        const resp2 = await axios.get(`${API_BASE}/api/logistics_companies`, { params: { status: 'active', zone } })
+        const companies = resp2?.data?.companies || resp2?.data || []
+        if (companies.length > 0) {
+          const filtered = companies.filter(c => Array.isArray(c.zones) ? c.zones.includes(zone) : true)
+          const best = (filtered.length ? filtered : companies).reduce((best, cur) => (cur.rating || 0) > (best.rating || 0) ? cur : best)
+          return { id: best.id, name: best.name || best.companyName || 'Logistics Partner', rating: best.rating || 4.0 }
         }
-      } catch (error) {
-        console.warn('Failed to query logistics companies:', error)
+      } catch (e) {
+        console.warn('Failed to query logistics companies:', e)
       }
 
-      // No partner available
       return null;
 
     } catch (error) {
@@ -429,34 +414,21 @@ class LogisticsPricingService {
       const zone = this.determineZone(pickup, dropoff);
       const partners = [];
 
-      // legacy collection filtered by zone
       try {
-        const partnersQuery = query(
-          collection(db, 'logisticsPartners'),
-          where('isActive', '==', true),
-          where('zones', 'array-contains', zone)
-        );
-        const snapshot = await getDocs(partnersQuery);
-        snapshot.forEach(docSnap => {
-          const p = docSnap.data();
-          partners.push({ id: p.id, name: p.name, rating: p.rating || 0, zones: p.zones || [] });
-        });
+        const resp = await axios.get(`${API_BASE}/api/logisticsPartners`, { params: { isActive: true, zone } })
+        const list = resp?.data?.partners || resp?.data || []
+        list.forEach(p => partners.push({ id: p.id, name: p.name, rating: p.rating || 0, zones: p.zones || [] }))
       } catch (error) {
         console.warn('Failed to collect zone-based partners:', error)
       }
 
-      // add from logistics_companies (status active)
       try {
-        const companiesSnapshot = await getDocs(
-          query(collection(db, 'logistics_companies'), where('status', '==', 'active'))
-        );
-        companiesSnapshot.forEach(docSnap => {
-          const c = { id: docSnap.id, ...docSnap.data() };
-          const inZone = Array.isArray(c.zones) ? c.zones.includes(zone) : true;
-          if (inZone) {
-            partners.push({ id: c.id, name: c.name || c.companyName || 'Logistics Partner', rating: c.rating || 0, zones: c.zones || [] });
-          }
-        });
+        const resp2 = await axios.get(`${API_BASE}/api/logistics_companies`, { params: { status: 'active', zone } })
+        const companies = resp2?.data?.companies || resp2?.data || []
+        companies.forEach(c => {
+          const inZone = Array.isArray(c.zones) ? c.zones.includes(zone) : true
+          if (inZone) partners.push({ id: c.id, name: c.name || c.companyName || 'Logistics Partner', rating: c.rating || 0, zones: c.zones || [] })
+        })
       } catch (error) {
         console.warn('Failed to collect logistics companies:', error)
       }

@@ -1,6 +1,5 @@
 // Email Notifications Service
-import { collection, addDoc, serverTimestamp, query, where, getDocs, orderBy, limit as fsLimit } from 'firebase/firestore';
-import { db } from '../firebase/config';
+import firebaseService from './firebaseService';
 
 class EmailService {
   // Send email notification
@@ -9,16 +8,23 @@ class EmailService {
       const emailRecord = {
         ...notificationData,
         status: 'pending',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       };
 
-      const docRef = await addDoc(collection(db, 'email_queue'), emailRecord);
-      
-      // Trigger email sending (this would be handled by a Cloud Function)
-      await this.triggerEmailSending(docRef.id, emailRecord);
-      
-      return docRef.id;
+      const res = await fetch('/api/email-queue', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(emailRecord)
+      });
+      if (!res.ok) throw new Error('Failed to enqueue email');
+      const payload = await res.json();
+
+      // Trigger email sending (this would be handled by a backend worker)
+      await this.triggerEmailSending(payload.id, emailRecord);
+
+      return payload.id;
     } catch (error) {
       console.error('Error sending email:', error);
       throw error;
@@ -190,15 +196,11 @@ class EmailService {
   // Get email history for user
   async getEmailHistory(userId, limit = 50) {
     try {
-      const q = query(
-        collection(db, 'email_queue'),
-        where('userId', '==', userId),
-        orderBy('createdAt', 'desc'),
-        fsLimit(limit)
-      );
-      
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const params = new URLSearchParams({ limit }).toString();
+      const res = await fetch(`/api/users/${encodeURIComponent(userId)}/emails?${params}`, { credentials: 'include' });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.items || [];
     } catch (error) {
       console.error('Error fetching email history:', error);
       return [];
@@ -208,13 +210,11 @@ class EmailService {
   // Update email status
   async updateEmailStatus(emailId, status, error = null) {
     try {
-      const { doc, updateDoc } = await import('firebase/firestore');
-      const emailRef = doc(db, 'email_queue', emailId);
-      
-      await updateDoc(emailRef, {
-        status,
-        error: error || null,
-        updatedAt: serverTimestamp()
+      await fetch(`/api/email-queue/${encodeURIComponent(emailId)}/status`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status, error: error || null, updatedAt: new Date().toISOString() })
       });
     } catch (error) {
       console.error('Error updating email status:', error);

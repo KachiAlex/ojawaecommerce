@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { storage } from '../firebase/config';
+import firebaseService from '../services/firebaseService';
 
 const LogoUpload = () => {
   const [logoFile, setLogoFile] = useState(null);
@@ -19,20 +18,12 @@ const LogoUpload = () => {
 
     try {
       setUploading(true);
-      
-      // Create a reference to the logo file
-      const logoRef = ref(storage, `logos/ojawa-logo-${Date.now()}.${logoFile.name.split('.').pop()}`);
-      
-      // Upload the file
-      const snapshot = await uploadBytes(logoRef, logoFile);
-      
-      // Get the download URL
-      const downloadURL = await getDownloadURL(snapshot.ref);
-      
+      // Upload via REST endpoint
+      const result = await firebaseService.upload.uploadLogo(logoFile);
+      const downloadURL = result?.url || result?.downloadUrl || null;
+      if (!downloadURL) throw new Error('Upload did not return a URL');
       setLogoUrl(downloadURL);
       console.log('✅ Logo uploaded successfully:', downloadURL);
-      
-      // Copy to clipboard for easy use
       navigator.clipboard.writeText(downloadURL);
       alert('Logo uploaded! URL copied to clipboard.');
       

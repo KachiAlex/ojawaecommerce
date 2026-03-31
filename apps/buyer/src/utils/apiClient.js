@@ -18,6 +18,7 @@ export const buildApiUrl = (path) => {
 export const apiPost = async (path, payload, { token, headers = {} } = {}) => {
   const response = await fetch(buildApiUrl(path), {
     method: 'POST',
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -36,9 +37,11 @@ export const apiPost = async (path, payload, { token, headers = {} } = {}) => {
 };
 
 export const apiPostWithAuth = async (path, payload, user, options = {}) => {
-  if (!user?.getIdToken) {
-    throw new Error('Authenticated user is required');
+  if (user?.getIdToken) {
+    const token = await user.getIdToken();
+    return apiPost(path, payload, { ...options, token });
   }
-  const token = await user.getIdToken();
-  return apiPost(path, payload, { ...options, token });
+
+  // Session-backed auth is the default after the backend migration.
+  return apiPost(path, payload, options);
 };

@@ -174,7 +174,7 @@ const HomeOjawa = () => {
     computing: ["computing", "laptop", "computer"],
   };
 
-  // Fetch products from Firestore
+  // Fetch products from REST backend
   const fetchProducts = async () => {
     try {
       if (testModeEnabled) {
@@ -190,171 +190,53 @@ const HomeOjawa = () => {
         setIsLoading(false);
         return;
       }
+
       setIsLoading(true);
-      console.log('[HomeOjawa] Fetching products...');
-      const q = query(collection(db, "products"), limit(200));
-      const snapshot = await getDocs(q);
-      console.log('[HomeOjawa] Raw snapshot size:', snapshot.size);
+      console.log('[HomeOjawa] Fetching products via REST...');
+      const raw = await firebaseService.product.getAll({ limit: 200 });
 
-      const processedProducts = snapshot.docs
-        .map((doc) => {
-          const data = doc.data();
-          let images = [];
-          if (
-            data.images &&
-            Array.isArray(data.images) &&
-            data.images.length > 0
-          ) {
-            images = data.images.filter(
-              (img) =>
-                img &&
-                typeof img === "string" &&
-                img.trim() !== "" &&
-                img !== "undefined",
-            );
+      const processedProducts = (raw || []).map((data) => {
+        const images = Array.isArray(data.images) ? data.images.filter(Boolean) : [];
+        const imageFields = ['image','imageUrl','imageURL','photo','photoUrl','thumbnail'];
+        for (const field of imageFields) {
+          if (data[field] && typeof data[field] === 'string' && data[field].trim() !== '') {
+            if (!images.includes(data[field])) images.unshift(data[field]);
           }
-
-          const imageFields = [
-            "image",
-            "imageUrl",
-            "imageURL",
-            "photo",
-            "photoUrl",
-            "thumbnail",
-          ];
-          for (const field of imageFields) {
-            if (
-              data[field] &&
-              typeof data[field] === "string" &&
-              data[field].trim() !== ""
-            ) {
-              if (!images.includes(data[field])) {
-                images.unshift(data[field]);
-              }
-            }
-          }
-
-          const productData = {
-            id: doc.id,
-            ...data,
-            name: data.name || "Unnamed Product",
-            price: parseFloat(data.price) || 0,
-            originalPrice: parseFloat(data.originalPrice) || null,
-            category: data.category || "Uncategorized",
-            images: images,
-            image: images.length > 0 ? images[0] : null,
-            thumbnail: data.thumbnail || null,
-            thumbnails: data.thumbnails || null,
-          };
-
-          let thumbnailUrl = null;
-          if (
-            productData.thumbnail &&
-            typeof productData.thumbnail === "string" &&
-            productData.thumbnail.trim() !== ""
-          ) {
-            thumbnailUrl = productData.thumbnail;
-          } else if (
-            productData.thumbnails &&
-            Array.isArray(productData.thumbnails) &&
-            productData.thumbnails.length > 0
-          ) {
-            thumbnailUrl = productData.thumbnails[0];
-          } else {
-            thumbnailUrl = getPrimaryImage(productData, false);
-          }
-
-          return {
-            ...productData,
-            image: thumbnailUrl || productData.image,
-            rating: data.rating || 4.5,
-            reviewCount: data.reviewCount || 0,
-            stock: data.stock || 0,
-            isVerified: data.isVerified || false,
-            createdAt: data.createdAt?.toDate
-              ? data.createdAt.toDate()
-              : data.createdAt || new Date(),
-          };
-        });
-
-      console.log('[HomeOjawa] Processed products before filtering:', processedProducts.length);
+        }
+        const thumbnail = data.thumbnail || (Array.isArray(data.thumbnails) && data.thumbnails[0]) || getPrimaryImage(data, false) || (images[0] || null);
+        return {
+          id: data.id || data._id || null,
+          ...data,
+          images,
+          image: thumbnail || (images[0] || null),
+          thumbnails: data.thumbnails || [],
+          rating: data.rating || 4.5,
+          reviewCount: data.reviewCount || 0,
+          stock: data.stock || 0,
+          isVerified: data.isVerified || false,
+          createdAt: data.createdAt ? new Date(data.createdAt) : new Date()
+        };
+      });
 
       const filteredProducts = processedProducts
         .filter((product) => {
-          const status = typeof product.status === 'string'
-            ? product.status.toLowerCase()
-            : 'active';
-          const explicitlyInactive = product.isActive === false ||
-            status === 'inactive' ||
-            status === 'archived' ||
-            status === 'suspended';
+          const status = typeof product.status === 'string' ? product.status.toLowerCase() : 'active';
+          const explicitlyInactive = product.isActive === false || ['inactive','archived','suspended'].includes(status);
           return !explicitlyInactive;
         })
-        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-        .slice(0, 100);
+        .sort((a,b)=> new Date(b.createdAt) - new Date(a.createdAt))
+        .slice(0,100);
 
-      console.log('[HomeOjawa] Products after filter:', {
-        totalVisible: filteredProducts.length,
-        filteredOut: processedProducts.length - filteredProducts.length
-      });
-
-      const allProducts = filteredProducts;
-
-      // Store all products
-      setAllProducts(allProducts);
-      console.log('[HomeOjawa] Stored products:', allProducts.length);
-
-      // Extract unique categories
-      const uniqueCategories = [...new Set(allProducts.map(p => p.category).filter(Boolean))].sort();
-      setCategories(uniqueCategories);
-
-      // Set flash sale products (products with discounts)
-      const discountedProducts = allProducts
-        .filter((p) => p.originalPrice && p.originalPrice > p.price)
-        .sort((a, b) => {
-          const discountA =
-            ((a.originalPrice - a.price) / a.originalPrice) * 100;
-          const discountB =
-            ((b.originalPrice - b.price) / b.originalPrice) * 100;
-          return discountB - discountA;
-        })
-        .slice(0, 12);
+      setAllProducts(filteredProducts);
+      setCategories([...new Set(filteredProducts.map(p => p.category).filter(Boolean))].sort());
+      const discountedProducts = filteredProducts.filter(p => p.originalPrice && p.originalPrice > p.price).sort((a,b)=> (((b.originalPrice - b.price)/b.originalPrice) - ((a.originalPrice - a.price)/a.originalPrice))).slice(0,12);
       setFlashSaleProducts(discountedProducts);
-
-      // Set top sellers (products with highest ratings/reviews)
-      const topRated = [...allProducts]
-        .sort((a, b) => {
-          const scoreA = (a.rating || 0) * (a.reviewCount || 0);
-          const scoreB = (b.rating || 0) * (b.reviewCount || 0);
-          return scoreB - scoreA;
-        })
-        .slice(0, 12);
-      setTopSellers(topRated);
-
-      // Group products by category
+      setTopSellers([...filteredProducts].sort((a,b)=> ((b.rating||0)*(b.reviewCount||0)) - ((a.rating||0)*(a.reviewCount||0))).slice(0,12));
       const categoryMapResult = {};
-      Object.keys(categoryMap).forEach((catKey) => {
-        categoryMapResult[catKey] = allProducts
-          .filter((p) => {
-            const categoryLower = (p.category || "").toLowerCase();
-            const nameLower = (p.name || "").toLowerCase();
-            const descriptionLower = (p.description || "").toLowerCase();
-            
-            // Check if any keyword matches in category, name, or description
-            return categoryMap[catKey].some((keyword) => {
-              const keywordLower = keyword.toLowerCase();
-              return (
-                categoryLower.includes(keywordLower) ||
-                nameLower.includes(keywordLower) ||
-                descriptionLower.includes(keywordLower)
-              );
-            });
-          })
-          .slice(0, 12);
-      });
+      Object.keys(categoryMap).forEach(catKey => { categoryMapResult[catKey] = filteredProducts.filter(p=> { const categoryLower=(p.category||'').toLowerCase(); const nameLower=(p.name||'').toLowerCase(); const descriptionLower=(p.description||'').toLowerCase(); return categoryMap[catKey].some(k=> { const kk=k.toLowerCase(); return categoryLower.includes(kk)||nameLower.includes(kk)||descriptionLower.includes(kk); }); }).slice(0,12); });
       setCategoryProducts(categoryMapResult);
     } catch (error) {
-      console.error("Error fetching products:", error);
+      console.error('Error fetching products:', error);
     } finally {
       setIsLoading(false);
     }

@@ -3,8 +3,9 @@
  * Handles automatic cleanup and archival of logs based on retention policies
  */
 
-const admin = require('firebase-admin');
-const db = admin.firestore();
+// Firebase removed: logRetention now uses REST backend
+// TODO: Replace db and storage operations with REST API/backend DB calls
+// const db = ...
 
 // Default retention policies (in days)
 const RETENTION_POLICIES = {
@@ -33,45 +34,17 @@ class LogRetentionManager {
 
     for (const [collection, retentionDays] of Object.entries(RETENTION_POLICIES)) {
       try {
-        const cutoffDate = new Date();
-        cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
-
-        const snapshot = await db.collection(collection)
-          .where('timestamp', '<', cutoffDate)
-          .limit(1000) // Process in batches
-          .get();
-
-        if (snapshot.empty) {
-          results.cleaned[collection] = 0;
-          continue;
-        }
-
-        // Delete logs in batch
-        const batch = db.batch();
-        let count = 0;
-
-        snapshot.docs.forEach((doc) => {
-          batch.delete(doc.ref);
-          count++;
-        });
-
-        await batch.commit();
-        results.cleaned[collection] = count;
-
-        console.log(`Cleaned ${count} documents from ${collection}`);
+        // TODO: Replace with backend DB logic for cleaning up expired logs
+        // Example: await fetch('https://your-backend/logs/cleanup', { method: 'POST', body: JSON.stringify({ collection, retentionDays }) })
+        results.cleaned[collection] = 0; // Placeholder
       } catch (error) {
         results.failed[collection] = error.message;
         console.error(`Failed to clean ${collection}:`, error.message);
       }
     }
 
-    // Log cleanup activity
-    await db.collection('admin_audit_logs').add({
-      event: 'LOG_CLEANUP',
-      details: results,
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
-      severity: 'info',
-    });
+    // TODO: Log cleanup activity in backend DB or via REST API
+    // Example: await fetch('https://your-backend/admin-audit-logs', { method: 'POST', body: JSON.stringify({ event: 'LOG_CLEANUP', details: results, timestamp: new Date().toISOString(), severity: 'info' }) })
 
     return results;
   }
@@ -81,38 +54,9 @@ class LogRetentionManager {
    */
   static async archiveOldLogs(collection, retentionDays = 90) {
     try {
-      const bucket = admin.storage().bucket(ARCHIVE_BUCKET);
-      const cutoffDate = new Date();
-      cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
-
-      const snapshot = await db.collection(collection)
-        .where('timestamp', '<', cutoffDate)
-        .orderBy('timestamp')
-        .limit(10000)
-        .get();
-
-      if (snapshot.empty) {
-        return { archived: 0, failed: 0 };
-      }
-
-      // Convert to JSONL format for efficient archival
-      const logs = snapshot.docs.map(doc => JSON.stringify({
-        id: doc.id,
-        ...doc.data(),
-      })).join('\n');
-
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const filename = `${collection}/${cutoffDate.getFullYear()}-${cutoffDate.getMonth() + 1}/${timestamp}.jsonl`;
-      
-      await bucket.file(filename).save(logs);
-
-      console.log(`Archived ${snapshot.size} documents to gs://${ARCHIVE_BUCKET}/${filename}`);
-
-      return {
-        archived: snapshot.size,
-        failed: 0,
-        location: `gs://${ARCHIVE_BUCKET}/${filename}`,
-      };
+      // TODO: Replace with backend DB/storage logic for archiving old logs
+      // Example: await fetch('https://your-backend/logs/archive', { method: 'POST', body: JSON.stringify({ collection, retentionDays }) })
+      return { archived: 0, failed: 0, location: null };
     } catch (error) {
       console.error(`Failed to archive ${collection}:`, error.message);
       return { archived: 0, failed: 1, error: error.message };
@@ -130,23 +74,14 @@ class LogRetentionManager {
 
     for (const [collection, retentionDays] of Object.entries(RETENTION_POLICIES)) {
       try {
-        const cutoffDate = new Date();
-        cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
-
-        const totalCount = await db.collection(collection).count().get();
-        const expiredCount = await db.collection(collection)
-          .where('timestamp', '<', cutoffDate)
-          .count()
-          .get();
-
+        // TODO: Replace with backend DB logic for retention status
+        // Example: await fetch('https://your-backend/logs/retention-status', { method: 'POST', body: JSON.stringify({ collection, retentionDays }) })
         status.collections[collection] = {
           retentionDays,
-          totalDocuments: totalCount.data().count,
-          expiredDocuments: expiredCount.data().count,
-          cutoffDate: cutoffDate.toISOString(),
-          percentageExpired: totalCount.data().count > 0
-            ? Math.round((expiredCount.data().count / totalCount.data().count) * 100)
-            : 0,
+          totalDocuments: 0,
+          expiredDocuments: 0,
+          cutoffDate: new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000).toISOString(),
+          percentageExpired: 0,
         };
       } catch (error) {
         status.collections[collection] = {
@@ -169,17 +104,8 @@ class LogRetentionManager {
     const oldPolicy = RETENTION_POLICIES[collection];
     RETENTION_POLICIES[collection] = retentionDays;
 
-    // Log policy change
-    await db.collection('admin_audit_logs').add({
-      event: 'RETENTION_POLICY_UPDATED',
-      details: {
-        collection,
-        oldPolicy: oldPolicy,
-        newPolicy: retentionDays,
-      },
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
-      severity: 'warn',
-    });
+    // TODO: Log policy change in backend DB or via REST API
+    // Example: await fetch('https://your-backend/admin-audit-logs', { method: 'POST', body: JSON.stringify({ event: 'RETENTION_POLICY_UPDATED', details: { collection, oldPolicy, newPolicy: retentionDays }, timestamp: new Date().toISOString(), severity: 'warn' }) })
 
     console.log(`Updated retention policy for ${collection}: ${oldPolicy} → ${retentionDays} days`);
 
@@ -195,32 +121,12 @@ class LogRetentionManager {
    */
   static async exportLogsForCompliance(collection, startDate, endDate) {
     try {
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-
-      const snapshot = await db.collection(collection)
-        .where('timestamp', '>=', start)
-        .where('timestamp', '<=', end)
-        .orderBy('timestamp')
-        .get();
-
-      const logs = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-
-      // Save to Cloud Storage
-      const bucket = admin.storage().bucket(ARCHIVE_BUCKET);
-      const filename = `compliance/${collection}-${start.toISOString().split('T')[0]}-to-${end.toISOString().split('T')[0]}.json`;
-      
-      await bucket.file(filename).save(JSON.stringify(logs, null, 2));
-
-      console.log(`Exported ${logs.length} documents to gs://${ARCHIVE_BUCKET}/${filename}`);
-
+      // TODO: Replace with backend DB/storage logic for exporting logs for compliance
+      // Example: await fetch('https://your-backend/logs/export', { method: 'POST', body: JSON.stringify({ collection, startDate, endDate }) })
       return {
-        exported: logs.length,
-        location: `gs://${ARCHIVE_BUCKET}/${filename}`,
-        period: { start: start.toISOString(), end: end.toISOString() },
+        exported: 0,
+        location: null,
+        period: { start: startDate, end: endDate },
       };
     } catch (error) {
       console.error(`Failed to export logs:`, error.message);

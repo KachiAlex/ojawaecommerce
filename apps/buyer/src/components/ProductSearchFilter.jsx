@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
-import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
-import { db } from '../firebase/config';
+import axios from 'axios';
+
+const API_BASE = import.meta.env.VITE_API_BASE || 'https://ojawaecommerce.onrender.com';
 
 const ProductSearchFilter = ({ onSearchResults, onLoading, featuredProducts = [] }) => {
   console.log('🔍 ProductSearchFilter: Component initialized');
@@ -26,14 +27,9 @@ const ProductSearchFilter = ({ onSearchResults, onLoading, featuredProducts = []
   useEffect(() => {
     const fetchFilterOptions = async () => {
       try {
-        // Fetch unique categories from featured products only
-        const productsQuery = query(
-          collection(db, 'products'),
-          where('isFeatured', '==', true),
-          where('isActive', '==', true)
-        );
-        const productsSnapshot = await getDocs(productsQuery);
-        const productData = productsSnapshot.docs.map(doc => doc.data());
+        // Fetch unique categories from featured products only via API
+        const res = await axios.get(`${API_BASE}/api/products`, { params: { featured: true, isActive: true } });
+        const productData = res?.data?.products || [];
         
         const uniqueCategories = [...new Set(productData.map(p => p.category))].filter(Boolean);
         setCategories(uniqueCategories);
@@ -41,12 +37,8 @@ const ProductSearchFilter = ({ onSearchResults, onLoading, featuredProducts = []
         // Fetch stores that have featured products
         const featuredVendorIds = [...new Set(productData.map(p => p.vendorId))].filter(Boolean);
         if (featuredVendorIds.length > 0) {
-          const storesQuery = query(
-            collection(db, 'stores'),
-            where('__name__', 'in', featuredVendorIds)
-          );
-          const storesSnapshot = await getDocs(storesQuery);
-          const storeData = storesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          const storesRes = await axios.get(`${API_BASE}/api/stores`, { params: { vendorIds: featuredVendorIds.join(',') } });
+          const storeData = storesRes?.data?.stores || [];
           setStores(storeData);
         }
 
@@ -54,9 +46,8 @@ const ProductSearchFilter = ({ onSearchResults, onLoading, featuredProducts = []
         console.error('Error fetching filter options from featured products:', error);
         // Fallback: get all data
         try {
-          const productsRef = collection(db, 'products');
-          const productsSnapshot = await getDocs(productsRef);
-          const productData = productsSnapshot.docs.map(doc => doc.data());
+          const fallbackRes = await axios.get(`${API_BASE}/api/products`);
+          const productData = fallbackRes?.data?.products || [];
           
           const uniqueCategories = [...new Set(productData.map(p => p.category))].filter(Boolean);
           setCategories(uniqueCategories);
@@ -96,19 +87,15 @@ const ProductSearchFilter = ({ onSearchResults, onLoading, featuredProducts = []
     setIsLoading(true);
 
     try {
-      // Only search within featured products
-      const productsQuery = query(
-        collection(db, 'products'),
-        where('isFeatured', '==', true),
-        where('isActive', '==', true)
-      );
-      console.log('🔍 ProductSearchFilter: Executing Firestore query...');
-      const snapshot = await getDocs(productsQuery);
-      console.log('🔍 ProductSearchFilter: Query completed, got', snapshot.docs.length, 'documents');
-      let products = snapshot.docs.map(doc => {
-        const data = doc.data();
+      // Fetch featured products from API and then apply client-side filters
+      console.log('🔍 ProductSearchFilter: Fetching featured products from API...');
+      const res = await axios.get(`${API_BASE}/api/products`, { params: { featured: true, isActive: true } });
+      const snapshotProducts = res?.data?.products || [];
+      console.log('🔍 ProductSearchFilter: API returned', snapshotProducts.length, 'products');
+      let products = snapshotProducts.map(doc => {
+        const data = doc || {};
         return {
-          id: doc.id,
+          id: data.id || data._id || '',
           ...data,
           // Ensure required fields exist
           name: data.name || 'Unnamed Product',
@@ -181,12 +168,11 @@ const ProductSearchFilter = ({ onSearchResults, onLoading, featuredProducts = []
       // Fallback: try to get all products and filter client-side for featured
       try {
         console.log('🔄 Fallback: Fetching all products for client-side filtering...');
-        const fallbackQuery = query(collection(db, 'products'));
-        const fallbackSnapshot = await getDocs(fallbackQuery);
-        let fallbackProducts = fallbackSnapshot.docs.map(doc => {
-          const data = doc.data();
+        const fallbackRes = await axios.get(`${API_BASE}/api/products`);
+        let fallbackProducts = (fallbackRes?.data?.products || []).map(doc => {
+          const data = doc || {};
           return {
-            id: doc.id,
+            id: data.id || data._id || '',
             ...data,
             name: data.name || 'Unnamed Product',
             price: parseFloat(data.price) || 0,

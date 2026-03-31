@@ -1,32 +1,7 @@
-// Firebase config shim - exports lightweight placeholders for migration
+// Firebase fully removed: use Render backend API only
+// Compatibility shims for modules that still import named exports from this file.
+// Prefer replacing imports with the REST `firebaseService` shim in migrated files.
+export const db = {};
 
-const warn = (name) => () => {
-  console.warn(`Firebase shim called: ${name}. Replace with Render backend API.`);
-  throw new Error(`Firebase shim called: ${name}`);
-};
-
-export const auth = {
-  currentUser: null,
-  signInWithEmailAndPassword: warn('auth.signInWithEmailAndPassword'),
-  sendPasswordResetEmail: warn('auth.sendPasswordResetEmail'),
-  signOut: warn('auth.signOut')
-};
-
-export const db = {
-  collection: warn('db.collection'),
-  doc: warn('db.doc'),
-  get: warn('db.get')
-};
-
-export const storage = {
-  ref: warn('storage.ref'),
-  uploadBytes: warn('storage.uploadBytes'),
-  getDownloadURL: warn('storage.getDownloadURL')
-};
-
-export const messaging = {
-  onMessage: warn('messaging.onMessage')
-};
-
-const app = { name: 'firebase-config-shim' };
-export default app;
+// If any code still expects `auth` to be exported, provide a null placeholder.
+export const auth = null;

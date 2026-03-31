@@ -4,7 +4,7 @@
  */
 
 const crypto = require('crypto');
-const admin = require('firebase-admin');
+// Firebase removed: security now uses REST backend
 const db = admin.firestore();
 
 // ============ SECRET MANAGEMENT ============
@@ -13,8 +13,9 @@ class SecretManager {
   constructor() {
     this.secrets = new Map();
     this.rotationInterval = 90 * 24 * 60 * 60 * 1000; // 90 days
-    this.secretVersion = 1;
-  }
+    // Firebase removed: security now uses REST backend
+    // TODO: Replace db operations with REST API/backend DB calls
+    // const db = ...
 
   /**
    * Store a secret with metadata

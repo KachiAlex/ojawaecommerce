@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
-import { db } from '../firebase/config';
+import firebaseService from '../services/firebaseService';
 
 const Dashboard = () => {
   const { userProfile, currentUser } = useAuth();
@@ -43,20 +42,8 @@ const Dashboard = () => {
 
   const fetchUserOrders = async () => {
     try {
-      const ordersRef = collection(db, 'orders');
-      const q = query(
-        ordersRef,
-        where('buyerId', '==', currentUser.uid),
-        orderBy('createdAt', 'desc')
-      );
-      
-      const snapshot = await getDocs(q);
-      const ordersData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      
-      setOrders(ordersData);
+      const ordersData = await firebaseService.order.getByUser(currentUser.uid, 'buyer');
+      setOrders(ordersData || []);
     } catch (error) {
       console.error('Error fetching orders:', error);
     } finally {

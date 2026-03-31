@@ -1,4 +1,4 @@
-const admin = require('firebase-admin');
+// Firebase removed: tests now use REST backend
 
 // Mock plan configurations matching server.js
 const VENDOR_SUBSCRIPTION_PLANS = {

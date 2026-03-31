@@ -14,8 +14,6 @@ import ProductCard from '../components/ProductCard';
 import WishlistButton from '../components/WishlistButton';
 import SupportTicket from '../components/SupportTicket';
 import { ProductListSkeleton } from '../components/SkeletonLoaders';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../firebase/config';
 
 // Currency formatting helper
 const formatCurrency = (amount, currencyValue) => {
@@ -196,10 +194,8 @@ const Buyer = () => {
         
         for (const productId of productIds) {
           try {
-            const productDoc = await getDoc(doc(db, 'products', productId));
-            if (productDoc.exists()) {
-              fetchedProducts.push({ id: productDoc.id, ...productDoc.data() });
-            }
+            const p = await firebaseService.product.getById(productId);
+            if (p) fetchedProducts.push({ id: p.id || productId, ...p });
           } catch (err) {
             console.error(`Error fetching product ${productId}:`, err);
           }

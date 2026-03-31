@@ -1,5 +1,8 @@
-import { collection, query, where, orderBy, limit, getDocs, getDoc, doc, Timestamp } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import axios from 'axios';
+
+const API_BASE = import.meta.env.VITE_API_BASE || 'https://ojawaecommerce.onrender.com';
+
+// TODO: Implement backend endpoints under `/api/analytics/transactions/*`
 
 /**
  * Transaction Analytics Service
@@ -18,63 +21,8 @@ const transactionAnalyticsService = {
       const startDate = this.getStartDate(timeRange);
       const endDate = new Date();
 
-      // Get all orders in time range
-      const ordersSnapshot = await getDocs(
-        query(
-          collection(db, 'orders'),
-          where('createdAt', '>=', startDate),
-          where('createdAt', '<=', endDate)
-        )
-      );
-
-      const orders = ordersSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-
-      // Calculate metrics
-      const totalOrders = orders.length;
-      const completedOrders = orders.filter(o => o.status === 'completed').length;
-      const pendingOrders = orders.filter(o => o.status === 'pending').length;
-      const shippedOrders = orders.filter(o => o.status === 'shipped').length;
-      const deliveredOrders = orders.filter(o => o.status === 'delivered').length;
-      const cancelledOrders = orders.filter(o => o.status === 'cancelled').length;
-      const failedOrders = orders.filter(o => o.status === 'failed').length;
-
-      const totalRevenue = orders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
-      const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
-
-      // Get refunds
-      const refundsSnapshot = await getDocs(
-        query(
-          collection(db, 'refunds'),
-          where('createdAt', '>=', startDate),
-          where('createdAt', '<=', endDate),
-          where('status', '==', 'completed')
-        )
-      );
-      const refunds = refundsSnapshot.docs.map(doc => doc.data());
-      const totalRefunded = refunds.reduce((sum, r) => sum + (r.amount || 0), 0);
-      const refundCount = refunds.length;
-      const netRevenue = totalRevenue - totalRefunded;
-
-      return {
-        totalOrders,
-        completedOrders,
-        pendingOrders,
-        shippedOrders,
-        deliveredOrders,
-        cancelledOrders,
-        failedOrders,
-        totalRevenue,
-        netRevenue,
-        totalRefunded,
-        avgOrderValue: Math.round(avgOrderValue),
-        refundCount,
-        refundRate: totalOrders > 0 ? ((refundCount / totalOrders) * 100).toFixed(1) : 0,
-        conversionRate: totalOrders > 0 ? ((completedOrders + deliveredOrders) / totalOrders * 100).toFixed(1) : 0,
-        successRate: totalOrders > 0 ? (((totalOrders - failedOrders) / totalOrders) * 100).toFixed(1) : 0
-      };
+      const res = await axios.post(`${API_BASE}/api/analytics/transactions/overview`, { filters });
+      return res?.data || null;
     } catch (error) {
       console.error('Error getting transaction overview metrics:', error);
       return null;
@@ -91,16 +39,13 @@ const transactionAnalyticsService = {
       const startDate = this.getStartDate(timeRange);
       const daysCount = this.getDaysInRange(startDate);
 
-      // Get all completed orders in range
-      const ordersSnapshot = await getDocs(
-        query(
-          collection(db, 'orders'),
-          where('createdAt', '>=', startDate),
-          where('status', 'in', ['completed', 'delivered', 'shipped'])
-        )
-      );
+      // Request orders from backend analytics endpoint
+      const ordersRes = await axios.post(`${API_BASE}/api/analytics/transactions/orders`, {
+        startDate: startDate.toISOString(),
+        statuses: ['completed', 'delivered', 'shipped']
+      });
 
-      const orders = ordersSnapshot.docs.map(doc => doc.data());
+      const orders = ordersRes?.data?.orders || [];
 
       // Group by date
       const dailyData = {};
@@ -146,15 +91,12 @@ const transactionAnalyticsService = {
     try {
       const startDate = this.getStartDate(timeRange);
 
-      const ordersSnapshot = await getDocs(
-        query(
-          collection(db, 'orders'),
-          where('createdAt', '>=', startDate),
-          where('status', 'in', ['completed', 'delivered', 'shipped'])
-        )
-      );
+      const ordersRes = await axios.post(`${API_BASE}/api/analytics/transactions/orders`, {
+        startDate: startDate.toISOString(),
+        statuses: ['completed', 'delivered', 'shipped']
+      });
 
-      const orders = ordersSnapshot.docs.map(doc => doc.data());
+      const orders = ordersRes?.data?.orders || [];
 
       // Group by payment method
       const paymentMethods = {};
@@ -174,15 +116,12 @@ const transactionAnalyticsService = {
       });
 
       // Get payment failures
-      const failureSnapshot = await getDocs(
-        query(
-          collection(db, 'orders'),
-          where('createdAt', '>=', startDate),
-          where('status', '==', 'failed')
-        )
-      );
+      const failuresRes = await axios.post(`${API_BASE}/api/analytics/transactions/orders`, {
+        startDate: startDate.toISOString(),
+        statuses: ['failed']
+      });
 
-      const failures = failureSnapshot.docs.map(doc => doc.data());
+      const failures = failuresRes?.data?.orders || [];
       const failedByMethod = {};
       failures.forEach(order => {
         const method = order.paymentMethod || 'unknown';
@@ -221,15 +160,12 @@ const transactionAnalyticsService = {
     try {
       const startDate = this.getStartDate(timeRange);
 
-      const ordersSnapshot = await getDocs(
-        query(
-          collection(db, 'orders'),
-          where('createdAt', '>=', startDate),
-          where('status', 'in', ['completed', 'delivered'])
-        )
-      );
+      const ordersRes = await axios.post(`${API_BASE}/api/analytics/transactions/orders`, {
+        startDate: startDate.toISOString(),
+        statuses: ['completed', 'delivered']
+      });
 
-      const orders = ordersSnapshot.docs.map(doc => doc.data());
+      const orders = ordersRes?.data?.orders || [];
 
       // Aggregate product data
       const productData = {};
@@ -253,16 +189,13 @@ const transactionAnalyticsService = {
       });
 
       // Get return data for these products
-      const refundsSnapshot = await getDocs(
-        query(
-          collection(db, 'refunds'),
-          where('createdAt', '>=', startDate),
-          where('status', 'in', ['completed', 'processed'])
-        )
-      );
+      const refundsRes = await axios.post(`${API_BASE}/api/analytics/transactions/refunds`, {
+        startDate: startDate.toISOString(),
+        statuses: ['completed', 'processed']
+      });
 
-      refundsSnapshot.docs.forEach(doc => {
-        const refund = doc.data();
+      const refunds = refundsRes?.data?.refunds || [];
+      refunds.forEach(refund => {
         if (refund.productId && productData[refund.productId]) {
           productData[refund.productId].returns++;
         }
@@ -294,15 +227,12 @@ const transactionAnalyticsService = {
     try {
       const startDate = this.getStartDate(timeRange);
 
-      const ordersSnapshot = await getDocs(
-        query(
-          collection(db, 'orders'),
-          where('createdAt', '>=', startDate),
-          where('status', 'in', ['completed', 'delivered'])
-        )
-      );
+      const ordersRes = await axios.post(`${API_BASE}/api/analytics/transactions/orders`, {
+        startDate: startDate.toISOString(),
+        statuses: ['completed', 'delivered']
+      });
 
-      const orders = ordersSnapshot.docs.map(doc => doc.data());
+      const orders = ordersRes?.data?.orders || [];
 
       // Aggregate by category
       const categories = {};
@@ -362,34 +292,21 @@ const transactionAnalyticsService = {
     try {
       const startDate = this.getStartDate(timeRange);
 
-      // Get all orders
-      const ordersSnapshot = await getDocs(
-        query(
-          collection(db, 'orders'),
-          where('createdAt', '>=', startDate)
-        )
-      );
-      const totalOrders = ordersSnapshot.size;
+      // Get orders summary from backend
+      const allOrdersRes = await axios.post(`${API_BASE}/api/analytics/transactions/orders`, {
+        startDate: startDate.toISOString()
+      });
+      const allOrders = allOrdersRes?.data?.orders || [];
+      const totalOrders = allOrders.length;
 
-      // Get completed orders
-      const completedSnapshot = await getDocs(
-        query(
-          collection(db, 'orders'),
-          where('createdAt', '>=', startDate),
-          where('status', 'in', ['completed', 'delivered', 'shipped'])
-        )
-      );
-      const completedRevenue = completedSnapshot.docs.reduce((sum, doc) => sum + (doc.data().totalAmount || 0), 0);
+      const completedOrders = allOrders.filter(o => ['completed', 'delivered', 'shipped'].includes(o.status));
+      const completedRevenue = completedOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
 
       // Get refunds
-      const refundsSnapshot = await getDocs(
-        query(
-          collection(db, 'refunds'),
-          where('createdAt', '>=', startDate)
-        )
-      );
-
-      const refunds = refundsSnapshot.docs.map(doc => doc.data());
+      const refundsRes = await axios.post(`${API_BASE}/api/analytics/transactions/refunds`, {
+        startDate: startDate.toISOString()
+      });
+      const refunds = refundsRes?.data?.refunds || [];
       const completedRefunds = refunds.filter(r => r.status === 'completed');
       const pendingRefunds = refunds.filter(r => r.status === 'pending');
       const rejectedRefunds = refunds.filter(r => r.status === 'rejected');
@@ -397,15 +314,8 @@ const transactionAnalyticsService = {
       const totalRefunded = completedRefunds.reduce((sum, r) => sum + (r.amount || 0), 0);
       const pendingRefundAmount = pendingRefunds.reduce((sum, r) => sum + (r.amount || 0), 0);
 
-      // Get returns (orders with return status)
-      const returnsSnapshot = await getDocs(
-        query(
-          collection(db, 'orders'),
-          where('createdAt', '>=', startDate),
-          where('status', '==', 'returned')
-        )
-      );
-      const returns = returnsSnapshot.docs.map(doc => doc.data());
+      // Returns are orders with status 'returned'
+      const returns = allOrders.filter(o => o.status === 'returned');
       const totalReturned = returns.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
 
       return {
@@ -439,14 +349,10 @@ const transactionAnalyticsService = {
     try {
       const startDate = this.getStartDate(timeRange);
 
-      const ordersSnapshot = await getDocs(
-        query(
-          collection(db, 'orders'),
-          where('createdAt', '>=', startDate)
-        )
-      );
-
-      const orders = ordersSnapshot.docs.map(doc => doc.data());
+      const ordersRes = await axios.post(`${API_BASE}/api/analytics/transactions/orders`, {
+        startDate: startDate.toISOString()
+      });
+      const orders = ordersRes?.data?.orders || [];
 
       // Count by status
       const statuses = {};
@@ -481,14 +387,10 @@ const transactionAnalyticsService = {
     try {
       const startDate = this.getStartDate(timeRange);
 
-      const ordersSnapshot = await getDocs(
-        query(
-          collection(db, 'orders'),
-          where('createdAt', '>=', startDate)
-        )
-      );
-
-      const orders = ordersSnapshot.docs.map(doc => doc.data());
+      const ordersRes = await axios.post(`${API_BASE}/api/analytics/transactions/orders`, {
+        startDate: startDate.toISOString()
+      });
+      const orders = ordersRes?.data?.orders || [];
 
       // Group by vendor
       const vendorData = {};
@@ -519,8 +421,13 @@ const transactionAnalyticsService = {
       // Fetch vendor details
       const vendorsWithDetails = await Promise.all(
         Object.values(vendorData).map(async (vendor, index) => {
-          const vendorDoc = await getDoc(doc(db, 'users', vendor.vendorId));
-          const vendorInfo = vendorDoc.data() || {};
+          let vendorInfo = {};
+          try {
+            const vRes = await axios.get(`${API_BASE}/api/users/${vendor.vendorId}`);
+            vendorInfo = vRes?.data || {};
+          } catch (e) {
+            vendorInfo = {};
+          }
           return {
             rank: index + 1,
             vendorId: vendor.vendorId,
@@ -553,16 +460,11 @@ const transactionAnalyticsService = {
     try {
       const startDate = this.getStartDate(timeRange);
 
-      // Get failed orders
-      const failedSnapshot = await getDocs(
-        query(
-          collection(db, 'orders'),
-          where('createdAt', '>=', startDate),
-          where('status', '==', 'failed')
-        )
-      );
-
-      const failedOrders = failedSnapshot.docs.map(doc => doc.data());
+      const failedRes = await axios.post(`${API_BASE}/api/analytics/transactions/orders`, {
+        startDate: startDate.toISOString(),
+        statuses: ['failed']
+      });
+      const failedOrders = failedRes?.data?.orders || [];
 
       // Group by failure reason
       const failureReasons = {};
@@ -575,13 +477,10 @@ const transactionAnalyticsService = {
       const totalAttempts = failedOrders.length;
 
       // Get total attempts (failed + successful)
-      const allSnapshot = await getDocs(
-        query(
-          collection(db, 'orders'),
-          where('createdAt', '>=', startDate)
-        )
-      );
-      const totalAllAttempts = allSnapshot.size;
+      const allRes = await axios.post(`${API_BASE}/api/analytics/transactions/orders`, {
+        startDate: startDate.toISOString()
+      });
+      const totalAllAttempts = (allRes?.data?.orders || []).length;
 
       return {
         totalFailedOrders: totalAttempts,
@@ -611,15 +510,11 @@ const transactionAnalyticsService = {
     try {
       const startDate = this.getStartDate(timeRange);
 
-      const ordersSnapshot = await getDocs(
-        query(
-          collection(db, 'orders'),
-          where('createdAt', '>=', startDate),
-          where('status', 'in', ['completed', 'delivered'])
-        )
-      );
-
-      const orders = ordersSnapshot.docs.map(doc => doc.data());
+      const ordersRes = await axios.post(`${API_BASE}/api/analytics/transactions/orders`, {
+        startDate: startDate.toISOString(),
+        statuses: ['completed', 'delivered']
+      });
+      const orders = ordersRes?.data?.orders || [];
 
       // Group by day of week
       const dayData = {
@@ -665,24 +560,36 @@ const transactionAnalyticsService = {
    */
   async getTransactionDetail(orderId) {
     try {
-      const orderDoc = await getDoc(doc(db, 'orders', orderId));
-      if (!orderDoc.exists()) return null;
-
-      const order = orderDoc.data();
+      const orderRes = await axios.get(`${API_BASE}/api/orders/${orderId}`);
+      const order = orderRes?.data || null;
+      if (!order) return null;
 
       // Get buyer info
-      const buyerDoc = await getDoc(doc(db, 'users', order.buyerId));
-      const buyer = buyerDoc.data() || {};
+      let buyer = {};
+      try {
+        const bRes = await axios.get(`${API_BASE}/api/users/${order.buyerId}`);
+        buyer = bRes?.data || {};
+      } catch (e) {
+        buyer = {};
+      }
 
       // Get vendor info
-      const vendorDoc = await getDoc(doc(db, 'users', order.vendorId));
-      const vendor = vendorDoc.data() || {};
+      let vendor = {};
+      try {
+        const vRes = await axios.get(`${API_BASE}/api/users/${order.vendorId}`);
+        vendor = vRes?.data || {};
+      } catch (e) {
+        vendor = {};
+      }
 
       // Get refund if exists
-      const refundsSnapshot = await getDocs(
-        query(collection(db, 'refunds'), where('orderId', '==', orderId))
-      );
-      const refund = refundsSnapshot.docs[0]?.data() || null;
+      let refund = null;
+      try {
+        const rRes = await axios.get(`${API_BASE}/api/refunds`, { params: { orderId } });
+        refund = (rRes?.data || [])[0] || null;
+      } catch (e) {
+        refund = null;
+      }
 
       return {
         orderId,

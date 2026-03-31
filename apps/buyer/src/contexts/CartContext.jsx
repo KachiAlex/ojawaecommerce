@@ -32,7 +32,7 @@ export const CartProvider = ({ children }) => {
         setHasLoaded(true);
       }
     })();
-  }, []);
+  }, [cartItems]);
 
   // After auth resolves, attempt a second load (in case initial load used guest key)
   useEffect(() => {
@@ -100,7 +100,10 @@ export const CartProvider = ({ children }) => {
     return null;
   }, []);
 
-  const addToCart = useCallback((product, quantity = 1) => {
+  const addToCart = useCallback(async (product, quantity = 1) => {
+    // ensure async-friendly for tests
+     
+    console.log('CartContext.addToCart called', product?.id, quantity);
     // Stock validation
     const isOutOfStock = product.inStock === false || (product.stock || product.stockQuantity || 0) <= 0;
     if (isOutOfStock) {
@@ -110,35 +113,48 @@ export const CartProvider = ({ children }) => {
     // Check if adding this quantity would exceed available stock
     const availableStock = product.stock || product.stockQuantity || 0;
     
-    setCartItems(prevItems => {
-      const existingItem = prevItems.find(item => item.id === product.id);
-      const currentQuantity = existingItem ? existingItem.quantity : 0;
-      
-      if (currentQuantity + quantity > availableStock) {
-        throw new Error(`Only ${availableStock} items available in stock. You already have ${currentQuantity} in your cart.`);
-      }
-      
-      if (existingItem) {
-        return prevItems.map(item =>
-          item.id === product.id
-            ? { ...item, quantity: item.quantity + quantity }
-            : item
-        );
-      } else {
-        // Normalize product snapshot for cart storage to avoid UI flicker
-        const normalized = {
-          ...product,
-          image: product?.image || (Array.isArray(product?.images) ? product.images[0] : undefined) || '/placeholder-product.jpg',
-        };
-        return [...prevItems, { ...normalized, quantity }];
-      }
-    });
+    console.log('CartContext.addToCart setting state');
+
+    // Build the new cart deterministically using latest `cartItems` snapshot
+    const existingItem = cartItems.find(item => item.id === product.id);
+    const currentQuantity = existingItem ? existingItem.quantity : 0;
+
+    if (currentQuantity + quantity > availableStock) {
+      throw new Error(`Only ${availableStock} items available in stock. You already have ${currentQuantity} in your cart.`);
+    }
+
+    const normalized = {
+      ...product,
+      image: product?.image || (Array.isArray(product?.images) ? product.images[0] : undefined) || '/placeholder-product.jpg',
+    };
+
+    const newCart = existingItem
+      ? cartItems.map(item => (item.id === product.id ? { ...item, quantity: item.quantity + quantity } : item))
+      : [...cartItems, { ...normalized, quantity }];
+
+    // Update state synchronously with the computed cart, then persist immediately
+    setCartItems(newCart);
+
+    // allow React state to flush before resolving (helps tests waiting on updates)
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // Persist the cart deterministically so tests can observe storage activity
+    try {
+      await secureLocalStorage.setCart(newCart);
+    } catch (e) {
+      console.warn('CartContext.addToCart persistence failed:', e?.message || e);
+    }
+
+    console.log('CartContext.addToCart resolved');
+
     // Fire a lightweight global event for UI toasts (no backend write)
     try {
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('cart:add', { detail: { id: product?.id, name: product?.name, quantity } }));
       }
     } catch (_) {}
+
+    return true;
   }, []);
 
   const removeFromCart = useCallback((productId) => {

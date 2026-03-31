@@ -15,6 +15,7 @@ const SecurityEventsDashboard = () => {
     endDate: new Date().toISOString().split('T')[0],
   });
   const [activeTab, setActiveTab] = useState('overview');
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     fetchSecurityData();
@@ -22,9 +23,12 @@ const SecurityEventsDashboard = () => {
 
   const fetchSecurityData = async () => {
     setLoading(true);
+    setError(null);
     try {
-      const token = localStorage.getItem('authToken');
-      const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+      const defaultOptions = {
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' }
+      };
 
       // Fetch security events
       const params = new URLSearchParams({
@@ -33,20 +37,30 @@ const SecurityEventsDashboard = () => {
         ...(filterType !== 'all' && { eventType: filterType }),
         limit: 100,
       });
-      const eventsRes = await fetch(`/admin/security/events?${params}`, { headers });
+      const eventsRes = await fetch(`/admin/security/events?${params}`, defaultOptions);
+      if (!eventsRes.ok) {
+        throw new Error(`Failed to fetch security events: ${eventsRes.status}`);
+      }
       const eventsData = await eventsRes.json();
       setSecurityEvents(eventsData.events || []);
 
       // Fetch security summary
-      const summaryRes = await fetch('/admin/security/summary', { headers });
+      const summaryRes = await fetch('/admin/security/summary', defaultOptions);
+      if (!summaryRes.ok) {
+        throw new Error(`Failed to fetch security summary: ${summaryRes.status}`);
+      }
       const summaryData = await summaryRes.json();
       setSecuritySummary(summaryData.summary);
 
       // Fetch failed logins
-      const loginsRes = await fetch('/admin/security/failed-logins?limit=50&page=1', { headers });
+      const loginsRes = await fetch('/admin/security/failed-logins?limit=50&page=1', defaultOptions);
+      if (!loginsRes.ok) {
+        throw new Error(`Failed to fetch failed login data: ${loginsRes.status}`);
+      }
       const loginsData = await loginsRes.json();
       setFailedLogins(loginsData.failedLogins || []);
     } catch (error) {
+      setError(error.message || 'Failed to load security data.');
       console.error('Error fetching security data:', error);
     } finally {
       setLoading(false);
@@ -107,6 +121,9 @@ const SecurityEventsDashboard = () => {
 
   if (loading) {
     return <div className="p-8 text-center">Loading security data...</div>;
+  }
+  if (error) {
+    return <div className="p-8 text-center text-red-600">{error}</div>;
   }
 
   return (

@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { storeService } from '../services/trackingService';
-import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '../firebase/config';
+import axios from 'axios';
+
+const API_BASE = import.meta.env.VITE_API_BASE || 'https://ojawaecommerce.onrender.com';
 import firebaseService from '../services/firebaseService';
 import ProductEditorModal from './ProductEditorModal';
 
@@ -133,24 +134,24 @@ const VendorStoreManager = ({
         ? storeSettings.storeSlug.toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-').replace(/^-|-$/g, '')
         : '';
       
-      // Update user profile with store settings
-      const userDocRef = doc(db, 'users', currentUser.uid);
-      await updateDoc(userDocRef, {
-        'vendorProfile.storeName': storeSettings.businessName,
-        'vendorProfile.storeDescription': storeSettings.storeDescription,
-        'vendorProfile.storeSlug': formattedSlug,
-        'vendorProfile.businessPhone': storeSettings.contactPhone,
-        'vendorProfile.businessAddress': storeSettings.contactAddress,
+      // Update user profile via backend API
+      await axios.put(`${API_BASE}/api/users/${currentUser.uid}/vendorProfile`, {
+        vendorProfile: {
+          storeName: storeSettings.businessName,
+          storeDescription: storeSettings.storeDescription,
+          storeSlug: formattedSlug,
+          businessPhone: storeSettings.contactPhone,
+          businessAddress: storeSettings.contactAddress
+        },
         updatedAt: new Date()
       });
       
       // Also update the store document with the slug
       if (store && formattedSlug) {
         try {
-          const storeRef = doc(db, 'stores', store.id);
-          await updateDoc(storeRef, {
-            'settings.storeSlug': formattedSlug,
-            'storeSlug': formattedSlug,
+          await axios.put(`${API_BASE}/api/stores/${store.id}`, {
+            settings: { storeSlug: formattedSlug },
+            storeSlug: formattedSlug,
             updatedAt: new Date()
           });
           console.log('✅ Updated store document with slug:', formattedSlug);

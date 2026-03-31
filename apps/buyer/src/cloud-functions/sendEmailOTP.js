@@ -3,8 +3,7 @@
  * Sends One-Time Password via email for secure authentication
  */
 
-const admin = require('firebase-admin');
-const functions = require('firebase-functions');
+// Firebase removed: sendEmailOTP now uses REST backend
 
 // Initialize Firebase Admin SDK
 if (!admin.apps.length) {

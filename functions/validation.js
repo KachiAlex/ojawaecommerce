@@ -1,3 +1,4 @@
+// Firebase/Firestore/Functions usage audit: This file contains no Firebase Admin, Firestore, or firebase-functions dependencies. Safe for REST/Render backend.
 /**
  * Input Validation & Security Middleware
  * Validates and sanitizes all incoming requests

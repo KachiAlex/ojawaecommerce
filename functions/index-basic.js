@@ -1,11 +1,4 @@
-const {onCall} = require("firebase-functions/v2/https");
-
-// Send payment confirmation email
-exports.sendPaymentConfirmation = onCall(async (request) => {
-  const {buyerEmail, buyerName, orderId, amount, items} = request.data;
-  
-  return {
-    success: true,
-    message: "Email sent successfully",
-  };
-});
+// Migration: index-basic.js used firebase callables; replaced with migration stub.
+exports.sendPaymentConfirmation = async function sendPaymentConfirmation(params) {
+  throw new Error('sendPaymentConfirmation removed: migrate to backend REST endpoint');
+};

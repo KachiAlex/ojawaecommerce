@@ -1,15 +1,4 @@
-import { 
-  collection, 
-  doc, 
-  updateDoc, 
-  getDoc, 
-  getDocs, 
-  query, 
-  where, 
-  orderBy, 
-  serverTimestamp
-} from 'firebase/firestore';
-import { db } from '../firebase/config';
+import firebaseService from './firebaseService';
 
 // ===============================
 // PRICING CONSTANTS
@@ -118,20 +107,22 @@ export const pricingService = {
   // Get current pricing configuration from admin settings
   async getPricingConfiguration() {
     try {
-      const configDoc = await getDoc(doc(db, 'admin_settings', 'pricing_config'));
-      
-      if (configDoc.exists()) {
-        return configDoc.data();
-      } else {
-        // Return default configuration
+      const res = await fetch('/api/admin-settings/pricing_config', { credentials: 'include' });
+      if (!res.ok) {
         return {
           serviceFeeRate: PRICING_CONFIG.DEFAULT_SERVICE_FEE_RATE,
           vatRate: PRICING_CONFIG.VAT_RATE,
           minServiceFee: PRICING_CONFIG.MIN_SERVICE_FEE,
-          maxServiceFee: PRICING_CONFIG.MAX_SERVICE_FEE,
-          lastUpdated: serverTimestamp()
+          maxServiceFee: PRICING_CONFIG.MAX_SERVICE_FEE
         };
       }
+      const data = await res.json();
+      return data || {
+        serviceFeeRate: PRICING_CONFIG.DEFAULT_SERVICE_FEE_RATE,
+        vatRate: PRICING_CONFIG.VAT_RATE,
+        minServiceFee: PRICING_CONFIG.MIN_SERVICE_FEE,
+        maxServiceFee: PRICING_CONFIG.MAX_SERVICE_FEE
+      };
     } catch (error) {
       console.warn('Error fetching pricing configuration, using defaults:', error.message);
       // Return default configuration on error (including permission errors)
@@ -147,25 +138,15 @@ export const pricingService = {
   // Update pricing configuration (admin only)
   async updatePricingConfiguration(newConfig) {
     try {
-      const configRef = doc(db, 'admin_settings', 'pricing_config');
-      
-      const updatedConfig = {
-        ...newConfig,
-        lastUpdated: serverTimestamp(),
-        updatedBy: 'admin' // This should be the actual admin user ID
-      };
-
-      await updateDoc(configRef, updatedConfig);
-      
-      // If document doesn't exist, create it
-      if (!(await getDoc(configRef)).exists()) {
-        await updateDoc(configRef, {
-          ...updatedConfig,
-          createdAt: serverTimestamp()
-        });
-      }
-
-      return { success: true, config: updatedConfig };
+      const payload = { ...newConfig, lastUpdated: new Date().toISOString(), updatedBy: 'admin' };
+      const res = await fetch('/api/admin-settings/pricing_config', {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error('Failed to update pricing config');
+      return { success: true, config: payload };
     } catch (error) {
       console.error('Error updating pricing configuration:', error);
       throw error;
@@ -192,14 +173,16 @@ export const pricingService = {
   async calculateLogisticsRating(logisticsCompanyId) {
     try {
       // Get all completed deliveries for this logistics company
-      const q = query(
-        collection(db, 'delivery_tracking'),
-        where('logisticsPartnerId', '==', logisticsCompanyId),
-        where('currentStage', '==', 'delivered')
-      );
-      
-      const snapshot = await getDocs(q);
-      const deliveries = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const res = await fetch(`/api/delivery-tracking?partnerId=${encodeURIComponent(logisticsCompanyId)}&status=delivered`, { credentials: 'include' });
+      if (!res.ok) return {
+        rating: 0,
+        totalDeliveries: 0,
+        onTimeDeliveries: 0,
+        averageDeliveryTime: 0,
+        successRate: 0
+      };
+      const data = await res.json();
+      const deliveries = data.items || [];
 
       if (deliveries.length === 0) {
         return {
@@ -262,16 +245,18 @@ export const pricingService = {
   async updateLogisticsRating(logisticsCompanyId) {
     try {
       const ratingData = await this.calculateLogisticsRating(logisticsCompanyId);
-      
-      // Update the logistics company document with new rating
-      const companyRef = doc(db, 'logistics_companies', logisticsCompanyId);
-      await updateDoc(companyRef, {
-        rating: ratingData.rating,
-        totalDeliveries: ratingData.totalDeliveries,
-        onTimeDeliveries: ratingData.onTimeDeliveries,
-        averageDeliveryTime: ratingData.averageDeliveryTime,
-        successRate: ratingData.successRate,
-        lastRatingUpdate: serverTimestamp()
+      await fetch(`/api/logistics_companies/${encodeURIComponent(logisticsCompanyId)}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rating: ratingData.rating,
+          totalDeliveries: ratingData.totalDeliveries,
+          onTimeDeliveries: ratingData.onTimeDeliveries,
+          averageDeliveryTime: ratingData.averageDeliveryTime,
+          successRate: ratingData.successRate,
+          lastRatingUpdate: new Date().toISOString()
+        })
       });
 
       return ratingData;
@@ -285,24 +270,10 @@ export const pricingService = {
   async getLogisticsCompaniesWithRatings() {
     try {
       // Prefer rating ordering if available; fall back to simple filter to avoid composite index requirement
-      let snapshot;
-      try {
-        const q = query(
-          collection(db, 'logistics_companies'),
-          where('status', '==', 'active'),
-          orderBy('rating', 'desc')
-        );
-        snapshot = await getDocs(q);
-      } catch (fallbackError) {
-        console.warn('Falling back to unordered logistics query:', fallbackError.message)
-        // Fallback without orderBy to avoid index requirement
-        const q = query(
-          collection(db, 'logistics_companies'),
-          where('status', '==', 'active')
-        );
-        snapshot = await getDocs(q);
-      }
-      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const res = await fetch('/api/logistics_companies?status=active&sort=rating_desc', { credentials: 'include' });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.items || [];
     } catch (error) {
       console.warn('Error fetching logistics companies, returning empty array:', error.message);
       // Return empty array on error (including index errors)

@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useRealTimeProducts } from './useRealTimeProducts'
-import firebaseService from '../services/firebaseService'
 import { errorLogger } from '../utils/errorLogger'
 
 export const useProductSearch = () => {

@@ -105,28 +105,6 @@ export const vendorAnalyticsService = {
       return { orderCount: 0, revenue: 0 };
     }
   },
-      );
-
-      const snapshot = await getDocs(q);
-      let orderCount = 0;
-      let totalRevenue = 0;
-
-      snapshot.docs.forEach(doc => {
-        const orderData = doc.data();
-        orderCount++;
-        totalRevenue += orderData.totalAmount || 0;
-      });
-
-      return {
-        orderCount,
-        revenue: totalRevenue,
-        averageOrderValue: orderCount > 0 ? (totalRevenue / orderCount).toFixed(2) : 0
-      };
-    } catch (error) {
-      // If orders collection doesn't exist yet, return 0
-      return { orderCount: 0, revenue: 0, averageOrderValue: 0 };
-    }
-  },
 
   /**
    * Get start date based on time range

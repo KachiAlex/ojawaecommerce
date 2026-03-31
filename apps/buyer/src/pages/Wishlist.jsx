@@ -5,8 +5,6 @@ import firebaseService from '../services/firebaseService';
 import ProductCard from '../components/ProductCard';
 import { ProductListSkeleton } from '../components/SkeletonLoaders';
 import WishlistButton from '../components/WishlistButton';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../firebase/config';
 
 const Wishlist = () => {
   const { currentUser } = useAuth();

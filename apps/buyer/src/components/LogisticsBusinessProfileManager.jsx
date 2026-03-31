@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { doc, updateDoc, getDoc, setDoc, collection, addDoc, query, where, getDocs } from 'firebase/firestore';
-import { db } from '../firebase/config';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { storage } from '../firebase/config';
+import axios from 'axios';
+
+const API_BASE = import.meta.env.VITE_API_BASE || 'https://ojawaecommerce.onrender.com';
 
 const LogisticsBusinessProfileManager = () => {
   const { currentUser, userProfile } = useAuth();
@@ -73,18 +72,13 @@ const LogisticsBusinessProfileManager = () => {
     try {
       setLoading(true);
       
-      // Check if business profile exists
-      const businessProfileQuery = query(
-        collection(db, 'logistics_business_profiles'),
-        where('userId', '==', currentUser.uid)
-      );
-      const businessProfileSnapshot = await getDocs(businessProfileQuery);
-      
-      if (!businessProfileSnapshot.empty) {
-        const profile = businessProfileSnapshot.docs[0].data();
-        setBusinessProfile({ id: businessProfileSnapshot.docs[0].id, ...profile });
-        
-        // Load settings into form
+      // Request business profile from Render backend
+      const res = await axios.get(`${API_BASE}/api/logistics/business`, {
+        params: { userId: currentUser.uid }
+      });
+      const profile = res?.data?.profile || null;
+      if (profile) {
+        setBusinessProfile(profile);
         setBusinessSettings({
           businessName: profile.businessName || '',
           businessDescription: profile.businessDescription || '',
@@ -110,7 +104,6 @@ const LogisticsBusinessProfileManager = () => {
           pricing: profile.pricing || businessSettings.pricing
         });
       } else {
-        // Create default business profile
         await createBusinessProfile();
       }
     } catch (error) {
@@ -164,8 +157,10 @@ const LogisticsBusinessProfileManager = () => {
         isActive: true
       };
 
-      const docRef = await addDoc(collection(db, 'logistics_business_profiles'), newBusinessProfile);
-      setBusinessProfile({ id: docRef.id, ...newBusinessProfile });
+      // POST to backend to create a new business profile
+      const res = await axios.post(`${API_BASE}/api/logistics/business`, newBusinessProfile);
+      const created = res?.data?.profile || null;
+      if (created) setBusinessProfile(created);
       
       // Update settings form
       setBusinessSettings(prev => ({
@@ -224,7 +219,8 @@ const LogisticsBusinessProfileManager = () => {
         updatedAt: new Date()
       };
 
-      await updateDoc(doc(db, 'logistics_business_profiles', businessProfile.id), updatedProfile);
+      // Send update to backend
+      await axios.put(`${API_BASE}/api/logistics/business/${businessProfile.id}`, updatedProfile);
       setBusinessProfile(prev => ({ ...prev, ...updatedProfile }));
       
       alert('Business profile updated successfully!');

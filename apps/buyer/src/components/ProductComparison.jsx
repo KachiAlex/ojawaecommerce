@@ -2,8 +2,6 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import firebaseService from '../services/firebaseService';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../firebase/config';
 import WishlistButton from './WishlistButton';
 
 const ProductComparison = ({ isOpen, onClose, productIds = [] }) => {
@@ -25,13 +23,8 @@ const ProductComparison = ({ isOpen, onClose, productIds = [] }) => {
 
       for (const productId of productIds.slice(0, maxCompare)) {
         try {
-          const productDoc = await getDoc(doc(db, 'products', productId));
-          if (productDoc.exists()) {
-            fetchedProducts.push({
-              id: productDoc.id,
-              ...productDoc.data()
-            });
-          }
+          const p = await firebaseService.product.getById(productId);
+          if (p) fetchedProducts.push({ id: p.id || productId, ...p });
         } catch (err) {
           console.error(`Error fetching product ${productId}:`, err);
         }

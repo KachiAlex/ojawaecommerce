@@ -1,19 +1,5 @@
-import { 
-  collection, 
-  doc, 
-  addDoc, 
-  updateDoc, 
-  getDoc, 
-  getDocs, 
-  query, 
-  where, 
-  orderBy, 
-  serverTimestamp,
-  writeBatch,
-  arrayUnion,
-  arrayRemove
-} from 'firebase/firestore'
-import { db } from '../firebase/config'
+import axios from 'axios'
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3000'
 import { errorLogger } from '../utils/errorLogger'
 
 // Inventory status definitions
@@ -87,17 +73,17 @@ export const inventoryService = {
         expiryDate,
         batchNumber,
         status: this.getInventoryStatus(initialStock, lowStockThreshold),
-        lastUpdated: serverTimestamp(),
-        createdAt: serverTimestamp(),
+        lastUpdated: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
         alerts: [],
         transactions: []
       }
 
-      const docRef = await addDoc(collection(db, 'inventory'), inventoryData)
-      
-      // Create initial transaction record
+      // Create via REST endpoint
+      const resp = await axios.post(`${API_BASE}/api/inventory`, inventoryData)
+      const docId = resp?.data?.id || resp?.data?._id || resp?.data?.inventoryId
       if (initialStock > 0) {
-        await this.addInventoryTransaction(docRef.id, {
+        await this.addInventoryTransaction(docId, {
           type: INVENTORY_TRANSACTION_TYPES.INITIAL,
           quantity: initialStock,
           reason: 'Initial inventory setup',
@@ -108,13 +94,13 @@ export const inventoryService = {
       }
 
       errorLogger.info('Inventory created successfully', {
-        inventoryId: docRef.id,
+        inventoryId: docId,
         productId,
         vendorId,
         initialStock
       })
 
-      return docRef.id
+      return docId
     } catch (error) {
       errorLogger.error('Failed to create inventory', error)
       throw error
@@ -124,17 +110,8 @@ export const inventoryService = {
   // Get inventory by product ID
   async getInventoryByProduct(productId) {
     try {
-      const q = query(
-        collection(db, 'inventory'),
-        where('productId', '==', productId)
-      )
-      
-      const snapshot = await getDocs(q)
-      const inventories = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }))
-
+      const resp = await axios.get(`${API_BASE}/api/inventory`, { params: { productId } })
+      const inventories = resp?.data?.items || resp?.data || []
       return inventories.length > 0 ? inventories[0] : null
     } catch (error) {
       errorLogger.error('Failed to get inventory by product', error)
@@ -152,23 +129,12 @@ export const inventoryService = {
         pageSize = 50
       } = options
 
-      let q = query(
-        collection(db, 'inventory'),
-        where('vendorId', '==', vendorId),
-        orderBy('lastUpdated', 'desc')
-      )
+      const params = { vendorId, orderBy: 'lastUpdated', orderDirection: 'desc', pageSize }
+      if (status) params.status = status
+      const resp = await axios.get(`${API_BASE}/api/inventory`, { params })
+      let inventories = resp?.data?.items || resp?.data?.inventories || resp?.data || []
 
-      if (status) {
-        q = query(q, where('status', '==', status))
-      }
-
-      const snapshot = await getDocs(q)
-      let inventories = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }))
-
-      // Apply filters
+      // Apply filters client-side if backend doesn't support
       if (lowStock) {
         inventories = inventories.filter(inv => inv.status === INVENTORY_STATUS.LOW_STOCK)
       }
@@ -195,14 +161,9 @@ export const inventoryService = {
         orderId = null
       } = options
 
-      const inventoryRef = doc(db, 'inventory', inventoryId)
-      const inventorySnap = await getDoc(inventoryRef)
-
-      if (!inventorySnap.exists()) {
-        throw new Error('Inventory record not found')
-      }
-
-      const currentData = inventorySnap.data()
+      const invRes = await axios.get(`${API_BASE}/api/inventory/${inventoryId}`)
+      const currentData = invRes?.data || null
+      if (!currentData) throw new Error('Inventory record not found')
       const currentStock = currentData.currentStock || 0
       const reservedStock = currentData.reservedStock || 0
 
@@ -256,10 +217,10 @@ export const inventoryService = {
         reservedStock: newReservedStock,
         availableStock,
         status: newStatus,
-        lastUpdated: serverTimestamp()
+        lastUpdated: new Date().toISOString()
       }
 
-      await updateDoc(inventoryRef, updateData)
+      await axios.put(`${API_BASE}/api/inventory/${inventoryId}`, updateData)
 
       // Add transaction record
       await this.addInventoryTransaction(inventoryId, {
@@ -276,7 +237,7 @@ export const inventoryService = {
         reservedAfter: newReservedStock
       })
 
-      // Check for alerts
+      // Check for alerts (will call backend endpoints to update alerts)
       await this.checkInventoryAlerts(inventoryId, newStatus, availableStock, currentData)
 
       errorLogger.info('Stock updated successfully', {
@@ -355,23 +316,24 @@ export const inventoryService = {
   // Add inventory transaction
   async addInventoryTransaction(inventoryId, transactionData) {
     try {
-      const transactionRef = doc(collection(db, 'inventory_transactions'))
       const transaction = {
         inventoryId,
         ...transactionData,
-        timestamp: serverTimestamp(),
-        createdAt: new Date()
+        timestamp: new Date().toISOString(),
+        createdAt: new Date().toISOString()
       }
 
-      await addDoc(collection(db, 'inventory_transactions'), transaction)
+      const resp = await axios.post(`${API_BASE}/api/inventory/transactions`, transaction)
+      const transactionId = resp?.data?.id || resp?.data?._id || null
 
-      // Update inventory transactions array
-      const inventoryRef = doc(db, 'inventory', inventoryId)
-      await updateDoc(inventoryRef, {
-        transactions: arrayUnion(transactionRef.id)
-      })
+      // Inform inventory endpoint of new transaction (backend may append)
+      try {
+        await axios.post(`${API_BASE}/api/inventory/${inventoryId}/transactions`, { transactionId })
+      } catch (e) {
+        // ignore if backend doesn't support append endpoint
+      }
 
-      return transactionRef.id
+      return transactionId
     } catch (error) {
       errorLogger.error('Failed to add inventory transaction', error)
       throw error
@@ -382,22 +344,11 @@ export const inventoryService = {
   async getInventoryTransactions(inventoryId, options = {}) {
     try {
       const { limit = 50, type = null } = options
-
-      let q = query(
-        collection(db, 'inventory_transactions'),
-        where('inventoryId', '==', inventoryId),
-        orderBy('timestamp', 'desc')
-      )
-
-      if (type) {
-        q = query(q, where('type', '==', type))
-      }
-
-      const snapshot = await getDocs(q)
-      return snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })).slice(0, limit)
+      const params = { inventoryId, limit }
+      if (type) params.type = type
+      const resp = await axios.get(`${API_BASE}/api/inventory/transactions`, { params })
+      const items = resp?.data?.transactions || resp?.data || []
+      return Array.isArray(items) ? items.slice(0, limit) : []
     } catch (error) {
       errorLogger.error('Failed to get inventory transactions', error)
       throw error
@@ -429,13 +380,10 @@ export const inventoryService = {
       }
 
       if (alerts.length > 0) {
-        const inventoryRef = doc(db, 'inventory', inventoryId)
-        await updateDoc(inventoryRef, {
-          alerts: arrayUnion(...alerts),
-          lastAlertDate: serverTimestamp()
-        })
+        // Tell backend to append alerts
+        await axios.put(`${API_BASE}/api/inventory/${inventoryId}/alerts`, { add: alerts, lastAlertDate: new Date().toISOString() }).catch(() => {})
 
-        // Create alert records
+        // Create alert records via backend
         for (const alertType of alerts) {
           await this.createInventoryAlert(inventoryId, alertType, {
             availableStock,
@@ -458,10 +406,7 @@ export const inventoryService = {
       }
 
       if (resolvedAlerts.length > 0) {
-        const inventoryRef = doc(db, 'inventory', inventoryId)
-        await updateDoc(inventoryRef, {
-          alerts: arrayRemove(...resolvedAlerts)
-        })
+        await axios.put(`${API_BASE}/api/inventory/${inventoryId}/alerts`, { remove: resolvedAlerts }).catch(() => {})
       }
 
     } catch (error) {
@@ -491,10 +436,10 @@ export const inventoryService = {
         type: alertType,
         ...data,
         status: 'active',
-        createdAt: serverTimestamp()
+        createdAt: new Date().toISOString()
       }
 
-      await addDoc(collection(db, 'inventory_alerts'), alertData)
+      await axios.post(`${API_BASE}/api/inventory/alerts`, alertData)
     } catch (error) {
       errorLogger.error('Failed to create inventory alert', error)
     }
@@ -568,19 +513,10 @@ export const inventoryService = {
   // Bulk update inventory
   async bulkUpdateInventory(updates) {
     try {
-      const batch = writeBatch(db)
-      
-      for (const update of updates) {
-        const { inventoryId, ...updateData } = update
-        const inventoryRef = doc(db, 'inventory', inventoryId)
-        batch.update(inventoryRef, {
-          ...updateData,
-          lastUpdated: serverTimestamp()
-        })
-      }
+      // Send bulk updates to backend
+      const payload = updates.map(u => ({ ...u, lastUpdated: new Date().toISOString() }))
+      await axios.post(`${API_BASE}/api/inventory/bulk`, { updates: payload })
 
-      await batch.commit()
-      
       errorLogger.info('Bulk inventory update completed', {
         updateCount: updates.length
       })

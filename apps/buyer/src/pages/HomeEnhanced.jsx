@@ -8,8 +8,7 @@ import ProductDetailModal from '../components/ProductDetailModal';
 import CountdownTimer from '../components/CountdownTimer';
 import ProductCarousel from '../components/ProductCarousel';
 import { getPrimaryImage } from '../utils/imageUtils';
-import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
-import { db } from '../firebase/config';
+import firebaseService from '../services/firebaseService';
 
 const HomeEnhanced = () => {
   const { currentUser, userProfile } = useAuth();
@@ -76,123 +75,49 @@ const HomeEnhanced = () => {
     { name: 'Gaming', icon: '≡ƒÄ«', slug: 'gaming' }
   ];
 
-  // Fetch products from Firestore
+  // Fetch products via REST backend
   const fetchProducts = async () => {
     try {
       setIsLoading(true);
-      
-      // Fetch products without orderBy to avoid index requirement
-      // We'll filter and sort client-side
-      const q = query(
-        collection(db, 'products'),
-        limit(200) // Fetch more to have enough for filtering
-      );
-      
-      const snapshot = await getDocs(q);
-      
-      // Filter and sort client-side
-      const allProducts = snapshot.docs
-        .map(doc => {
-        const data = doc.data();
-        
-        // Handle images
-        let images = [];
-        if (data.images && Array.isArray(data.images) && data.images.length > 0) {
-          images = data.images.filter(img => 
-            img && typeof img === 'string' && img.trim() !== '' && img !== 'undefined'
-          );
-        }
-        
+      const raw = await firebaseService.product.getAll({ limit: 200 });
+
+      const allProducts = (raw || []).map((p) => {
+        const data = { ...p };
+        // Normalize images
+        let images = Array.isArray(data.images) ? data.images.filter(Boolean) : [];
         const imageFields = ['image', 'imageUrl', 'imageURL', 'photo', 'photoUrl', 'thumbnail'];
         for (const field of imageFields) {
           if (data[field] && typeof data[field] === 'string' && data[field].trim() !== '') {
-            if (!images.includes(data[field])) {
-              images.unshift(data[field]);
-            }
+            if (!images.includes(data[field])) images.unshift(data[field]);
           }
         }
-        
-        // Create product object
-        const productData = {
-          id: doc.id,
-          ...data,
-          name: data.name || 'Unnamed Product',
-          price: parseFloat(data.price) || 0,
-          originalPrice: parseFloat(data.originalPrice) || null,
-          category: data.category || 'Uncategorized',
-          images: images,
-          image: images.length > 0 ? images[0] : null,
-          thumbnail: data.thumbnail || null, // Preserve thumbnail field
-          thumbnails: data.thumbnails || null, // Preserve thumbnails array
-        };
-        
-        // Get thumbnail URL - prioritize actual thumbnail field
-        let thumbnailUrl = null;
-        if (productData.thumbnail && typeof productData.thumbnail === 'string' && productData.thumbnail.trim() !== '') {
-          thumbnailUrl = productData.thumbnail;
-        } else if (productData.thumbnails && Array.isArray(productData.thumbnails) && productData.thumbnails.length > 0) {
-          thumbnailUrl = productData.thumbnails[0];
-        } else {
-          // Fallback to primary image if no thumbnail exists
-          thumbnailUrl = getPrimaryImage(productData, false);
-        }
-        
+
+        const thumbnailUrl = data.thumbnail || (Array.isArray(data.thumbnails) && data.thumbnails[0]) || getPrimaryImage(data, false) || (images[0] || null);
+
         return {
-          ...productData,
-          image: thumbnailUrl || productData.image, // Use thumbnail if available, otherwise use original image
+          id: data.id || data._id || null,
+          ...data,
+          images,
+          image: thumbnailUrl || images[0] || null,
           rating: data.rating || 4.5,
           reviewCount: data.reviewCount || 0,
           stock: data.stock || 0,
           isVerified: data.isVerified || false,
-          createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : (data.createdAt || new Date())
+          createdAt: data.createdAt ? new Date(data.createdAt) : new Date()
         };
-        })
-        .filter(product => {
-          // Filter active products client-side
-          return product.isActive === true || product.status === 'active';
-        })
-        .sort((a, b) => {
-          // Sort by createdAt descending (newest first)
-          return new Date(b.createdAt) - new Date(a.createdAt);
-        })
-        .slice(0, 100); // Limit to 100 after sorting
+      })
+      .filter(product => product && (product.isActive === true || product.status === 'active'))
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, 100);
 
-      // Set featured products (first 20)
       setFeaturedProducts(allProducts.slice(0, 20));
-
-      // Set flash sale products (products with discounts, first 10)
-      const discountedProducts = allProducts
-        .filter(p => p.originalPrice && p.originalPrice > p.price)
-        .sort((a, b) => {
-          const discountA = ((a.originalPrice - a.price) / a.originalPrice) * 100;
-          const discountB = ((b.originalPrice - b.price) / b.originalPrice) * 100;
-          return discountB - discountA;
-        })
-        .slice(0, 10);
+      const discountedProducts = allProducts.filter(p => p.originalPrice && p.originalPrice > p.price).sort((a, b) => (((b.originalPrice - b.price) / b.originalPrice) - ((a.originalPrice - a.price) / a.originalPrice))).slice(0,10);
       setFlashSaleProducts(discountedProducts);
-
-      // Set top sellers (products with highest ratings/reviews, first 12)
-      const topRated = [...allProducts]
-        .sort((a, b) => {
-          const scoreA = (a.rating || 0) * (a.reviewCount || 0);
-          const scoreB = (b.rating || 0) * (b.reviewCount || 0);
-          return scoreB - scoreA;
-        })
-        .slice(0, 12);
-      setTopSellers(topRated);
-
-      // Set deals products (all discounted products)
+      setTopSellers([...allProducts].sort((a,b)=> ((b.rating||0)*(b.reviewCount||0)) - ((a.rating||0)*(a.reviewCount||0))).slice(0,12));
       setDealsProducts(discountedProducts);
-
-      // Group products by category
       const categoryMap = {};
-      categories.forEach(cat => {
-        categoryMap[cat.slug] = allProducts
-          .filter(p => p.category?.toLowerCase().includes(cat.slug.toLowerCase()))
-          .slice(0, 8);
-      });
+      categories.forEach(cat => { categoryMap[cat.slug] = allProducts.filter(p => p.category?.toLowerCase().includes(cat.slug.toLowerCase())).slice(0,8); });
       setCategoryProducts(categoryMap);
-
     } catch (error) {
       console.error('Error fetching products:', error);
     } finally {

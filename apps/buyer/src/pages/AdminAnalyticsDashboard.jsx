@@ -66,6 +66,7 @@ const AdminAnalyticsDashboard = () => {
       const data = await response.json();
       setEvents(data.events);
     } catch (err) {
+      setError('Failed to fetch events.');
       console.error('Error fetching events:', err);
     }
   };
@@ -83,6 +84,7 @@ const AdminAnalyticsDashboard = () => {
       const data = await response.json();
       setAuditLogs(data.logs);
     } catch (err) {
+      setError('Failed to fetch audit logs.');
       console.error('Error fetching audit logs:', err);
     }
   };
@@ -106,6 +108,15 @@ const AdminAnalyticsDashboard = () => {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
           <p className="mt-4 text-teal-300">Loading analytics...</p>
+        </div>
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="text-center">
+          <p className="text-red-400 font-semibold">{error}</p>
         </div>
       </div>
     );

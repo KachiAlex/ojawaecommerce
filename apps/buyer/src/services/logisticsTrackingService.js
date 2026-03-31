@@ -1,17 +1,4 @@
-import { 
-  collection, 
-  doc, 
-  addDoc, 
-  updateDoc, 
-  getDoc, 
-  getDocs, 
-  query, 
-  where, 
-  orderBy, 
-  serverTimestamp,
-  arrayUnion
-} from 'firebase/firestore';
-import { db } from '../firebase/config';
+import firebaseService from './firebaseService';
 
 // ===============================
 // LOGISTICS TRACKING CONSTANTS
@@ -173,9 +160,15 @@ export const logisticsTrackingService = {
         isHighValue: logisticsData.isHighValue || false
       };
 
-      const docRef = await addDoc(collection(db, 'delivery_tracking'), trackingData);
-      
-      return { id: docRef.id, ...trackingData };
+      const res = await fetch('/api/delivery-tracking', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(trackingData)
+      });
+      if (!res.ok) throw new Error('Failed to create tracking');
+      const payload = await res.json();
+      return { id: payload.id, ...trackingData };
     } catch (error) {
       console.error('Error creating delivery tracking:', error);
       throw error;
@@ -185,14 +178,10 @@ export const logisticsTrackingService = {
   // Update delivery stage with detailed tracking information
   async updateDeliveryStage(trackingId, stage, updateData = {}) {
     try {
-      const trackingRef = doc(db, 'delivery_tracking', trackingId);
-      const trackingSnap = await getDoc(trackingRef);
-      
-      if (!trackingSnap.exists()) {
-        throw new Error('Tracking record not found');
-      }
-
-      const currentTracking = trackingSnap.data();
+      // Fetch current tracking
+      const currentTrackingRes = await fetch(`/api/delivery-tracking/${encodeURIComponent(trackingId)}`, { credentials: 'include' });
+      if (!currentTrackingRes.ok) throw new Error('Tracking record not found');
+      const currentTracking = await currentTrackingRes.json();
       
       // Validate stage progression
       if (!this.isValidStageProgression(currentTracking.currentStage, stage)) {
@@ -201,7 +190,7 @@ export const logisticsTrackingService = {
 
       const stageUpdate = {
         stage,
-        timestamp: serverTimestamp(),
+        timestamp: new Date().toISOString(),
         location: updateData.location || currentTracking.currentLocation || 'Unknown',
         description: updateData.description || DELIVERY_STAGE_DETAILS[stage]?.description || '',
         updatedBy: updateData.updatedBy || 'logistics_partner',
@@ -211,8 +200,8 @@ export const logisticsTrackingService = {
       // Prepare update data
       const updatePayload = {
         currentStage: stage,
-        updatedAt: serverTimestamp(),
-        trackingHistory: arrayUnion(stageUpdate)
+        updatedAt: new Date().toISOString(),
+        trackingHistoryEntry: stageUpdate
       };
 
       // Add location if provided
@@ -235,7 +224,12 @@ export const logisticsTrackingService = {
         updatePayload.deliveryProof = updateData.deliveryProof;
       }
 
-      await updateDoc(trackingRef, updatePayload);
+      await fetch(`/api/delivery-tracking/${encodeURIComponent(trackingId)}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatePayload)
+      });
 
       // Send notifications if needed
       await this.sendStageNotifications(trackingId, stage);
@@ -250,17 +244,10 @@ export const logisticsTrackingService = {
   // Get tracking information by tracking number
   async getTrackingByNumber(trackingNumber) {
     try {
-      const q = query(
-        collection(db, 'delivery_tracking'),
-        where('trackingNumber', '==', trackingNumber)
-      );
-      
-      const snapshot = await getDocs(q);
-      if (!snapshot.empty) {
-        const trackingDoc = snapshot.docs[0];
-        return { id: trackingDoc.id, ...trackingDoc.data() };
-      }
-      return null;
+      const res = await fetch(`/api/delivery-tracking?trackingNumber=${encodeURIComponent(trackingNumber)}`, { credentials: 'include' });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return (data.items && data.items[0]) || null;
     } catch (error) {
       console.error('Error fetching tracking by number:', error);
       throw error;
@@ -270,17 +257,10 @@ export const logisticsTrackingService = {
   // Get tracking information by order ID
   async getTrackingByOrderId(orderId) {
     try {
-      const q = query(
-        collection(db, 'delivery_tracking'),
-        where('orderId', '==', orderId)
-      );
-      
-      const snapshot = await getDocs(q);
-      if (!snapshot.empty) {
-        const trackingDoc = snapshot.docs[0];
-        return { id: trackingDoc.id, ...trackingDoc.data() };
-      }
-      return null;
+      const res = await fetch(`/api/delivery-tracking?orderId=${encodeURIComponent(orderId)}`, { credentials: 'include' });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return (data.items && data.items[0]) || null;
     } catch (error) {
       console.error('Error fetching tracking by order ID:', error);
       throw error;
@@ -290,18 +270,11 @@ export const logisticsTrackingService = {
   // Get all deliveries for a logistics partner
   async getDeliveriesByLogisticsPartner(partnerId, status = 'active') {
     try {
-      let q = query(
-        collection(db, 'delivery_tracking'),
-        where('logisticsPartnerId', '==', partnerId),
-        orderBy('updatedAt', 'desc')
-      );
-
-      if (status === 'active') {
-        q = query(q, where('isActive', '==', true));
-      }
-
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const params = new URLSearchParams({ partnerId, status }).toString();
+      const res = await fetch(`/api/delivery-tracking?${params}`, { credentials: 'include' });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.items || [];
     } catch (error) {
       console.error('Error fetching deliveries by logistics partner:', error);
       throw error;
@@ -311,21 +284,22 @@ export const logisticsTrackingService = {
   // Add location update (for real-time tracking)
   async addLocationUpdate(trackingId, locationData) {
     try {
-      const trackingRef = doc(db, 'delivery_tracking', trackingId);
-      
-      const locationUpdate = {
-        timestamp: serverTimestamp(),
-        latitude: locationData.latitude,
-        longitude: locationData.longitude,
-        address: locationData.address,
-        accuracy: locationData.accuracy || null,
-        updatedBy: locationData.updatedBy || 'driver'
+      const payload = {
+        location: {
+          timestamp: new Date().toISOString(),
+          latitude: locationData.latitude,
+          longitude: locationData.longitude,
+          address: locationData.address,
+          accuracy: locationData.accuracy || null,
+          updatedBy: locationData.updatedBy || 'driver'
+        }
       };
 
-      await updateDoc(trackingRef, {
-        currentLocation: locationData.address,
-        locationHistory: arrayUnion(locationUpdate),
-        updatedAt: serverTimestamp()
+      await fetch(`/api/delivery-tracking/${encodeURIComponent(trackingId)}/location`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
       });
 
       return { success: true };
@@ -338,22 +312,23 @@ export const logisticsTrackingService = {
   // Add delivery attempt
   async addDeliveryAttempt(trackingId, attemptData) {
     try {
-      const trackingRef = doc(db, 'delivery_tracking', trackingId);
-      
-      const attempt = {
-        attemptNumber: attemptData.attemptNumber,
-        timestamp: serverTimestamp(),
-        location: attemptData.location,
-        reason: attemptData.reason || 'Customer not available',
-        notes: attemptData.notes || '',
-        nextAttemptDate: attemptData.nextAttemptDate || null,
-        updatedBy: attemptData.updatedBy || 'driver'
+      const payload = {
+        attempt: {
+          attemptNumber: attemptData.attemptNumber,
+          timestamp: new Date().toISOString(),
+          location: attemptData.location,
+          reason: attemptData.reason || 'Customer not available',
+          notes: attemptData.notes || '',
+          nextAttemptDate: attemptData.nextAttemptDate || null,
+          updatedBy: attemptData.updatedBy || 'driver'
+        }
       };
 
-      await updateDoc(trackingRef, {
-        deliveryAttempts: arrayUnion(attempt),
-        currentStage: DELIVERY_STAGES.DELIVERY_ATTEMPTED,
-        updatedAt: serverTimestamp()
+      await fetch(`/api/delivery-tracking/${encodeURIComponent(trackingId)}/attempt`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
       });
 
       return { success: true };
@@ -366,23 +341,22 @@ export const logisticsTrackingService = {
   // Complete delivery with proof
   async completeDelivery(trackingId, deliveryData) {
     try {
-      const trackingRef = doc(db, 'delivery_tracking', trackingId);
-      
-      const deliveryCompletion = {
-        timestamp: serverTimestamp(),
-        deliveredTo: deliveryData.deliveredTo || 'Customer',
-        signature: deliveryData.signature || null,
-        photo: deliveryData.photo || null,
-        notes: deliveryData.notes || '',
-        updatedBy: deliveryData.updatedBy || 'driver'
+      const payload = {
+        completion: {
+          timestamp: new Date().toISOString(),
+          deliveredTo: deliveryData.deliveredTo || 'Customer',
+          signature: deliveryData.signature || null,
+          photo: deliveryData.photo || null,
+          notes: deliveryData.notes || '',
+          updatedBy: deliveryData.updatedBy || 'driver'
+        }
       };
 
-      await updateDoc(trackingRef, {
-        currentStage: DELIVERY_STAGES.DELIVERED,
-        deliveryCompletion,
-        actualDeliveryDate: serverTimestamp(),
-        isActive: false,
-        updatedAt: serverTimestamp()
+      await fetch(`/api/delivery-tracking/${encodeURIComponent(trackingId)}/complete`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
       });
 
       // Send delivery confirmation notifications
@@ -452,13 +426,10 @@ export const logisticsTrackingService = {
   // Get delivery statistics for logistics partner
   async getDeliveryStatistics(partnerId) {
     try {
-      let q = query(
-        collection(db, 'delivery_tracking'),
-        where('logisticsPartnerId', '==', partnerId)
-      );
-
-      const snapshot = await getDocs(q);
-      const deliveries = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const res = await fetch(`/api/delivery-tracking?partnerId=${encodeURIComponent(partnerId)}&status=delivered`, { credentials: 'include' });
+      if (!res.ok) return null;
+      const data = await res.json();
+      const deliveries = data.items || [];
 
       const stats = {
         total: deliveries.length,
@@ -491,17 +462,22 @@ export const logisticsTrackingService = {
   // Update estimated delivery time
   async updateEstimatedDelivery(trackingId, newEstimatedDate, reason = '') {
     try {
-      const trackingRef = doc(db, 'delivery_tracking', trackingId);
-      
-      await updateDoc(trackingRef, {
+      const payload = {
         estimatedDeliveryDate: newEstimatedDate,
         estimatedDeliveryUpdate: {
-          timestamp: serverTimestamp(),
+          timestamp: new Date().toISOString(),
           newDate: newEstimatedDate,
           reason,
           updatedBy: 'logistics_partner'
         },
-        updatedAt: serverTimestamp()
+        updatedAt: new Date().toISOString()
+      };
+
+      await fetch(`/api/delivery-tracking/${encodeURIComponent(trackingId)}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
       });
 
       return { success: true };

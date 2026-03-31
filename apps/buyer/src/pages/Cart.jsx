@@ -4,8 +4,9 @@ import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useMessaging } from '../contexts/MessagingContext';
 import { usePageTracking, useProductTracking, useClickTracking } from '../hooks/useAnalytics';
-import { doc, getDoc, collection, query, where, limit, getDocs } from 'firebase/firestore';
-import { db } from '../firebase/config';
+import axios from 'axios';
+
+const API_BASE = import.meta.env.VITE_API_BASE || 'https://ojawaecommerce.onrender.com';
 import AddressInput from '../components/AddressInput';
 import CheckoutLogisticsSelector from '../components/CheckoutLogisticsSelector';
 import { formatCurrency as formatCurrencyUtil } from '../utils/currencyUtils';
@@ -189,11 +190,11 @@ const Cart = () => {
   useEffect(() => {
     const fetchBuyerAddress = async () => {
       if (!currentUser) return;
-      
+
       try {
-        const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
+        const res = await axios.get(`${API_BASE}/api/users/${currentUser.uid}`);
+        const userData = res?.data?.user || null;
+        if (userData) {
           const address = userData.structuredAddress || {
             street: userData.address || '',
             city: userData.city || '',
@@ -236,9 +237,10 @@ const Cart = () => {
             processingTime = item.processingTimeDays;
           } else if (item.id) {
             try {
-              const prodSnap = await getDoc(doc(db, 'products', item.id));
-              if (prodSnap.exists()) {
-                processingTime = prodSnap.data().processingTimeDays || 2;
+              const prodRes = await axios.get(`${API_BASE}/api/products/${item.id}`);
+              const prod = prodRes?.data?.product || null;
+              if (prod) {
+                processingTime = prod.processingTimeDays || 2;
               }
             } catch (error) {
               console.error('Failed to fetch product processing time:', error);
@@ -256,15 +258,15 @@ const Cart = () => {
         if (vendorIds.length > 0) {
           const vendorData = {};
           
-          for (const vendorId of vendorIds) {
+            for (const vendorId of vendorIds) {
             console.log(`🛒 Fetching vendor ${vendorId}...`);
             try {
-              // Force fetch from server to get latest vendor data (bypasses cache)
-              const userSnap = await getDoc(doc(db, 'users', vendorId));
+              // Fetch vendor profile from backend
+              const userRes = await axios.get(`${API_BASE}/api/users/${vendorId}`);
+              const vendor = userRes?.data?.user || null;
               let vendorAddress = '';
-              
-              if (userSnap.exists()) {
-                const vendor = userSnap.data();
+
+              if (vendor) {
                 
                 // Debug: Log vendor data to see what's available
                 console.log(`🔍 Vendor ${vendorId} data:`, {
@@ -300,14 +302,10 @@ const Cart = () => {
                 // If still no address, try checking stores collection
                 if (!vendorAddress || vendorAddress === '') {
                   try {
-                    const storesQuery = query(
-                      collection(db, 'stores'),
-                      where('vendorId', '==', vendorId),
-                      limit(1)
-                    );
-                    const storesSnapshot = await getDocs(storesQuery);
-                    if (!storesSnapshot.empty) {
-                      const store = storesSnapshot.docs[0].data();
+                    const storesRes = await axios.get(`${API_BASE}/api/stores`, { params: { vendorId, limit: 1 } });
+                    const stores = storesRes?.data?.stores || [];
+                    if (stores.length > 0) {
+                      const store = stores[0];
                       vendorAddress = store.contactInfo?.address || store.address || '';
                       console.log(`🏪 Found address from store:`, vendorAddress);
                     }
