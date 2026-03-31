@@ -266,7 +266,18 @@ app.get('/api/products', async (req, res) => {
     const response = await axios.get(process.env.RENDER_API_URL + '/api/products?status=active');
     res.json({ products: response.data.products || response.data });
   } catch (error) {
-    res.status(500).json({ error: error.message || 'Failed to fetch products' });
+    // Provide extra debug information when requested via query param or in development
+    const debugEnabled = req.query._debug === '1' || process.env.NODE_ENV === 'development';
+    const details = {
+      message: error.message,
+      code: error.code,
+      status: error.response?.status,
+      responseData: error.response?.data,
+      headers: error.response?.headers,
+      stack: debugEnabled ? error.stack : undefined,
+    };
+    console.error('Error fetching products:', details);
+    return res.status(500).json({ error: 'Failed to fetch products', details: debugEnabled ? details : undefined });
   }
 });
 
