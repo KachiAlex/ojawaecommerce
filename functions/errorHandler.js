@@ -317,8 +317,8 @@ const ErrorRecovery = {
 
         throw error;
       }
-    };
-  };
+	}
+}
 
 module.exports = {
   // Error classes
