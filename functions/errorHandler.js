@@ -185,15 +185,13 @@ function errorHandlerMiddleware(err, req, res, next) {
       message: appError.message,
       context: requestContext,
       stack: appError.stack,
-    }).catch(err => console.error('Failed to log critical error:', err.message));
-        // TODO: Store error log if critical in backend DB or via REST API
-        // Example: await fetch('https://your-backend/critical-errors', { method: 'POST', body: JSON.stringify({ ... }) })
-      message: appError.message,
       code: appError.name,
       requestId: req.requestId,
       ...(process.env.NODE_ENV === 'development' && { stack: appError.stack }),
-    },
-  });
+    }).catch(err => console.error('Failed to log critical error:', err.message));
+    // TODO: Store error log if critical in backend DB or via REST API
+    // Example: await fetch('https://your-backend/critical-errors', { method: 'POST', body: JSON.stringify({ ... }) })
+  }
 }
 
 // Async error wrapper for Express handlers
