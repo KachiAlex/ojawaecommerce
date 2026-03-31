@@ -263,7 +263,12 @@ app.get('/notifications', authenticateToken, async (req, res) => {
 // Refactored: Fetch products from Render REST API
 app.get('/api/products', async (req, res) => {
   try {
-    const response = await axios.get(process.env.RENDER_API_URL + '/api/products?status=active');
+    const backendBase = process.env.RENDER_API_URL || '';
+    if (!backendBase) {
+      console.error('RENDER_API_URL is not set in environment');
+      return res.status(500).json({ error: 'Backend configuration error', details: { message: 'RENDER_API_URL not configured on this service' } });
+    }
+    const response = await axios.get(backendBase + '/api/products?status=active');
     res.json({ products: response.data.products || response.data });
   } catch (error) {
     // Provide extra debug information when requested via query param or in development
@@ -395,6 +400,27 @@ app.get('/orders', authenticateToken, async (req, res) => {
     res.json({ orders: response.data.orders || response.data });
   } catch (error) {
     res.status(500).json({ error: error.message || 'Failed to fetch orders' });
+  }
+});
+
+// --- Temporary debug endpoint (remove after verification) ---
+app.get('/debug/env', (req, res) => {
+  try {
+    const raw = process.env.RENDER_API_URL || null;
+    let masked = null;
+    if (raw) {
+      try {
+        const u = new URL(raw);
+        // show origin only (protocol + host), hide path/credentials
+        masked = u.origin;
+      } catch (e) {
+        // raw value may be missing protocol; show a masked placeholder
+        masked = raw.length > 32 ? `${raw.slice(0, 16)}...${raw.slice(-8)}` : raw;
+      }
+    }
+    return res.json({ renderApiUrlPresent: !!raw, renderApiUrlMasked: masked, nodeEnv: process.env.NODE_ENV || 'unknown', timestamp: new Date().toISOString() });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to read env', details: err.message });
   }
 });
 
@@ -958,6 +984,27 @@ app.get('/admin/analytics/summary', authenticateToken, requireAdmin, async (req,
   } catch (error) {
     console.error('Error fetching analytics summary:', error);
     return res.status(500).json({ error: error.message || 'Failed to fetch analytics summary' });
+  }
+});
+
+// --- Temporary debug endpoint (remove after verification) ---
+app.get('/debug/env', (req, res) => {
+  try {
+    const raw = process.env.RENDER_API_URL || null;
+    let masked = null;
+    if (raw) {
+      try {
+        const u = new URL(raw);
+        // show origin only (protocol + host), hide path/credentials
+        masked = u.origin;
+      } catch (e) {
+        // raw value may be missing protocol; show a masked placeholder
+        masked = raw.length > 32 ? `${raw.slice(0, 16)}...${raw.slice(-8)}` : raw;
+      }
+    }
+    return res.json({ renderApiUrlPresent: !!raw, renderApiUrlMasked: masked, nodeEnv: process.env.NODE_ENV || 'unknown', timestamp: new Date().toISOString() });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to read env', details: err.message });
   }
 });
 
