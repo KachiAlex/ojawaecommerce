@@ -32,6 +32,8 @@ const {
   sanitizeRequestData,
 } = require('./validation');
 
+const db = admin.apps && admin.apps.length ? admin.firestore() : null;
+
 
 // [MIGRATION] All Firestore-dependent logic must be refactored to use Render backend REST API.
 
@@ -433,40 +435,6 @@ app.get('/debug/env', (req, res) => {
     return res.json({ renderApiUrlPresent: !!raw, renderApiUrlMasked: masked, nodeEnv: process.env.NODE_ENV || 'unknown', timestamp: new Date().toISOString() });
   } catch (err) {
     return res.status(500).json({ error: 'Failed to read env', details: err.message });
-  }
-});
-
-// --- Temporary export endpoint for product migration (remove after migration) ---
-app.get('/debug/export-products', async (req, res) => {
-  try {
-    const adminKey = process.env.MIGRATION_ADMIN_KEY;
-    const suppliedKey = req.get('x-migration-key') || req.query.key;
-    if (!adminKey || suppliedKey !== adminKey) {
-      return res.status(403).json({ error: 'Forbidden' });
-    }
-
-    const backendBase = process.env.RENDER_API_URL || '';
-    if (!backendBase) {
-      return res.status(500).json({ error: 'RENDER_API_URL not configured' });
-    }
-
-    const response = await axios.get(backendBase + '/api/products');
-    const products = Array.isArray(response.data)
-      ? response.data
-      : (response.data?.products || []);
-
-    return res.json({
-      count: products.length,
-      products,
-      exportedAt: new Date().toISOString(),
-    });
-  } catch (error) {
-    return res.status(500).json({
-      error: 'Failed to export products',
-      details: error.message,
-      status: error.response?.status,
-      responseData: error.response?.data,
-    });
   }
 });
 
@@ -1192,7 +1160,11 @@ app.get('/admin/security/failed-logins', authenticateToken, requireAdmin, async 
 
 app.use(errorHandlerMiddleware);
 
-const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => {
-  console.log(`Server listening on port ${PORT}`);
-});
+module.exports = app;
+
+if (require.main === module) {
+  const PORT = process.env.PORT || 8080;
+  app.listen(PORT, () => {
+    console.log(`Server listening on port ${PORT}`);
+  });
+}
