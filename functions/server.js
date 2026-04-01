@@ -268,7 +268,7 @@ app.get('/api/products', async (req, res) => {
       console.error('RENDER_API_URL is not set in environment');
       return res.status(500).json({ error: 'Backend configuration error', details: { message: 'RENDER_API_URL not configured on this service' } });
     }
-    const response = await axios.get(backendBase + '/api/products?status=active');
+    const response = await axios.get(backendBase + '/products?status=active');
     res.json({ products: response.data.products || response.data });
   } catch (error) {
     // Provide extra debug information when requested via query param or in development
