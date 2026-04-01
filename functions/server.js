@@ -424,6 +424,40 @@ app.get('/debug/env', (req, res) => {
   }
 });
 
+// --- Temporary export endpoint for product migration (remove after migration) ---
+app.get('/debug/export-products', async (req, res) => {
+  try {
+    const adminKey = process.env.MIGRATION_ADMIN_KEY;
+    const suppliedKey = req.get('x-migration-key') || req.query.key;
+    if (!adminKey || suppliedKey !== adminKey) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const backendBase = process.env.RENDER_API_URL || '';
+    if (!backendBase) {
+      return res.status(500).json({ error: 'RENDER_API_URL not configured' });
+    }
+
+    const response = await axios.get(backendBase + '/api/products');
+    const products = Array.isArray(response.data)
+      ? response.data
+      : (response.data?.products || []);
+
+    return res.json({
+      count: products.length,
+      products,
+      exportedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    return res.status(500).json({
+      error: 'Failed to export products',
+      details: error.message,
+      status: error.response?.status,
+      responseData: error.response?.data,
+    });
+  }
+});
+
 // --- Admin Routes ---
 
 // Refactored: Fetch all orders for admin from Render REST API
