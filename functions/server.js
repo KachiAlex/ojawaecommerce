@@ -1,7 +1,7 @@
 // --- Admin Middleware ---
 require('dotenv').config();
 const express = require('express');
-// [MIGRATION] Firebase Admin and Firestore usage removed. Only authentication flow remains via Firebase Auth REST API.
+const admin = require('./firebaseAdmin');
 const axios = require('axios');
 const cors = require('cors');
 const {
@@ -260,28 +260,40 @@ app.get('/notifications', authenticateToken, async (req, res) => {
 
 // --- Product Listing ---
 
-// Refactored: Fetch products from Render REST API
+// Fetch products: tries Render REST API first, falls back to Firestore if unavailable
 app.get('/api/products', async (req, res) => {
-  try {
-    const backendBase = process.env.RENDER_API_URL || '';
-    if (!backendBase) {
-      console.error('RENDER_API_URL is not set in environment');
-      return res.status(500).json({ error: 'Backend configuration error', details: { message: 'RENDER_API_URL not configured on this service' } });
+  const debugEnabled = req.query._debug === '1' || process.env.NODE_ENV === 'development';
+
+  // --- 1. Try Render REST API ---
+  const backendBase = process.env.RENDER_API_URL || '';
+  if (backendBase) {
+    try {
+      const response = await axios.get(backendBase + '/products?status=active', { timeout: 8000 });
+      const products = response.data.products || response.data;
+      if (Array.isArray(products) && products.length > 0) {
+        return res.json({ products, source: 'render' });
+      }
+    } catch (renderErr) {
+      console.warn('[/api/products] Render upstream failed, falling back to Firestore:', renderErr.message);
     }
-    const response = await axios.get(backendBase + '/products?status=active');
-    res.json({ products: response.data.products || response.data });
-  } catch (error) {
-    // Provide extra debug information when requested via query param or in development
-    const debugEnabled = req.query._debug === '1' || process.env.NODE_ENV === 'development';
+  }
+
+  // --- 2. Fallback: Firestore ---
+  try {
+    if (!admin.apps || !admin.apps.length) {
+      return res.status(500).json({ error: 'Backend unavailable: Render and Firebase not configured' });
+    }
+    const db = admin.firestore();
+    const snapshot = await db.collection('products').where('status', '==', 'active').get();
+    const products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return res.json({ products, source: 'firestore' });
+  } catch (firestoreErr) {
     const details = {
-      message: error.message,
-      code: error.code,
-      status: error.response?.status,
-      responseData: error.response?.data,
-      headers: error.response?.headers,
-      stack: debugEnabled ? error.stack : undefined,
+      message: firestoreErr.message,
+      code: firestoreErr.code,
+      stack: debugEnabled ? firestoreErr.stack : undefined,
     };
-    console.error('Error fetching products:', details);
+    console.error('[/api/products] Firestore fallback also failed:', details);
     return res.status(500).json({ error: 'Failed to fetch products', details: debugEnabled ? details : undefined });
   }
 });
