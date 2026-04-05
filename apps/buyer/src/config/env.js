@@ -32,6 +32,14 @@ export const config = {
     apiBaseUrl: import.meta.env.VITE_API_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : ''),
   },
 
+  // Debug environment variables
+  debug: {
+    apiBaseUrl: import.meta.env.VITE_API_BASE_URL,
+    mode: import.meta.env.MODE,
+    dev: import.meta.env.DEV,
+    prod: import.meta.env.PROD,
+  },
+
   // Feature flags
   features: {
     analytics: import.meta.env.VITE_ENABLE_ANALYTICS === 'true',
@@ -93,5 +101,9 @@ export const validateEnvironment = () => {
 
 // Log configuration in development
 if (config.isDevelopment && config.development.debugMode) {
-  console.log('Environment Configuration:', config)
+  console.log('Environment Configuration:', config);
 }
+
+// Always log API base URL for debugging
+console.log('🔗 API Base URL:', config.app.apiBaseUrl);
+console.log('🔍 Debug Info:', config.debug);

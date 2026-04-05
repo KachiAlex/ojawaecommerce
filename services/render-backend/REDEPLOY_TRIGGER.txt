@@ -1,2 +1,1 @@
-# Trigger Render redeploy with main server
-# This will update the Render service to use the main server instead of debug server
+# Trigger RendeFix auth/me endpoint v2 - 2026-04-05T19:30:00Zhis will update the Render service to use the main server instead of debug server

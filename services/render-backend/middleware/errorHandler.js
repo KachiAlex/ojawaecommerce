@@ -67,9 +67,17 @@ const asyncHandler = (fn) => (req, res, next) => {
   Promise.resolve(fn(req, res, next)).catch(next);
 };
 
+const generateToken = (payload) => {
+  const jwt = require('jsonwebtoken');
+  return jwt.sign(payload, process.env.JWT_SECRET || 'your-secret-key', {
+    expiresIn: process.env.JWT_EXPIRES_IN || '7d'
+  });
+};
+
 module.exports = {
   AppError,
   errorHandler,
   notFound,
-  asyncHandler
+  asyncHandler,
+  generateToken
 };

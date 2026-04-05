@@ -3,13 +3,19 @@ const { body, validationResult } = require('express-validator');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const admin = require('firebase-admin');
-const { AppError } = require('../middleware/errorHandler');
-const { asyncHandler, generateToken } = require('../middleware/errorHandler');
+const { AppError, asyncHandler } = require('../middleware/errorHandler');
 const { authenticateToken } = require('../middleware/auth');
 const router = express.Router();
 
 const auth = admin.auth();
 const db = admin.firestore();
+
+// Generate JWT token
+const generateToken = (payload) => {
+  return jwt.sign(payload, process.env.JWT_SECRET || 'your-secret-key', {
+    expiresIn: process.env.JWT_EXPIRES_IN || '7d'
+  });
+};
 
 // Validation middleware
 const handleValidationErrors = (req, res, next) => {
@@ -228,6 +234,29 @@ router.post('/refresh', [
  * @access  Private
  */
 router.get('/profile', authenticateToken, asyncHandler(async (req, res) => {
+  const userDoc = await db.collection('users').doc(req.user.uid).get();
+  
+  if (!userDoc.exists) {
+    throw new AppError('User not found', 404);
+  }
+
+  const userData = userDoc.data();
+  
+  // Remove sensitive information
+  const { password, ...safeUserData } = userData;
+
+  res.json({
+    success: true,
+    data: safeUserData
+  });
+}));
+
+/**
+ * @route   GET /auth/me
+ * @desc    Get current user info (alias for /profile)
+ * @access  Private
+ */
+router.get('/me', authenticateToken, asyncHandler(async (req, res) => {
   const userDoc = await db.collection('users').doc(req.user.uid).get();
   
   if (!userDoc.exists) {

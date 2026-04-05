@@ -5,25 +5,37 @@ import { config } from '../config/env';
 
 const api = {
   async request(path, options = {}) {
-    // Use the Render backend URL for API calls
-    const baseUrl = config.app.apiBaseUrl;
+    // Force use Render backend in production
+    const baseUrl = import.meta.env.PROD 
+      ? 'https://ojawaecommerce.onrender.com'
+      : (config.app.apiBaseUrl || (typeof window !== 'undefined' ? window.location.origin : ''));
+    
     const fullPath = path.startsWith('http') ? path : `${baseUrl}${path}`;
     
-    const res = await fetch(fullPath, {
-      credentials: 'include',
-      headers: { Accept: 'application/json', ...(options.headers || {}) },
-      ...options,
-    });
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      const err = new Error(`API ${path} failed: ${res.status} ${res.statusText} ${text}`);
-      err.status = res.status;
-      throw err;
+    console.log(`🔗 API Request: ${fullPath}`);
+    
+    try {
+      const res = await fetch(fullPath, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...options.headers,
+        },
+        ...options,
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error(`API Error ${res.status} for ${fullPath}:`, errorText);
+        throw new Error(`API ${path} failed: ${res.status} ${errorText}`);
+      }
+
+      const data = await res.json();
+      console.log(`✅ API Success: ${fullPath}`, data);
+      return data;
+    } catch (error) {
+      console.error(`❌ API Error: ${fullPath}`, error);
+      throw error;
     }
-    if (res.status === 204) return null;
-    const ct = res.headers.get('content-type') || '';
-    if (ct.includes('application/json')) return res.json();
-    return res.text();
   },
 };
 
@@ -54,11 +66,11 @@ export const productService = {
   async getAll(filters = {}) {
     const params = new URLSearchParams(filters).toString();
     const res = await api.request(`/api/products?${params}`);
-    return res.items || [];
+    return res.data?.products || [];
   },
   async getById(id) {
     const res = await api.request(`/api/products/${encodeURIComponent(id)}`);
-    return res || null;
+    return res.data || null;
   }
 };
 

@@ -178,6 +178,8 @@ app.get('/health/subscriptions', (req, res) => {
 
 // API Routes
 app.use('/auth', authRoutes);
+app.use('/api/auth', authRoutes); // Add API auth routes for frontend compatibility
+app.use('/api/auth/me', require('./routes/authMe')); // Quick fix for /me endpoint
 app.use('/api/products', productRoutes);
 app.use('/api/cart', authenticateToken, cartRoutes);
 app.use('/api/orders', authenticateToken, orderRoutes);
