@@ -1,9 +1,15 @@
 // REST-backed replacement for previous Firebase service.
 // Routes data and auth operations to the Render backend under `/api/*`.
 
+import { config } from '../config/env';
+
 const api = {
   async request(path, options = {}) {
-    const res = await fetch(path, {
+    // Use the Render backend URL for API calls
+    const baseUrl = config.app.apiBaseUrl;
+    const fullPath = path.startsWith('http') ? path : `${baseUrl}${path}`;
+    
+    const res = await fetch(fullPath, {
       credentials: 'include',
       headers: { Accept: 'application/json', ...(options.headers || {}) },
       ...options,
