@@ -1,5 +1,5 @@
 const express = require('express');
-const { query, validationResult } = require('express-validator');
+const { body, query, validationResult } = require('express-validator');
 const admin = require('firebase-admin');
 const { AppError } = require('../middleware/errorHandler');
 const { asyncHandler } = require('../middleware/errorHandler');
@@ -20,6 +20,59 @@ const handleValidationErrors = (req, res, next) => {
   }
   next();
 };
+
+/**
+ * @route   POST /api/analytics/events
+ * @desc    Track analytics events
+ * @access  Private
+ */
+router.post('/events', authenticateToken, [
+  body('events').isArray(),
+  body('events.*.name').isString(),
+  body('events.*.category').optional().isString(),
+  body('events.*.action').optional().isString(),
+  body('events.*.label').optional().isString(),
+  body('events.*.value').optional().isNumeric(),
+  handleValidationErrors
+], asyncHandler(async (req, res) => {
+  const { events } = req.body;
+  const userId = req.user.uid;
+
+  // Process and store analytics events
+  const batch = db.batch();
+  const eventDocs = [];
+
+  events.forEach(event => {
+    const eventData = {
+      userId,
+      name: event.name,
+      category: event.category || 'general',
+      action: event.action || 'unknown',
+      label: event.label || null,
+      value: event.value || null,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      userAgent: req.get('user-agent'),
+      ipAddress: req.ip
+    };
+
+    const eventRef = db.collection('analytics_events').doc();
+    batch.set(eventRef, eventData);
+    eventDocs.push({
+      id: eventRef.id,
+      ...eventData
+    });
+  });
+
+  await batch.commit();
+
+  res.json({
+    success: true,
+    message: `${events.length} events tracked successfully`,
+    data: {
+      events: eventDocs
+    }
+  });
+});
 
 /**
  * @route   GET /api/analytics/revenue

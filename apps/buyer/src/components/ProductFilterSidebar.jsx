@@ -109,11 +109,15 @@ const ProductFilterSidebar = ({
     setLocalSearchQuery(searchQuery);
   }, [searchQuery]);
 
-  // Apply filters and notify parent
+  // Apply filters and notify parent (debounced to prevent infinite loops)
   useEffect(() => {
-    if (onFilterChange) {
-      onFilterChange(buildFiltersPayload());
-    }
+    const timeoutId = setTimeout(() => {
+      if (onFilterChange) {
+        onFilterChange(buildFiltersPayload());
+      }
+    }, 300); // 300ms debounce
+
+    return () => clearTimeout(timeoutId);
   }, [
     localSearchQuery,
     selectedCategories,
@@ -122,8 +126,7 @@ const ProductFilterSidebar = ({
     isPriceApplied,
     discountPercentage,
     selectedBrands,
-    selectedSizes,
-    onFilterChange
+    selectedSizes
   ]);
 
   // Handle search input change
