@@ -1,0 +1,2 @@
+# Trigger Render redeploy with main server
+# This will update the Render service to use the main server instead of debug server
