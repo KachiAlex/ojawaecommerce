@@ -3,6 +3,10 @@ const cors = require('cors');
 const path = require('path');
 const multer = require('multer');
 const fs = require('fs');
+require('dotenv').config();
+const admin = require('./firebaseAdmin');
+
+const db = admin && admin.firestore ? admin.firestore() : null;
 
 const app = express();
 app.use(cors());
@@ -150,12 +154,44 @@ let ALERTS = [
 const ANALYTICS = [];
 
 // Products
-app.get('/api/products', (req, res) => {
+app.get('/api/products', async (req, res) => {
   const { q } = req.query;
-  if (q) {
-    const qlc = q.toLowerCase();
-    const found = PRODUCTS.filter(p => p.name.toLowerCase().includes(qlc)).map(p => {
-      // ensure thumbnail field if file exists
+  try {
+    if (db) {
+      let query = db.collection('products').where('status', '==', 'active');
+      if (q) {
+        // simple name search
+        const qlc = q.toLowerCase();
+        // Firestore doesn't support contains; fetch a bounded set
+        const snapshot = await db.collection('products').where('status', '==', 'active').get();
+        const results = snapshot.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => p.name && p.name.toLowerCase().includes(qlc));
+        return res.json({ products: results, source: 'firestore' });
+      }
+
+      const snap = await query.get();
+      const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      return res.json({ products: items, source: 'firestore' });
+    }
+
+    // Fallback to in-memory behavior
+    if (q) {
+      const qlc = q.toLowerCase();
+      const found = PRODUCTS.filter(p => p.name.toLowerCase().includes(qlc)).map(p => {
+        try {
+          const files = fs.readdirSync(UPLOADS_DIR);
+          const match = files.find(f => f.startsWith(`${p.id}-thumb`));
+          if (match) {
+            const port = process.env.PORT || 3000;
+            p.thumbnail = `http://localhost:${port}/_fake_thumbs/${encodeURIComponent(match)}`;
+            p.thumbnails = p.thumbnails && Array.isArray(p.thumbnails) ? [p.thumbnail, ...p.thumbnails.filter(u => u !== p.thumbnail)] : [p.thumbnail];
+          }
+        } catch (e) { /* ignore */ }
+        return p;
+      });
+      return res.json({ products: found, source: 'memory' });
+    }
+
+    const items = PRODUCTS.map(p => {
       try {
         const files = fs.readdirSync(UPLOADS_DIR);
         const match = files.find(f => f.startsWith(`${p.id}-thumb`));
@@ -167,23 +203,12 @@ app.get('/api/products', (req, res) => {
       } catch (e) { /* ignore */ }
       return p;
     });
-    return res.json({ products: found });
-  }
-  // Attach thumbnail URLs for any uploaded thumbnails
-  const items = PRODUCTS.map(p => {
-    try {
-      const files = fs.readdirSync(UPLOADS_DIR);
-      const match = files.find(f => f.startsWith(`${p.id}-thumb`));
-      if (match) {
-        const port = process.env.PORT || 3000;
-        p.thumbnail = `http://localhost:${port}/_fake_thumbs/${encodeURIComponent(match)}`;
-        p.thumbnails = p.thumbnails && Array.isArray(p.thumbnails) ? [p.thumbnail, ...p.thumbnails.filter(u => u !== p.thumbnail)] : [p.thumbnail];
-      }
-    } catch (e) { /* ignore */ }
-    return p;
-  });
 
-  res.json({ products: items });
+    res.json({ products: items, source: 'memory' });
+  } catch (err) {
+    console.error('Render API /api/products error:', err.message || err);
+    res.status(500).json({ error: 'internal_error' });
+  }
 });
 
 app.get('/api/products/:id', (req, res) => {
@@ -256,19 +281,46 @@ app.get('/api/alerts', (req, res) => {
 });
 
 app.post('/api/alerts', (req, res) => {
-  const { userId, productId, threshold } = req.body || {};
-  if (!userId || !productId) return res.status(400).json({ error: 'missing_params' });
-  const id = `a${Date.now()}`;
-  const alert = { id, userId, productId, threshold };
-  ALERTS.push(alert);
-  res.status(201).json(alert);
+  (async () => {
+    const { userId, productId, threshold } = req.body || {};
+    if (!userId || !productId) return res.status(400).json({ error: 'missing_params' });
+    try {
+      if (db) {
+        const ref = db.collection('alerts').doc();
+        const alert = { userId, productId, threshold, createdAt: new Date().toISOString() };
+        await ref.set(alert);
+        return res.status(201).json({ id: ref.id, ...alert });
+      }
+      const id = `a${Date.now()}`;
+      const alert = { id, userId, productId, threshold };
+      ALERTS.push(alert);
+      return res.status(201).json(alert);
+    } catch (err) {
+      console.error('alerts create error:', err.message || err);
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  })();
 });
 
 app.delete('/api/alerts/:id', (req, res) => {
-  const before = ALERTS.length;
-  ALERTS = ALERTS.filter(a => a.id !== req.params.id);
-  if (ALERTS.length === before) return res.status(404).json({ error: 'not_found' });
-  res.json({ ok: true });
+  (async () => {
+    try {
+      if (db) {
+        const ref = db.collection('alerts').doc(req.params.id);
+        const doc = await ref.get();
+        if (!doc.exists) return res.status(404).json({ error: 'not_found' });
+        await ref.delete();
+        return res.json({ ok: true });
+      }
+      const before = ALERTS.length;
+      ALERTS = ALERTS.filter(a => a.id !== req.params.id);
+      if (ALERTS.length === before) return res.status(404).json({ error: 'not_found' });
+      return res.json({ ok: true });
+    } catch (err) {
+      console.error('alerts delete error:', err.message || err);
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  })();
 });
 
 // Thumbnail upload stub - accepts a POST and returns a fake thumbnail URL
@@ -279,13 +331,30 @@ app.post('/api/products/:id/thumbnail', upload.single('file'), (req, res) => {
   if (req.file && req.file.filename) {
     const port = process.env.PORT || 3000;
     const url = `http://localhost:${port}/_fake_thumbs/${encodeURIComponent(req.file.filename)}`;
-
-    // Persist thumbnail URL into PRODUCTS in-memory store if product exists
-    const prod = PRODUCTS.find(p => p.id === id);
-    if (prod) {
-      prod.thumbnail = url;
-      prod.thumbnails = prod.thumbnails && Array.isArray(prod.thumbnails) ? [url, ...prod.thumbnails.filter(u => u !== url)] : [url];
-    }
+    // Persist thumbnail URL into Firestore if available, else in-memory
+    (async () => {
+      try {
+        if (db) {
+          const ref = db.collection('products').doc(id);
+          const doc = await ref.get();
+          if (doc.exists) {
+            const data = doc.data();
+            const thumbs = data.thumbnails && Array.isArray(data.thumbnails) ? [url, ...data.thumbnails.filter(u => u !== url)] : [url];
+            await ref.update({ thumbnail: url, thumbnails: thumbs });
+          } else {
+            await ref.set({ thumbnail: url, thumbnails: [url], createdAt: new Date().toISOString(), status: 'active' });
+          }
+        } else {
+          const prod = PRODUCTS.find(p => p.id === id);
+          if (prod) {
+            prod.thumbnail = url;
+            prod.thumbnails = prod.thumbnails && Array.isArray(prod.thumbnails) ? [url, ...prod.thumbnails.filter(u => u !== url)] : [url];
+          }
+        }
+      } catch (err) {
+        console.error('thumbnail update error:', err.message || err);
+      }
+    })();
 
     return res.status(201).json({ thumbnailUrl: url });
   }

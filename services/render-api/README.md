@@ -23,3 +23,13 @@ Endpoints implemented (stubs):
 Notes:
 - These endpoints return mock/sample payloads to allow frontend integration testing.
 - Replace the stub logic with real database aggregations (from your migrated DB) when ready.
+
+Firestore integration:
+- The service will attempt to initialize the Firebase Admin SDK using the following environment variables: `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, and `FIREBASE_PRIVATE_KEY` (private key may need literal newlines encoded as `\n`).
+- If those are present the API will read/write documents in collections such as `products` and `alerts`. When running on Render you can set these as secret env vars in the Render dashboard.
+
+Deploy on Render:
+1. Push this repository to the branch you configured on Render.
+2. Ensure `render.yaml` is present (this repo contains `services/render-api/render.yaml`).
+3. In Render dashboard, set `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, and `FIREBASE_PRIVATE_KEY` (use `\n` if needed).
+4. Deploy; the service will be available at the URL Render provides. Configure `RENDER_API_URL` in your frontend/hosting to point to that URL.

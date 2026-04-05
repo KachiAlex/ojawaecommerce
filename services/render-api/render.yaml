@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: ojawa-render-api
+    env: node
+    plan: starter
+    branch: main
+    repo: ojawaecommerce/services/render-api
+    buildCommand: "npm ci"
+    startCommand: "npm start"
+    envVars:
+      - key: FIREBASE_PROJECT_ID
+      - key: FIREBASE_CLIENT_EMAIL
+      - key: FIREBASE_PRIVATE_KEY
+      - key: PORT
