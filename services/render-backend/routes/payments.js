@@ -1,5 +1,5 @@
 const express = require('express');
-const { body, validationResult } = require('express-validator');
+const { body, query, validationResult } = require('express-validator');
 const axios = require('axios');
 const admin = require('firebase-admin');
 const { AppError } = require('../middleware/errorHandler');
