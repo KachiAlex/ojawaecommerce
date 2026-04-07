@@ -130,6 +130,66 @@ app.post('/api/auth/register', (req, res) => {
   }
 });
 
+// Mock OTP endpoint for testing
+app.post('/sendEmailOTP', (req, res) => {
+  try {
+    console.log('🔍 Mock OTP endpoint hit!', { 
+      method: req.method, 
+      url: req.url, 
+      path: req.path,
+      body: req.body 
+    });
+    
+    const { email } = req.body;
+    
+    if (!email) {
+      console.log('❌ OTP validation failed');
+      return res.status(400).json({
+        success: false,
+        error: 'Email is required'
+      });
+    }
+    
+    console.log('✅ Mock OTP sent successfully');
+    // Mock OTP sending
+    return res.json({
+      success: true,
+      message: 'OTP sent successfully (mock)'
+    });
+  } catch (error) {
+    console.error('❌ Mock OTP error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Internal server error: ' + error.message
+    });
+  }
+});
+
+// Mock signout endpoint for testing
+app.post('/api/auth/signout', (req, res) => {
+  try {
+    console.log('🔍 Mock signout endpoint hit!', { 
+      method: req.method, 
+      url: req.url, 
+      path: req.path,
+      headers: req.headers
+    });
+    
+    console.log('✅ Mock signout successful');
+    // Mock signout
+    return res.json({
+      success: true,
+      message: 'Signed out successfully (mock)'
+    });
+  } catch (error) {
+    console.error('❌ Mock signout error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Internal server error: ' + error.message
+    });
+  }
+});
+
 // Test route to verify routing works
 app.get('/test-route', (req, res) => {
   console.log('🧪 Test route hit!');
