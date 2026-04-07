@@ -34,6 +34,22 @@ const {
 // [MIGRATION] All Firestore-dependent logic has been moved to the Render backend REST API.
 
 const app = express();
+
+// --- User Sign Up Route (moved to top to bypass middleware conflicts) ---
+app.post('/signup', async (req, res) => {
+  console.log('🔍 Signup route hit!', { body: req.body, method: req.method, url: req.url });
+  try {
+    const { email, password, displayName } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+    // [MIGRATION] TODO: Implement user creation via REST API or backend service.
+    return res.json({ success: true, uid: 'mock-uid', email });
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+});
+
 app.use(express.json());
 app.use(cors({
   origin: ['https://ojawa.africa', 'https://www.ojawa.africa', 'https://ojawa-ecommerce.web.app', 'https://ojawa-ecommerce-staging.web.app'],
@@ -191,21 +207,6 @@ app.get('/health/subscriptions', (req, res) => {
     },
     timestamp: new Date().toISOString(),
   });
-});
-
-// --- User Sign Up Route ---
-app.post('/signup', async (req, res) => {
-  console.log('🔍 Signup route hit!', { body: req.body, method: req.method, url: req.url });
-  try {
-    const { email, password, displayName } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required' });
-    }
-    // [MIGRATION] TODO: Implement user creation via REST API or backend service.
-    return res.json({ success: true, uid: 'mock-uid', email });
-  } catch (error) {
-    return res.status(400).json({ error: error.message });
-  }
 });
 
 // --- User Login Route (Firebase Auth REST API) ---
