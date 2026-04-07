@@ -48,16 +48,23 @@ const PORT = process.env.PORT || 8080;
 
 // Mock signup endpoint for testing (bypasses Firebase) - FIRST ROUTE
 app.post('/api/auth/register', (req, res) => {
-  console.log('🔍 Mock signup endpoint hit!', { body: req.body });
+  console.log('🔍 Mock signup endpoint hit!', { 
+    method: req.method, 
+    url: req.url, 
+    path: req.path,
+    body: req.body 
+  });
   const { email, password, displayName } = req.body;
   
   if (!email || !password || !displayName) {
+    console.log('❌ Validation failed');
     return res.status(400).json({
       success: false,
       error: 'Email, password, and displayName are required'
     });
   }
   
+  console.log('✅ Mock registration successful');
   // Mock successful registration
   return res.json({
     success: true,
@@ -70,6 +77,12 @@ app.post('/api/auth/register', (req, res) => {
     },
     message: 'User registered successfully (mock)'
   });
+});
+
+// Test route to verify routing works
+app.get('/test-route', (req, res) => {
+  console.log('🧪 Test route hit!');
+  res.json({ message: 'Test route working', timestamp: new Date().toISOString() });
 });
 
 // Ensure uploads directory exists
