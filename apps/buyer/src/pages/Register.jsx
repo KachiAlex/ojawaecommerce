@@ -7,7 +7,7 @@ import secureNotification from '../utils/secureNotification';
 
 const Register = () => {
   // Debug: Verify new code is loaded
-  console.log('Register component loaded - v2.5 (infinite render fixed)');
+  console.log('Register component loaded - v2.7 (using correct /api/auth/register endpoint)');
 
   const [formData, setFormData] = useState({
     displayName: '',

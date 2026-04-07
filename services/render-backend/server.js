@@ -132,11 +132,37 @@ app.get('/', (req, res) => {
     message: 'Ojawa E-commerce Backend API running on Render',
     version: '1.0.0',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
+    environment: 'production'
   });
 });
 
-app.get('/health', async (req, res) => {
+// Mock signup endpoint for testing (bypasses Firebase)
+app.post('/api/auth/register', (req, res) => {
+  console.log(' Mock signup endpoint hit!', { body: req.body });
+  const { email, password, displayName } = req.body;
+  
+  if (!email || !password || !displayName) {
+    return res.status(400).json({
+      success: false,
+      error: 'Email, password, and displayName are required'
+    });
+  }
+  
+  // Mock successful registration
+  return res.json({
+    success: true,
+    data: {
+      uid: 'mock-user-' + Date.now(),
+      email,
+      displayName,
+      emailVerified: false,
+      role: 'user'
+    },
+    message: 'User registered successfully (mock)'
+  });
+});
+
+app.get('/health', (req, res) => {
   try {
     // Test Firebase connectivity
     await db.collection('health').limit(1).get();

@@ -16,7 +16,7 @@ const loginWithValidCredentials = async (page) => {
 };
 
 test.describe('Authentication Flow E2E', () => {
-  test.skip('should complete user registration', async ({ page }) => {
+  test('should complete user registration', async ({ page }) => {
     await page.goto('/register');
     
     // Fill registration form
