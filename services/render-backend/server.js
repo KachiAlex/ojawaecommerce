@@ -48,35 +48,45 @@ const PORT = process.env.PORT || 8080;
 
 // Mock signup endpoint for testing (bypasses Firebase) - FIRST ROUTE
 app.post('/api/auth/register', (req, res) => {
-  console.log('🔍 Mock signup endpoint hit!', { 
-    method: req.method, 
-    url: req.url, 
-    path: req.path,
-    body: req.body 
-  });
-  const { email, password, displayName } = req.body;
-  
-  if (!email || !password || !displayName) {
-    console.log('❌ Validation failed');
-    return res.status(400).json({
+  try {
+    console.log('🔍 Mock signup endpoint hit!', { 
+      method: req.method, 
+      url: req.url, 
+      path: req.path,
+      headers: req.headers,
+      body: req.body 
+    });
+    
+    const { email, password, displayName } = req.body;
+    
+    if (!email || !password || !displayName) {
+      console.log('❌ Validation failed');
+      return res.status(400).json({
+        success: false,
+        error: 'Email, password, and displayName are required'
+      });
+    }
+    
+    console.log('✅ Mock registration successful');
+    // Mock successful registration
+    return res.json({
+      success: true,
+      data: {
+        uid: 'mock-user-' + Date.now(),
+        email,
+        displayName,
+        emailVerified: false,
+        role: 'user'
+      },
+      message: 'User registered successfully (mock)'
+    });
+  } catch (error) {
+    console.error('❌ Mock signup error:', error);
+    return res.status(500).json({
       success: false,
-      error: 'Email, password, and displayName are required'
+      error: 'Internal server error: ' + error.message
     });
   }
-  
-  console.log('✅ Mock registration successful');
-  // Mock successful registration
-  return res.json({
-    success: true,
-    data: {
-      uid: 'mock-user-' + Date.now(),
-      email,
-      displayName,
-      emailVerified: false,
-      role: 'user'
-    },
-    message: 'User registered successfully (mock)'
-  });
 });
 
 // Test route to verify routing works
