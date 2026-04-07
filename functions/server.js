@@ -35,7 +35,15 @@ const {
 
 const app = express();
 
-// --- User Sign Up Route (moved to top to bypass middleware conflicts) ---
+app.use(express.json());
+app.use(cors({
+  origin: ['https://ojawa.africa', 'https://www.ojawa.africa', 'https://ojawa-ecommerce.web.app', 'https://ojawa-ecommerce-staging.web.app'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+}));
+
+// --- User Sign Up Route (after basic middleware) ---
 app.post('/signup', async (req, res) => {
   console.log('🔍 Signup route hit!', { body: req.body, method: req.method, url: req.url });
   try {
@@ -49,14 +57,6 @@ app.post('/signup', async (req, res) => {
     return res.status(400).json({ error: error.message });
   }
 });
-
-app.use(express.json());
-app.use(cors({
-  origin: ['https://ojawa.africa', 'https://www.ojawa.africa', 'https://ojawa-ecommerce.web.app', 'https://ojawa-ecommerce-staging.web.app'],
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true,
-}));
 
 // --- Security & Error Handling Middleware ---
 app.use(securityHeaders); // Add security headers
