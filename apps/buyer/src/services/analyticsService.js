@@ -2,6 +2,21 @@
 // All events routed to /api/analytics/* endpoints
 
 class AnalyticsService {
+  // Helper method to get auth token
+  getAuthToken() {
+    return localStorage.getItem('authToken');
+  }
+
+  // Helper method to get headers with auth
+  getAuthHeaders() {
+    const token = this.getAuthToken();
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    return headers;
+  }
+
   // Track store visit
   async trackStoreVisit(vendorId, visitorData = {}) {
     try {
@@ -16,7 +31,7 @@ class AnalyticsService {
       const res = await fetch('/api/analytics/track', {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: this.getAuthHeaders(),
         body: JSON.stringify(visitData)
       });
       if (!res.ok) throw new Error(`Track failed: ${res.status}`);

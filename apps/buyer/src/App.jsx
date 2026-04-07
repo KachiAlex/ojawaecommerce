@@ -63,6 +63,7 @@ import Register from './pages/Register';
 import ProductDetail from './pages/ProductDetail';
 import Checkout from './pages/Checkout';
 import EnhancedCheckout from './pages/EnhancedCheckout';
+import TestLink from './components/TestLink';
 const Dashboard = lazyLoad(() => import('./pages/Dashboard'));
 const Buyer = lazyLoad(() => import('./pages/Buyer'));
 const EnhancedBuyer = lazyLoad(() => import('./pages/EnhancedBuyer'));
@@ -267,6 +268,7 @@ const AppRoutes = () => {
     // <AnimatedPage>
     <Routes>
         <Route path="/" element={<HomeOjawa />} />
+        <Route path="/test-link" element={<TestLink />} />
       <Route path="/products" element={<Products />} />
         <Route path="/products/:id" element={<ProductDetail />} />
         <Route path="/cart" element={<Cart />} />

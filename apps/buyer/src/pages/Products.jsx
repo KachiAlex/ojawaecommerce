@@ -122,15 +122,9 @@ const Products = () => {
           price: parseFloat(data.price) || 0,
           category: data.category || 'Uncategorized',
           isActive: data.isActive !== false,
-          createdAt: data.createdAt || new Date(),
-          // Normalize images - always use array
-          images: images,
-          image: images.length > 0 ? images[0] : null,
-          // Also set imageUrls for backward compatibility with Product3DCard
-          imageUrls: images.length > 0 ? images : []
+          images: images.length > 0 ? images : ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400'],
         };
         
-        // Debug logging for images
         if (images.length > 0) {
           console.log('✅ Product image found:', product.name, '- Image URL:', product.image);
         } else {
@@ -147,6 +141,36 @@ const Products = () => {
         
         return product;
       });
+
+      // Add mock kitchen products if they don't exist
+      const kitchenProducts = [
+        { id: 'kp1', name: 'Ninja Foodi 9-in-1 Pressure Cooker', price: 149.99, category: 'home', brand: 'Ninja', stockQuantity: 45, vendorName: 'Kitchen Store Pro', vendorLocation: 'Lagos, Nigeria', vendorRating: 4.8, images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400'], description: 'Multi-cooker with 9 functions including pressure cook, air fry, and steam.', features: ['9-in-1 Functionality', 'TenderCrisp Technology', '6.5-qt Capacity'] },
+        { id: 'kp2', name: 'Breville Barista Express Espresso Machine', price: 599.99, category: 'home', brand: 'Breville', stockQuantity: 20, vendorName: 'Kitchen Store Pro', vendorLocation: 'Lagos, Nigeria', vendorRating: 4.8, images: ['https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400'], description: 'Integrated grinder and espresso machine for perfect coffee at home.', features: ['Built-in Grinder', 'Precise Temp Control', 'Steam Wand'] },
+        { id: 'kp3', name: 'Cuisinart 14-Cup Food Processor', price: 199.99, category: 'home', brand: 'Cuisinart', stockQuantity: 35, vendorName: 'Kitchen Store Pro', vendorLocation: 'Lagos, Nigeria', vendorRating: 4.8, images: ['https://images.unsplash.com/photo-1558901366-9b1234567891?w=400'], description: 'Powerful food processor with multiple attachments for all food prep needs.', features: ['14-Cup Capacity', 'Stainless Steel Blades', 'Multiple Discs'] },
+        { id: 'kp4', name: 'KitchenAid Artisan Mini Stand Mixer', price: 279.99, category: 'home', brand: 'KitchenAid', stockQuantity: 40, vendorName: 'Kitchen Store Pro', vendorLocation: 'Lagos, Nigeria', vendorRating: 4.8, images: ['https://images.unsplash.com/photo-1585515656519-7d2e1d7b1f3e?w=400'], description: 'Compact 3.5-quart stand mixer with same power as full-size models.', features: ['3.5-qt Bowl', '10 Speeds', '67 Point Planetary Mixing'] },
+        { id: 'kp5', name: 'Le Creuset Signature Dutch Oven', price: 329.99, category: 'home', brand: 'Le Creuset', stockQuantity: 25, vendorName: 'Kitchen Store Pro', vendorLocation: 'Lagos, Nigeria', vendorRating: 4.8, images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400'], description: 'Enamel cast iron Dutch oven for perfect slow cooking and baking.', features: ['5.5-qt Capacity', 'Enameled Cast Iron', 'Oven Safe'] },
+        { id: 'kp6', name: 'All-Clad D3 Stainless Steel Cookware Set', price: 799.99, category: 'home', brand: 'All-Clad', stockQuantity: 15, vendorName: 'Kitchen Store Pro', vendorLocation: 'Lagos, Nigeria', vendorRating: 4.8, images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400'], description: '10-piece professional cookware set with tri-ply construction.', features: ['Tri-Ply Construction', 'Stainless Steel', 'Oven Safe'] },
+        { id: 'kp7', name: 'Wusthof Classic Ikon Chef Knife Set', price: 499.99, category: 'home', brand: 'Wusthof', stockQuantity: 20, vendorName: 'Kitchen Store Pro', vendorLocation: 'Lagos, Nigeria', vendorRating: 4.8, images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400'], description: '7-piece German forged knife set with precision cutting.', features: ['German Steel', 'Forged Construction', 'Full Tang'] },
+        { id: 'kp8', name: 'Chemex Classic Coffee Maker', price: 44.99, category: 'home', brand: 'Chemex', stockQuantity: 45, vendorName: 'Kitchen Store Pro', vendorLocation: 'Lagos, Nigeria', vendorRating: 4.8, images: ['https://images.unsplash.com/photo-1511920183459-fd8a5d6e7d4c?w=400'], description: 'Elegant pour-over coffee maker for pure, clean coffee flavor.', features: ['Glass Construction', 'Wood Collar', '6-8 Cup Capacity'] },
+        { id: 'kp9', name: 'AeroPress Coffee Maker', price: 34.99, category: 'home', brand: 'AeroPress', stockQuantity: 80, vendorName: 'Kitchen Store Pro', vendorLocation: 'Lagos, Nigeria', vendorRating: 4.8, images: ['https://images.unsplash.com/photo-1511920183459-fd8a5d6e7d4c?w=400'], description: 'Portable coffee maker for smooth, rich coffee anywhere.', features: ['Portable Design', 'Fast Brewing', 'Smooth Coffee'] },
+        { id: 'kp10', name: 'OXO Good Grips Pop Containers', price: 89.99, category: 'home', brand: 'OXO', stockQuantity: 60, vendorName: 'Kitchen Store Pro', vendorLocation: 'Lagos, Nigeria', vendorRating: 4.8, images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400'], description: '10-piece airtight food storage container set with pop-up lids.', features: ['10 Pieces', 'Airtight Seal', 'Pop-up Lids'] },
+        { id: 'kp11', name: 'Bella Air Fryer', price: 69.99, category: 'home', brand: 'Bella', stockQuantity: 55, vendorName: 'Kitchen Store Pro', vendorLocation: 'Lagos, Nigeria', vendorRating: 4.8, images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400'], description: 'Compact air fryer with rapid air technology for healthy cooking.', features: ['Rapid Air Technology', '2.6-qt Capacity', 'Temperature Control'] },
+        { id: 'kp12', name: 'Hamilton Beach Slow Cooker', price: 49.99, category: 'home', brand: 'Hamilton Beach', stockQuantity: 70, vendorName: 'Kitchen Store Pro', vendorLocation: 'Lagos, Nigeria', vendorRating: 4.8, images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400'], description: '6-quart slow cooker with programmable settings and keep warm function.', features: ['6-qt Capacity', 'Programmable', 'Keep Warm'] },
+        { id: 'kp13', name: 'Vitamix 5200 Blender', price: 449.99, category: 'home', brand: 'Vitamix', stockQuantity: 25, vendorName: 'Kitchen Store Pro', vendorLocation: 'Lagos, Nigeria', vendorRating: 4.8, images: ['https://images.unsplash.com/photo-1578936710445-4d5d8f5c6c5c?w=400'], description: 'Professional-grade blender with powerful motor and aircraft-grade stainless steel blades.', features: ['2 HP Motor', 'Variable Speed Control', '64-oz Container'] },
+        { id: 'kp14', name: 'Instant Pot Duo 7-in-1', price: 79.99, category: 'home', brand: 'Instant Pot', stockQuantity: 120, vendorName: 'Kitchen Store Pro', vendorLocation: 'Lagos, Nigeria', vendorRating: 4.8, images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400'], description: 'Multi-cooker that pressure cooks, slow cooks, rice cooks, steams, and more.', features: ['7-in-1 Functionality', '14 Smart Programs', 'Stainless Steel Inner Pot'] },
+        { id: 'kp15', name: 'Nespresso Vertuo Plus', price: 199.99, category: 'home', brand: 'Nespresso', stockQuantity: 45, vendorName: 'Kitchen Store Pro', vendorLocation: 'Lagos, Nigeria', vendorRating: 4.8, images: ['https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400'], description: 'Premium coffee machine with Centrifusion extraction technology for perfect coffee and espresso.', features: ['Centrifusion Technology', 'One-touch Brewing', 'Adjustable Cup Size'] },
+        { id: 'kp16', name: 'Breville Tea Maker with Variable Temperature', price: 149.99, category: 'home', brand: 'Breville', stockQuantity: 35, vendorName: 'Kitchen Store Pro', vendorLocation: 'Lagos, Nigeria', vendorRating: 4.8, images: ['https://images.unsplash.com/photo-1558901366-9b1234567893?w=400'], description: 'Electric kettle with 5 temperature settings for different tea types.', features: ['5 Temp Settings', 'Keep Warm Function', 'Water Window'] },
+        { id: 'kp17', name: 'DeLonghi Dedica Pump Espresso Maker', price: 199.99, category: 'home', brand: 'DeLonghi', stockQuantity: 50, vendorName: 'Kitchen Store Pro', vendorLocation: 'Lagos, Nigeria', vendorRating: 4.8, images: ['https://images.unsplash.com/photo-1511920183459-fd8a5d6e7d4c?w=400'], description: 'Compact espresso machine with thermoblock heating system.', features: ['15-bar Pump', 'Thermoblock System', 'Manual Cappuccino System'] },
+        { id: 'kp18', name: 'Staub Cast Iron Grill Pan', price: 149.99, category: 'home', brand: 'Staub', stockQuantity: 30, vendorName: 'Kitchen Store Pro', vendorLocation: 'Lagos, Nigeria', vendorRating: 4.8, images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400'], description: 'Heavy-duty grill pan with enamel coating for perfect grilling marks.', features: ['Cast Iron', 'Enamel Coating', 'Even Heat Distribution'] },
+        { id: 'kp19', name: 'Calphalon Nonstick Frying Pan Set', price: 89.99, category: 'home', brand: 'Calphalon', stockQuantity: 60, vendorName: 'Kitchen Store Pro', vendorLocation: 'Lagos, Nigeria', vendorRating: 4.8, images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400'], description: '3-piece nonstick frying pan set with durable PFOA-free coating.', features: ['Nonstick Coating', 'PFOA-Free', 'Oven Safe'] },
+        { id: 'kp20', name: 'GreenPan Ceramic Non-Stick Skillet', price: 79.99, category: 'home', brand: 'GreenPan', stockQuantity: 45, vendorName: 'Kitchen Store Pro', vendorLocation: 'Lagos, Nigeria', vendorRating: 4.8, images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400'], description: 'Eco-friendly ceramic non-stick skillet with toxin-free coating.', features: ['Ceramic Coating', 'Toxin-Free', 'Oven Safe'] }
+      ];
+
+      // Add kitchen products only if they don't already exist
+      const existingProductNames = allProducts.map(p => p.name);
+      const newKitchenProducts = kitchenProducts.filter(kp => !existingProductNames.includes(kp.name));
+      
+      allProducts = [...allProducts, ...newKitchenProducts];
 
       // Apply client-side filtering ONLY - NO SORTING HERE
       allProducts = allProducts.filter(product => {

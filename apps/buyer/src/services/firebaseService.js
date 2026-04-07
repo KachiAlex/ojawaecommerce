@@ -45,7 +45,7 @@ export const authService = {
     return res;
   },
   async signup(email, password, profile = {}) {
-    const res = await api.request('/api/auth/signup', { method: 'POST', body: JSON.stringify({ email, password, profile }), headers: { 'Content-Type': 'application/json' } });
+    const res = await api.request('/signup', { method: 'POST', body: JSON.stringify({ email, password, profile }), headers: { 'Content-Type': 'application/json' } });
     return res;
   },
   async signout() {

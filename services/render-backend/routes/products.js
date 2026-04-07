@@ -533,4 +533,93 @@ router.get('/featured/list', [
   });
 }));
 
+/**
+ * @route   POST /api/products/seed
+ * @desc    Seed products without authentication (temporary for development)
+ * @access  Public (development only)
+ */
+router.post('/seed', [
+  body('name').trim().isLength({ min: 2, max: 200 }),
+  body('description').trim().isLength({ min: 10, max: 2000 }),
+  body('price').isFloat({ min: 0 }),
+  body('category').optional().trim(),
+  body('brand').optional().trim(),
+  body('stockQuantity').optional().isInt({ min: 0 }),
+  body('features').optional().isArray(),
+  body('images').optional().isArray()
+], asyncHandler(async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false,
+      error: 'Validation failed',
+      details: errors.array()
+    });
+  }
+
+  const {
+    name,
+    description,
+    price,
+    category = 'home',
+    brand,
+    stockQuantity = 50,
+    features = [],
+    images = []
+  } = req.body;
+
+  try {
+    // Create product without requiring authentication (for seeding)
+    const productData = {
+      name,
+      description,
+      price: parseFloat(price),
+      category,
+      brand: brand || 'Unknown',
+      stockQuantity: parseInt(stockQuantity),
+      features,
+      images,
+      vendorId: 'kitchen-store-vendor', // Mock vendor ID
+      vendorName: 'Kitchen Store Pro',
+      vendorLocation: 'Lagos, Nigeria',
+      vendorVerified: true,
+      vendorRating: 4.8,
+      isActive: true,
+      status: 'active',
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      views: 0,
+      salesCount: 0,
+      rating: 0,
+      reviewCount: 0,
+      tags: features || [],
+      sku: `KSP-${Date.now()}`,
+      weight: 1,
+      dimensions: {
+        length: 10,
+        width: 10,
+        height: 10
+      }
+    };
+
+    const productRef = await db.collection('products').add(productData);
+    
+    res.status(201).json({
+      success: true,
+      data: {
+        id: productRef.id,
+        ...productData
+      },
+      message: 'Product seeded successfully'
+    });
+  } catch (error) {
+    console.error('Error seeding product:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to seed product',
+      message: error.message
+    });
+  }
+}));
+
 module.exports = router;

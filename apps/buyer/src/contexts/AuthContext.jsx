@@ -59,18 +59,9 @@ export const AuthProvider = ({ children }) => {
         });
         
         if (!res.ok) {
-          // If endpoint doesn't work, return mock user for now
-          console.log('Auth/me endpoint not available, using mock data');
-          const mockUser = {
-            uid: 'mock-user-id',
-            email: 'user@ojawa.africa',
-            displayName: 'Ojawa User',
-            role: 'user',
-            isActive: true
-          };
-          setCurrentUser(mockUser);
-          setUserProfile(mockUser);
-          return { data: mockUser };
+          // If endpoint doesn't work, just return null instead of mock data
+          console.log('Auth/me endpoint not available');
+          return null;
         }
         
         const data = await res.json();
@@ -78,18 +69,9 @@ export const AuthProvider = ({ children }) => {
         setUserProfile(data?.data?.profile || data?.profile || data?.user || null);
         return data;
       } catch (fetchError) {
-        // Handle network errors gracefully
-        console.log('Network error during auth check, using mock data');
-        const mockUser = {
-          uid: 'mock-user-id',
-          email: 'user@ojawa.africa',
-          displayName: 'Ojawa User',
-          role: 'user',
-          isActive: true
-        };
-        setCurrentUser(mockUser);
-        setUserProfile(mockUser);
-        return { data: mockUser };
+        // Handle network errors gracefully - don't create mock data
+        console.log('Network error during auth check');
+        return null;
       }
     } catch (err) {
       console.log('Refresh user error:', err);
@@ -311,6 +293,12 @@ export const AuthProvider = ({ children }) => {
           return;
         }
         
+        // Don't block page loading - set loading to false immediately
+        if (mounted) {
+          setLoading(false);
+        }
+        
+        // Try to get user data in background
         try {
           const res = await fetch('https://ojawaecommerce.onrender.com/api/auth/me', {
             method: 'GET',
@@ -326,37 +314,21 @@ export const AuthProvider = ({ children }) => {
             setCurrentUser(data?.user || data?.session || data || null);
             setUserProfile(data?.profile || data?.user?.profile || data?.profile || data?.user || null);
           } else {
-            // If endpoint doesn't work, set mock user
-            console.log('Auth/me endpoint not available, using mock data');
-            const mockUser = {
-              uid: 'mock-user-id',
-              email: 'user@ojawa.africa',
-              displayName: 'Ojawa User',
-              role: 'user',
-              isActive: true
-            };
-            setCurrentUser(mockUser);
-            setUserProfile(mockUser);
+            // If endpoint doesn't work, don't set mock user - just leave as null
+            // This allows the register/login pages to work normally
+            console.log('Auth/me endpoint not available, user will need to login');
           }
         } catch (fetchError) {
-          // Handle network errors gracefully
+          // Handle network errors gracefully - don't block the app
           if (mounted) {
-            console.log('Network error during auth check, using mock data');
-            const mockUser = {
-              uid: 'mock-user-id',
-              email: 'user@ojawa.africa',
-              displayName: 'Ojawa User',
-              role: 'user',
-              isActive: true
-            };
-            setCurrentUser(mockUser);
-            setUserProfile(mockUser);
+            console.log('Network error during auth check, continuing without auth');
           }
         }
       } catch (error) {
         console.error('Error loading auth session:', error);
-      } finally {
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     })();
 

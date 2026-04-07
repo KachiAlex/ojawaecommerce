@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
@@ -50,16 +50,19 @@ const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
   
-  const message = location.state?.message || new URLSearchParams(location.search).get('message');
-  const from = location.state?.from?.pathname || '/dashboard';
-  const preselectedUserType = location.state?.userType;
+  // Memoize location data to prevent re-renders
+  const locationData = useMemo(() => ({
+    message: location.state?.message || new URLSearchParams(location.search).get('message'),
+    from: location.state?.from?.pathname || '/dashboard',
+    preselectedUserType: location.state?.userType
+  }), [location.state, location.search]);
 
   // Set preselected user type from navigation state
   useEffect(() => {
-    if (preselectedUserType && !userType) {
-      setUserType(preselectedUserType);
+    if (locationData.preselectedUserType && !userType) {
+      setUserType(locationData.preselectedUserType);
     }
-  }, [preselectedUserType]);
+  }, [locationData.preselectedUserType, userType]);
 
   const canResendVerification = () => {
     if (!lastVerificationEmailSentAt) return true;
@@ -110,9 +113,9 @@ const Login = () => {
         // Navigate to the intended destination (e.g., checkout, product page)
         navigate(intendedDestination.path);
       } else {
-        console.log('📍 Navigating to:', from);
+        console.log('📍 Navigating to:', locationData.from);
         // Use the standard redirect from location state
-        navigate(from);
+        navigate(locationData.from);
       }
     } catch (error) {
       console.error('❌ Login error:', error);
@@ -150,7 +153,7 @@ const Login = () => {
     } finally {
       setLoading(false);
     }
-  }, [email, password, signin, getIntendedDestination, navigate, from]);
+  }, [email, password, signin, getIntendedDestination, navigate, locationData.from]);
 
   const handleResendVerification = async () => {
     if (!verificationState.pending || resendStatus === 'sending') return;
@@ -223,8 +226,8 @@ const Login = () => {
           console.log('📍 Navigating to intended destination:', intendedDestination.path);
           navigate(intendedDestination.path);
         } else {
-          console.log('📍 Navigating to:', from);
-          navigate(from);
+          console.log('📍 Navigating to:', locationData.from);
+          navigate(locationData.from);
         }
       }
     } catch (error) {
@@ -398,9 +401,9 @@ const Login = () => {
               <h2 className="text-lg font-bold text-gray-900 mb-1">
                 {userType === 'existing' ? 'Sign in to your account' : `Join as ${userType === 'buyer' ? 'Buyer' : userType === 'vendor' ? 'Vendor' : 'Logistics Partner'}`}
               </h2>
-              {message && (
+              {locationData.message && (
                 <div className="mt-2 p-2 bg-emerald-50 border border-emerald-200 rounded text-xs text-emerald-800 mx-auto max-w-xs">
-                  {message}
+                  {locationData.message}
                 </div>
               )}
               <p className="mt-1 text-xs text-gray-600">

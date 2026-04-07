@@ -162,6 +162,11 @@ app.get('/', (req, res) => {
   res.send('Ojawa backend running on Render!');
 });
 
+// --- Simple Test Route ---
+app.get('/test', (req, res) => {
+  res.json({ message: 'Test route working', timestamp: new Date().toISOString() });
+});
+
 app.get('/health', (req, res) => {
   const hasCredentials = !!(process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY);
   res.json({

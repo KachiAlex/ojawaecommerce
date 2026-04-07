@@ -1,12 +1,14 @@
-import { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
-import { usePageTracking, useUserTracking, useClickTracking } from '../hooks/useAnalytics';
 import InputValidator from '../utils/inputValidator';
 import secureNotification from '../utils/secureNotification';
 
 const Register = () => {
+  // Debug: Verify new code is loaded
+  console.log('Register component loaded - v2.4 (HARD REFRESH NEEDED)');
+
   const [formData, setFormData] = useState({
     displayName: '',
     email: '',
@@ -16,11 +18,6 @@ const Register = () => {
     address: '',
     userType: 'buyer'
   });
-
-  // Analytics tracking
-  usePageTracking('Register');
-  useUserTracking();
-  useClickTracking();
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -37,53 +34,77 @@ const Register = () => {
   const { getIntendedDestination } = useCart();
   const location = useLocation();
 
-  const from = location.state?.from?.pathname || '/dashboard';
-  const preselectedUserType = location.state?.userType;
+  // Memoize location data to prevent re-renders
+  const locationData = useMemo(() => ({
+    from: location.state?.from?.pathname || '/dashboard',
+    preselectedUserType: location.state?.userType
+  }), [location.state]);
 
   // Set preselected user type from login page
   useEffect(() => {
-    if (preselectedUserType) {
-      setFormData(prev => ({ ...prev, userType: preselectedUserType }));
+    if (locationData.preselectedUserType) {
+      setFormData(prev => ({ ...prev, userType: locationData.preselectedUserType }));
     }
-  }, [preselectedUserType]);
+  }, [locationData.preselectedUserType]);
 
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
-  };
+  // Optimized handleChange with useCallback
+  const handleChange = useCallback((e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  }, []);
 
-  const handleSubmit = async (e) => {
+  // Memoized validation rules to prevent recreation
+  const validationRules = useMemo(() => ({
+    displayName: { type: 'name', fieldName: 'Display Name', required: true },
+    email: { type: 'email', required: true },
+    password: { type: 'text', fieldName: 'Password', required: true, minLength: 6 },
+    confirmPassword: { type: 'text', fieldName: 'Confirm Password', required: true },
+    phone: { type: 'phone', required: false },
+    address: { type: 'address', fieldName: 'Address', required: false }
+  }), []);
+
+  // Optimized handleSubmit with useCallback
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
     
-    // Validate form data using InputValidator
-    const validationRules = {
-      displayName: { type: 'name', fieldName: 'Display Name', required: true },
-      email: { type: 'email', required: true },
-      password: { type: 'text', fieldName: 'Password', required: true, minLength: 6 },
-      confirmPassword: { type: 'text', fieldName: 'Confirm Password', required: true },
-      phone: { type: 'phone', required: false },
-      address: { type: 'address', fieldName: 'Address', required: false }
-    };
-
-    const validation = InputValidator.validateForm(formData, validationRules);
-    
-    if (!validation.isValid) {
-      const firstError = Object.values(validation.errors)[0];
-      setError(firstError);
-      secureNotification.error(firstError);
+    // Basic validation only - skip strict validation for now
+    if (!formData.email || !formData.password || !formData.displayName) {
+      setError('Please fill in all required fields (email, password, display name)');
       return;
     }
 
-    // Additional password match validation
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      setError('Please enter a valid email address');
+      return;
+    }
+
+    // Password validation
+    if (formData.password.length < 6) {
+      setError('Password must be at least 6 characters long');
+      return;
+    }
+
+    // Password match validation
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
       secureNotification.error('Passwords do not match');
       return;
     }
 
-    const sanitizedData = validation.sanitizedData;
+    // Basic sanitization
+    const sanitizedData = {
+      email: formData.email.trim().toLowerCase(),
+      password: formData.password,
+      displayName: formData.displayName.trim(),
+      phone: formData.phone?.trim() || '',
+      address: formData.address?.trim() || '',
+      userType: formData.userType
+    };
 
     try {
       setError('');
@@ -98,7 +119,7 @@ const Register = () => {
       });
 
       const intendedDestination = getIntendedDestination();
-      const fallbackDestination = intendedDestination?.path || from;
+      const fallbackDestination = intendedDestination?.path || locationData.from;
       setPostVerificationDestination(fallbackDestination);
       setSubmittedCredentials({
         email: sanitizedData.email,
@@ -125,14 +146,15 @@ const Register = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [formData, signup, getIntendedDestination, locationData.from]);
 
-  const canResendVerification = () => {
+  // Optimized canResendVerification with useCallback
+  const canResendVerification = useCallback(() => {
     if (!lastVerificationEmailSentAt) return true;
     const lastSent = new Date(lastVerificationEmailSentAt).getTime();
     if (Number.isNaN(lastSent)) return true;
     return Date.now() - lastSent > 60000;
-  };
+  }, [lastVerificationEmailSentAt]);
 
   const handleResendVerification = async () => {
     if (!registrationComplete || resendStatus === 'sending') return;
@@ -181,29 +203,29 @@ const Register = () => {
     <div className="min-h-screen flex items-center justify-center bg-slate-950 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
-          {preselectedUserType && (
+          {locationData.preselectedUserType && (
             <div className="text-center mb-6">
               <div className="w-16 h-16 bg-emerald-900/40 border border-emerald-700 rounded-full flex items-center justify-center mx-auto mb-4">
                 <span className="text-2xl">
-                  {preselectedUserType === 'buyer' ? '🛒' : preselectedUserType === 'vendor' ? '🏪' : '🚚'}
+                  {locationData.preselectedUserType === 'buyer' ? '🛒' : locationData.preselectedUserType === 'vendor' ? '🏪' : '🚚'}
                 </span>
               </div>
               <div className="inline-flex items-center gap-2 bg-emerald-900/20 border border-emerald-800/60 px-3 py-1 rounded-full text-sm text-emerald-300 mb-4">
-                <span>Creating {preselectedUserType === 'buyer' ? 'Buyer' : preselectedUserType === 'vendor' ? 'Vendor' : 'Logistics'} Account</span>
+                <span>Creating {locationData.preselectedUserType === 'buyer' ? 'Buyer' : locationData.preselectedUserType === 'vendor' ? 'Vendor' : 'Logistics'} Account</span>
               </div>
             </div>
           )}
           
           <h2 className="mt-6 text-center text-3xl font-extrabold text-white">
-            {preselectedUserType === 'buyer' ? 'Start Shopping Safely' : 
-             preselectedUserType === 'vendor' ? 'Start Selling Today' :
-             preselectedUserType === 'logistics' ? 'Join Our Delivery Network' :
+            {locationData.preselectedUserType === 'buyer' ? 'Start Shopping Safely' : 
+             locationData.preselectedUserType === 'vendor' ? 'Start Selling Today' :
+             locationData.preselectedUserType === 'logistics' ? 'Join Our Delivery Network' :
              'Create your account'}
           </h2>
           <p className="mt-2 text-center text-sm text-teal-200">
-            {preselectedUserType === 'buyer' ? 'Join thousands of buyers shopping with wallet protection' :
-             preselectedUserType === 'vendor' ? 'Reach customers across Africa with guaranteed payments' :
-             preselectedUserType === 'logistics' ? 'Provide delivery services and earn competitive rates' :
+            {locationData.preselectedUserType === 'buyer' ? 'Join thousands of buyers shopping with wallet protection' :
+             locationData.preselectedUserType === 'vendor' ? 'Reach customers across Africa with guaranteed payments' :
+             locationData.preselectedUserType === 'logistics' ? 'Provide delivery services and earn competitive rates' :
              'Join the Ojawa marketplace'}
           </p>
           <p className="mt-2 text-center text-sm text-teal-400">
@@ -266,7 +288,7 @@ const Register = () => {
           </div>
         )}
         
-        {preselectedUserType === 'buyer' && (
+        {locationData.preselectedUserType === 'buyer' && (
           <div className="bg-slate-900 rounded-lg border border-emerald-900/60 p-4 mb-6">
             <h3 className="font-semibold text-white mb-3">Why buyers love Ojawa:</h3>
             <div className="space-y-2 text-sm text-teal-200">
@@ -298,7 +320,7 @@ const Register = () => {
           )}
           
           <div className="space-y-4">
-            {!preselectedUserType && (
+            {!locationData.preselectedUserType && (
               <div>
                 <label htmlFor="userType" className="block text-sm font-medium text-gray-700">
                   I want to join as *
@@ -368,18 +390,18 @@ const Register = () => {
 
             <div>
               <label htmlFor="address" className="block text-sm font-medium text-gray-700">
-                Address {preselectedUserType === 'buyer' ? '(for deliveries)' : ''}
+                Address {locationData.preselectedUserType === 'buyer' ? '(for deliveries)' : ''}
               </label>
               <textarea
                 id="address"
                 name="address"
                 rows={3}
                 className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm"
-                placeholder={preselectedUserType === 'buyer' ? 'Enter your delivery address (can be updated later)' : 'Enter your address'}
+                placeholder={locationData.preselectedUserType === 'buyer' ? 'Enter your delivery address (can be updated later)' : 'Enter your address'}
                 value={formData.address}
                 onChange={handleChange}
               />
-              {preselectedUserType === 'buyer' && (
+              {locationData.preselectedUserType === 'buyer' && (
                 <p className="text-xs text-gray-500 mt-1">
                   This helps us show you accurate delivery options and pricing
                 </p>
@@ -457,7 +479,7 @@ const Register = () => {
             </div>
           </div>
 
-          {preselectedUserType === 'buyer' && (
+          {locationData.preselectedUserType === 'buyer' && (
             <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 mb-4">
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-emerald-600">🛡️</span>
@@ -476,9 +498,9 @@ const Register = () => {
               className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Creating account...' : 
-               preselectedUserType === 'buyer' ? 'Start Shopping Safely' :
-               preselectedUserType === 'vendor' ? 'Start Selling Today' :
-               preselectedUserType === 'logistics' ? 'Join Delivery Network' :
+               locationData.preselectedUserType === 'buyer' ? 'Start Shopping Safely' :
+               locationData.preselectedUserType === 'vendor' ? 'Start Selling Today' :
+               locationData.preselectedUserType === 'logistics' ? 'Join Delivery Network' :
                'Create Account'}
             </button>
           </div>
