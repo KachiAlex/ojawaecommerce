@@ -203,21 +203,82 @@ app.post('/api/auth/sendEmailOTP', (req, res) => {
 // Mock signout endpoint for testing
 app.post('/api/auth/signout', (req, res) => {
   try {
-    console.log('🔍 Mock signout endpoint hit!', { 
+    console.log(' Mock signout endpoint hit!', { 
       method: req.method, 
       url: req.url, 
       path: req.path,
       headers: req.headers
     });
     
-    console.log('✅ Mock signout successful');
+    console.log(' Mock signout successful');
     // Mock signout
     return res.json({
       success: true,
       message: 'Signed out successfully (mock)'
     });
   } catch (error) {
-    console.error('❌ Mock signout error:', error);
+    console.error(' Mock signout error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Internal server error: ' + error.message
+    });
+  }
+});
+
+// Mock signin endpoint for testing
+app.post('/api/auth/signin', (req, res) => {
+  try {
+    console.log(' Mock signin endpoint hit!', { 
+      method: req.method, 
+      url: req.url, 
+      path: req.path,
+      headers: req.headers,
+      body: req.body 
+    });
+    
+    const { email, password } = req.body;
+    
+    if (!email || !password) {
+      console.log('Signin validation failed');
+      return res.status(400).json({
+        success: false,
+        error: 'Email and password are required'
+      });
+    }
+    
+    // Seed admin account check
+    if (email === 'admin@ojawa.africa' && password === 'admin123') {
+      console.log('Admin login successful');
+      return res.json({
+        success: true,
+        data: {
+          uid: 'admin-user-ojawa-2026',
+          email: 'admin@ojawa.africa',
+          displayName: 'System Administrator',
+          emailVerified: true,
+          role: 'admin',
+          token: 'mock-admin-token-' + Date.now()
+        },
+        message: 'Admin login successful (mock)'
+      });
+    }
+    
+    // Mock user login for other accounts
+    console.log('User login successful');
+    return res.json({
+      success: true,
+      data: {
+        uid: 'mock-user-' + Date.now(),
+        email,
+        displayName: email.split('@')[0],
+        emailVerified: false,
+        role: 'user',
+        token: 'mock-user-token-' + Date.now()
+      },
+      message: 'Login successful (mock)'
+    });
+  } catch (error) {
+    console.error(' Mock signin error:', error);
     return res.status(500).json({
       success: false,
       error: 'Internal server error: ' + error.message
