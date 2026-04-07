@@ -136,12 +136,6 @@ app.get('/test-route', (req, res) => {
   res.json({ message: 'Test route working', timestamp: new Date().toISOString() });
 });
 
-// Ensure uploads directory exists
-const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
 // Security middleware
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
