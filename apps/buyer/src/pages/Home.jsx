@@ -10,8 +10,8 @@ import ComponentErrorBoundary from '../components/ComponentErrorBoundary';
 import ProductQuickView from '../components/ProductQuickView';
 import { ProductListSkeleton, PageLoadingSkeleton } from '../components/LoadingStates';
 import { useAuth } from '../contexts/AuthContext';
-import { useRealTimeProducts } from '../hooks/useRealTimeProducts';
-// Removed unused Firestore imports (migration to REST-based services)
+import productService from '../services/productService';
+import cartService from '../services/cartService';
 
 const categories = [
   'Fashion',
@@ -139,24 +139,65 @@ const getProductDisplayProps = (product, index) => {
 const Home = () => {
   const { currentUser, userProfile } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
-  
-  // Debug logging
-  console.log('🏠 Home component rendered');
+  const [featuredProducts, setFeaturedProducts] = useState([]);
+  const [productsLoading, setProductsLoading] = useState(true);
+  const [cartState, setCartState] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [showQuickView, setShowQuickView] = useState(false);
   
-  // Get real-time featured products (limit to 8 for display)
-  const { products: realTimeProducts, loading: productsLoading } = useRealTimeProducts({
-    sortBy: 'newest',
-    limit: 8 // Limit to 8 products to reduce re-renders
-  });
-  
-  // Take first 8 products for featured display
-  const featuredProducts = realTimeProducts.slice(0, 8);
+  // Debug logging
+  console.log('Home component loaded - using new backend services');
+
+  // Load featured products
+  useEffect(() => {
+    const loadProducts = async () => {
+      try {
+        setProductsLoading(true);
+        const products = await productService.getFeaturedProducts(8);
+        setFeaturedProducts(products);
+        console.log('Loaded featured products:', products.length);
+      } catch (error) {
+        console.error('Failed to load featured products:', error);
+        // Use fallback products if API fails
+        setFeaturedProducts(products.slice(0, 8));
+      } finally {
+        setProductsLoading(false);
+        setIsLoading(false);
+      }
+    };
+
+    loadProducts();
+  }, []);
+
+  // Subscribe to cart changes
+  useEffect(() => {
+    const unsubscribe = cartService.subscribe((state) => {
+      setCartState(state);
+    });
+
+    // Sync cart with backend
+    cartService.syncWithBackend();
+
+    return unsubscribe;
+  }, []);
 
   const handleProductClick = (product) => {
     setSelectedProduct(product);
     setShowQuickView(true);
+  };
+
+  const handleAddToCart = async (product, quantity = 1) => {
+    try {
+      const result = await cartService.addToCart(product, quantity);
+      if (result.success) {
+        // Show success message
+        console.log('Product added to cart:', product.name);
+      } else {
+        console.error('Failed to add to cart:', result.error);
+      }
+    } catch (error) {
+      console.error('Add to cart error:', error);
+    }
   };
 
   useEffect(() => {
@@ -301,9 +342,21 @@ const Home = () => {
                       <div className="text-sm text-gray-600">
                         <span aria-hidden>⭐</span> {(product.rating || 0).toFixed(1)} ({(product.reviewCount || 0)})
                       </div>
-                      <span className="inline-flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white group-hover:bg-emerald-700 transition-colors">
-                        View Product
-                      </span>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAddToCart(product);
+                          }}
+                          className="inline-flex items-center rounded-lg bg-orange-600 px-3 py-2 text-sm font-medium text-white hover:bg-orange-700 transition-colors"
+                          disabled={product.inStock === false || (product.stock || 0) <= 0}
+                        >
+                          Add to Cart
+                        </button>
+                        <span className="inline-flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white group-hover:bg-emerald-700 transition-colors">
+                          View Product
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>

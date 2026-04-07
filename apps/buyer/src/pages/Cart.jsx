@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useMessaging } from '../contexts/MessagingContext';
 import { usePageTracking, useProductTracking, useClickTracking } from '../hooks/useAnalytics';
-import axios from 'axios';
+import cartService from '../services/cartService';
+import checkoutService from '../services/checkoutService';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'https://ojawaecommerce.onrender.com';
 import AddressInput from '../components/AddressInput';
@@ -26,9 +26,8 @@ const formatCurrency = (amount, currencyString) => {
 };
 
 const Cart = () => {
-  console.log('🛒 Cart component rendering...');
+  console.log('Cart component rendering - using new services...');
   
-  const { cartItems, cartReady, updateQuantity, removeFromCart, getCartTotal, clearCart, validateCartItems, hasOutOfStockItems, saveIntendedDestination } = useCart();
   const { currentUser, loading: authLoading } = useAuth();
   const { startConversation, setActiveConversation } = useMessaging?.() || {};
   const navigate = useNavigate?.() || (() => {});
@@ -39,37 +38,161 @@ const Cart = () => {
   useProductTracking();
   useClickTracking();
   
-  console.log('🛒 Cart - cartItems:', cartItems.length);
-  console.log('🛒 Cart - currentUser:', currentUser?.email);
+  // Cart state from new service
+  const [cartState, setCartState] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState(false);
   
-  const [pricingBreakdown, setPricingBreakdown] = useState(null);
-  const [deliveryOption, setDeliveryOption] = useState('pickup');
-  const [loading, setLoading] = useState(false);
-  const [vendorInfo, setVendorInfo] = useState(null);
+  // Checkout data
+  const [deliveryOption, setDeliveryOption] = useState('standard');
   const [buyerAddress, setBuyerAddress] = useState({ 
+    fullName: '',
+    phone: '',
     street: '', 
     city: '', 
     state: '', 
-    country: 'Nigeria' 
+    country: 'Nigeria',
+    postalCode: ''
   });
   const [deliveryCost, setDeliveryCost] = useState(0);
   const [estimatedDelivery, setEstimatedDelivery] = useState('2-3 days');
-  const [vendorProcessingDays, setVendorProcessingDays] = useState(2);
-  const [totalDeliveryTime, setTotalDeliveryTime] = useState(null);
   const [showMessageModal, setShowMessageModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [messageAllVendors, setMessageAllVendors] = useState(false);
   const [selectedPartner, setSelectedPartner] = useState(null);
+  const [paymentMethod, setPaymentMethod] = useState('escrow');
 
-  // Compute single-vendor address (current flow supports one vendor per cart for delivery calc)
-  const vendorAddressText = (() => {
-    if (!vendorInfo || cartItems.length === 0) return '';
-    const firstVendorId = cartItems[0]?.vendorId;
-    const v = vendorInfo[firstVendorId];
-    return v?.address || '';
-  })();
+  // Load cart state
+  useEffect(() => {
+    const unsubscribe = cartService.subscribe((state) => {
+      setCartState(state);
+      setLoading(false);
+    });
 
-  // Build buyer's full address ONLY when sufficient fields exist
+    // Sync with backend
+    cartService.syncWithBackend();
+
+    return unsubscribe;
+  }, []);
+
+  // Update delivery cost when address or delivery option changes
+  useEffect(() => {
+    if (buyerAddress.city && cartState?.items?.length > 0) {
+      calculateDeliveryCost();
+    }
+  }, [buyerAddress, deliveryOption, cartState]);
+
+  const calculateDeliveryCost = async () => {
+    try {
+      const shipping = await checkoutService.calculateShipping(
+        buyerAddress.city || 'Lagos',
+        buyerAddress.city || 'Lagos',
+        calculateTotalWeight(cartState.items)
+      );
+      setDeliveryCost(shipping.shipping?.cost || 0);
+      setEstimatedDelivery(shipping.shipping?.estimatedDelivery || '2-3 days');
+    } catch (error) {
+      console.error('Failed to calculate delivery cost:', error);
+      setDeliveryCost(1000); // Fallback
+    }
+  };
+
+  const calculateTotalWeight = (items) => {
+    return items.reduce((total, item) => {
+      const itemWeight = item.weight || 1; // Default 1kg per item
+      return total + (itemWeight * item.quantity);
+    }, 0);
+  };
+
+  const handleQuantityChange = async (itemId, newQuantity) => {
+    if (newQuantity < 1) return;
+    
+    setUpdating(true);
+    try {
+      await cartService.updateItemQuantity(itemId, newQuantity);
+    } catch (error) {
+      console.error('Failed to update quantity:', error);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleRemoveItem = async (itemId) => {
+    setUpdating(true);
+    try {
+      await cartService.removeFromCart(itemId);
+    } catch (error) {
+      console.error('Failed to remove item:', error);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleClearCart = async () => {
+    if (!window.confirm('Are you sure you want to clear your cart?')) return;
+    
+    setUpdating(true);
+    try {
+      await cartService.clearCart();
+    } catch (error) {
+      console.error('Failed to clear cart:', error);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleCheckout = async () => {
+    if (!currentUser) {
+      navigate('/login');
+      return;
+    }
+
+    if (!cartState || cartState.items.length === 0) {
+      alert('Your cart is empty');
+      return;
+    }
+
+    // Validate checkout data
+    const errors = checkoutService.validateCheckoutData({
+      items: cartState.items,
+      shippingAddress: buyerAddress,
+      paymentMethod,
+      email: currentUser.email
+    });
+
+    if (errors.length > 0) {
+      alert('Please complete all required fields:\n' + errors.join('\n'));
+      return;
+    }
+
+    setUpdating(true);
+    try {
+      const result = await checkoutService.processCheckout({
+        items: cartState.items,
+        shippingAddress: buyerAddress,
+        paymentMethod,
+        deliveryType: deliveryOption,
+        email: currentUser.email
+      });
+
+      if (result.success) {
+        if (result.nextStep === 'payment') {
+          // Redirect to payment page
+          window.location.href = result.payment.authorization_url;
+        } else {
+          // Redirect to order confirmation
+          navigate('/order-confirmation', { state: { order: result.order } });
+        }
+      }
+    } catch (error) {
+      console.error('Checkout failed:', error);
+      alert('Checkout failed: ' + error.message);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  // Build buyer's full address
   const buyerFullAddress = (() => {
     const { street, city, state, country } = buyerAddress || {};
     if (!street || (!city && !state)) return '';
@@ -251,9 +374,9 @@ const Cart = () => {
         setVendorProcessingDays(maxProcessingDays);
 
         // Get unique vendor IDs from cart items
-        const vendorIds = [...new Set(cartItems.map(item => item.vendorId).filter(Boolean))];
-        console.log('🛒 Fetching vendor info - vendorIds:', vendorIds);
-        console.log('🛒 Cart items:', cartItems.map(item => ({ id: item.id, vendorId: item.vendorId, name: item.name })));
+        const vendorIds = [...new Set(cartState.items.map(item => item.vendorId).filter(Boolean))];
+        console.log('Cart - vendorIds:', vendorIds);
+        console.log('Cart - items:', cartState.items.map(item => ({ id: item.id, vendorId: item.vendorId, name: item.name })));
         
         if (vendorIds.length > 0) {
           const vendorData = {};
@@ -412,7 +535,7 @@ const Cart = () => {
         return;
       }
 
-      if (cartItems.length === 0) {
+      if (!cartState || cartState.items.length === 0) {
         setPricingBreakdown(null);
         return;
       }
@@ -420,7 +543,7 @@ const Cart = () => {
       try {
         setLoading(true);
         
-        const subtotal = getCartTotal();
+        const subtotal = cartState?.subtotal || 0;
         const delivery = deliveryOption === 'delivery' && selectedPartner ? deliveryCost : 0;
         const total = subtotal + delivery;
         
@@ -442,9 +565,9 @@ const Cart = () => {
     };
 
     calculatePricing();
-  }, [cartItems, deliveryOption, deliveryCost, selectedPartner, getCartTotal]);
+  }, [cartState, deliveryOption, deliveryCost, selectedPartner]);
 
-  if (cartItems.length === 0) {
+  if (!cartState || cartState.items.length === 0) {
     return (
       <div className="min-h-screen bg-slate-950 py-8">
         <div className="max-w-4xl mx-auto px-4">
@@ -470,12 +593,12 @@ const Cart = () => {
         <div className="bg-slate-900 rounded-lg shadow-sm border border-emerald-900/60 p-3 sm:p-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6 space-y-2 sm:space-y-0">
             <h1 className="text-xl sm:text-2xl font-bold text-white">Shopping Cart</h1>
-            <span className="text-sm sm:text-base text-teal-200">{cartItems.length} item{cartItems.length !== 1 ? 's' : ''}</span>
+            <span className="text-sm sm:text-base text-teal-200">{cartState?.itemCount || 0} item{(cartState?.itemCount || 0) !== 1 ? 's' : ''}</span>
           </div>
 
           {/* Cart Items */}
           <div className="space-y-4 mb-6">
-            {cartItems.map((item) => (
+            {cartState.items.map((item) => (
               <div key={`${item.id}-${item.vendorId}`} className="flex flex-col sm:flex-row items-start sm:items-center space-y-3 sm:space-y-0 sm:space-x-4 p-4 border border-emerald-900/60 rounded-lg bg-slate-800">
                 <div className="w-16 h-16 flex-shrink-0 bg-slate-700 rounded-lg overflow-hidden">
                   <img
@@ -505,16 +628,17 @@ const Cart = () => {
                   </p>
                   <div className="mt-2 flex items-center gap-2">
                     <button
-                      onClick={() => updateQuantity(item.id, Math.max(1, item.quantity - 1))}
+                      onClick={() => handleQuantityChange(item.id, Math.max(1, item.quantity - 1))}
                       className="w-6 h-6 flex items-center justify-center border border-teal-700 rounded text-teal-200 hover:bg-emerald-900/40 text-sm"
-                      disabled={item.quantity <= 1}
+                      disabled={updating || item.quantity <= 1}
                     >
-                      −
+                      -
                     </button>
                     <span className="text-sm font-medium text-teal-100 min-w-[2rem] text-center">Qty: {item.quantity}</span>
                     <button
-                      onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                      onClick={() => handleQuantityChange(item.id, item.quantity + 1)}
                       className="w-6 h-6 flex items-center justify-center border border-teal-700 rounded text-teal-200 hover:bg-emerald-900/40 text-sm"
+                      disabled={updating}
                     >
                       +
                     </button>
@@ -550,8 +674,9 @@ const Cart = () => {
                       💬 Message
                     </button>
                   <button
-                    onClick={() => removeFromCart(item.id)}
-                      className="text-rose-400 text-xs hover:text-rose-300"
+                    onClick={() => handleRemoveItem(item.id)}
+                    className="text-rose-400 text-xs hover:text-rose-300"
+                    disabled={updating}
                   >
                     Remove
                   </button>
@@ -665,7 +790,7 @@ const Cart = () => {
             <div className="space-y-2 text-sm">
               <div className="flex justify-between text-teal-200">
                 <span>Subtotal</span>
-                <span className="text-white">{formatCurrency(getCartTotal())}</span>
+                <span className="text-white">{formatCurrency(cartState?.subtotal || 0)}</span>
               </div>
               <div className="flex justify-between text-teal-200">
                 <span>Delivery</span>
@@ -673,7 +798,7 @@ const Cart = () => {
               </div>
               <div className="flex justify-between font-semibold border-t border-emerald-900/60 pt-2 text-white">
                 <span>Total</span>
-                <span className="text-emerald-400">{formatCurrency((getCartTotal()) + (deliveryOption === 'delivery' && selectedPartner ? deliveryCost : 0))}</span>
+                <span className="text-emerald-400">{formatCurrency((cartState?.subtotal || 0) + (deliveryOption === 'delivery' && selectedPartner ? deliveryCost : 0))}</span>
               </div>
             </div>
 
