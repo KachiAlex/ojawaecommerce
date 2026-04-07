@@ -125,20 +125,9 @@ const authLimiter = rateLimit({
 app.use('/api', limiter);
 app.use('/auth', authLimiter);
 
-// Health check endpoints
-app.get('/', (req, res) => {
-  res.json({
-    status: 'ok',
-    message: 'Ojawa E-commerce Backend API running on Render',
-    version: '1.0.0',
-    timestamp: new Date().toISOString(),
-    environment: 'production'
-  });
-});
-
 // Mock signup endpoint for testing (bypasses Firebase)
 app.post('/api/auth/register', (req, res) => {
-  console.log(' Mock signup endpoint hit!', { body: req.body });
+  console.log('🔍 Mock signup endpoint hit!', { body: req.body });
   const { email, password, displayName } = req.body;
   
   if (!email || !password || !displayName) {
@@ -162,7 +151,18 @@ app.post('/api/auth/register', (req, res) => {
   });
 });
 
-app.get('/health', (req, res) => {
+// Health check endpoints
+app.get('/', (req, res) => {
+  res.json({
+    status: 'ok',
+    message: 'Ojawa E-commerce Backend API running on Render',
+    version: '1.0.0',
+    timestamp: new Date().toISOString(),
+    environment: 'production'
+  });
+});
+
+app.get('/health', async (req, res) => {
   try {
     // Test Firebase connectivity
     await db.collection('health').limit(1).get();
