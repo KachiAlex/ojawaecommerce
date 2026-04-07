@@ -195,6 +195,7 @@ app.get('/health/subscriptions', (req, res) => {
 
 // --- User Sign Up Route ---
 app.post('/signup', async (req, res) => {
+  console.log('🔍 Signup route hit!', { body: req.body, method: req.method, url: req.url });
   try {
     const { email, password, displayName } = req.body;
     if (!email || !password) {

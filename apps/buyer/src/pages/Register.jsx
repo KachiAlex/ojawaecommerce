@@ -7,7 +7,7 @@ import secureNotification from '../utils/secureNotification';
 
 const Register = () => {
   // Debug: Verify new code is loaded
-  console.log('Register component loaded - v2.4 (HARD REFRESH NEEDED)');
+  console.log('Register component loaded - v2.5 (infinite render fixed)');
 
   const [formData, setFormData] = useState({
     displayName: '',
@@ -38,7 +38,7 @@ const Register = () => {
   const locationData = useMemo(() => ({
     from: location.state?.from?.pathname || '/dashboard',
     preselectedUserType: location.state?.userType
-  }), [location.state]);
+  }), [location]);
 
   // Set preselected user type from login page
   useEffect(() => {
