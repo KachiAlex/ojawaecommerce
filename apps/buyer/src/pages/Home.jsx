@@ -158,8 +158,53 @@ const Home = () => {
         console.log('Loaded featured products:', products.length);
       } catch (error) {
         console.error('Failed to load featured products:', error);
-        // Use fallback products if API fails
-        setFeaturedProducts(products.slice(0, 8));
+        // Use static fallback products
+        setFeaturedProducts([
+          {
+            id: 'fallback-1',
+            name: 'Traditional Nigerian Attire',
+            vendor: 'Fashion Hub',
+            price: 15000,
+            currency: 'NGN',
+            image: null,
+            rating: 4.5,
+            inStock: true,
+            category: 'Fashion'
+          },
+          {
+            id: 'fallback-2',
+            name: 'Handmade Jewelry Set',
+            vendor: 'Craft Studio',
+            price: 8500,
+            currency: 'NGN',
+            image: null,
+            rating: 4.8,
+            inStock: true,
+            category: 'Accessories'
+          },
+          {
+            id: 'fallback-3',
+            name: 'Organic Skincare Bundle',
+            vendor: 'Beauty Store',
+            price: 12000,
+            currency: 'NGN',
+            image: null,
+            rating: 4.3,
+            inStock: true,
+            category: 'Beauty'
+          },
+          {
+            id: 'fallback-4',
+            name: 'Artisan Home Decor',
+            vendor: 'Home Crafts',
+            price: 22000,
+            currency: 'NGN',
+            image: null,
+            rating: 4.7,
+            inStock: true,
+            category: 'Home'
+          }
+        ]);
       } finally {
         setProductsLoading(false);
         setIsLoading(false);

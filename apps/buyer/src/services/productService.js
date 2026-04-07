@@ -62,7 +62,7 @@ class ProductService {
   }
 
   // Get featured products
-  async getFeaturedProducts(limit = 8) {
+  async getFeaturedProducts(limit = 20) {
     const response = await this.request(`/api/products/featured/list?limit=${limit}`);
     return response.data || [];
   }
