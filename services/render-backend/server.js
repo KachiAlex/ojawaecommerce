@@ -165,6 +165,41 @@ app.post('/sendEmailOTP', (req, res) => {
   }
 });
 
+// API-prefixed OTP endpoint
+app.post('/api/auth/sendEmailOTP', (req, res) => {
+  try {
+    console.log('🔍 Mock API OTP endpoint hit!', { 
+      method: req.method, 
+      url: req.url, 
+      path: req.path,
+      body: req.body 
+    });
+    
+    const { email } = req.body;
+    
+    if (!email) {
+      console.log('❌ API OTP validation failed');
+      return res.status(400).json({
+        success: false,
+        error: 'Email is required'
+      });
+    }
+    
+    console.log('✅ Mock API OTP sent successfully');
+    // Mock OTP sending
+    return res.json({
+      success: true,
+      message: 'OTP sent successfully (mock)'
+    });
+  } catch (error) {
+    console.error('❌ Mock API OTP error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Internal server error: ' + error.message
+    });
+  }
+});
+
 // Mock signout endpoint for testing
 app.post('/api/auth/signout', (req, res) => {
   try {
