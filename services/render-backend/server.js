@@ -248,18 +248,19 @@ app.post('/api/auth/signin', (req, res) => {
     
     // Seed admin account check
     if (email === 'admin@ojawa.africa' && password === 'admin123') {
-      console.log('Admin login successful');
+      console.log('Admin login successful - bypassing email verification');
       return res.json({
         success: true,
         data: {
           uid: 'admin-user-ojawa-2026',
           email: 'admin@ojawa.africa',
           displayName: 'System Administrator',
-          emailVerified: true,
+          emailVerified: true, // Admin bypasses email verification
           role: 'admin',
-          token: 'mock-admin-token-' + Date.now()
+          token: 'mock-admin-token-' + Date.now(),
+          bypassVerification: true // Flag to indicate verification bypass
         },
-        message: 'Admin login successful (mock)'
+        message: 'Admin login successful (email verification bypassed)'
       });
     }
     
