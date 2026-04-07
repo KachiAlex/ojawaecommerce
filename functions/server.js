@@ -60,7 +60,7 @@ app.post('/signup', async (req, res) => {
 
 // --- Security & Error Handling Middleware ---
 app.use(securityHeaders); // Add security headers
-app.use(sanitizeRequestData); // Sanitize all input
+// app.use(sanitizeRequestData); // Temporarily disabled - might be interfering with signup
 app.use(createRequestLogger({ logBody: process.env.NODE_ENV === 'development' })); // Request logging
 
 // Rate limiting: 1000 requests per minute per IP
