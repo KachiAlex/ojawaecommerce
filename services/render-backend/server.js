@@ -46,6 +46,10 @@ const logger = require('./utils/logger');
 const app = express();
 const PORT = process.env.PORT || 8080;
 
+// Body parsing middleware - MUST be first
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
 // Mock signup endpoint for testing (bypasses Firebase) - FIRST ROUTE
 app.post('/api/auth/register', (req, res) => {
   try {
@@ -134,10 +138,6 @@ app.use(cors(corsOptions));
 
 // Compression middleware
 app.use(compression());
-
-// Body parsing middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Logging middleware
 if (process.env.NODE_ENV === 'development') {
