@@ -7,7 +7,7 @@ import secureNotification from '../utils/secureNotification';
 
 const Register = () => {
   // Debug: Verify new code is loaded
-  console.log('Register component loaded - v2.7 (using correct /api/auth/register endpoint)');
+  console.log('Register component loaded - v2.8 (infinite render and CORS fixes)');
 
   const [formData, setFormData] = useState({
     displayName: '',
@@ -42,10 +42,10 @@ const Register = () => {
 
   // Set preselected user type from login page
   useEffect(() => {
-    if (locationData.preselectedUserType) {
-      setFormData(prev => ({ ...prev, userType: locationData.preselectedUserType }));
+    if (location.state?.userType) {
+      setFormData(prev => ({ ...prev, userType: location.state.userType }));
     }
-  }, [locationData.preselectedUserType]);
+  }, [location.state?.userType]);
 
   // Optimized handleChange with useCallback
   const handleChange = useCallback((e) => {
