@@ -46,6 +46,32 @@ const logger = require('./utils/logger');
 const app = express();
 const PORT = process.env.PORT || 8080;
 
+// Mock signup endpoint for testing (bypasses Firebase) - FIRST ROUTE
+app.post('/api/auth/register', (req, res) => {
+  console.log('🔍 Mock signup endpoint hit!', { body: req.body });
+  const { email, password, displayName } = req.body;
+  
+  if (!email || !password || !displayName) {
+    return res.status(400).json({
+      success: false,
+      error: 'Email, password, and displayName are required'
+    });
+  }
+  
+  // Mock successful registration
+  return res.json({
+    success: true,
+    data: {
+      uid: 'mock-user-' + Date.now(),
+      email,
+      displayName,
+      emailVerified: false,
+      role: 'user'
+    },
+    message: 'User registered successfully (mock)'
+  });
+});
+
 // Ensure uploads directory exists
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
@@ -124,32 +150,6 @@ const authLimiter = rateLimit({
 // Apply rate limiting
 app.use('/api', limiter);
 app.use('/auth', authLimiter);
-
-// Mock signup endpoint for testing (bypasses Firebase)
-app.post('/api/auth/register', (req, res) => {
-  console.log('🔍 Mock signup endpoint hit!', { body: req.body });
-  const { email, password, displayName } = req.body;
-  
-  if (!email || !password || !displayName) {
-    return res.status(400).json({
-      success: false,
-      error: 'Email, password, and displayName are required'
-    });
-  }
-  
-  // Mock successful registration
-  return res.json({
-    success: true,
-    data: {
-      uid: 'mock-user-' + Date.now(),
-      email,
-      displayName,
-      emailVerified: false,
-      role: 'user'
-    },
-    message: 'User registered successfully (mock)'
-  });
-});
 
 // Health check endpoints
 app.get('/', (req, res) => {
