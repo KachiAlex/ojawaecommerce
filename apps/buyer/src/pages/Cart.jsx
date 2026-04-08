@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useMessaging } from '../contexts/MessagingContext';
@@ -72,6 +72,21 @@ const Cart = () => {
   useEffect(() => {
     setLoading(!cartReady);
   }, [cartReady]);
+
+  // Get vendor address for logistics selector
+  const vendorAddressText = useMemo(() => {
+    if (!cartItems || cartItems.length === 0 || !vendorInfo) {
+      return 'Address not specified';
+    }
+    
+    // Get the first vendor's address from the vendor info
+    const firstVendorId = cartItems[0]?.vendorId;
+    if (firstVendorId && vendorInfo[firstVendorId]) {
+      return vendorInfo[firstVendorId].address || 'Address not specified';
+    }
+    
+    return 'Address not specified';
+  }, [cartItems, vendorInfo]);
 
   // Update delivery cost when address or delivery option changes
   useEffect(() => {
