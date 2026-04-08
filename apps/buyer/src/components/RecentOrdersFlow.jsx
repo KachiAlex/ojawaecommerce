@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
-import firebaseService from '../services/firebaseService';
 import { Link } from 'react-router-dom';
 
 const RecentOrdersFlow = () => {
@@ -19,6 +18,12 @@ const RecentOrdersFlow = () => {
   }, [currentUser]);
 
   const fetchRecentOrders = async () => {
+    // Disable recent orders for now to avoid firebaseService dependency
+    setRecentOrders([]);
+    setLoading(false);
+    
+    // TODO: Implement orders using new backend API
+    /*
     try {
       setLoading(true);
       const orders = await firebaseService.orders.getByUserPaged({
@@ -26,12 +31,13 @@ const RecentOrdersFlow = () => {
         userType: 'buyer',
         pageSize: 5
       });
-      setRecentOrders(orders.items || []);
+      setRecentOrders(orders);
     } catch (error) {
       console.error('Error fetching recent orders:', error);
     } finally {
       setLoading(false);
     }
+    */
   };
 
   const getStatusColor = (status) => {
@@ -91,6 +97,8 @@ const RecentOrdersFlow = () => {
         break;
       case 'confirm':
         // Confirm delivery
+        alert('Delivery confirmation temporarily disabled');
+        /*
         try {
           await firebaseService.orders.updateStatus(order.id, 'completed', {
             confirmedBy: 'buyer',
@@ -102,6 +110,7 @@ const RecentOrdersFlow = () => {
           console.error('Error confirming delivery:', error);
           alert('Failed to confirm order. Please try again.');
         }
+        */
         break;
       case 'reorder':
         // Add items back to cart

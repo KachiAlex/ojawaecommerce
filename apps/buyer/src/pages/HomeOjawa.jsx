@@ -10,8 +10,7 @@ import ProductDetailModal from "../components/ProductDetailModal";
 import ProductFilterSidebar from "../components/ProductFilterSidebar";
 import { getPrimaryImage } from "../utils/imageUtils";
 import SearchAutocomplete from "../components/SearchAutocomplete";
-import { collection, getDocs, query, limit } from "firebase/firestore";
-import { db } from "../firebase/config";
+import productService from "../services/productService";
 
 // Ojawa-inspired hero slider focused on secure, Pan‑African ecommerce
 // Using logo colors: Teal (#0d9488), Gold/Amber (#fbbf24), Emerald
@@ -193,7 +192,8 @@ const HomeOjawa = () => {
 
       setIsLoading(true);
       console.log('[HomeOjawa] Fetching products via REST...');
-      const raw = await firebaseService.product.getAll({ limit: 200 });
+      const response = await productService.getProducts({ limit: 50 });
+      const raw = response.products || [];
 
       const processedProducts = (raw || []).map((data) => {
         const images = Array.isArray(data.images) ? data.images.filter(Boolean) : [];

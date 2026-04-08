@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import firebaseService from '../services/firebaseService';
 
+// Helper function for timestamp
+const serverTimestamp = () => new Date();
+
 const MessageVendorModal = ({ isOpen, onClose, vendor, product, cartItems = null }) => {
   const { currentUser } = useAuth();
   const [message, setMessage] = useState('');

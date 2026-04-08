@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
-import firebaseService from '../services/firebaseService';
 import { useNavigate } from 'react-router-dom';
 import MessageVendorModal from './MessageVendorModal';
 
@@ -29,6 +28,12 @@ const ProductQuickView = ({ product, isOpen, onClose }) => {
   }, [isOpen, product]);
 
   const loadReviews = async () => {
+    // Disable reviews for now to avoid firebaseService dependency
+    setReviews([]);
+    setLoadingReviews(false);
+    
+    // TODO: Implement reviews using the new backend API
+    /*
     if (!product?.id) return;
     try {
       setLoadingReviews(true);
@@ -39,6 +44,7 @@ const ProductQuickView = ({ product, isOpen, onClose }) => {
     } finally {
       setLoadingReviews(false);
     }
+    */
   };
 
   const handleAddToCart = async () => {

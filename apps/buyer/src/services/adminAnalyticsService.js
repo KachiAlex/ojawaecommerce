@@ -5,9 +5,20 @@
 
 const api = {
   async request(path, options = {}) {
+    // Add authentication headers if available
+    const token = localStorage.getItem('authToken');
+    const headers = { 
+      Accept: 'application/json', 
+      ...(options.headers || {}) 
+    };
+    
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    
     const res = await fetch(path, {
       credentials: 'include',
-      headers: { Accept: 'application/json', ...(options.headers || {}) },
+      headers,
       ...options,
     });
     if (!res.ok) {
@@ -66,6 +77,13 @@ export const adminAnalyticsService = {
 
   async logAction(actionData) {
     try {
+      // Skip analytics for unauthenticated users
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        console.log('User not authenticated, skipping analytics logging');
+        return false;
+      }
+      
       const payload = { ...actionData, timestamp: new Date().toISOString(), sessionId: this.getSessionId?.() || null, pagePath: window?.location?.pathname || 'unknown', pageTitle: document?.title || 'unknown' };
       await api.request('/api/analytics/events', { method: 'POST', body: JSON.stringify(payload), headers: { 'Content-Type': 'application/json' } });
       return true;

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useMessaging } from '../contexts/MessagingContext';
+import { useCart } from '../contexts/CartContext';
 import { usePageTracking, useProductTracking, useClickTracking } from '../hooks/useAnalytics';
 import cartService from '../services/cartService';
 import checkoutService from '../services/checkoutService';
@@ -33,13 +34,15 @@ const Cart = () => {
   const navigate = useNavigate?.() || (() => {});
   const location = useLocation?.() || { search: '' };
   
+  // Use CartContext instead of cartService
+  const { cartItems, cartReady, addToCart, removeFromCart, updateQuantity, clearCart, getCartTotal, getCartItemsCount, validateCartItems, hasOutOfStockItems } = useCart();
+  
   // Analytics tracking
   usePageTracking('Shopping Cart');
   useProductTracking();
   useClickTracking();
   
-  // Cart state from new service
-  const [cartState, setCartState] = useState(null);
+  // Cart state from CartContext
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   
@@ -61,33 +64,28 @@ const Cart = () => {
   const [messageAllVendors, setMessageAllVendors] = useState(false);
   const [selectedPartner, setSelectedPartner] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState('escrow');
+  const [vendorInfo, setVendorInfo] = useState(null);
+  const [vendorProcessingDays, setVendorProcessingDays] = useState(2);
+  const [totalDeliveryTime, setTotalDeliveryTime] = useState(null);
 
-  // Load cart state
+  // Set loading state based on cartReady
   useEffect(() => {
-    const unsubscribe = cartService.subscribe((state) => {
-      setCartState(state);
-      setLoading(false);
-    });
-
-    // Sync with backend
-    cartService.syncWithBackend();
-
-    return unsubscribe;
-  }, []);
+    setLoading(!cartReady);
+  }, [cartReady]);
 
   // Update delivery cost when address or delivery option changes
   useEffect(() => {
-    if (buyerAddress.city && cartState?.items?.length > 0) {
+    if (buyerAddress.city && cartItems?.length > 0) {
       calculateDeliveryCost();
     }
-  }, [buyerAddress, deliveryOption, cartState]);
+  }, [buyerAddress, deliveryOption, cartItems]);
 
   const calculateDeliveryCost = async () => {
     try {
       const shipping = await checkoutService.calculateShipping(
         buyerAddress.city || 'Lagos',
         buyerAddress.city || 'Lagos',
-        calculateTotalWeight(cartState.items)
+        calculateTotalWeight(cartItems)
       );
       setDeliveryCost(shipping.shipping?.cost || 0);
       setEstimatedDelivery(shipping.shipping?.estimatedDelivery || '2-3 days');
@@ -147,14 +145,14 @@ const Cart = () => {
       return;
     }
 
-    if (!cartState || cartState.items.length === 0) {
+    if (!cartItems || cartItems.length === 0) {
       alert('Your cart is empty');
       return;
     }
 
     // Validate checkout data
     const errors = checkoutService.validateCheckoutData({
-      items: cartState.items,
+      items: cartItems,
       shippingAddress: buyerAddress,
       paymentMethod,
       email: currentUser.email
@@ -168,7 +166,7 @@ const Cart = () => {
     setUpdating(true);
     try {
       const result = await checkoutService.processCheckout({
-        items: cartState.items,
+        items: cartItems,
         shippingAddress: buyerAddress,
         paymentMethod,
         deliveryType: deliveryOption,
@@ -287,7 +285,7 @@ const Cart = () => {
     const params = new URLSearchParams(location.search || '');
     const targetId = params.get('messageVendorFor');
     if (targetId) {
-      const targetItem = cartItems.find(i => String(i.id) === String(targetId));
+      const targetItem = cartItems?.find(i => String(i.id) === String(targetId));
       if (targetItem && targetItem.vendorId) {
         // Open conversation directly using vendor ID
         if (startConversation) {
@@ -339,7 +337,7 @@ const Cart = () => {
   useEffect(() => {
     const fetchVendors = async () => {
       try {
-        if (!cartItems.length) {
+        if (!cartItems || !cartItems.length) {
           setVendorInfo(null);
           setVendorProcessingDays(2);
           return;
@@ -354,7 +352,7 @@ const Cart = () => {
         
         // Calculate maximum processing time from all products
         let maxProcessingDays = 0;
-        for (const item of cartItems) {
+        for (const item of cartItems || []) {
           let processingTime = 2; // Default
           if (item.processingTimeDays) {
             processingTime = item.processingTimeDays;
@@ -374,9 +372,9 @@ const Cart = () => {
         setVendorProcessingDays(maxProcessingDays);
 
         // Get unique vendor IDs from cart items
-        const vendorIds = [...new Set(cartState.items.map(item => item.vendorId).filter(Boolean))];
+        const vendorIds = [...new Set(cartItems.map(item => item.vendorId).filter(Boolean))];
         console.log('Cart - vendorIds:', vendorIds);
-        console.log('Cart - items:', cartState.items.map(item => ({ id: item.id, vendorId: item.vendorId, name: item.name })));
+        console.log('Cart - items:', cartItems.map(item => ({ id: item.id, vendorId: item.vendorId, name: item.name })));
         
         if (vendorIds.length > 0) {
           const vendorData = {};
@@ -535,7 +533,7 @@ const Cart = () => {
         return;
       }
 
-      if (!cartState || cartState.items.length === 0) {
+      if (!cartItems || cartItems.length === 0) {
         setPricingBreakdown(null);
         return;
       }
@@ -543,7 +541,7 @@ const Cart = () => {
       try {
         setLoading(true);
         
-        const subtotal = cartState?.subtotal || 0;
+        const subtotal = getCartTotal();
         const delivery = deliveryOption === 'delivery' && selectedPartner ? deliveryCost : 0;
         const total = subtotal + delivery;
         
@@ -565,14 +563,14 @@ const Cart = () => {
     };
 
     calculatePricing();
-  }, [cartState, deliveryOption, deliveryCost, selectedPartner]);
+  }, [cartItems, deliveryOption, deliveryCost, selectedPartner]);
 
-  if (!cartState || cartState.items.length === 0) {
+  if (!cartItems || cartItems.length === 0) {
     return (
       <div className="min-h-screen bg-slate-950 py-8">
         <div className="max-w-4xl mx-auto px-4">
           <div className="text-center py-12">
-            <div className="text-6xl mb-4">🛒</div>
+            <div className="text-6xl mb-4"></div>
             <h1 className="text-2xl font-bold text-white mb-4">Your cart is empty</h1>
             <p className="text-teal-200 mb-8">Add some products to get started!</p>
             <Link 
@@ -593,12 +591,12 @@ const Cart = () => {
         <div className="bg-slate-900 rounded-lg shadow-sm border border-emerald-900/60 p-3 sm:p-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6 space-y-2 sm:space-y-0">
             <h1 className="text-xl sm:text-2xl font-bold text-white">Shopping Cart</h1>
-            <span className="text-sm sm:text-base text-teal-200">{cartState?.itemCount || 0} item{(cartState?.itemCount || 0) !== 1 ? 's' : ''}</span>
+            <span className="text-sm sm:text-base text-teal-200">{getCartItemsCount()} items</span>
           </div>
 
           {/* Cart Items */}
           <div className="space-y-4 mb-6">
-            {cartState.items.map((item) => (
+            {cartItems.map((item) => (
               <div key={`${item.id}-${item.vendorId}`} className="flex flex-col sm:flex-row items-start sm:items-center space-y-3 sm:space-y-0 sm:space-x-4 p-4 border border-emerald-900/60 rounded-lg bg-slate-800">
                 <div className="w-16 h-16 flex-shrink-0 bg-slate-700 rounded-lg overflow-hidden">
                   <img
@@ -764,7 +762,7 @@ const Cart = () => {
             <div className="mb-6">
               <CheckoutLogisticsSelector
                 key={`${buyerFullAddress}-${vendorAddressText}-${deliveryOption}`}
-                cartItems={cartItems}
+                cartItems={cartItems || []}
                 buyerAddress={buyerFullAddress}
                 vendorAddress={vendorAddressText}
                 onLogisticsSelected={(logistics) => {
@@ -790,7 +788,7 @@ const Cart = () => {
             <div className="space-y-2 text-sm">
               <div className="flex justify-between text-teal-200">
                 <span>Subtotal</span>
-                <span className="text-white">{formatCurrency(cartState?.subtotal || 0)}</span>
+                <span className="text-white">{formatCurrency(getCartTotal())}</span>
               </div>
               <div className="flex justify-between text-teal-200">
                 <span>Delivery</span>
@@ -798,7 +796,7 @@ const Cart = () => {
               </div>
               <div className="flex justify-between font-semibold border-t border-emerald-900/60 pt-2 text-white">
                 <span>Total</span>
-                <span className="text-emerald-400">{formatCurrency((cartState?.subtotal || 0) + (deliveryOption === 'delivery' && selectedPartner ? deliveryCost : 0))}</span>
+                <span className="text-emerald-400">{formatCurrency(getCartTotal() + (deliveryOption === 'delivery' && selectedPartner ? deliveryCost : 0))}</span>
               </div>
             </div>
 
@@ -836,8 +834,8 @@ const Cart = () => {
             <MessageVendorModal
               isOpen={showMessageModal}
               onClose={() => setShowMessageModal(false)}
-              vendor={{ id: cartItems[0]?.vendorId, name: vendorInfo?.[cartItems[0]?.vendorId]?.name || 'Vendor' }}
-              product={cartItems[0]}
+              vendor={{ id: cartItems?.[0]?.vendorId, name: vendorInfo?.[cartItems?.[0]?.vendorId]?.name || 'Vendor' }}
+              product={cartItems?.[0]}
             />
           )}
         </div>

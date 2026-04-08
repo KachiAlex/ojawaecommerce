@@ -1,6 +1,10 @@
 // Analytics Tracking Service (REST-backed)
 // All events routed to /api/analytics/* endpoints
 
+// Note: Firebase is disabled, using REST API only
+// Helper function for timestamp
+const serverTimestamp = () => new Date();
+
 class AnalyticsService {
   // Helper method to get auth token
   getAuthToken() {
@@ -45,29 +49,9 @@ class AnalyticsService {
   // Track product view
   async trackProductView(productId, vendorId, viewerData = {}) {
     try {
-      const viewData = {
-        productId,
-        vendorId,
-        type: 'product_view',
-        timestamp: serverTimestamp(),
-        ...viewerData,
-        userAgent: navigator.userAgent,
-        referrer: document.referrer,
-        url: window.location.href
-      };
-
-      const docRef = await addDoc(collection(db, 'analytics'), viewData);
-      
-      // Update product view count (optional - don't fail if permission denied)
-      try {
-      await this.incrementProductViews(productId);
-      } catch (incrementError) {
-        // Silently ignore view count increment errors (permission issues)
-        // The analytics event is already tracked, which is the main goal
-        console.debug('Could not increment product view count:', incrementError);
-      }
-      
-      return docRef.id;
+      // Firebase disabled - analytics tracking disabled
+      console.log('Product view tracking disabled (Firebase removed)');
+      return null;
     } catch (error) {
       console.error('Error tracking product view:', error);
     }
@@ -76,19 +60,9 @@ class AnalyticsService {
   // Track product interaction
   async trackProductInteraction(productId, vendorId, interactionType, data = {}) {
     try {
-      const interactionData = {
-        productId,
-        vendorId,
-        type: 'product_interaction',
-        interactionType, // 'add_to_cart', 'favorite', 'share', 'image_click', etc.
-        timestamp: serverTimestamp(),
-        ...data,
-        userAgent: navigator.userAgent,
-        url: window.location.href
-      };
-
-      const docRef = await addDoc(collection(db, 'analytics'), interactionData);
-      return docRef.id;
+      // Firebase disabled - analytics tracking disabled
+      console.log('Product interaction tracking disabled (Firebase removed)');
+      return null;
     } catch (error) {
       console.error('Error tracking product interaction:', error);
     }
@@ -97,16 +71,9 @@ class AnalyticsService {
   // Track order analytics
   async trackOrderAnalytics(orderId, vendorId, orderData) {
     try {
-      const analyticsData = {
-        orderId,
-        vendorId,
-        type: 'order_analytics',
-        timestamp: serverTimestamp(),
-        ...orderData
-      };
-
-      const docRef = await addDoc(collection(db, 'analytics'), analyticsData);
-      return docRef.id;
+      // Firebase disabled - analytics tracking disabled
+      console.log('Order analytics tracking disabled (Firebase removed)');
+      return null;
     } catch (error) {
       console.error('Error tracking order analytics:', error);
     }
@@ -115,19 +82,9 @@ class AnalyticsService {
   // Track search analytics
   async trackSearch(vendorId, searchQuery, resultsCount, filters = {}) {
     try {
-      const searchData = {
-        vendorId,
-        type: 'search',
-        searchQuery,
-        resultsCount,
-        filters,
-        timestamp: serverTimestamp(),
-        userAgent: navigator.userAgent,
-        url: window.location.href
-      };
-
-      const docRef = await addDoc(collection(db, 'analytics'), searchData);
-      return docRef.id;
+      // Firebase disabled - analytics tracking disabled
+      console.log('Search tracking disabled (Firebase removed)');
+      return null;
     } catch (error) {
       console.error('Error tracking search:', error);
     }
@@ -360,18 +317,9 @@ class AnalyticsService {
   // Track page view
   async trackPageView(page, vendorId, data = {}) {
     try {
-      const pageData = {
-        page,
-        vendorId,
-        type: 'page_view',
-        timestamp: serverTimestamp(),
-        ...data,
-        userAgent: navigator.userAgent,
-        url: window.location.href
-      };
-
-      const docRef = await addDoc(collection(db, 'analytics'), pageData);
-      return docRef.id;
+      // Firebase disabled - analytics tracking disabled
+      console.log('Page view tracking disabled (Firebase removed)');
+      return null;
     } catch (error) {
       console.error('Error tracking page view:', error);
     }
@@ -380,17 +328,9 @@ class AnalyticsService {
   // Track conversion
   async trackConversion(vendorId, conversionType, value, data = {}) {
     try {
-      const conversionData = {
-        vendorId,
-        type: 'conversion',
-        conversionType, // 'purchase', 'signup', 'contact', etc.
-        value,
-        timestamp: serverTimestamp(),
-        ...data
-      };
-
-      const docRef = await addDoc(collection(db, 'analytics'), conversionData);
-      return docRef.id;
+      // Firebase disabled - analytics tracking disabled
+      console.log('Conversion tracking disabled (Firebase removed)');
+      return null;
     } catch (error) {
       console.error('Error tracking conversion:', error);
     }

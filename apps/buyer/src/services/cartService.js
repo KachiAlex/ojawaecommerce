@@ -233,6 +233,13 @@ class CartService {
   // Merge with backend cart
   async syncWithBackend() {
     try {
+      // Only sync with backend if user is authenticated
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        console.log('User not authenticated, skipping backend cart sync');
+        return;
+      }
+
       const backendCart = await productService.getCart();
       
       if (backendCart.items && backendCart.items.length > 0) {
