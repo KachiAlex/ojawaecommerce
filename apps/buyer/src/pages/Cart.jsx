@@ -6,6 +6,7 @@ import { useCart } from '../contexts/CartContext';
 import { usePageTracking, useProductTracking, useClickTracking } from '../hooks/useAnalytics';
 import cartService from '../services/cartService';
 import checkoutService from '../services/checkoutService';
+import axios from 'axios';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'https://ojawaecommerce.onrender.com';
 import AddressInput from '../components/AddressInput';
@@ -67,6 +68,7 @@ const Cart = () => {
   const [vendorInfo, setVendorInfo] = useState(null);
   const [vendorProcessingDays, setVendorProcessingDays] = useState(2);
   const [totalDeliveryTime, setTotalDeliveryTime] = useState(null);
+  const [pricingBreakdown, setPricingBreakdown] = useState(null);
 
   // Set loading state based on cartReady
   useEffect(() => {
