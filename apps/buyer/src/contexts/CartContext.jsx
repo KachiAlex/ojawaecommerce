@@ -32,7 +32,7 @@ export const CartProvider = ({ children }) => {
         setHasLoaded(true);
       }
     })();
-  }, [cartItems]);
+  }, []);
 
   // After auth resolves, attempt a second load (in case initial load used guest key)
   useEffect(() => {

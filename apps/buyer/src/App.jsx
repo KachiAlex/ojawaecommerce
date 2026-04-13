@@ -184,7 +184,7 @@ const AppContent = () => {
                   <Suspense fallback={<ComponentLoadingSpinner />}>
                     <Navbar />
                   </Suspense>
-                  <main className="app-content">
+                  <main className="app-content pt-16">
                     <AppRoutes />
                   </main>
                   <Suspense fallback={null}>
