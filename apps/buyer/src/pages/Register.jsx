@@ -1,9 +1,19 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import InputValidator from '../utils/inputValidator';
 import secureNotification from '../utils/secureNotification';
+
+// Helper function to map user type to dashboard URL
+const getDashboardUrl = (userType) => {
+  const dashboardMap = {
+    'buyer': '/buyer',
+    'vendor': '/vendor',
+    'logistics': '/logistics'
+  };
+  return dashboardMap[userType] || '/dashboard';
+};
 
 const Register = () => {
   // Debug: Verify new code is loaded
@@ -33,6 +43,7 @@ const Register = () => {
   const { signup, resendVerificationEmailWithPassword, lastVerificationEmailSentAt, logout } = useAuth();
   const { getIntendedDestination } = useCart();
   const location = useLocation();
+  const navigate = useNavigate();
 
   // Memoize location data to prevent re-renders
   const locationData = useMemo(() => ({
@@ -120,7 +131,9 @@ const Register = () => {
 
       const intendedDestination = getIntendedDestination();
       const fallbackDestination = intendedDestination?.path || locationData.from;
-      setPostVerificationDestination(fallbackDestination);
+      // Set post-verification destination based on user type
+      const dashboardUrl = getDashboardUrl(formData.userType);
+      setPostVerificationDestination(dashboardUrl);
       setSubmittedCredentials({
         email: sanitizedData.email,
         password: sanitizedData.password
@@ -279,7 +292,7 @@ const Register = () => {
               </button>
               <Link
                 to="/login"
-                state={{ verificationEmail: createdUserEmail, from: { pathname: postVerificationDestination || '/dashboard' } }}
+                state={{ verificationEmail: createdUserEmail, from: { pathname: postVerificationDestination || getDashboardUrl(formData.userType) } }}
                 className="w-full inline-flex items-center justify-center px-3 py-2 text-xs font-medium rounded-lg border border-transparent text-white bg-emerald-600 hover:bg-emerald-700"
               >
                 I’ve verified my email — take me to login

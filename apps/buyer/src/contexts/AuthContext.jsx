@@ -145,7 +145,13 @@ export const AuthProvider = ({ children }) => {
 
       try {
         const profile = res?.profile || (user?.id || user?.uid ? await firebaseService.auth.getProfile(user.id || user.uid) : null);
-        if (profile) setUserProfile(profile);
+        if (profile) {
+          setUserProfile(profile);
+          // Ensure userType is available in user object
+          if (profile.userType && !user.userType) {
+            user.userType = profile.userType;
+          }
+        }
       } catch (e) {
         console.warn('Unable to load user profile after signin:', e);
       }

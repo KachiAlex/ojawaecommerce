@@ -88,8 +88,15 @@ class EmailOTPService {
    */
   async sendOTP(email, purpose = 'verification', customMessage = null) {
     try {
+      // Validate email parameter
+      if (!email || typeof email !== 'string' || email.trim().length === 0) {
+        throw new Error('Email is required to send OTP');
+      }
+
+      const normalizedEmail = email.toLowerCase().trim();
+
       // Check rate limiting
-      const rateLimitKey = `otp_rate_limit_${email.toLowerCase()}`;
+      const rateLimitKey = `otp_rate_limit_${normalizedEmail}`;
       const lastSent = await secureLocalStorage.getItem(rateLimitKey);
       
       if (lastSent && (Date.now() - lastSent) < this.cooldownPeriod) {
@@ -99,14 +106,16 @@ class EmailOTPService {
 
       // Generate and store OTP
       const otp = this.generateOTP();
-      await this.storeOTP(email, otp, purpose);
+      await this.storeOTP(normalizedEmail, otp, purpose);
 
       // Prepare email content
       const emailContent = this.prepareEmailContent(otp, purpose, customMessage);
       
       // Send OTP via Render backend endpoint
+      // Include both 'email' and 'to' parameters for backend compatibility
       const result = await apiPost('/sendEmailOTP', {
-        to: email,
+        email: normalizedEmail,
+        to: normalizedEmail,
         subject: emailContent.subject,
         htmlContent: emailContent.html,
         textContent: emailContent.text,
@@ -117,16 +126,16 @@ class EmailOTPService {
       await secureLocalStorage.setItem(rateLimitKey, Date.now());
 
       // Store metadata for tracking
-      const metadataKey = `otp_meta_${purpose}_${email.toLowerCase()}`;
+      const metadataKey = `otp_meta_${purpose}_${normalizedEmail}`;
       await secureLocalStorage.setItem(metadataKey, {
         sentAt: Date.now(),
         purpose,
-        email: email.toLowerCase()
+        email: normalizedEmail
       });
 
       return {
         success: true,
-        message: `OTP sent to ${email}`,
+        message: `OTP sent to ${normalizedEmail}`,
         expiresAt: Date.now() + this.otpExpiry,
         requestId: result?.requestId
       };
@@ -137,6 +146,11 @@ class EmailOTPService {
       // Handle specific error cases
       if (error.message.includes('rate limit')) {
         throw error;
+      }
+      
+      // Provide more specific error message
+      if (error.message.includes('Email is required')) {
+        throw new Error('Email address is required to send OTP. Please provide a valid email.');
       }
       
       throw new Error('Failed to send OTP. Please try again.');

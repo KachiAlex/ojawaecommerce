@@ -2,7 +2,7 @@
 
 ## Phase 1: Exploration - Understand the Bugs
 
-- [-] 1. Write bug condition exploration test for navbar scroll bug
+- [ ] 1. Write bug condition exploration test for navbar scroll bug
   - **Property 1: Bug Condition** - Navbar Remains Fixed During Scroll
   - **CRITICAL**: This test MUST FAIL on unfixed code - failure confirms the bug exists
   - **DO NOT attempt to fix the test or the code when it fails**

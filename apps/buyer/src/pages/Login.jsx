@@ -4,6 +4,16 @@ import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import { usePageTracking, useUserTracking, useClickTracking } from '../hooks/useAnalytics';
 
+// Helper function to map user type to dashboard URL
+const getDashboardUrl = (userType) => {
+  const dashboardMap = {
+    'buyer': '/buyer',
+    'vendor': '/vendor',
+    'logistics': '/logistics'
+  };
+  return dashboardMap[userType] || '/dashboard';
+};
+
 const testModeEnabled = import.meta.env?.VITE_TEST_MODE === 'true';
 const defaultTestEmail = 'onyedika.akoma@gmail.com';
 const defaultTestPassword = 'dikaoliver2660';
@@ -44,7 +54,9 @@ const Login = () => {
     signin, 
     signInWithGoogle, 
     resendVerificationEmailWithPassword,
-    lastVerificationEmailSentAt
+    lastVerificationEmailSentAt,
+    currentUser,
+    userProfile
   } = useAuth();
   const { getIntendedDestination } = useCart();
   const navigate = useNavigate();
@@ -113,9 +125,11 @@ const Login = () => {
         // Navigate to the intended destination (e.g., checkout, product page)
         navigate(intendedDestination.path);
       } else {
-        console.log('📍 Navigating to:', locationData.from);
-        // Use the standard redirect from location state
-        navigate(locationData.from);
+        // Get user role and redirect to role-specific dashboard
+        const userRole = currentUser?.userType || userProfile?.userType;
+        const dashboardUrl = getDashboardUrl(userRole);
+        console.log('📍 Navigating to role-based dashboard:', dashboardUrl, 'for user type:', userRole);
+        navigate(dashboardUrl);
       }
     } catch (error) {
       console.error('❌ Login error:', error);
@@ -226,8 +240,11 @@ const Login = () => {
           console.log('📍 Navigating to intended destination:', intendedDestination.path);
           navigate(intendedDestination.path);
         } else {
-          console.log('📍 Navigating to:', locationData.from);
-          navigate(locationData.from);
+          // Get user role and redirect to role-specific dashboard
+          const userRole = currentUser?.userType || userProfile?.userType;
+          const dashboardUrl = getDashboardUrl(userRole);
+          console.log('📍 Navigating to role-based dashboard:', dashboardUrl, 'for user type:', userRole);
+          navigate(dashboardUrl);
         }
       }
     } catch (error) {
