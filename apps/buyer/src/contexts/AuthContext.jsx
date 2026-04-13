@@ -133,15 +133,16 @@ export const AuthProvider = ({ children }) => {
       const user = res?.user || res;
       if (!user) throw new Error('Invalid signin response from server');
 
-      if (res?.emailVerified === false) {
-        try {
-          await triggerVerificationEmail(email);
-        } catch (verificationError) {
-          console.error('Error auto-sending verification email on signin:', verificationError);
-        }
-        await firebaseService.auth.signout();
-        throw createUnverifiedEmailError(email);
-      }
+      // Email verification is no longer required - users can login immediately
+      // if (res?.emailVerified === false) {
+      //   try {
+      //     await triggerVerificationEmail(email);
+      //   } catch (verificationError) {
+      //     console.error('Error auto-sending verification email on signin:', verificationError);
+      //   }
+      //   await firebaseService.auth.signout();
+      //   throw createUnverifiedEmailError(email);
+      // }
 
       try {
         const profile = res?.profile || (user?.id || user?.uid ? await firebaseService.auth.getProfile(user.id || user.uid) : null);

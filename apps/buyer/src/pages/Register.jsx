@@ -16,8 +16,7 @@ const getDashboardUrl = (userType) => {
 };
 
 const Register = () => {
-  // Debug: Verify new code is loaded
-  console.log('Register component loaded - v2.8 (infinite render and CORS fixes)');
+  console.log('Register component loaded - v3.0 (no email verification required)');
 
   const [formData, setFormData] = useState({
     displayName: '',
@@ -35,30 +34,23 @@ const Register = () => {
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [registrationComplete, setRegistrationComplete] = useState(false);
-  const [createdUserEmail, setCreatedUserEmail] = useState('');
-  const [submittedCredentials, setSubmittedCredentials] = useState(null);
-  const [resendStatus, setResendStatus] = useState('idle');
-  const [postVerificationDestination, setPostVerificationDestination] = useState('');
 
-  const { signup, resendVerificationEmailWithPassword, lastVerificationEmailSentAt, logout } = useAuth();
+  const { signup, logout } = useAuth();
   const { getIntendedDestination } = useCart();
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Memoize location data to prevent re-renders
   const locationData = useMemo(() => ({
     from: location.state?.from?.pathname || '/dashboard',
     preselectedUserType: location.state?.userType
   }), [location]);
 
-  // Set preselected user type from login page
   useEffect(() => {
     if (location.state?.userType) {
       setFormData(prev => ({ ...prev, userType: location.state.userType }));
     }
   }, [location.state?.userType]);
 
-  // Optimized handleChange with useCallback
   const handleChange = useCallback((e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
@@ -67,47 +59,31 @@ const Register = () => {
     }));
   }, []);
 
-  // Memoized validation rules to prevent recreation
-  const validationRules = useMemo(() => ({
-    displayName: { type: 'name', fieldName: 'Display Name', required: true },
-    email: { type: 'email', required: true },
-    password: { type: 'text', fieldName: 'Password', required: true, minLength: 6 },
-    confirmPassword: { type: 'text', fieldName: 'Confirm Password', required: true },
-    phone: { type: 'phone', required: false },
-    address: { type: 'address', fieldName: 'Address', required: false }
-  }), []);
-
-  // Optimized handleSubmit with useCallback
   const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
     
-    // Basic validation only - skip strict validation for now
     if (!formData.email || !formData.password || !formData.displayName) {
       setError('Please fill in all required fields (email, password, display name)');
       return;
     }
 
-    // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.email)) {
       setError('Please enter a valid email address');
       return;
     }
 
-    // Password validation
     if (formData.password.length < 6) {
       setError('Password must be at least 6 characters long');
       return;
     }
 
-    // Password match validation
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
       secureNotification.error('Passwords do not match');
       return;
     }
 
-    // Basic sanitization
     const sanitizedData = {
       email: formData.email.trim().toLowerCase(),
       password: formData.password,
@@ -120,7 +96,6 @@ const Register = () => {
     try {
       setError('');
       setSuccessMessage('');
-      setResendStatus('idle');
       setLoading(true);
       await signup(sanitizedData.email, sanitizedData.password, {
         displayName: sanitizedData.displayName,
@@ -129,26 +104,19 @@ const Register = () => {
         userType: formData.userType
       });
 
-      const intendedDestination = getIntendedDestination();
-      const fallbackDestination = intendedDestination?.path || locationData.from;
-      // Set post-verification destination based on user type
-      const dashboardUrl = getDashboardUrl(formData.userType);
-      setPostVerificationDestination(dashboardUrl);
-      setSubmittedCredentials({
-        email: sanitizedData.email,
-        password: sanitizedData.password
-      });
-      setCreatedUserEmail(sanitizedData.email);
       setRegistrationComplete(true);
-      setSuccessMessage('Almost there! We emailed a verification link to activate your account.');
-      setResendStatus('idle');
-      secureNotification.success('Registration successful! Please check your email for verification.');
+      setSuccessMessage('Account created successfully! Redirecting to login...');
+      secureNotification.success('Registration successful! Redirecting to login...');
 
       try {
         await logout();
       } catch (signOutError) {
         console.error('Error signing out after registration:', signOutError);
       }
+      
+      setTimeout(() => {
+        navigate('/login', { state: { userType: formData.userType } });
+      }, 2000);
     } catch (error) {
       const errorMessage = error.message?.includes('already in use') 
         ? 'Email address is already registered. Please use a different email or try logging in.'
@@ -159,58 +127,7 @@ const Register = () => {
     } finally {
       setLoading(false);
     }
-  }, [formData, signup, getIntendedDestination, locationData.from]);
-
-  // Optimized canResendVerification with useCallback
-  const canResendVerification = useCallback(() => {
-    if (!lastVerificationEmailSentAt) return true;
-    const lastSent = new Date(lastVerificationEmailSentAt).getTime();
-    if (Number.isNaN(lastSent)) return true;
-    return Date.now() - lastSent > 60000;
-  }, [lastVerificationEmailSentAt]);
-
-  const handleResendVerification = async () => {
-    if (!registrationComplete || resendStatus === 'sending') return;
-    if (!canResendVerification()) {
-      setResendStatus('cooldown');
-      return;
-    }
-
-    const credentials = submittedCredentials || {
-      email: formData.email,
-      password: formData.password
-    };
-
-    if (!credentials.email || !credentials.password) {
-      setResendStatus('error');
-      setError('Please re-enter your email and password, then click "Create Account" before resending.');
-      return;
-    }
-
-    try {
-      setResendStatus('sending');
-      const result = await resendVerificationEmailWithPassword(credentials.email, credentials.password);
-      if (result?.alreadyVerified) {
-        setResendStatus('verified');
-        setSuccessMessage('Great news! Your email is already verified. Please sign in.');
-        return;
-      }
-      setResendStatus('sent');
-    } catch (err) {
-      console.error('Failed to resend verification email:', err);
-      setResendStatus('error');
-      setError(err.message || 'Failed to resend verification email. Please try again.');
-    }
-  };
-
-  const resendButtonLabel = (() => {
-    if (resendStatus === 'sent') return 'Verification email re-sent!';
-    if (resendStatus === 'sending') return 'Sending...';
-    if (resendStatus === 'cooldown') return 'Please wait a minute before resending';
-    if (resendStatus === 'verified') return 'Email already verified! Sign in now.';
-    if (resendStatus === 'error') return 'Try resending email';
-    return 'Resend verification email';
-  })();
+  }, [formData, signup, navigate]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-950 py-12 px-4 sm:px-6 lg:px-8">
@@ -253,50 +170,13 @@ const Register = () => {
         </div>
 
         {successMessage && (
-          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-emerald-900 space-y-3">
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-emerald-900">
             <div className="flex items-start gap-3">
-              <span className="text-2xl">📬</span>
+              <span className="text-2xl">✅</span>
               <div>
-                <h3 className="font-semibold text-sm">Verify your email to continue</h3>
-                <p className="text-xs text-emerald-800">
-                  {successMessage}
-                  {createdUserEmail && (
-                    <>
-                      {' '}We sent it to <strong>{createdUserEmail}</strong>.
-                    </>
-                  )}
-                </p>
-                <p className="text-xs text-emerald-700 mt-1">
-                  Open the email, click the verification button, then sign in to finish onboarding.
-                  {postVerificationDestination && (
-                    <>
-                      {' '}We’ll send you to <strong>{postVerificationDestination}</strong> once you log back in.
-                    </>
-                  )}
-                </p>
+                <h3 className="font-semibold text-sm">Account Created Successfully!</h3>
+                <p className="text-xs text-emerald-800 mt-1">{successMessage}</p>
               </div>
-            </div>
-            <div className="space-y-2">
-              <button
-                type="button"
-                onClick={handleResendVerification}
-                disabled={
-                  resendStatus === 'sending' ||
-                  resendStatus === 'cooldown' ||
-                  resendStatus === 'verified' ||
-                  !canResendVerification()
-                }
-                className="w-full inline-flex items-center justify-center px-3 py-2 text-xs font-medium rounded-lg border border-emerald-300 text-emerald-700 bg-white hover:bg-emerald-100 disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {resendButtonLabel}
-              </button>
-              <Link
-                to="/login"
-                state={{ verificationEmail: createdUserEmail, from: { pathname: postVerificationDestination || getDashboardUrl(formData.userType) } }}
-                className="w-full inline-flex items-center justify-center px-3 py-2 text-xs font-medium rounded-lg border border-transparent text-white bg-emerald-600 hover:bg-emerald-700"
-              >
-                I’ve verified my email — take me to login
-              </Link>
             </div>
           </div>
         )}

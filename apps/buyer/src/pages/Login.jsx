@@ -141,11 +141,10 @@ const Login = () => {
       let errorMessage = 'Failed to sign in. Please check your credentials.';
 
       if (error.code === 'auth/email-not-verified') {
-        setVerificationState({ pending: true, email: error.email || email, provider: 'password' });
-        errorMessage = 'Please verify your email address before signing in.';
-      }
-      
-      if (error.code === 'auth/user-not-found') {
+        // Email verification is no longer required - allow login
+        // setVerificationState({ pending: true, email: error.email || email, provider: 'password' });
+        // errorMessage = 'Please verify your email address before signing in.';
+      } else if (error.code === 'auth/user-not-found') {
         errorMessage = 'No account found with this email address. Please register first.';
       } else if (error.code === 'auth/wrong-password') {
         errorMessage = 'Incorrect password. Please try again or reset your password.';
