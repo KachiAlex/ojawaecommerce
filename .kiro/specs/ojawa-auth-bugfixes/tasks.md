@@ -217,7 +217,7 @@ This task list implements the bugfix for OTP sending and dashboard redirect issu
 
 ### Task 6: Integration Testing
 
-- [ ] 6. Integration testing for buyer user type
+- [x] 6. Integration testing for buyer user type
   - **Goal**: Verify complete registration and login flows work correctly for buyer user type
   
   - [x] 6.1 Test buyer registration and login flow

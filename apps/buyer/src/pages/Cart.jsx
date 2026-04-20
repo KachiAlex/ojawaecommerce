@@ -178,38 +178,75 @@ const Cart = () => {
       return;
     }
 
-    // Validate checkout data
-    const errors = checkoutService.validateCheckoutData({
-      items: cartItems,
-      shippingAddress: buyerAddress,
-      paymentMethod,
-      email: currentUser.email
-    });
-
-    if (errors.length > 0) {
-      alert('Please complete all required fields:\n' + errors.join('\n'));
+    // Validate shipping address
+    const addressValidation = checkoutService.validateShippingAddress(buyerAddress);
+    if (!addressValidation.valid) {
+      alert('Please complete shipping address:\n' + addressValidation.error);
       return;
     }
 
     setUpdating(true);
     try {
-      const result = await checkoutService.processCheckout({
-        items: cartItems,
-        shippingAddress: buyerAddress,
+      // Prepare items for checkout
+      const checkoutItems = cartItems.map(item => ({
+        productId: item.productId || item.id,
+        quantity: item.quantity,
+        price: item.price,
+        name: item.name || item.productName,
+        vendorId: item.vendorId
+      }));
+
+      // Step 1: Validate checkout
+      const validation = await checkoutService.validateCheckout(
+        checkoutItems,
+        buyerAddress,
+        paymentMethod
+      );
+
+      if (!validation.success) {
+        throw new Error(validation.error);
+      }
+
+      // Step 2: Create order
+      const orderResult = await checkoutService.createOrder(
+        checkoutItems,
+        buyerAddress,
         paymentMethod,
-        deliveryType: deliveryOption,
-        email: currentUser.email
+        deliveryOption
+      );
+
+      if (!orderResult.success) {
+        throw new Error(orderResult.error);
+      }
+
+      // Step 3: Process payment
+      const paymentResult = await checkoutService.processPayment(
+        orderResult.data.orderId,
+        paymentMethod
+      );
+
+      if (!paymentResult.success) {
+        throw new Error(paymentResult.error);
+      }
+
+      // Success - clear cart and redirect to confirmation
+      await clearCart();
+      
+      navigate('/order-confirmation', { 
+        state: { 
+          order: {
+            orderId: orderResult.data.orderId,
+            status: paymentResult.data.status,
+            totals: validation.data.totals,
+            estimatedDelivery: orderResult.data.estimatedDelivery,
+            createdAt: orderResult.data.createdAt,
+            items: checkoutItems,
+            shippingAddress: buyerAddress,
+            paymentMethod
+          }
+        } 
       });
 
-      if (result.success) {
-        if (result.nextStep === 'payment') {
-          // Redirect to payment page
-          window.location.href = result.payment.authorization_url;
-        } else {
-          // Redirect to order confirmation
-          navigate('/order-confirmation', { state: { order: result.order } });
-        }
-      }
     } catch (error) {
       console.error('Checkout failed:', error);
       alert('Checkout failed: ' + error.message);
