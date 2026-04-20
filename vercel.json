@@ -3,23 +3,18 @@
   "name": "ojawa-backend",
   "builds": [
     {
-      "src": "functions/server.js",
+      "src": "api/index.js",
       "use": "@vercel/node"
     }
   ],
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "functions/server.js"
+      "dest": "api/index.js"
     }
   ],
   "env": {
     "NODE_ENV": "production"
-  },
-  "functions": {
-    "functions/server.js": {
-      "maxDuration": 30
-    }
   },
   "headers": [
     {
