@@ -1,11 +1,10 @@
 const express = require('express');
-const admin = require('firebase-admin');
+const { Op } = require('sequelize');
 const { AppError } = require('../middleware/errorHandler');
 const { asyncHandler } = require('../middleware/errorHandler');
 const { authenticateToken } = require('../middleware/auth');
+const { Notification } = require('../models');
 const router = express.Router();
-
-const db = admin.firestore();
 
 /**
  * @route   GET /api/notifications
@@ -16,51 +15,32 @@ router.get('/', authenticateToken, asyncHandler(async (req, res) => {
   const userId = req.user.uid;
   const { page = 1, limit = 20, unreadOnly = false } = req.query;
 
-  let query = db.collection('notifications')
-    .where('userId', '==', userId)
-    .orderBy('createdAt', 'desc');
-
+  const where = { userId };
   if (unreadOnly === 'true') {
-    query = query.where('read', '==', false);
+    where.read = false;
   }
 
-  // Pagination
   const limitInt = parseInt(limit);
   const pageInt = parseInt(page);
   const offset = (pageInt - 1) * limitInt;
 
-  if (offset > 0) {
-    const previousPage = await query.limit(offset).get();
-    if (previousPage.size > 0) {
-      const lastDoc = previousPage.docs[previousPage.size - 1];
-      query = query.startAfter(lastDoc);
-    }
-  }
-
-  const snapshot = await query.limit(limitInt).get();
-
-  const notifications = [];
-  snapshot.forEach(doc => {
-    const notification = {
-      id: doc.id,
-      ...doc.data()
-    };
-
-    if (notification.createdAt) {
-      notification.createdAt = notification.createdAt.toDate?.() || notification.createdAt;
-    }
-
-    notifications.push(notification);
+  const notifications = await Notification.findAll({
+    where,
+    order: [['createdAt', 'DESC']],
+    limit: limitInt,
+    offset
   });
+
+  const total = await Notification.count({ where });
 
   res.json({
     success: true,
     data: {
-      notifications,
+      notifications: notifications.map(n => n.toJSON()),
       pagination: {
         currentPage: pageInt,
-        totalPages: Math.ceil(notifications.length / limitInt),
-        totalItems: notifications.length,
+        totalPages: Math.ceil(total / limitInt),
+        totalItems: total,
         itemsPerPage: limitInt
       }
     }
@@ -76,22 +56,22 @@ router.put('/:id/read', authenticateToken, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const userId = req.user.uid;
 
-  const notificationDoc = await db.collection('notifications').doc(id).get();
+  const notification = await Notification.findByPk(id);
   
-  if (!notificationDoc.exists) {
+  if (!notification) {
     throw new AppError('Notification not found', 404);
   }
 
-  const notification = notificationDoc.data();
+  const notificationData = notification.toJSON();
 
   // Check ownership
-  if (notification.userId !== userId) {
+  if (notificationData.userId !== userId) {
     throw new AppError('Not authorized', 403);
   }
 
-  await db.collection('notifications').doc(id).update({
+  await notification.update({
     read: true,
-    readAt: admin.firestore.FieldValue.serverTimestamp()
+    readAt: new Date()
   });
 
   res.json({
@@ -108,20 +88,10 @@ router.put('/:id/read', authenticateToken, asyncHandler(async (req, res) => {
 router.put('/read-all', authenticateToken, asyncHandler(async (req, res) => {
   const userId = req.user.uid;
 
-  const snapshot = await db.collection('notifications')
-    .where('userId', '==', userId)
-    .where('read', '==', false)
-    .get();
-
-  const batch = db.batch();
-  snapshot.forEach(doc => {
-    batch.update(doc.ref, {
-      read: true,
-      readAt: admin.firestore.FieldValue.serverTimestamp()
-    });
-  });
-
-  await batch.commit();
+  await Notification.update(
+    { read: true, readAt: new Date() },
+    { where: { userId, read: false } }
+  );
 
   res.json({
     success: true,
@@ -138,20 +108,20 @@ router.delete('/:id', authenticateToken, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const userId = req.user.uid;
 
-  const notificationDoc = await db.collection('notifications').doc(id).get();
+  const notification = await Notification.findByPk(id);
   
-  if (!notificationDoc.exists) {
+  if (!notification) {
     throw new AppError('Notification not found', 404);
   }
 
-  const notification = notificationDoc.data();
+  const notificationData = notification.toJSON();
 
   // Check ownership
-  if (notification.userId !== userId) {
+  if (notificationData.userId !== userId) {
     throw new AppError('Not authorized', 403);
   }
 
-  await db.collection('notifications').doc(id).delete();
+  await notification.destroy();
 
   res.json({
     success: true,
@@ -167,15 +137,14 @@ router.delete('/:id', authenticateToken, asyncHandler(async (req, res) => {
 router.get('/unread-count', authenticateToken, asyncHandler(async (req, res) => {
   const userId = req.user.uid;
 
-  const snapshot = await db.collection('notifications')
-    .where('userId', '==', userId)
-    .where('read', '==', false)
-    .get();
+  const unreadCount = await Notification.count({
+    where: { userId, read: false }
+  });
 
   res.json({
     success: true,
     data: {
-      unreadCount: snapshot.size
+      unreadCount
     }
   });
 }));
@@ -199,19 +168,15 @@ router.post('/', authenticateToken, asyncHandler(async (req, res) => {
     title,
     message,
     ...data,
-    read: false,
-    createdAt: admin.firestore.FieldValue.serverTimestamp()
+    read: false
   };
 
-  const notificationRef = await db.collection('notifications').add(notificationData);
+  const notification = await Notification.create(notificationData);
 
   res.status(201).json({
     success: true,
     message: 'Notification created successfully',
-    data: {
-      id: notificationRef.id,
-      ...notificationData
-    }
+    data: notification.toJSON()
   });
 }));
 
