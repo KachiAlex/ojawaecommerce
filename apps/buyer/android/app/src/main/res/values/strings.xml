@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Ojawa</string>
+    <string name="title_activity_main">Ojawa</string>
+    <string name="package_name">com.ojawa.app</string>
+    <string name="custom_url_scheme">com.ojawa.app</string>
+</resources>

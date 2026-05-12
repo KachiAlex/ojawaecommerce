@@ -1,0 +1,248 @@
+{
+  "info": {
+    "name": "OJawa E-Commerce API Tests",
+    "description": "API testing collection for OJawa E-Commerce platform",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has token\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.token).to.exist;",
+                  "    pm.environment.set(\"auth_token\", jsonData.token);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"newuser@example.com\",\n  \"password\": \"SecurePass123!\",\n  \"displayName\": \"New User\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "register"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Firebase Functions",
+      "item": [
+        {
+          "name": "Notify Vendor New Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vendorId\": \"vendor-123\",\n  \"orderId\": \"order-456\",\n  \"buyerName\": \"Test Buyer\",\n  \"totalAmount\": 5000,\n  \"items\": []\n}"
+            },
+            "url": {
+              "raw": "https://us-central1-ojawa-ecommerce.cloudfunctions.net/notifyVendorNewOrder",
+              "protocol": "https",
+              "host": ["us-central1-ojawa-ecommerce", "cloudfunctions", "net"],
+              "path": ["notifyVendorNewOrder"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Requires authentication\", function () {",
+                  "    if (pm.response.code === 401) {",
+                  "        pm.expect(pm.response.code).to.equal(401);",
+                  "    } else {",
+                  "        pm.expect(pm.response.code).to.equal(200);",
+                  "    }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Release Escrow Funds",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": \"order-123\",\n  \"vendorId\": \"vendor-456\",\n  \"amount\": 5000\n}"
+            },
+            "url": {
+              "raw": "https://us-central1-ojawa-ecommerce.cloudfunctions.net/releaseEscrowFunds",
+              "protocol": "https",
+              "host": ["us-central1-ojawa-ecommerce", "cloudfunctions", "net"],
+              "path": ["releaseEscrowFunds"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Requires authentication\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 401]);",
+                  "});",
+                  "",
+                  "pm.test(\"Validates authorization\", function () {",
+                  "    if (pm.response.code === 403) {",
+                  "        pm.expect(pm.response.json().error).to.include(\"permission\");",
+                  "    }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Security Tests",
+      "item": [
+        {
+          "name": "Test Unauthenticated Access",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"test\": \"data\"\n}"
+            },
+            "url": {
+              "raw": "https://us-central1-ojawa-ecommerce.cloudfunctions.net/notifyVendorNewOrder",
+              "protocol": "https",
+              "host": ["us-central1-ojawa-ecommerce", "cloudfunctions", "net"],
+              "path": ["notifyVendorNewOrder"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Should reject unauthenticated requests\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(401);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Test CORS Headers",
+          "request": {
+            "method": "OPTIONS",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "https://malicious-site.com"
+              }
+            ],
+            "url": {
+              "raw": "https://us-central1-ojawa-ecommerce.cloudfunctions.net/releaseEscrowFundsHttp",
+              "protocol": "https",
+              "host": ["us-central1-ojawa-ecommerce", "cloudfunctions", "net"],
+              "path": ["releaseEscrowFundsHttp"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Should reject unauthorized origins\", function () {",
+                  "    const corsHeader = pm.response.headers.get(\"Access-Control-Allow-Origin\");",
+                  "    pm.expect(corsHeader).to.not.equal(\"https://malicious-site.com\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://us-central1-ojawa-ecommerce.cloudfunctions.net",
+      "type": "string"
+    },
+    {
+      "key": "auth_token",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}
+

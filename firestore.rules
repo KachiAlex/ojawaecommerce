@@ -1,0 +1,337 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ============ HELPER FUNCTIONS ============
+    
+    // Check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Check if user is admin (verified via Firestore document)
+    function isAdmin() {
+      return isAuthenticated() && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+    
+    // Check if user is the resource owner
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Check if user is the vendor owner
+    function isVendorOwner(vendorId) {
+      return isAuthenticated() && request.auth.uid == vendorId;
+    }
+    
+    // Validate email format
+    function isValidEmail(email) {
+      return email.matches('[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}');
+    }
+    
+    // Validate phone format (basic)
+    function isValidPhone(phone) {
+      return phone.matches('[0-9+\\-\\s()]{10,}');
+    }
+
+    // ============ USERS COLLECTION ============
+    match /users/{userId} {
+      // Read: User can read own profile; admins can read all
+      allow read: if isOwner(userId) || isAdmin();
+      
+      // Create: Only during auth signup (via Cloud Function)
+      allow create: if isAuthenticated() && userId == request.auth.uid && 
+                      request.resource.data.keys().hasAll(['email', 'displayName']) &&
+                      isValidEmail(request.resource.data.email);
+      
+      // Update: User can update own profile; admins can update isAdmin/suspended
+      allow update: if isOwner(userId) && 
+                      !request.resource.data.keys().hasAny(['isAdmin', 'suspended', 'role']) ||
+                    isAdmin();
+      
+      // Delete: Only admins can delete users
+      allow delete: if isAdmin();
+
+      // Subcollection: addresses
+      match /addresses/{addressId} {
+        allow read: if isOwner(userId);
+        allow write: if isOwner(userId) && request.resource.data.keys().hasAll(['street', 'city', 'state', 'zipCode', 'country']);
+      }
+
+      // Subcollection: payment_methods  
+      match /payment_methods/{methodId} {
+        allow read: if isOwner(userId);
+        allow write: if isOwner(userId) && request.resource.data.keys().hasAll(['type', 'lastFour']);
+        allow delete: if isOwner(userId);
+      }
+    }
+
+    // ============ AUTHENTICATION COLLECTION ============
+    match /authentication_logs/{logId} {
+      // Only system/cloud functions can write
+      allow read: if isAdmin() && request.auth.token.firebase.sign_in_provider == 'custom';
+      allow write: if false; // Restricted to Cloud Functions only
+    }
+
+    // ============ WALLETS COLLECTION ============
+    match /wallets/{userId} {
+      // Read: User can read own wallet; admins can read all
+      allow read: if isOwner(userId) || isAdmin();
+      
+      // Create: Only Cloud Functions via authenticateToken + requireAdmin
+      allow create: if false; // Created via /ensureWalletForUser endpoint only
+      
+      // Update: Restricted to Cloud Functions only
+      allow update: if false;
+      
+      // Delete: Admins only, via Cloud Functions
+      allow delete: if false;
+
+      // Subcollection: wallet_transactions (restricted to Cloud Functions)
+      match /wallet_transactions/{txId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow write: if false; // Created via Cloud Functions only
+      }
+    }
+
+    // ============ WALLET TRANSACTIONS GLOBAL ============
+    match /wallet_transactions/{txId} {
+      // Read: User can read own transactions; admins can read all
+      allow read: if resource.data.userId == request.auth.uid || isAdmin();
+      
+      // Write: Restricted to Cloud Functions only
+      allow write: if false;
+    }
+
+    // ============ SUBSCRIPTIONS COLLECTION ============
+    match /subscriptions/{subscriptionId} {
+      // Read: Vendor can read own subscription; admins can read all
+      allow read: if resource.data.userId == request.auth.uid || isAdmin();
+      
+      // Create: Via Cloud Functions only (/createPaystackSubscriptionRecord)
+      allow create: if false;
+      
+      // Update: Via Cloud Functions only
+      allow update: if false;
+      
+      // Delete: Admins via Cloud Functions
+      allow delete: if isAdmin();
+    }
+
+    // ============ PRODUCTS COLLECTION ============
+    match /products/{productId} {
+      // Read: Public (anyone can list/view products)
+      allow read: if true;
+      
+      // Create: Authenticated vendors with active subscription
+      allow create: if isAuthenticated() && 
+                      get(/databases/$(database)/documents/subscriptions/{subscriptionId}).data.userId == request.auth.uid &&
+                      get(/databases/$(database)/documents/subscriptions/{subscriptionId}).data.status == 'active';
+      
+      // Update: Vendor owner or admin
+      allow update: if isVendorOwner(request.resource.data.vendorId) || isAdmin();
+      
+      // Delete: Vendor owner or admin
+      allow delete: if isVendorOwner(request.resource.data.vendorId) || isAdmin();
+    }
+
+    // ============ ORDERS COLLECTION ============
+    match /orders/{orderId} {
+      // Read: Buyer, vendor, or admin
+      allow read: if isOwner(resource.data.buyerId) || 
+                     get(/databases/$(database)/documents/products/{productId}).data.vendorId == request.auth.uid ||
+                     isAdmin();
+      
+      // Create: Authenticated buyers only
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.buyerId;
+      
+      // Update: Buyer, vendor, or admin (with restrictions)
+      allow update: if (isOwner(request.resource.data.buyerId) || 
+                        get(/databases/$(database)/documents/products/{productId}).data.vendorId == request.auth.uid ||
+                        isAdmin()) &&
+                       !request.resource.data.keys().hasChanged(['buyerId', 'vendorId']);
+      
+      // Delete: Admins only
+      allow delete: if isAdmin();
+    }
+
+    // ============ DISPUTES COLLECTION ============
+    match /disputes/{disputeId} {
+      // Read: Involved parties (buyer/vendor/admin) or admin
+      allow read: if resource.data.buyerId == request.auth.uid ||
+                     resource.data.vendorId == request.auth.uid ||
+                     isAdmin();
+      
+      // Create: Authenticated users only
+      allow create: if isAuthenticated() && 
+                      (request.auth.uid == request.resource.data.buyerId ||
+                       request.auth.uid == request.resource.data.vendorId);
+      
+      // Update: Involved party or admin
+      allow update: if (request.resource.data.buyerId == request.auth.uid ||
+                        request.resource.data.vendorId == request.auth.uid ||
+                        isAdmin()) &&
+                       !request.resource.data.keys().hasChanged(['buyerId', 'vendorId', 'orderId']);
+      
+      // Delete: Admins only
+      allow delete: if isAdmin();
+    }
+
+    // ============ NOTIFICATIONS COLLECTION ============
+    match /notifications/{notificationId} {
+      // Read: User can read own notifications
+      allow read: if resource.data.userId == request.auth.uid;
+      
+      // Create: Cloud Functions only
+      allow create: if false;
+      
+      // Update: User can mark read
+      allow update: if resource.data.userId == request.auth.uid &&
+                       request.resource.data.read == true;
+      
+      // Delete: User can delete own
+      allow delete: if resource.data.userId == request.auth.uid;
+    }
+
+    // ============ ADMIN COLLECTIONS (Protected) ============
+    
+    // Error logs
+    match /error_logs/{logId} {
+      allow read: if isAdmin();
+      allow write: if false; // Cloud Functions only
+    }
+
+    // Security audit logs
+    match /security_audit_logs/{logId} {
+      allow read: if isAdmin();
+      allow write: if false; // Cloud Functions only
+    }
+
+    // Request logs
+    match /request_logs/{logId} {
+      allow read: if isAdmin();
+      allow write: if false; // Cloud Functions only
+    }
+
+    // Critical errors
+    match /critical_errors/{errorId} {
+      allow read: if isAdmin();
+      allow write: if false; // Cloud Functions only
+    }
+
+    // Admin audit logs
+    match /admin_audit_logs/{logId} {
+      allow read: if isAdmin();
+      allow write: if false; // Cloud Functions only
+    }
+
+    // Platform events
+    match /platform_events/{eventId} {
+      allow read: if isAdmin();
+      allow write: if false; // Cloud Functions only
+    }
+
+    // ============ ANALYTICS COLLECTIONS ============
+    match /analytics/{analyticsId} {
+      allow read: if isAdmin();
+      allow write: if false; // Cloud Functions only
+    }
+
+    // User sessions (tracked by client)
+    match /user_sessions/{sessionId} {
+      allow read: if isAdmin() || resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAdmin() || request.resource.data.userId == request.auth.uid;
+      allow delete: if false;
+    }
+
+    // Analytics events (tracked by client)
+    match /analytics_events/{eventId} {
+      allow read: if isAdmin() || resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated();
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // Error logs (tracked by client)
+    match /error_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated();
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // Performance metrics (tracked by client)
+    match /performance_metrics/{metricId} {
+      allow read: if isAdmin() || resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated();
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // Conversion funnel (tracked by client)
+    match /conversion_funnel/{funnelId} {
+      allow read: if isAdmin() || resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated();
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ============ MESSAGING COLLECTIONS ============
+    match /messages/{messageId} {
+      allow read: if resource.data.senderId == request.auth.uid ||
+                     resource.data.recipientId == request.auth.uid;
+      
+      allow create: if isAuthenticated() && 
+                      request.resource.data.senderId == request.auth.uid &&
+                      request.resource.data.keys().hasAll(['recipientId', 'message']);
+      
+      allow update: if false; // Immutable after creation
+      allow delete: if false; // Immutable after creation
+    }
+
+    match /conversations/{conversationId} {
+      allow read: if resource.data.participants.contains(request.auth.uid);
+      allow create: if isAuthenticated();
+      allow update: if request.resource.data.participants.contains(request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    // ============ PAYOUT REQUESTS COLLECTION ============
+    match /payout_requests/{payoutId} {
+      // Read: Vendor owner or admin
+      allow read: if resource.data.vendorId == request.auth.uid || isAdmin();
+      
+      // Create: Authenticated vendors
+      allow create: if isAuthenticated() && request.resource.data.vendorId == request.auth.uid;
+      
+      // Update: Admin only
+      allow update: if isAdmin();
+      
+      // Delete: Admin only
+      allow delete: if isAdmin();
+    }
+
+    // ============ SUPPORT TICKETS COLLECTION ============
+    match /support_tickets/{ticketId} {
+      // Read: User (own), admin
+      allow read: if resource.data.userId == request.auth.uid || isAdmin();
+      
+      // Create: Authenticated users
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      
+      // Update: User (own) or admin
+      allow update: if (request.resource.data.userId == request.auth.uid && 
+                        !request.resource.data.keys().hasChanged(['status', 'resolution'])) ||
+                       isAdmin();
+      
+      // Delete: Admin only
+      allow delete: if isAdmin();
+    }
+
+    // ============ CATCH-ALL (DENY ALL) ============
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,508 @@
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { useEffect, Suspense, lazy, useState } from 'react';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { CartProvider } from './contexts/CartContext';
+import { NotificationProvider } from './contexts/NotificationContext';
+import { LanguageProvider } from './contexts/LanguageContext';
+import { MessagingProvider } from './contexts/MessagingContext';
+import { useAnalytics } from './hooks/useAnalytics';
+// OnboardingContext removed - causing initialization flow issues
+import ErrorBoundary from './components/ErrorBoundary';
+import ProtectedRoute from './components/ProtectedRoute';
+import Navbar from './components/Navbar';
+import { RouteLoadingSpinner, ComponentLoadingSpinner } from './components/OptimizedLoadingSpinner';
+import PerformanceMonitor from './components/PerformanceMonitor';
+// import AnimatedPage from './components/AnimatedPage';
+import { setupGlobalErrorHandling } from './utils/errorLogger';
+import { validateEnvironment } from './config/env';
+import networkManager from './utils/networkManager';
+import networkMonitor from './utils/networkMonitor';
+import { analyzeBundle } from './utils/bundleAnalyzer';
+import setupMobileTouchFix from './utils/mobileTouchFix';
+// Console protection disabled during testing - will be enabled for production
+// import { setupConsoleProtection } from './utils/consoleProtection';
+// import logger from './utils/logger';
+import './App.css';
+
+// Core pages (loaded immediately for better performance)
+import HomeOjawa from './pages/HomeOjawa';
+import DashboardRedirect from './components/DashboardRedirect';
+import LogoUpload from './components/LogoUpload';
+import OsoahiaButton from './components/OsoahiaButton';
+
+// Performance optimization: Preload critical components
+const preloadCriticalComponents = () => {
+  // Preload critical components after initial render
+          setTimeout(() => {
+    import('./components/Navbar');
+    import('./components/MobileBottomNavigation');
+    import('./pages/Products');
+    import('./pages/Cart');
+  }, 100);
+};
+
+// Simplified lazy loading for non-critical components
+const lazyLoad = (componentImport) => {
+  return lazy(componentImport);
+};
+
+// Lazy load non-critical components
+const MobileBottomNavigation = lazyLoad(() => import('./components/MobileBottomNavigation'));
+const NotificationToastContainer = lazyLoad(() => import('./components/NotificationToast').then(m => ({ default: m.NotificationToastContainer })));
+const WalletEducation = lazyLoad(() => import('./components/EscrowEducation'));
+const CartToast = lazyLoad(() => import('./components/CartToast'));
+// OnboardingFlow removed - causing routing issues
+const CacheClearButton = lazyLoad(() => import('./components/CacheClearButton'));
+const NetworkStatusIndicator = lazyLoad(() => import('./components/NetworkStatusIndicator'));
+
+// Critical pages - Direct imports for reliable routing
+import Products from './pages/Products';
+import Cart from './pages/Cart';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import ProductDetail from './pages/ProductDetail';
+import Checkout from './pages/Checkout';
+import EnhancedCheckout from './pages/EnhancedCheckout';
+import TestLink from './components/TestLink';
+const Dashboard = lazyLoad(() => import('./pages/Dashboard'));
+const Buyer = lazyLoad(() => import('./pages/Buyer'));
+const EnhancedBuyer = lazyLoad(() => import('./pages/EnhancedBuyer'));
+const ProfileSetup = lazyLoad(() => import('./pages/ProfileSetup'));
+const HowWalletWorks = lazyLoad(() => import('./components/HowWalletWorks'));
+const Categories = lazyLoad(() => import('./pages/Categories'));
+const Wallet = lazyLoad(() => import('./pages/Wallet'));
+const Messages = lazyLoad(() => import('./pages/Messages'));
+const LogisticsPricingDemo = lazyLoad(() => import('./pages/LogisticsPricingDemo'));
+
+// Admin pages (separate chunk)
+const Admin = lazyLoad(() => import('./pages/Admin'));
+const AdminDashboard = lazyLoad(() => import('./pages/AdminDashboard'));
+const AdminSetup = lazyLoad(() => import('./pages/AdminSetup'));
+const AdminLogin = lazyLoad(() => import('./pages/AdminLogin'));
+const PricingAdminPanel = lazyLoad(() => import('./components/PricingAdminPanel'));
+const SecurityMonitoringDashboard = lazyLoad(() => import('./pages/SecurityMonitoringDashboard'));
+
+// Vendor pages (separate chunk)
+const Vendor = lazyLoad(() => import('./pages/Vendor'));
+const BecomeVendor = lazyLoad(() => import('./pages/BecomeVendor'));
+const VendorRegistrationSuccess = lazyLoad(() => import('./pages/VendorRegistrationSuccess'));
+const StoreManager = lazyLoad(() => import('./components/StoreManager'));
+
+// Logistics pages (separate chunk)
+import Logistics from './pages/Logistics';
+const BecomeLogistics = lazyLoad(() => import('./pages/BecomeLogistics'));
+const LogisticsTrackingManager = lazyLoad(() => import('./components/LogisticsTrackingManager'));
+
+// Tracking pages (separate chunk)
+const Tracking = lazyLoad(() => import('./pages/Tracking'));
+const TrackingInterface = lazyLoad(() => import('./components/TrackingInterface'));
+const EnhancedTrackingStatus = lazyLoad(() => import('./components/EnhancedTrackingStatus'));
+
+// Help page
+const Help = lazyLoad(() => import('./pages/Help'));
+const Terms = lazyLoad(() => import('./pages/Terms'));
+const RefundPolicy = lazyLoad(() => import('./pages/RefundPolicy'));
+const Wishlist = lazyLoad(() => import('./pages/Wishlist'));
+const Referrals = lazyLoad(() => import('./pages/Referrals'));
+
+// Auth pages
+const ForgotPassword = lazyLoad(() => import('./pages/ForgotPassword'));
+
+// Test/Development pages (separate chunk for production builds)
+const FunctionTest = lazyLoad(() => import('./pages/FunctionTest'));
+const CloudTest = lazyLoad(() => import('./pages/CloudTest'));
+const ModalTest = lazyLoad(() => import('./pages/ModalTest'));
+const StockTest = lazyLoad(() => import('./pages/StockTest'));
+const StockSyncTest = lazyLoad(() => import('./pages/StockSyncTest'));
+const AuthFlowTest = lazyLoad(() => import('./pages/AuthFlowTest'));
+const ProductStoreAssignment = lazyLoad(() => import('./components/ProductStoreAssignment'));
+const StoreDisplay = lazyLoad(() => import('./components/StoreDisplay'));
+const UnifiedStore = lazyLoad(() => import('./components/UnifiedStore'));
+const StorePage = lazyLoad(() => import('./components/StorePage'));
+// const UnifiedVendorStore = lazyWithRetry(() => import('./components/UnifiedVendorStore')); // Removed - causing errors
+const TrackingSystemTest = lazyLoad(() => import('./pages/TrackingSystemTest'));
+const LogisticsTrackingTest = lazyLoad(() => import('./pages/LogisticsTrackingTest'));
+const PricingTest = lazyLoad(() => import('./pages/PricingTest'));
+const ProductDebug = lazyLoad(() => import('./pages/ProductDebug'));
+// const GoogleMapsTest = lazyWithRetry(() => import('./pages/GoogleMapsTest')); // Disabled
+
+// Admin Route Protection Component - Simplified (No Initialization)
+function AdminRoute({ children }) {
+  const { loading, currentUser, userProfile } = useAuth();
+  const testModeEnabled = import.meta.env?.VITE_TEST_MODE === 'true';
+  console.log('🔍 AdminRoute Debug:', {
+    currentUser: !!currentUser,
+    loading
+  });
+  
+  // Show loading while auth is being checked
+  if (loading && !testModeEnabled) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950 text-white">
+        <div className="relative w-20 h-20">
+          <div className="absolute inset-0 rounded-full border-4 border-emerald-500 opacity-30"></div>
+          <div className="absolute inset-0 rounded-full border-t-4 border-white animate-spin"></div>
+        </div>
+        <p className="mt-6 text-lg font-medium text-emerald-100">Securing your wallet...</p>
+      </div>
+    );
+  }
+  
+  // Quick redirect without loading screens
+  if (!currentUser) {
+    console.log('❌ AdminRoute: No current user, redirecting to login');
+    return <Navigate to="/admin/login" replace />;
+  }
+  
+  if (!userProfile || userProfile.role !== 'admin') {
+    console.log('❌ AdminRoute: User not admin, redirecting to login', {
+      hasProfile: !!userProfile,
+      role: userProfile?.role
+    });
+    return <Navigate to="/admin/login" replace />;
+  }
+  
+  console.log('✅ AdminRoute: Access granted');
+  return children;
+};
+
+const AppContent = () => {
+  const { showEscrowEducation, setShowEscrowEducation, newUserType, currentUser, userProfile } = useAuth();
+  
+  // Initialize analytics with user information
+  useAnalytics(currentUser?.uid, userProfile?.role);
+
+  return (
+    <CartProvider>
+      <LanguageProvider>
+        <MessagingProvider>
+          <NotificationProvider>
+            <Router>
+              <ScrollToTop />
+              <ErrorBoundary componentName="Router">
+                <div className="app-shell" style={{ paddingBottom: '80px' }}>
+                  <Suspense fallback={<ComponentLoadingSpinner />}>
+                    <Navbar />
+                  </Suspense>
+                  <main className="app-content pt-16">
+                    <AppRoutes />
+                  </main>
+                  <Suspense fallback={null}>
+                    <MobileBottomNavigation />
+                  </Suspense>
+                  <Suspense fallback={null}>
+                    <NotificationToastContainer />
+                  </Suspense>
+                  <Suspense fallback={null}>
+                    <CartToast />
+                  </Suspense>
+                  
+                  {/* Wallet Education Modal */}
+                  {showEscrowEducation && (
+                    <Suspense fallback={null}>
+                      <WalletEducation 
+                        userType={newUserType}
+                        onComplete={() => setShowEscrowEducation(false)}
+                      />
+                    </Suspense>
+                  )}
+                  
+                  {/* Osoahia AI Assistant */}
+                  <Suspense fallback={null}>
+                    <OsoahiaButton />
+                  </Suspense>
+                  
+                  {/* Network Status Indicator */}
+                  <Suspense fallback={null}>
+                    <NetworkStatusIndicator />
+                  </Suspense>
+                  
+                  {/* Performance Monitor (Development Only) */}
+                  <PerformanceMonitor />
+                </div>
+              </ErrorBoundary>
+            </Router>
+          </NotificationProvider>
+        </MessagingProvider>
+      </LanguageProvider>
+    </CartProvider>
+  );
+};
+
+// Preload critical routes with performance optimization
+const preloadCriticalRoutes = () => {
+  // Preload commonly visited routes
+  if (typeof window !== 'undefined') {
+    // Use requestIdleCallback for better performance
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(() => {
+        // Preload product pages
+        import('./pages/Products').catch(err => console.warn('Preload failed:', err));
+        import('./pages/Login').catch(err => console.warn('Preload failed:', err));
+      });
+    } else {
+      // Fallback for browsers without requestIdleCallback
+      setTimeout(() => {
+        import('./pages/Products').catch(err => console.warn('Preload failed:', err));
+        import('./pages/Login').catch(err => console.warn('Preload failed:', err));
+      }, 3000);
+    }
+  }
+};
+
+// ScrollToTop component to ensure page scrolls to top on route change
+const ScrollToTop = () => {
+  const { pathname } = useLocation();
+  
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  
+  return null;
+};
+
+
+// Component that wraps Routes (must be inside Router)
+const AppRoutes = () => {
+  return (
+    // <AnimatedPage>
+    <Routes>
+        <Route path="/" element={<HomeOjawa />} />
+        <Route path="/test-link" element={<TestLink />} />
+      <Route path="/products" element={<Products />} />
+        <Route path="/products/:id" element={<ProductDetail />} />
+        <Route path="/cart" element={<Cart />} />
+        <Route path="/checkout" element={<Checkout />} />
+        <Route path="/enhanced-checkout" element={<EnhancedCheckout />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={
+          <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+            <ForgotPassword />
+          </Suspense>
+        } />
+      <Route path="/how-wallet-works" element={
+        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+          <HowWalletWorks />
+        </Suspense>
+      } />
+      <Route path="/categories" element={
+        <Suspense fallback={<RouteLoadingSpinner route="categories" />}>
+          <Categories />
+        </Suspense>
+      } />
+      <Route path="/wishlist" element={
+        <ProtectedRoute requireVerifiedEmail>
+          <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+            <Wishlist />
+          </Suspense>
+        </ProtectedRoute>
+      } />
+      <Route path="/referrals" element={
+        <ProtectedRoute requireVerifiedEmail>
+          <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+            <Referrals />
+          </Suspense>
+        </ProtectedRoute>
+      } />
+      <Route path="/tracking" element={
+        <ProtectedRoute requireVerifiedEmail>
+          <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+            <Tracking />
+          </Suspense>
+        </ProtectedRoute>
+      } />
+      <Route path="/help" element={
+        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+          <Help />
+        </Suspense>
+      } />
+      <Route path="/terms" element={
+        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+          <Terms />
+        </Suspense>
+      } />
+      <Route path="/refund-policy" element={
+        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+          <RefundPolicy />
+        </Suspense>
+      } />
+      <Route path="/profile" element={
+        <ProtectedRoute requireVerifiedEmail>
+          <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+            <ProfileSetup />
+          </Suspense>
+        </ProtectedRoute>
+      } />
+      <Route path="/wallet" element={
+        <ProtectedRoute requireVerifiedEmail>
+          <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+            <Wallet />
+          </Suspense>
+        </ProtectedRoute>
+      } />
+      <Route path="/messages" element={
+        <ProtectedRoute requireVerifiedEmail>
+          <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+            <Messages />
+          </Suspense>
+        </ProtectedRoute>
+      } />
+      <Route path="/logistics-pricing" element={
+        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+          <LogisticsPricingDemo />
+        </Suspense>
+      } />
+      <Route path="/admin/login" element={
+        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+          <AdminLogin />
+        </Suspense>
+      } />
+      <Route path="/admin" element={
+        <AdminRoute>
+        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+          <Admin />
+        </Suspense>
+        </AdminRoute>
+      } />
+      <Route path="/admin/security" element={
+        <AdminRoute>
+        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+          <SecurityMonitoringDashboard />
+        </Suspense>
+        </AdminRoute>
+      } />
+      <Route path="/dashboard" element={<DashboardRedirect />} />
+      <Route path="/vendor" element={
+        <ProtectedRoute requireVerifiedEmail>
+          <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+            <Vendor />
+          </Suspense>
+        </ProtectedRoute>
+      } />
+      <Route path="/buyer" element={
+        <ProtectedRoute requireVerifiedEmail>
+          <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+            <Buyer />
+          </Suspense>
+        </ProtectedRoute>
+      } />
+      <Route path="/enhanced-buyer" element={
+        <ProtectedRoute requireVerifiedEmail>
+          <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+            <EnhancedBuyer />
+          </Suspense>
+        </ProtectedRoute>
+      } />
+      <Route path="/logistics" element={<Logistics />} />
+      <Route path="/store/:storeSlug" element={
+        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+          <StorePage />
+        </Suspense>
+      } />
+      <Route path="/become-vendor" element={
+        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+          <BecomeVendor />
+        </Suspense>
+      } />
+      <Route path="/vendor-registration-success" element={
+        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+          <VendorRegistrationSuccess />
+        </Suspense>
+      } />
+      <Route path="/become-logistics" element={
+        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+          <BecomeLogistics />
+        </Suspense>
+      } />
+      <Route path="/test-auth-flow" element={
+        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+          <AuthFlowTest />
+        </Suspense>
+      } />
+      <Route path="/test-stock" element={
+        <Suspense fallback={<RouteLoadingSpinner route="default" />}>
+          <StockTest />
+        </Suspense>
+      } />
+      <Route path="/logo-upload" element={<LogoUpload />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+    // </AnimatedPage>
+  );
+};
+
+
+function App() {
+  useEffect(() => {
+    // Validate environment variables
+    try {
+      validateEnvironment()
+    } catch (error) {
+      console.error('Environment validation failed:', error)
+    }
+
+    // Set up global error handling
+    setupGlobalErrorHandling()
+    
+    // Set up mobile touch fixes
+    const cleanupMobileFix = setupMobileTouchFix()
+    
+    // Preload critical components for better performance
+    preloadCriticalComponents()
+    
+    // Defer network monitoring to improve LCP
+    const initNetworkMonitoring = () => {
+      console.log('🌐 Network monitoring initialized');
+      console.log('📊 Connection status:', networkManager.isOnline ? 'Online' : 'Offline');
+      
+      // Log connection info if available
+      const connectionInfo = networkManager.getConnectionInfo();
+      if (connectionInfo) {
+        console.log('📊 Connection info:', connectionInfo);
+      }
+      
+      // Set up network status listener
+      const removeListener = networkManager.addListener((event, data) => {
+        if (event === 'online') {
+          console.log('✅ Network restored - application fully functional');
+        } else if (event === 'offline') {
+          console.warn('⚠️ Network lost - using cached data');
+        }
+      });
+      
+      return removeListener;
+    };
+
+    // Initialize network monitoring after a delay to improve LCP
+    let removeListener;
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(() => {
+        removeListener = initNetworkMonitoring();
+      });
+    } else {
+      setTimeout(() => {
+        removeListener = initNetworkMonitoring();
+      }, 2000);
+    }
+    
+    return () => {
+      if (removeListener) {
+        removeListener();
+      }
+      if (cleanupMobileFix) {
+        cleanupMobileFix();
+      }
+    };
+  }, [])
+
+  return (
+    <ErrorBoundary componentName="App">
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </ErrorBoundary>
+  );
+}
+
+export default App;

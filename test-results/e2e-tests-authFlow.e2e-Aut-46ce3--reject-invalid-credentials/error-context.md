@@ -1,0 +1,57 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - navigation [ref=e4]:
+    - generic [ref=e6]:
+      - link "Ojawa Logo" [ref=e8] [cursor=pointer]:
+        - /url: /
+        - img "Ojawa Logo" [ref=e10]
+      - generic [ref=e11]:
+        - link "Home" [ref=e12] [cursor=pointer]:
+          - /url: /
+        - link "Categories" [ref=e13] [cursor=pointer]:
+          - /url: /categories
+        - link "How Wallet Works" [ref=e14] [cursor=pointer]:
+          - /url: /how-wallet-works
+        - link "Track Package" [ref=e15] [cursor=pointer]:
+          - /url: /tracking
+        - button "🛒" [ref=e16] [cursor=pointer]
+        - button "OJ Account" [ref=e19] [cursor=pointer]:
+          - generic [ref=e21]: OJ
+          - generic [ref=e22]: Account
+          - img [ref=e23]
+  - main [ref=e25]:
+    - generic [ref=e29]:
+      - generic [ref=e31]: 👋
+      - heading "Welcome to Ojawa" [level=2] [ref=e32]
+      - paragraph [ref=e33]: Choose how you'd like to join our marketplace
+      - generic [ref=e34]:
+        - button "🛒 I'm a Buyer Shop from trusted vendors across Africa Wallet Protected Free to Join" [ref=e35] [cursor=pointer]:
+          - generic [ref=e36]:
+            - generic [ref=e38]: 🛒
+            - heading "I'm a Buyer" [level=3] [ref=e39]
+            - paragraph [ref=e40]: Shop from trusted vendors across Africa
+            - generic [ref=e41]:
+              - generic [ref=e42]: Wallet Protected
+              - generic [ref=e43]: Free to Join
+        - button "🏪 I'm a Vendor Sell products with guaranteed payments Instant Payouts No Setup Fee" [ref=e44] [cursor=pointer]:
+          - generic [ref=e45]:
+            - generic [ref=e47]: 🏪
+            - heading "I'm a Vendor" [level=3] [ref=e48]
+            - paragraph [ref=e49]: Sell products with guaranteed payments
+            - generic [ref=e50]:
+              - generic [ref=e51]: Instant Payouts
+              - generic [ref=e52]: No Setup Fee
+        - button "🚚 I'm a Logistics Partner Earn from delivery services Flexible Routes Weekly Payouts" [ref=e53] [cursor=pointer]:
+          - generic [ref=e54]:
+            - generic [ref=e56]: 🚚
+            - heading "I'm a Logistics Partner" [level=3] [ref=e57]
+            - paragraph [ref=e58]: Earn from delivery services
+            - generic [ref=e59]:
+              - generic [ref=e60]: Flexible Routes
+              - generic [ref=e61]: Weekly Payouts
+      - paragraph [ref=e63]:
+        - text: Already have an account?
+        - button "Sign in here" [ref=e64] [cursor=pointer]
+```

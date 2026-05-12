@@ -1,0 +1,44 @@
+steps:
+  - name: 'gcr.io/cloud-builders/npm'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo 'Installing function dependencies if present...'
+        if [ -d functions ]; then
+          (cd functions && npm ci)
+        fi
+        if [ -d functions-routes ]; then
+          (cd functions-routes && npm ci)
+        fi
+  - name: 'gcr.io/cloud-builders/npm'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo 'Installing frontend dependencies (apps/buyer)'
+        if [ -d apps/buyer ]; then
+          npm ci --prefix apps/buyer
+        fi
+  - name: 'gcr.io/cloud-builders/npm'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo 'Building frontend with RENDER API URL'
+        if [ -d apps/buyer ]; then
+          export VITE_RENDER_API_URL="https://ojawaecommerce.onrender.com"
+          VITE_RENDER_API_URL="$VITE_RENDER_API_URL" npm run build --prefix apps/buyer
+        fi
+  - name: 'gcr.io/cloud-builders/npm'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo 'Deploying Firebase functions using firebase-tools'
+        # Use Cloud Build's service account credentials implicitly
+        npx firebase-tools@latest deploy --only hosting,functions --project="$PROJECT_ID"
+
+timeout: '1800s'
+
+availableSecrets: {}

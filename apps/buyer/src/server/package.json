@@ -1,0 +1,33 @@
+{
+  "name": "logistics-pricing-api",
+  "version": "1.0.0",
+  "description": "Logistics pricing API for eCommerce escrow system",
+  "main": "logisticsPricingServer.js",
+  "scripts": {
+    "start": "node logisticsPricingServer.js",
+    "dev": "nodemon logisticsPricingServer.js",
+    "test": "jest"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "helmet": "^7.0.0",
+    "express-rate-limit": "^6.8.1",
+    "firebase-admin": "^11.8.0",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1",
+    "jest": "^29.6.2",
+    "supertest": "^6.3.3"
+  },
+  "keywords": [
+    "logistics",
+    "pricing",
+    "delivery",
+    "ecommerce",
+    "escrow"
+  ],
+  "author": "Ojawa Team",
+  "license": "MIT"
+}
