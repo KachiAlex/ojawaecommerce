@@ -1,12 +1,10 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
-const admin = require('firebase-admin');
 const { AppError } = require('../middleware/errorHandler');
 const { asyncHandler } = require('../middleware/errorHandler');
 const { authenticateToken } = require('../middleware/auth');
+const { Cart, CartItem, Product } = require('../models');
 const router = express.Router();
-
-const db = admin.firestore();
 
 // Validation middleware
 const handleValidationErrors = (req, res, next) => {
@@ -29,9 +27,15 @@ const handleValidationErrors = (req, res, next) => {
 router.get('/', authenticateToken, asyncHandler(async (req, res) => {
   const userId = req.user.uid;
 
-  const cartDoc = await db.collection('carts').doc(userId).get();
+  const cart = await Cart.findOne({
+    where: { userId },
+    include: [{
+      model: CartItem,
+      include: [{ model: Product }]
+    }]
+  });
   
-  if (!cartDoc.exists) {
+  if (!cart) {
     return res.json({
       success: true,
       data: {
@@ -42,11 +46,30 @@ router.get('/', authenticateToken, asyncHandler(async (req, res) => {
     });
   }
 
-  const cart = cartDoc.data();
+  const cartData = cart.toJSON();
+  const items = cartData.cartItems || [];
+  
+  // Format items with product details
+  const formattedItems = items.map(item => ({
+    productId: item.productId,
+    cartItemId: item.id,
+    name: item.product?.name,
+    price: item.price,
+    quantity: item.quantity,
+    image: item.product?.images?.[0]?.url || item.product?.thumbnail || null,
+    vendorId: item.product?.vendorId,
+    vendorName: item.product?.vendorName,
+    subtotal: item.price * item.quantity,
+    addedAt: item.createdAt
+  }));
 
   res.json({
     success: true,
-    data: cart
+    data: {
+      items: formattedItems,
+      total: cartData.total || 0,
+      itemCount: cartData.itemCount || 0
+    }
   });
 }));
 
@@ -65,24 +88,28 @@ router.post('/', authenticateToken, [
   const userId = req.user.uid;
   const { items } = req.body;
 
+  // Find or create cart
+  let cart = await Cart.findOne({ where: { userId } });
+  if (!cart) {
+    cart = await Cart.create({ userId, total: 0, itemCount: 0 });
+  }
+
   // Verify all products exist and get their details
   const productIds = items.map(item => item.productId);
-  const productDocs = await Promise.all(
-    productIds.map(id => db.collection('products').doc(id).get())
-  );
+  const products = await Product.findAll({
+    where: { id: productIds }
+  });
+  const productMap = new Map(products.map(p => [p.id, p]));
 
   const validItems = [];
   let total = 0;
 
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i];
-    const productDoc = productDocs[i];
+  for (const item of items) {
+    const product = productMap.get(item.productId);
 
-    if (!productDoc.exists) {
+    if (!product) {
       continue; // Skip invalid products
     }
-
-    const product = productDoc.data();
 
     // Check if product is active and in stock
     if (product.status !== 'active' || product.stock <= 0) {
@@ -91,46 +118,70 @@ router.post('/', authenticateToken, [
 
     // Verify price matches current product price
     const currentPrice = product.price;
-    if (Math.abs(item.price - currentPrice) > 0.01) {
-      // Update to current price
-      item.price = currentPrice;
-    }
-
-    // Check stock availability
-    if (item.quantity > product.stock) {
-      item.quantity = product.stock;
-    }
-
-    const itemTotal = item.price * item.quantity;
+    const quantity = Math.min(item.quantity, product.stock);
+    const itemTotal = currentPrice * quantity;
     total += itemTotal;
 
-    validItems.push({
-      productId: item.productId,
-      name: product.name,
-      price: item.price,
-      quantity: item.quantity,
-      image: product.images?.[0]?.url || product.thumbnail || null,
-      vendorId: product.vendorId,
-      vendorName: product.vendorName,
-      subtotal: itemTotal,
-      addedAt: new Date().toISOString()
+    // Check if cart item already exists
+    let cartItem = await CartItem.findOne({
+      where: { cartId: cart.id, productId: item.productId }
     });
+
+    if (cartItem) {
+      // Update existing cart item
+      await cartItem.update({
+        price: currentPrice,
+        quantity,
+        subtotal: itemTotal
+      });
+      validItems.push({
+        productId: item.productId,
+        cartItemId: cartItem.id,
+        name: product.name,
+        price: currentPrice,
+        quantity,
+        image: product.images?.[0]?.url || product.thumbnail || null,
+        vendorId: product.vendorId,
+        vendorName: product.vendorName,
+        subtotal: itemTotal,
+        addedAt: cartItem.createdAt
+      });
+    } else {
+      // Create new cart item
+      cartItem = await CartItem.create({
+        cartId: cart.id,
+        productId: item.productId,
+        price: currentPrice,
+        quantity,
+        subtotal: itemTotal
+      });
+      validItems.push({
+        productId: item.productId,
+        cartItemId: cartItem.id,
+        name: product.name,
+        price: currentPrice,
+        quantity,
+        image: product.images?.[0]?.url || product.thumbnail || null,
+        vendorId: product.vendorId,
+        vendorName: product.vendorName,
+        subtotal: itemTotal,
+        addedAt: cartItem.createdAt
+      });
+    }
   }
 
-  const cartData = {
-    userId,
-    items: validItems,
-    total,
-    itemCount: validItems.reduce((sum, item) => sum + item.quantity, 0),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp()
-  };
-
-  await db.collection('carts').doc(userId).set(cartData, { merge: true });
+  // Update cart totals
+  const itemCount = validItems.reduce((sum, item) => sum + item.quantity, 0);
+  await cart.update({ total, itemCount });
 
   res.json({
     success: true,
     message: 'Cart updated successfully',
-    data: cartData
+    data: {
+      items: validItems,
+      total,
+      itemCount
+    }
   });
 }));
 
@@ -147,64 +198,73 @@ router.put('/item', authenticateToken, [
   const userId = req.user.uid;
   const { productId, quantity } = req.body;
 
-  const cartDoc = await db.collection('carts').doc(userId).get();
+  const cart = await Cart.findOne({ where: { userId } });
   
-  if (!cartDoc.exists) {
+  if (!cart) {
     throw new AppError('Cart not found', 404);
   }
 
-  const cart = cartDoc.data();
-  let items = cart.items || [];
+  const cartItem = await CartItem.findOne({
+    where: { cartId: cart.id, productId }
+  });
+
+  if (!cartItem) {
+    throw new AppError('Item not found in cart', 404);
+  }
 
   if (quantity === 0) {
     // Remove item from cart
-    items = items.filter(item => item.productId !== productId);
+    await cartItem.destroy();
   } else {
-    // Update item quantity
-    const itemIndex = items.findIndex(item => item.productId === productId);
-    
-    if (itemIndex === -1) {
-      throw new AppError('Item not found in cart', 404);
-    }
-
     // Verify product still exists and has stock
-    const productDoc = await db.collection('products').doc(productId).get();
-    if (!productDoc.exists) {
-      // Remove item if product no longer exists
-      items = items.filter(item => item.productId !== productId);
+    const product = await Product.findByPk(productId);
+    if (!product || product.status !== 'active') {
+      await cartItem.destroy();
     } else {
-      const product = productDoc.data();
-      
-      if (product.status !== 'active') {
-        // Remove item if product is inactive
-        items = items.filter(item => item.productId !== productId);
-      } else {
-        // Update quantity, respecting stock limits
-        const maxQuantity = Math.min(quantity, product.stock);
-        items[itemIndex].quantity = maxQuantity;
-        items[itemIndex].subtotal = items[itemIndex].price * maxQuantity;
-      }
+      // Update quantity, respecting stock limits
+      const maxQuantity = Math.min(quantity, product.stock);
+      await cartItem.update({
+        quantity: maxQuantity,
+        subtotal: cartItem.price * maxQuantity
+      });
     }
   }
 
   // Recalculate totals
-  const total = items.reduce((sum, item) => sum + item.subtotal, 0);
-  const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
+  const cartItems = await CartItem.findAll({ where: { cartId: cart.id } });
+  const total = cartItems.reduce((sum, item) => sum + item.subtotal, 0);
+  const itemCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+  await cart.update({ total, itemCount });
 
-  const updatedCart = {
-    ...cart,
-    items,
-    total,
-    itemCount,
-    updatedAt: admin.firestore.FieldValue.serverTimestamp()
-  };
+  // Get updated cart with items
+  const updatedCart = await Cart.findOne({
+    where: { userId },
+    include: [{ model: CartItem, include: [{ model: Product }] }]
+  });
 
-  await db.collection('carts').doc(userId).set(updatedCart, { merge: true });
+  const cartData = updatedCart.toJSON();
+  const items = cartData.cartItems || [];
+  const formattedItems = items.map(item => ({
+    productId: item.productId,
+    cartItemId: item.id,
+    name: item.product?.name,
+    price: item.price,
+    quantity: item.quantity,
+    image: item.product?.images?.[0]?.url || item.product?.thumbnail || null,
+    vendorId: item.product?.vendorId,
+    vendorName: item.product?.vendorName,
+    subtotal: item.price * item.quantity,
+    addedAt: item.createdAt
+  }));
 
   res.json({
     success: true,
     message: 'Cart item updated successfully',
-    data: updatedCart
+    data: {
+      items: formattedItems,
+      total,
+      itemCount
+    }
   });
 }));
 
@@ -216,7 +276,7 @@ router.put('/item', authenticateToken, [
 router.delete('/', authenticateToken, asyncHandler(async (req, res) => {
   const userId = req.user.uid;
 
-  await db.collection('carts').doc(userId).delete();
+  await Cart.destroy({ where: { userId } });
 
   res.json({
     success: true,
@@ -233,40 +293,57 @@ router.delete('/item/:productId', authenticateToken, asyncHandler(async (req, re
   const userId = req.user.uid;
   const { productId } = req.params;
 
-  const cartDoc = await db.collection('carts').doc(userId).get();
+  const cart = await Cart.findOne({ where: { userId } });
   
-  if (!cartDoc.exists) {
+  if (!cart) {
     throw new AppError('Cart not found', 404);
   }
 
-  const cart = cartDoc.data();
-  const items = cart.items || [];
+  const cartItem = await CartItem.findOne({
+    where: { cartId: cart.id, productId }
+  });
 
-  // Remove the item
-  const updatedItems = items.filter(item => item.productId !== productId);
-
-  if (updatedItems.length === items.length) {
+  if (!cartItem) {
     throw new AppError('Item not found in cart', 404);
   }
 
+  await cartItem.destroy();
+
   // Recalculate totals
-  const total = updatedItems.reduce((sum, item) => sum + item.subtotal, 0);
-  const itemCount = updatedItems.reduce((sum, item) => sum + item.quantity, 0);
+  const cartItems = await CartItem.findAll({ where: { cartId: cart.id } });
+  const total = cartItems.reduce((sum, item) => sum + item.subtotal, 0);
+  const itemCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+  await cart.update({ total, itemCount });
 
-  const updatedCart = {
-    ...cart,
-    items: updatedItems,
-    total,
-    itemCount,
-    updatedAt: admin.firestore.FieldValue.serverTimestamp()
-  };
+  // Get updated cart with items
+  const updatedCart = await Cart.findOne({
+    where: { userId },
+    include: [{ model: CartItem, include: [{ model: Product }] }]
+  });
 
-  await db.collection('carts').doc(userId).set(updatedCart, { merge: true });
+  const cartData = updatedCart.toJSON();
+  const items = cartData.cartItems || [];
+  const formattedItems = items.map(item => ({
+    productId: item.productId,
+    cartItemId: item.id,
+    name: item.product?.name,
+    price: item.price,
+    quantity: item.quantity,
+    image: item.product?.images?.[0]?.url || item.product?.thumbnail || null,
+    vendorId: item.product?.vendorId,
+    vendorName: item.product?.vendorName,
+    subtotal: item.price * item.quantity,
+    addedAt: item.createdAt
+  }));
 
   res.json({
     success: true,
     message: 'Item removed from cart successfully',
-    data: updatedCart
+    data: {
+      items: formattedItems,
+      total,
+      itemCount
+    }
   });
 }));
 
@@ -285,81 +362,117 @@ router.post('/merge', authenticateToken, [
   const userId = req.user.uid;
   const { guestItems } = req.body;
 
-  // Get existing user cart
-  const cartDoc = await db.collection('carts').doc(userId).get();
-  const existingCart = cartDoc.exists ? cartDoc.data() : { items: [] };
-
-  // Combine existing items with guest items
-  const combinedItems = [...existingCart.items];
-
-  for (const guestItem of guestItems) {
-    const existingItemIndex = combinedItems.findIndex(item => item.productId === guestItem.productId);
-    
-    if (existingItemIndex >= 0) {
-      // Update quantity of existing item
-      combinedItems[existingItemIndex].quantity += guestItem.quantity;
-      combinedItems[existingItemIndex].subtotal = combinedItems[existingItemIndex].price * combinedItems[existingItemIndex].quantity;
-    } else {
-      // Add new item
-      combinedItems.push({
-        ...guestItem,
-        subtotal: guestItem.price * guestItem.quantity,
-        addedAt: new Date().toISOString()
-      });
-    }
+  // Find or create cart
+  let cart = await Cart.findOne({ where: { userId } });
+  if (!cart) {
+    cart = await Cart.create({ userId, total: 0, itemCount: 0 });
   }
 
-  // Verify all products and update prices
-  const productIds = combinedItems.map(item => item.productId);
-  const productDocs = await Promise.all(
-    productIds.map(id => db.collection('products').doc(id).get())
-  );
+  // Get existing cart items
+  const existingCartItems = await CartItem.findAll({ where: { cartId: cart.id } });
+  const existingItemMap = new Map(existingCartItems.map(item => [item.productId, item]));
+
+  // Verify all products and get current details
+  const productIds = [...new Set([...guestItems.map(i => i.productId), ...existingItemMap.keys()])];
+  const products = await Product.findAll({ where: { id: productIds } });
+  const productMap = new Map(products.map(p => [p.id, p]));
 
   const validItems = [];
   let total = 0;
 
-  for (let i = 0; i < combinedItems.length; i++) {
-    const item = combinedItems[i];
-    const productDoc = productDocs[i];
-
-    if (!productDoc.exists || productDoc.data().status !== 'active') {
-      continue; // Skip invalid products
+  // Process guest items
+  for (const guestItem of guestItems) {
+    const product = productMap.get(guestItem.productId);
+    if (!product || product.status !== 'active' || product.stock <= 0) {
+      continue;
     }
 
-    const product = productDoc.data();
-    
-    // Update to current price
     const currentPrice = product.price;
-    const updatedItem = {
-      ...item,
-      price: currentPrice,
-      subtotal: currentPrice * item.quantity
-    };
+    const quantity = Math.min(guestItem.quantity, product.stock);
+    const itemTotal = currentPrice * quantity;
 
-    // Check stock availability
-    if (item.quantity > product.stock) {
-      updatedItem.quantity = product.stock;
-      updatedItem.subtotal = currentPrice * product.stock;
+    const existingItem = existingItemMap.get(guestItem.productId);
+    if (existingItem) {
+      // Update existing item quantity
+      const newQuantity = Math.min(existingItem.quantity + guestItem.quantity, product.stock);
+      await existingItem.update({
+        quantity: newQuantity,
+        price: currentPrice,
+        subtotal: currentPrice * newQuantity
+      });
+      validItems.push(existingItem);
+      total += currentPrice * newQuantity;
+    } else {
+      // Create new cart item
+      const newCartItem = await CartItem.create({
+        cartId: cart.id,
+        productId: guestItem.productId,
+        price: currentPrice,
+        quantity,
+        subtotal: itemTotal
+      });
+      validItems.push(newCartItem);
+      total += itemTotal;
     }
-
-    validItems.push(updatedItem);
-    total += updatedItem.subtotal;
   }
 
-  const mergedCart = {
-    userId,
-    items: validItems,
-    total,
-    itemCount: validItems.reduce((sum, item) => sum + item.quantity, 0),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp()
-  };
+  // Add existing items that weren't in guest cart
+  for (const [productId, existingItem] of existingItemMap) {
+    const isGuestItem = guestItems.some(g => g.productId === productId);
+    if (!isGuestItem) {
+      const product = productMap.get(productId);
+      if (product && product.status === 'active' && product.stock > 0) {
+        const newQuantity = Math.min(existingItem.quantity, product.stock);
+        if (newQuantity > 0) {
+          await existingItem.update({
+            quantity: newQuantity,
+            price: product.price,
+            subtotal: product.price * newQuantity
+          });
+          validItems.push(existingItem);
+          total += product.price * newQuantity;
+        } else {
+          await existingItem.destroy();
+        }
+      } else {
+        await existingItem.destroy();
+      }
+    }
+  }
 
-  await db.collection('carts').doc(userId).set(mergedCart, { merge: true });
+  // Update cart totals
+  const itemCount = validItems.reduce((sum, item) => sum + item.quantity, 0);
+  await cart.update({ total, itemCount });
+
+  // Get updated cart with items
+  const updatedCart = await Cart.findOne({
+    where: { userId },
+    include: [{ model: CartItem, include: [{ model: Product }] }]
+  });
+
+  const cartData = updatedCart.toJSON();
+  const items = cartData.cartItems || [];
+  const formattedItems = items.map(item => ({
+    productId: item.productId,
+    cartItemId: item.id,
+    name: item.product?.name,
+    price: item.price,
+    quantity: item.quantity,
+    image: item.product?.images?.[0]?.url || item.product?.thumbnail || null,
+    vendorId: item.product?.vendorId,
+    vendorName: item.product?.vendorName,
+    subtotal: item.price * item.quantity,
+    addedAt: item.createdAt
+  }));
 
   res.json({
     success: true,
     message: 'Cart merged successfully',
-    data: mergedCart
+    data: {
+      items: formattedItems,
+      total,
+      itemCount
+    }
   });
 }));
 
@@ -371,9 +484,9 @@ router.post('/merge', authenticateToken, [
 router.get('/summary', authenticateToken, asyncHandler(async (req, res) => {
   const userId = req.user.uid;
 
-  const cartDoc = await db.collection('carts').doc(userId).get();
+  const cart = await Cart.findOne({ where: { userId } });
   
-  if (!cartDoc.exists) {
+  if (!cart) {
     return res.json({
       success: true,
       data: {
@@ -386,16 +499,14 @@ router.get('/summary', authenticateToken, asyncHandler(async (req, res) => {
     });
   }
 
-  const cart = cartDoc.data();
-
   res.json({
     success: true,
     data: {
       itemCount: cart.itemCount || 0,
       total: cart.total || 0,
       subtotal: cart.total || 0,
-      tax: 0, // Calculate tax if needed
-      shipping: 0 // Calculate shipping if needed
+      tax: 0,
+      shipping: 0
     }
   });
 }));
