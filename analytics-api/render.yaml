@@ -4,7 +4,7 @@ services:
     env: node
     plan: starter
     branch: main
-    repo: ojawaecommerce/services/render-api
+    repo: ojawaecommerce/analytics-api
     buildCommand: "npm ci"
     startCommand: "npm start"
     envVars:

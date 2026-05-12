@@ -404,5 +404,11 @@ app.post('/api/products/:id/incrementViews', (req, res) => {
 // Default 404
 app.use((req, res) => res.status(404).json({ error: 'not_found' }));
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Render API stub listening on port ${PORT}`));
+// Start server only if not running on Vercel
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => console.log(`Analytics API listening on port ${PORT}`));
+}
+
+// Export for Vercel serverless
+module.exports = app;
