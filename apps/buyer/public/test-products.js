@@ -36,7 +36,7 @@ fetch('/api/products')
     
     // Try direct Render API as fallback
     console.log('\n🔄 Trying direct Render API...');
-    fetch('https://ojawaecommerce.onrender.com/api/products')
+    fetch('https://ojawa-green.vercel.app/api/products')
       .then(response => response.json())
       .then(data => {
         if (data.success) {

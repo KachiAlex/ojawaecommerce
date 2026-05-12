@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'https://ojawaecommerce.onrender.com';
+const API_BASE = import.meta.env.VITE_API_BASE || 'https://ojawa-green.vercel.app';
 
 const PriceDropAlert = ({ productId, currentPrice, onPriceDrop }) => {
   const { currentUser } = useAuth();

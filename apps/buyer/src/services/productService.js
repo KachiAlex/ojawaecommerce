@@ -1,6 +1,6 @@
 import { errorLogger } from '../utils/errorLogger';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://ojawaecommerce.onrender.com';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://ojawa-green.vercel.app';
 
 class ProductService {
   constructor() {

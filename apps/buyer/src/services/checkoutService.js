@@ -2,7 +2,7 @@ import { errorLogger } from '../utils/errorLogger';
 import productService from './productService';
 import cartService from './cartService';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://ojawaecommerce.onrender.com';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://ojawa-green.vercel.app';
 
 class CheckoutService {
   constructor() {

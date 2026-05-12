@@ -2,10 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { storeService } from '../services/trackingService';
 import axios from 'axios';
-
-const API_BASE = import.meta.env.VITE_API_BASE || 'https://ojawaecommerce.onrender.com';
 import firebaseService from '../services/firebaseService';
 import ProductEditorModal from './ProductEditorModal';
+
+const API_BASE = import.meta.env.VITE_API_BASE || 'https://ojawa-green.vercel.app';
 
 const VendorStoreManager = ({ 
   products = [], 

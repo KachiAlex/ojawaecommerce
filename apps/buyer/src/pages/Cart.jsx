@@ -7,12 +7,12 @@ import { usePageTracking, useProductTracking, useClickTracking } from '../hooks/
 import cartService from '../services/cartService';
 import checkoutService from '../services/checkoutService';
 import axios from 'axios';
-
-const API_BASE = import.meta.env.VITE_API_BASE || 'https://ojawaecommerce.onrender.com';
 import AddressInput from '../components/AddressInput';
 import CheckoutLogisticsSelector from '../components/CheckoutLogisticsSelector';
 import { formatCurrency as formatCurrencyUtil } from '../utils/currencyUtils';
 import MessageVendorModal from '../components/MessageVendorModal';
+
+const API_BASE = import.meta.env.VITE_API_BASE || 'https://ojawa-green.vercel.app';
 
 // Helper function to format currency with amount
 const formatCurrency = (amount, currencyString) => {

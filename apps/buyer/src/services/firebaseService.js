@@ -5,9 +5,9 @@ import { config } from '../config/env';
 
 const api = {
   async request(path, options = {}) {
-    // Force use Render backend in production
+    // Use Vercel backend in production
     const baseUrl = import.meta.env.PROD 
-      ? 'https://ojawaecommerce.onrender.com'
+      ? 'https://ojawa-green.vercel.app'
       : (config.app.apiBaseUrl || (typeof window !== 'undefined' ? window.location.origin : ''));
     
     const fullPath = path.startsWith('http') ? path : `${baseUrl}${path}`;

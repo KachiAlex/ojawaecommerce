@@ -10,7 +10,7 @@
     
     // If it's a relative API call, redirect to Render backend
     if (typeof url === 'string' && url.startsWith('/api/')) {
-      const renderUrl = 'https://ojawaecommerce.onrender.com' + url;
+      const renderUrl = 'https://ojawa-green.vercel.app' + url;
       console.log('🔄 Redirecting API call:', url, '→', renderUrl);
       return originalFetch.call(this, renderUrl, options);
     }
@@ -19,7 +19,7 @@
     if (typeof url === 'string' && 
         (url.includes('api/') || url.includes('/api')) && 
         !url.startsWith('http')) {
-      const renderUrl = 'https://ojawaecommerce.onrender.com/api' + url.replace(/.*api/, '');
+      const renderUrl = 'https://ojawa-green.vercel.app/api' + url.replace(/.*api/, '');
       console.log('🔄 Redirecting API call:', url, '→', renderUrl);
       return originalFetch.call(this, renderUrl, options);
     }

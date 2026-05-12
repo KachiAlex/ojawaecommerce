@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'https://ojawaecommerce.onrender.com';
+const API_BASE = import.meta.env.VITE_API_BASE || 'https://ojawa-green.vercel.app';
 
 // TODO: Implement backend endpoints under `/api/analytics/platform/*`
 
