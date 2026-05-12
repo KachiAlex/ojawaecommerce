@@ -1,12 +1,11 @@
 const express = require('express');
 const { body, query, validationResult } = require('express-validator');
-const admin = require('firebase-admin');
+const { Op } = require('sequelize');
 const { AppError } = require('../middleware/errorHandler');
 const { asyncHandler } = require('../middleware/errorHandler');
 const { authenticateToken } = require('../middleware/auth');
+const { AnalyticsEvent, Order, Product, User } = require('../models');
 const router = express.Router();
-
-const db = admin.firestore();
 
 // Validation middleware
 const handleValidationErrors = (req, res, next) => {
@@ -39,10 +38,9 @@ router.post('/events', authenticateToken, [
   const userId = req.user.uid;
 
   // Process and store analytics events
-  const batch = db.batch();
   const eventDocs = [];
 
-  events.forEach(event => {
+  for (const event of events) {
     const eventData = {
       userId,
       name: event.name,
@@ -50,20 +48,13 @@ router.post('/events', authenticateToken, [
       action: event.action || 'unknown',
       label: event.label || null,
       value: event.value || null,
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
       userAgent: req.get('user-agent'),
       ipAddress: req.ip
     };
 
-    const eventRef = db.collection('analytics_events').doc();
-    batch.set(eventRef, eventData);
-    eventDocs.push({
-      id: eventRef.id,
-      ...eventData
-    });
-  });
-
-  await batch.commit();
+    const analyticsEvent = await AnalyticsEvent.create(eventData);
+    eventDocs.push(analyticsEvent.toJSON());
+  }
 
   res.json({
     success: true,
@@ -99,17 +90,15 @@ router.get('/revenue', authenticateToken, [
   const end = endDate ? new Date(endDate) : new Date();
 
   // Get completed orders within date range
-  const ordersSnapshot = await db.collection('orders')
-    .where('paymentStatus', '==', 'paid')
-    .where('createdAt', '>=', admin.firestore.Timestamp.fromDate(start))
-    .where('createdAt', '<=', admin.firestore.Timestamp.fromDate(end))
-    .get();
-
-  const orders = ordersSnapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data(),
-    createdAt: doc.data().createdAt.toDate()
-  }));
+  const orders = await Order.findAll({
+    where: {
+      paymentStatus: 'paid',
+      createdAt: {
+        [Op.gte]: start,
+        [Op.lte]: end
+      }
+    }
+  });
 
   // Calculate revenue metrics
   const totalRevenue = orders.reduce((sum, order) => sum + (order.total || 0), 0);
@@ -181,25 +170,23 @@ router.get('/dashboard', authenticateToken, asyncHandler(async (req, res) => {
 
   // Get recent metrics
   const [
-    totalProductsSnapshot,
-    recentOrdersSnapshot,
-    recentUsersSnapshot,
-    totalRevenueSnapshot
+    totalProducts,
+    recentOrders,
+    recentUsers,
+    revenueOrders
   ] = await Promise.all([
-    db.collection('products').where('status', '==', 'active').get(),
-    db.collection('orders').where('createdAt', '>=', admin.firestore.Timestamp.fromDate(thirtyDaysAgo)).get(),
-    db.collection('users').where('createdAt', '>=', admin.firestore.Timestamp.fromDate(thirtyDaysAgo)).get(),
-    db.collection('orders').where('paymentStatus', '==', 'paid').where('createdAt', '>=', admin.firestore.Timestamp.fromDate(thirtyDaysAgo)).get()
+    Product.count({ where: { status: 'active' } }),
+    Order.count({ where: { createdAt: { [Op.gte]: thirtyDaysAgo } } }),
+    User.count({ where: { createdAt: { [Op.gte]: thirtyDaysAgo } } }),
+    Order.findAll({
+      where: {
+        paymentStatus: 'paid',
+        createdAt: { [Op.gte]: thirtyDaysAgo }
+      }
+    })
   ]);
 
-  // Calculate metrics
-  const totalProducts = totalProductsSnapshot.size;
-  const recentOrders = recentOrdersSnapshot.size;
-  const recentUsers = recentUsersSnapshot.size;
-  
-  const totalRevenue = totalRevenueSnapshot.docs.reduce((sum, doc) => {
-    return sum + (doc.data().total || 0);
-  }, 0);
+  const totalRevenue = revenueOrders.reduce((sum, order) => sum + (order.total || 0), 0);
 
   res.json({
     success: true,
