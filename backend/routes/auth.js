@@ -5,10 +5,10 @@ const jwt = require('jsonwebtoken');
 const admin = require('firebase-admin');
 const { AppError, asyncHandler } = require('../middleware/errorHandler');
 const { authenticateToken } = require('../middleware/auth');
+const { User } = require('../models');
 const router = express.Router();
 
 const auth = admin.auth();
-const db = admin.firestore();
 
 // Generate JWT token
 const generateToken = (payload) => {
@@ -62,15 +62,13 @@ router.post('/register', [
   const saltRounds = 12;
   const hashedPassword = await bcrypt.hash(password, saltRounds);
 
-  // Create user document in Firestore
+  // Create user in PostgreSQL
   const userData = {
-    uid: userRecord.uid,
+    id: userRecord.uid,
     email,
     displayName,
     role,
     emailVerified: false,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     isActive: true,
     profile: {
       avatar: null,
@@ -84,7 +82,7 @@ router.post('/register', [
     }
   };
 
-  await db.collection('users').doc(userRecord.uid).set(userData);
+  await User.create(userData);
 
   // Generate JWT token
   const token = generateToken({ uid: userRecord.uid, email, role });
@@ -133,18 +131,18 @@ router.post('/login', [
 
     const { idToken, refreshToken, expiresIn, localId } = response.data;
 
-    // Get user data from Firestore
-    const userDoc = await db.collection('users').doc(localId).get();
-    if (!userDoc.exists) {
+    // Get user data from PostgreSQL
+    const user = await User.findByPk(localId);
+    if (!user) {
       throw new AppError('User not found', 404);
     }
 
-    const userData = userDoc.data();
+    const userData = user.toJSON();
 
     // Update last login
-    await db.collection('users').doc(localId).update({
-      lastLoginAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    await user.update({
+      lastLoginAt: new Date(),
+      updatedAt: new Date()
     });
 
     // Generate custom JWT token
@@ -202,12 +200,12 @@ router.post('/refresh', [
     const { id_token, refresh_token, expires_in, user_id } = response.data;
 
     // Get user data and generate new custom token
-    const userDoc = await db.collection('users').doc(user_id).get();
-    if (!userDoc.exists) {
+    const user = await User.findByPk(user_id);
+    if (!user) {
       throw new AppError('User not found', 404);
     }
 
-    const userData = userDoc.data();
+    const userData = user.toJSON();
     const customToken = generateToken({
       uid: user_id,
       email: userData.email,
@@ -234,13 +232,13 @@ router.post('/refresh', [
  * @access  Private
  */
 router.get('/profile', authenticateToken, asyncHandler(async (req, res) => {
-  const userDoc = await db.collection('users').doc(req.user.uid).get();
+  const user = await User.findByPk(req.user.uid);
   
-  if (!userDoc.exists) {
+  if (!user) {
     throw new AppError('User not found', 404);
   }
 
-  const userData = userDoc.data();
+  const userData = user.toJSON();
   
   // Remove sensitive information
   const { password, ...safeUserData } = userData;
@@ -257,13 +255,13 @@ router.get('/profile', authenticateToken, asyncHandler(async (req, res) => {
  * @access  Private
  */
 router.get('/me', authenticateToken, asyncHandler(async (req, res) => {
-  const userDoc = await db.collection('users').doc(req.user.uid).get();
+  const user = await User.findByPk(req.user.uid);
   
-  if (!userDoc.exists) {
+  if (!user) {
     throw new AppError('User not found', 404);
   }
 
-  const userData = userDoc.data();
+  const userData = user.toJSON();
   
   // Remove sensitive information
   const { password, ...safeUserData } = userData;
@@ -288,19 +286,26 @@ router.put('/profile', authenticateToken, [
   const { displayName, phone, address } = req.body;
   const userId = req.user.uid;
 
-  const updates = {
-    updatedAt: admin.firestore.FieldValue.serverTimestamp()
-  };
+  const user = await User.findByPk(userId);
+  if (!user) {
+    throw new AppError('User not found', 404);
+  }
+
+  const updates = {};
 
   if (displayName) updates.displayName = displayName;
-  if (phone) updates['profile.phone'] = phone;
-  if (address) updates['profile.address'] = address;
+  if (phone) {
+    updates.profile = { ...user.profile, phone };
+  }
+  if (address) {
+    updates.profile = { ...(updates.profile || user.profile), address };
+  }
+  updates.updatedAt = new Date();
 
-  await db.collection('users').doc(userId).update(updates);
+  await user.update(updates);
 
   // Get updated user data
-  const updatedUserDoc = await db.collection('users').doc(userId).get();
-  const userData = updatedUserDoc.data();
+  const userData = user.toJSON();
 
   res.json({
     success: true,
@@ -315,15 +320,21 @@ router.put('/profile', authenticateToken, [
  * @access  Private
  */
 router.post('/logout', authenticateToken, asyncHandler(async (req, res) => {
+  const user = await User.findByPk(req.user.uid);
+  
+  if (!user) {
+    throw new AppError('User not found', 404);
+  }
+
   // In a production environment, you might want to:
   // 1. Revoke the Firebase token
   // 2. Add the JWT token to a blacklist
   // 3. Clear any server-side sessions
 
   // For now, we'll just update the last logout time
-  await db.collection('users').doc(req.user.uid).update({
-    lastLogoutAt: admin.firestore.FieldValue.serverTimestamp(),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+  await user.update({
+    lastLogoutAt: new Date(),
+    updatedAt: new Date()
   });
 
   res.json({

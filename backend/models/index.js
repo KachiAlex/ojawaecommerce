@@ -9,6 +9,12 @@ const CartItem = require('./CartItem');
 const Vendor = require('./Vendor');
 const Wallet = require('./Wallet');
 const Notification = require('./Notification');
+const WalletTransaction = require('./WalletTransaction');
+const EscrowRelease = require('./EscrowRelease');
+const Withdrawal = require('./Withdrawal');
+const AdminAuditLog = require('./AdminAuditLog');
+const SecurityAuditLog = require('./SecurityAuditLog');
+const AnalyticsEvent = require('./AnalyticsEvent');
 
 // Initialize models
 const UserModel = User.init(sequelize);
@@ -19,6 +25,12 @@ const CartItemModel = CartItem.init(sequelize);
 const VendorModel = Vendor.init(sequelize);
 const WalletModel = Wallet.init(sequelize);
 const NotificationModel = Notification.init(sequelize);
+const WalletTransactionModel = WalletTransaction.init(sequelize);
+const EscrowReleaseModel = EscrowRelease.init(sequelize);
+const WithdrawalModel = Withdrawal.init(sequelize);
+const AdminAuditLogModel = AdminAuditLog.init(sequelize);
+const SecurityAuditLogModel = SecurityAuditLog.init(sequelize);
+const AnalyticsEventModel = AnalyticsEvent.init(sequelize);
 
 // Define associations
 UserModel.hasOne(VendorModel, { foreignKey: 'userId', as: 'vendor' });
@@ -45,6 +57,19 @@ WalletModel.belongsTo(UserModel, { foreignKey: 'userId', as: 'user' });
 UserModel.hasMany(NotificationModel, { foreignKey: 'userId', as: 'notifications' });
 NotificationModel.belongsTo(UserModel, { foreignKey: 'userId', as: 'user' });
 
+UserModel.hasMany(WalletTransactionModel, { foreignKey: 'userId', as: 'walletTransactions' });
+WalletTransactionModel.belongsTo(UserModel, { foreignKey: 'userId', as: 'user' });
+
+UserModel.hasMany(WithdrawalModel, { foreignKey: 'userId', as: 'withdrawals' });
+WithdrawalModel.belongsTo(UserModel, { foreignKey: 'userId', as: 'user' });
+
+OrderModel.hasMany(EscrowReleaseModel, { foreignKey: 'orderId', as: 'escrowReleases' });
+EscrowReleaseModel.belongsTo(OrderModel, { foreignKey: 'orderId', as: 'order' });
+
+EscrowReleaseModel.belongsTo(UserModel, { foreignKey: 'vendorId', as: 'vendor' });
+
+WithdrawalModel.belongsTo(UserModel, { foreignKey: 'userId', as: 'user' });
+
 module.exports = {
   sequelize,
   User: UserModel,
@@ -54,5 +79,11 @@ module.exports = {
   CartItem: CartItemModel,
   Vendor: VendorModel,
   Wallet: WalletModel,
-  Notification: NotificationModel
+  Notification: NotificationModel,
+  WalletTransaction: WalletTransactionModel,
+  EscrowRelease: EscrowReleaseModel,
+  Withdrawal: WithdrawalModel,
+  AdminAuditLog: AdminAuditLogModel,
+  SecurityAuditLog: SecurityAuditLogModel,
+  AnalyticsEvent: AnalyticsEventModel
 };

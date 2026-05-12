@@ -10,11 +10,37 @@ const fs = require('fs');
 
 // Import PostgreSQL database
 const { sequelize } = require('./config/database');
-const { User, Product, Order, Cart, CartItem, Vendor, Wallet, Notification } = require('./models');
+const { User, Product, Order, Cart, CartItem, Vendor, Wallet, Notification, WalletTransaction, EscrowRelease, Withdrawal, AdminAuditLog, SecurityAuditLog, AnalyticsEvent } = require('./models');
+
+// Firebase Admin SDK for authentication only
+const admin = require('firebase-admin');
+let auth = null;
+
+if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
+  try {
+    const serviceAccount = {
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    };
+
+    if (!admin.apps.length) {
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+      });
+    }
+
+    auth = admin.auth();
+    console.log('✅ Firebase Auth initialized (for authentication only)');
+  } catch (error) {
+    console.error('❌ Firebase Auth initialization failed:', error.message);
+  }
+} else {
+  console.warn('⚠️ Firebase credentials not found - authentication will be limited');
+}
 
 // Database connection
 let db = null;
-let auth = null;
 
 if (process.env.DATABASE_URL) {
   db = sequelize;
@@ -345,20 +371,19 @@ app.get('/', (req, res) => {
 
 app.get('/health', async (req, res) => {
   try {
-    // Test Firebase connectivity
-    await db.collection('health').limit(1).get();
+    // Test PostgreSQL connectivity
+    await sequelize.authenticate();
     
     res.json({
       status: 'ok',
       services: {
-        firebase: 'connected',
-        firestore: 'connected',
-        authentication: 'connected'
+        postgresql: 'connected',
+        firebase_auth: auth ? 'connected' : 'not configured'
       },
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       memory: process.memoryUsage(),
-      project: process.env.FIREBASE_PROJECT_ID
+      environment: process.env.NODE_ENV
     });
   } catch (error) {
     logger.error('Health check failed:', error);
