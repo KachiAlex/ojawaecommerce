@@ -2,13 +2,12 @@ const express = require('express');
 const { body, query, validationResult } = require('express-validator');
 const multer = require('multer');
 const path = require('path');
-const admin = require('firebase-admin');
+const { Op } = require('sequelize');
 const { AppError } = require('../middleware/errorHandler');
 const { asyncHandler } = require('../middleware/errorHandler');
 const { authenticateToken, optionalAuth } = require('../middleware/auth');
+const { Product } = require('../models');
 const router = express.Router();
-
-const db = admin.firestore();
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -85,94 +84,66 @@ router.get('/', [
     sortOrder = 'desc'
   } = req.query;
 
-  // Build query
-  let query = db.collection('products');
-
-  // Apply filters
-  if (status) {
-    query = query.where('status', '==', status);
-  }
-
-  if (vendorId) {
-    query = query.where('vendorId', '==', vendorId);
-  }
-
-  if (category) {
-    query = query.where('category', '==', category);
-  }
-
-  if (featured !== undefined) {
-    query = query.where('featured', '==', featured === 'true');
-  }
-
-  // Price range filter
-  if (minPrice !== undefined) {
-    query = query.where('price', '>=', parseFloat(minPrice));
-  }
-
-  if (maxPrice !== undefined) {
-    query = query.where('price', '<=', parseFloat(maxPrice));
-  }
-
-  // Apply sorting
-  const sortDirection = sortOrder === 'asc' ? 'asc' : 'desc';
-  query = query.orderBy(sortBy, sortDirection);
-
-  // Pagination
+  // Build query options
+  const where = {};
+  const order = [[sortBy, sortOrder.toUpperCase()]];
   const limitInt = parseInt(limit);
   const pageInt = parseInt(page);
   const offset = (pageInt - 1) * limitInt;
 
-  // Get total count for pagination
-  const countQuery = query; // Copy query for counting
-  const countSnapshot = await countQuery.get();
-  const total = countSnapshot.size;
-
-  // Apply pagination to main query
-  if (offset > 0) {
-    // For Firestore, we need to use startAfter for pagination
-    const previousPage = await query.limit(offset).get();
-    if (previousPage.size > 0) {
-      const lastDoc = previousPage.docs[previousPage.size - 1];
-      query = query.startAfter(lastDoc);
-    }
+  // Apply filters
+  if (status) {
+    where.status = status;
   }
 
-  const snapshot = await query.limit(limitInt).get();
+  if (vendorId) {
+    where.vendorId = vendorId;
+  }
 
-  // Process products
-  let products = [];
-  snapshot.forEach(doc => {
-    const product = {
-      id: doc.id,
-      ...doc.data()
-    };
+  if (category) {
+    where.category = category;
+  }
 
-    // Convert Firestore timestamps
-    if (product.createdAt) {
-      product.createdAt = product.createdAt.toDate?.() || product.createdAt;
-    }
-    if (product.updatedAt) {
-      product.updatedAt = product.updatedAt.toDate?.() || product.updatedAt;
-    }
+  if (featured !== undefined) {
+    where.featured = featured === 'true';
+  }
 
-    products.push(product);
+  // Price range filter
+  if (minPrice !== undefined && maxPrice !== undefined) {
+    where.price = { [Op.between]: [parseFloat(minPrice), parseFloat(maxPrice)] };
+  } else if (minPrice !== undefined) {
+    where.price = { [Op.gte]: parseFloat(minPrice) };
+  } else if (maxPrice !== undefined) {
+    where.price = { [Op.lte]: parseFloat(maxPrice) };
+  }
+
+  // Apply search filter
+  if (search) {
+    where[Op.or] = [
+      { name: { [Op.iLike]: `%${search}%` } },
+      { description: { [Op.iLike]: `%${search}%` } },
+      { category: { [Op.iLike]: `%${search}%` } }
+    ];
+  }
+
+  // Get total count for pagination
+  const total = await Product.count({ where });
+
+  // Fetch products with pagination
+  const products = await Product.findAll({
+    where,
+    order,
+    limit: limitInt,
+    offset
   });
 
-  // Apply search filter (client-side since Firestore doesn't support full-text search)
-  if (search) {
-    const searchTerm = search.toLowerCase();
-    products = products.filter(product => 
-      product.name?.toLowerCase().includes(searchTerm) ||
-      product.description?.toLowerCase().includes(searchTerm) ||
-      product.category?.toLowerCase().includes(searchTerm)
-    );
-  }
+  // Convert to JSON
+  const productsData = products.map(p => p.toJSON());
 
   res.json({
     success: true,
     data: {
-      products,
+      products: productsData,
       pagination: {
         currentPage: pageInt,
         totalPages: Math.ceil(total / limitInt),
@@ -193,34 +164,21 @@ router.get('/', [
 router.get('/:id', asyncHandler(async (req, res) => {
   const { id } = req.params;
 
-  const productDoc = await db.collection('products').doc(id).get();
+  const product = await Product.findByPk(id);
   
-  if (!productDoc.exists) {
+  if (!product) {
     throw new AppError('Product not found', 404);
   }
 
-  const product = {
-    id: productDoc.id,
-    ...productDoc.data()
-  };
-
-  // Convert timestamps
-  if (product.createdAt) {
-    product.createdAt = product.createdAt.toDate?.() || product.createdAt;
-  }
-  if (product.updatedAt) {
-    product.updatedAt = product.updatedAt.toDate?.() || product.updatedAt;
-  }
-
   // Increment view count
-  await db.collection('products').doc(id).update({
-    viewCount: admin.firestore.FieldValue.increment(1),
-    lastViewedAt: admin.firestore.FieldValue.serverTimestamp()
+  await product.update({
+    viewCount: (product.viewCount || 0) + 1,
+    lastViewedAt: new Date()
   });
 
   res.json({
     success: true,
-    data: product
+    data: product.toJSON()
   });
 }));
 
@@ -296,21 +254,15 @@ router.post('/', authenticateToken, upload.array('images', 5), [
     rating: 0,
     reviewCount: 0,
     viewCount: 0,
-    salesCount: 0,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    salesCount: 0
   };
 
-  const productRef = await db.collection('products').add(productData);
-  const createdProduct = await productRef.get();
+  const createdProduct = await Product.create(productData);
 
   res.status(201).json({
     success: true,
     message: 'Product created successfully and pending approval',
-    data: {
-      id: createdProduct.id,
-      ...createdProduct.data()
-    }
+    data: createdProduct.toJSON()
   });
 }));
 
@@ -331,22 +283,18 @@ router.put('/:id', authenticateToken, upload.array('images', 5), [
   const { id } = req.params;
   const user = req.user;
 
-  const productDoc = await db.collection('products').doc(id).get();
+  const product = await Product.findByPk(id);
   
-  if (!productDoc.exists) {
+  if (!product) {
     throw new AppError('Product not found', 404);
   }
-
-  const product = productDoc.data();
 
   // Check ownership
   if (product.vendorId !== user.uid && user.role !== 'admin') {
     throw new AppError('Not authorized to update this product', 403);
   }
 
-  const updates = {
-    updatedAt: admin.firestore.FieldValue.serverTimestamp()
-  };
+  const updates = {};
 
   // Update fields
   const allowedFields = ['name', 'description', 'price', 'category', 'stock', 'status', 'processingTimeDays', 'shipping', 'dimensions', 'specifications', 'tags'];
@@ -371,23 +319,16 @@ router.put('/:id', authenticateToken, upload.array('images', 5), [
       size: file.size
     }));
 
-    // Add to existing images or replace if needed
-    updates.images = admin.firestore.FieldValue.arrayUnion(...newImages);
+    // Add to existing images
+    updates.images = [...(product.images || []), ...newImages];
   }
 
-  await db.collection('products').doc(id).update(updates);
-
-  // Get updated product
-  const updatedProductDoc = await db.collection('products').doc(id).get();
-  const updatedProduct = {
-    id: updatedProductDoc.id,
-    ...updatedProductDoc.data()
-  };
+  await product.update(updates);
 
   res.json({
     success: true,
     message: 'Product updated successfully',
-    data: updatedProduct
+    data: product.toJSON()
   });
 }));
 
@@ -400,13 +341,11 @@ router.delete('/:id', authenticateToken, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const user = req.user;
 
-  const productDoc = await db.collection('products').doc(id).get();
+  const product = await Product.findByPk(id);
   
-  if (!productDoc.exists) {
+  if (!product) {
     throw new AppError('Product not found', 404);
   }
-
-  const product = productDoc.data();
 
   // Check ownership
   if (product.vendorId !== user.uid && user.role !== 'admin') {
@@ -418,7 +357,7 @@ router.delete('/:id', authenticateToken, asyncHandler(async (req, res) => {
     throw new AppError('Cannot delete product with existing sales', 400);
   }
 
-  await db.collection('products').doc(id).delete();
+  await product.destroy();
 
   res.json({
     success: true,
@@ -439,13 +378,11 @@ router.post('/:id/thumbnail', authenticateToken, upload.single('thumbnail'), asy
     throw new AppError('No file uploaded', 400);
   }
 
-  const productDoc = await db.collection('products').doc(id).get();
+  const product = await Product.findByPk(id);
   
-  if (!productDoc.exists) {
+  if (!product) {
     throw new AppError('Product not found', 404);
   }
-
-  const product = productDoc.data();
 
   // Check ownership
   if (product.vendorId !== user.uid && user.role !== 'admin') {
@@ -454,9 +391,8 @@ router.post('/:id/thumbnail', authenticateToken, upload.single('thumbnail'), asy
 
   const thumbnailUrl = `/uploads/${req.file.filename}`;
 
-  await db.collection('products').doc(id).update({
-    thumbnail: thumbnailUrl,
-    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+  await product.update({
+    thumbnail: thumbnailUrl
   });
 
   res.json({
@@ -474,21 +410,17 @@ router.post('/:id/thumbnail', authenticateToken, upload.single('thumbnail'), asy
  * @access  Public
  */
 router.get('/categories/list', asyncHandler(async (req, res) => {
-  const snapshot = await db.collection('products')
-    .where('status', '==', 'active')
-    .get();
-
-  const categories = new Set();
-  snapshot.forEach(doc => {
-    const product = doc.data();
-    if (product.category) {
-      categories.add(product.category);
-    }
+  const products = await Product.findAll({
+    where: { status: 'active' },
+    attributes: ['category'],
+    group: ['category']
   });
+
+  const categories = [...new Set(products.map(p => p.category).filter(c => c))];
 
   res.json({
     success: true,
-    data: Array.from(categories).sort()
+    data: categories.sort()
   });
 }));
 
@@ -502,34 +434,18 @@ router.get('/featured/list', [
 ], handleValidationErrors, asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit) || 20;
 
-  const snapshot = await db.collection('products')
-    .where('featured', '==', true)
-    .where('status', '==', 'active')
-    .orderBy('rating', 'desc')
-    .limit(limit)
-    .get();
-
-  const products = [];
-  snapshot.forEach(doc => {
-    const product = {
-      id: doc.id,
-      ...doc.data()
-    };
-
-    // Convert timestamps
-    if (product.createdAt) {
-      product.createdAt = product.createdAt.toDate?.() || product.createdAt;
-    }
-    if (product.updatedAt) {
-      product.updatedAt = product.updatedAt.toDate?.() || product.updatedAt;
-    }
-
-    products.push(product);
+  const products = await Product.findAll({
+    where: {
+      featured: true,
+      status: 'active'
+    },
+    order: [['rating', 'DESC']],
+    limit
   });
 
   res.json({
     success: true,
-    data: products
+    data: products.map(p => p.toJSON())
   });
 }));
 
@@ -586,8 +502,6 @@ router.post('/seed', [
       vendorRating: 4.8,
       isActive: true,
       status: 'active',
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       views: 0,
       salesCount: 0,
       rating: 0,
@@ -602,14 +516,11 @@ router.post('/seed', [
       }
     };
 
-    const productRef = await db.collection('products').add(productData);
+    const createdProduct = await Product.create(productData);
     
     res.status(201).json({
       success: true,
-      data: {
-        id: productRef.id,
-        ...productData
-      },
+      data: createdProduct.toJSON(),
       message: 'Product seeded successfully'
     });
   } catch (error) {
