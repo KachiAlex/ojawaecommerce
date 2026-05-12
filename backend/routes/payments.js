@@ -1,13 +1,12 @@
 const express = require('express');
 const { body, query, validationResult } = require('express-validator');
 const axios = require('axios');
-const admin = require('firebase-admin');
+const { Op } = require('sequelize');
 const { AppError } = require('../middleware/errorHandler');
 const { asyncHandler } = require('../middleware/errorHandler');
 const { authenticateToken } = require('../middleware/auth');
+const { Order, Wallet, WalletTransaction, EscrowRelease, Withdrawal, Notification } = require('../models');
 const router = express.Router();
-
-const db = admin.firestore();
 
 // Validation middleware
 const handleValidationErrors = (req, res, next) => {
@@ -96,17 +95,17 @@ router.post('/escrow/create', authenticateToken, [
   const userId = req.user.uid;
 
   // Verify order exists and belongs to user
-  const orderDoc = await db.collection('orders').doc(orderId).get();
-  if (!orderDoc.exists) {
+  const order = await Order.findByPk(orderId);
+  if (!order) {
     throw new AppError('Order not found', 404);
   }
 
-  const order = orderDoc.data();
-  if (order.buyerId !== userId) {
+  const orderData = order.toJSON();
+  if (orderData.buyerId !== userId) {
     throw new AppError('Not authorized', 403);
   }
 
-  if (order.paymentStatus === 'paid') {
+  if (orderData.paymentStatus === 'paid') {
     throw new AppError('Order already paid', 400);
   }
 
@@ -130,7 +129,7 @@ router.post('/escrow/create', authenticateToken, [
           {
             display_name: "Order Payment",
             variable_name: "order_payment",
-            value: `Payment for order ${order.orderNumber}`
+            value: `Payment for order ${orderData.orderNumber}`
           }
         ]
       }
@@ -144,10 +143,9 @@ router.post('/escrow/create', authenticateToken, [
     const { data } = response.data;
 
     // Update order with payment reference
-    await db.collection('orders').doc(orderId).update({
+    await order.update({
       paymentReference: data.reference,
-      paymentMethod: 'paystack',
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      paymentMethod: 'paystack'
     });
 
     res.json({
@@ -179,28 +177,28 @@ router.post('/escrow/release', authenticateToken, [
   const user = req.user;
 
   // Verify order and authorization
-  const orderDoc = await db.collection('orders').doc(orderId).get();
-  if (!orderDoc.exists) {
+  const order = await Order.findByPk(orderId);
+  if (!order) {
     throw new AppError('Order not found', 404);
   }
 
-  const order = orderDoc.data();
+  const orderData = order.toJSON();
 
   // Check if user is admin or vendor of this order
   const isAdmin = user.role === 'admin';
-  const isVendor = order.vendorIds.includes(user.uid);
+  const isVendor = orderData.vendorIds.includes(user.uid);
 
   if (!isAdmin && !isVendor) {
     throw new AppError('Not authorized to release funds', 403);
   }
 
   // Check if order is delivered and payment is completed
-  if (order.orderStatus !== 'delivered' || order.paymentStatus !== 'paid') {
+  if (orderData.orderStatus !== 'delivered' || orderData.paymentStatus !== 'paid') {
     throw new AppError('Order must be delivered and paid to release funds', 400);
   }
 
   // Check if funds already released
-  if (order.escrowReleased) {
+  if (orderData.escrowReleased) {
     throw new AppError('Funds already released', 400);
   }
 
@@ -214,48 +212,45 @@ router.post('/escrow/release', authenticateToken, [
       amount,
       releasedBy: user.uid,
       releasedByName: user.displayName || user.email,
-      releasedAt: admin.firestore.FieldValue.serverTimestamp(),
       status: 'completed'
     };
 
     // Record escrow release
-    await db.collection('escrow_releases').add(releaseData);
+    await EscrowRelease.create(releaseData);
 
     // Update order status
-    await db.collection('orders').doc(orderId).update({
+    await order.update({
       escrowReleased: true,
-      escrowReleasedAt: admin.firestore.FieldValue.serverTimestamp(),
-      escrowReleasedBy: user.uid,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      escrowReleasedAt: new Date(),
+      escrowReleasedBy: user.uid
     });
 
     // Update vendor wallet balance
-    await db.collection('wallets').doc(vendorId).set({
-      balance: admin.firestore.FieldValue.increment(amount),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
-    }, { merge: true });
+    let wallet = await Wallet.findOne({ where: { userId: vendorId } });
+    if (!wallet) {
+      wallet = await Wallet.create({ userId: vendorId, balance: 0 });
+    }
+    await wallet.update({ balance: wallet.balance + amount });
 
     // Create transaction record
-    await db.collection('wallet_transactions').add({
+    await WalletTransaction.create({
       userId: vendorId,
       type: 'escrow_release',
       amount,
       orderId,
-      description: `Escrow release for order ${order.orderNumber}`,
-      status: 'completed',
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
+      description: `Escrow release for order ${orderData.orderNumber}`,
+      status: 'completed'
     });
 
     // Notify vendor
-    await db.collection('notifications').add({
+    await Notification.create({
       userId: vendorId,
       type: 'escrow_released',
       title: 'Escrow Funds Released',
-      message: `₦${amount.toLocaleString()} has been released to your wallet from order ${order.orderNumber}`,
+      message: `₦${amount.toLocaleString()} has been released to your wallet from order ${orderData.orderNumber}`,
       orderId,
       amount,
-      read: false,
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
+      read: false
     });
 
     res.json({
@@ -326,12 +321,9 @@ router.post('/webhook/paystack', asyncHandler(async (req, res) => {
 router.get('/wallet/balance', authenticateToken, asyncHandler(async (req, res) => {
   const userId = req.user.uid;
 
-  const walletDoc = await db.collection('wallets').doc(userId).get();
+  const wallet = await Wallet.findOne({ where: { userId } });
   
-  let balance = 0;
-  if (walletDoc.exists) {
-    balance = walletDoc.data().balance || 0;
-  }
+  const balance = wallet ? wallet.balance : 0;
 
   res.json({
     success: true,
@@ -355,51 +347,32 @@ router.get('/wallet/transactions', authenticateToken, [
   const userId = req.user.uid;
   const { page = 1, limit = 20, type } = req.query;
 
-  let query = db.collection('wallet_transactions')
-    .where('userId', '==', userId)
-    .orderBy('createdAt', 'desc');
-
+  const where = { userId };
   if (type) {
-    query = query.where('type', '==', type);
+    where.type = type;
   }
 
-  // Pagination
   const limitInt = parseInt(limit);
   const pageInt = parseInt(page);
   const offset = (pageInt - 1) * limitInt;
 
-  if (offset > 0) {
-    const previousPage = await query.limit(offset).get();
-    if (previousPage.size > 0) {
-      const lastDoc = previousPage.docs[previousPage.size - 1];
-      query = query.startAfter(lastDoc);
-    }
-  }
-
-  const snapshot = await query.limit(limitInt).get();
-
-  const transactions = [];
-  snapshot.forEach(doc => {
-    const transaction = {
-      id: doc.id,
-      ...doc.data()
-    };
-
-    if (transaction.createdAt) {
-      transaction.createdAt = transaction.createdAt.toDate?.() || transaction.createdAt;
-    }
-
-    transactions.push(transaction);
+  const transactions = await WalletTransaction.findAll({
+    where,
+    order: [['createdAt', 'DESC']],
+    limit: limitInt,
+    offset
   });
+
+  const total = await WalletTransaction.count({ where });
 
   res.json({
     success: true,
     data: {
-      transactions,
+      transactions: transactions.map(t => t.toJSON()),
       pagination: {
         currentPage: pageInt,
-        totalPages: Math.ceil(transactions.length / limitInt),
-        totalItems: transactions.length,
+        totalPages: Math.ceil(total / limitInt),
+        totalItems: total,
         itemsPerPage: limitInt
       }
     }
@@ -420,8 +393,8 @@ router.post('/withdraw', authenticateToken, [
   const { amount, bankDetails } = req.body;
 
   // Check wallet balance
-  const walletDoc = await db.collection('wallets').doc(userId).get();
-  const balance = walletDoc.exists ? (walletDoc.data().balance || 0) : 0;
+  const wallet = await Wallet.findOne({ where: { userId } });
+  const balance = wallet ? wallet.balance : 0;
 
   if (balance < amount) {
     throw new AppError('Insufficient wallet balance', 400);
@@ -433,35 +406,30 @@ router.post('/withdraw', authenticateToken, [
     amount,
     bankDetails,
     status: 'pending',
-    reference: 'WTH_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9).toUpperCase(),
-    createdAt: admin.firestore.FieldValue.serverTimestamp()
+    reference: 'WTH_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9).toUpperCase()
   };
 
-  const withdrawalRef = await db.collection('withdrawals').add(withdrawalData);
+  const withdrawal = await Withdrawal.create(withdrawalData);
 
   // Deduct from wallet (will be returned if withdrawal fails)
-  await db.collection('wallets').doc(userId).update({
-    balance: admin.firestore.FieldValue.increment(-amount),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp()
-  });
+  await wallet.update({ balance: wallet.balance - amount });
 
   // Create transaction record
-  await db.collection('wallet_transactions').add({
+  await WalletTransaction.create({
     userId,
     type: 'withdrawal',
     amount: -amount,
-    withdrawalId: withdrawalRef.id,
+    withdrawalId: withdrawal.id,
     reference: withdrawalData.reference,
     description: `Withdrawal of ₦${amount}`,
-    status: 'pending',
-    createdAt: admin.firestore.FieldValue.serverTimestamp()
+    status: 'pending'
   });
 
   res.status(201).json({
     success: true,
     message: 'Withdrawal request submitted successfully',
     data: {
-      withdrawalId: withdrawalRef.id,
+      withdrawalId: withdrawal.id,
       reference: withdrawalData.reference,
       amount,
       status: 'pending'
@@ -475,57 +443,55 @@ async function handleSuccessfulPayment(data) {
 
   if (metadata?.type === 'wallet_topup') {
     // Process wallet top-up
-    await db.collection('wallets').doc(metadata.userId).set({
-      balance: admin.firestore.FieldValue.increment(amount / 100),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
-    }, { merge: true });
+    let wallet = await Wallet.findOne({ where: { userId: metadata.userId } });
+    if (!wallet) {
+      wallet = await Wallet.create({ userId: metadata.userId, balance: 0 });
+    }
+    await wallet.update({ balance: wallet.balance + (amount / 100) });
 
     // Record transaction
-    await db.collection('wallet_transactions').add({
+    await WalletTransaction.create({
       userId: metadata.userId,
       type: 'topup',
       amount: amount / 100,
       reference,
       description: 'Wallet top-up',
-      status: 'completed',
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
+      status: 'completed'
     });
 
     // Notify user
-    await db.collection('notifications').add({
+    await Notification.create({
       userId: metadata.userId,
       type: 'wallet_topup',
       title: 'Wallet Top-up Successful',
       message: `₦${(amount / 100).toLocaleString()} has been added to your wallet`,
       amount: amount / 100,
-      read: false,
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
+      read: false
     });
   } else if (metadata?.type === 'escrow_payment') {
     // Process escrow payment
-    await db.collection('orders').doc(metadata.orderId).update({
-      paymentStatus: 'paid',
-      paymentReference: reference,
-      paidAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
-    });
+    const order = await Order.findByPk(metadata.orderId);
+    if (order) {
+      await order.update({
+        paymentStatus: 'paid',
+        paymentReference: reference,
+        paidAt: new Date()
+      });
 
-    // Notify buyer and vendors
-    const orderDoc = await db.collection('orders').doc(metadata.orderId).get();
-    const order = orderDoc.data();
+      const orderData = order.toJSON();
 
-    // Buyer notification
-    await db.collection('notifications').add({
-      userId: order.buyerId,
-      type: 'payment_successful',
-      title: 'Payment Successful',
-      message: `Payment of ₦${(amount / 100).toLocaleString()} for order ${order.orderNumber} was successful`,
-      orderId: metadata.orderId,
-      orderNumber: order.orderNumber,
-      amount: amount / 100,
-      read: false,
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
-    });
+      // Buyer notification
+      await Notification.create({
+        userId: orderData.buyerId,
+        type: 'payment_successful',
+        title: 'Payment Successful',
+        message: `Payment of ₦${(amount / 100).toLocaleString()} for order ${orderData.orderNumber} was successful`,
+        orderId: metadata.orderId,
+        orderNumber: orderData.orderNumber,
+        amount: amount / 100,
+        read: false
+      });
+    }
   }
 }
 
@@ -534,11 +500,13 @@ async function handleFailedPayment(data) {
 
   if (metadata?.orderId) {
     // Update order payment status
-    await db.collection('orders').doc(metadata.orderId).update({
-      paymentStatus: 'failed',
-      paymentReference: reference,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
-    });
+    const order = await Order.findByPk(metadata.orderId);
+    if (order) {
+      await order.update({
+        paymentStatus: 'failed',
+        paymentReference: reference
+      });
+    }
   }
 }
 
