@@ -38,7 +38,7 @@ git push
 1. Go to [vercel.com](https://vercel.com)
 2. Navigate to your existing project: `ojawa-green` (at ojawa-green.vercel.app)
 3. Go to Project Settings → General
-4. Update root directory to: `backend`
+4. Update root directory to: `backend` (not services/backend)
 5. Ensure the framework preset is set to "Other" or "Node.js"
 
 #### 3. Configure Environment Variables in Vercel

@@ -8,35 +8,19 @@ const morgan = require('morgan');
 const path = require('path');
 const fs = require('fs');
 
-// Import Firebase Admin
-const admin = require('firebase-admin');
+// Import PostgreSQL database
+const { sequelize } = require('./config/database');
+const { User, Product, Order, Cart, CartItem, Vendor, Wallet, Notification } = require('./models');
 
-// Initialize Firebase Admin only if credentials are available
+// Database connection
 let db = null;
 let auth = null;
 
-if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
-  try {
-    const serviceAccount = {
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    };
-
-    if (!admin.apps.length) {
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-        databaseURL: process.env.FIREBASE_DATABASE_URL,
-      });
-    }
-
-    db = admin.firestore();
-    auth = admin.auth();
-  } catch (error) {
-    console.error('Firebase initialization failed:', error.message);
-  }
+if (process.env.DATABASE_URL) {
+  db = sequelize;
+  console.log('✅ PostgreSQL database configured');
 } else {
-  console.warn('Firebase credentials not found - running in limited mode');
+  console.warn('⚠️ DATABASE_URL not found - database not available');
 }
 
 // Import routes
@@ -439,6 +423,17 @@ app.use(notFound);
 // Global error handler
 app.use(errorHandler);
 
+// Initialize database connection
+if (db) {
+  sequelize.sync({ force: false })
+    .then(() => {
+      console.log('✅ Database synchronized successfully');
+    })
+    .catch((error) => {
+      console.error('❌ Database synchronization failed:', error.message);
+    });
+}
+
 // Start server only if not running on Vercel
 if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
   app.listen(PORT, () => {
@@ -447,13 +442,15 @@ if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
   });
 
   // Graceful shutdown (only for local development)
-  process.on('SIGTERM', () => {
+  process.on('SIGTERM', async () => {
     logger.info('SIGTERM received, shutting down gracefully');
+    if (db) await sequelize.close();
     process.exit(0);
   });
 
-  process.on('SIGINT', () => {
+  process.on('SIGINT', async () => {
     logger.info('SIGINT received, shutting down gracefully');
+    if (db) await sequelize.close();
     process.exit(0);
   });
 }
