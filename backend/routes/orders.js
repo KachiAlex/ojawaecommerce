@@ -1,12 +1,11 @@
 const express = require('express');
 const { body, query, validationResult } = require('express-validator');
-const admin = require('firebase-admin');
+const { Op } = require('sequelize');
 const { AppError } = require('../middleware/errorHandler');
 const { asyncHandler } = require('../middleware/errorHandler');
 const { authenticateToken } = require('../middleware/auth');
+const { Order, Product, Notification, Cart } = require('../models');
 const router = express.Router();
-
-const db = admin.firestore();
 
 // Validation middleware
 const handleValidationErrors = (req, res, next) => {
@@ -52,13 +51,11 @@ router.post('/', authenticateToken, [
   const vendorIds = new Set();
 
   for (const item of items) {
-    const productDoc = await db.collection('products').doc(item.productId).get();
+    const product = await Product.findByPk(item.productId);
     
-    if (!productDoc.exists) {
+    if (!product) {
       throw new AppError(`Product ${item.productId} not found`, 400);
     }
-
-    const product = productDoc.data();
 
     // Check product availability
     if (product.status !== 'active') {
@@ -120,66 +117,56 @@ router.post('/', authenticateToken, [
     total,
     notes,
     couponCode,
-    vendorIds: Array.from(vendorIds),
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    vendorIds: Array.from(vendorIds)
   };
 
-  const orderRef = await db.collection('orders').add(orderData);
+  const order = await Order.create(orderData);
 
   // Update product stock
   for (const item of items) {
-    await db.collection('products').doc(item.productId).update({
-      stock: admin.firestore.FieldValue.increment(-item.quantity),
-      salesCount: admin.firestore.FieldValue.increment(item.quantity),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    const product = await Product.findByPk(item.productId);
+    await product.update({
+      stock: product.stock - item.quantity,
+      salesCount: (product.salesCount || 0) + item.quantity
     });
   }
 
   // Clear user's cart
-  await db.collection('carts').doc(userId).delete();
+  await Cart.destroy({ where: { userId } });
 
   // Create notifications for vendors
-  const vendorNotifications = [];
   for (const vendorId of vendorIds) {
     const vendorItems = orderItems.filter(item => item.vendorId === vendorId);
-    
-    vendorNotifications.push(
-      db.collection('notifications').add({
-        userId: vendorId,
-        type: 'new_order',
-        title: 'New Order Received',
-        message: `You have received a new order (${orderNumber}) containing ${vendorItems.length} item(s)`,
-        orderId: orderRef.id,
-        orderNumber,
-        itemCount: vendorItems.length,
-        totalAmount: vendorItems.reduce((sum, item) => sum + item.totalPrice, 0),
-        read: false,
-        createdAt: admin.firestore.FieldValue.serverTimestamp()
-      })
-    );
+    await Notification.create({
+      userId: vendorId,
+      type: 'new_order',
+      title: 'New Order Received',
+      message: `You have received a new order (${orderNumber}) containing ${vendorItems.length} item(s)`,
+      orderId: order.id,
+      orderNumber,
+      itemCount: vendorItems.length,
+      totalAmount: vendorItems.reduce((sum, item) => sum + item.totalPrice, 0),
+      read: false
+    });
   }
 
-  await Promise.all(vendorNotifications);
-
   // Create order confirmation notification for buyer
-  await db.collection('notifications').add({
+  await Notification.create({
     userId,
     type: 'order_confirmation',
     title: 'Order Placed Successfully',
     message: `Your order ${orderNumber} has been placed successfully`,
-    orderId: orderRef.id,
+    orderId: order.id,
     orderNumber,
     totalAmount: total,
-    read: false,
-    createdAt: admin.firestore.FieldValue.serverTimestamp()
+    read: false
   });
 
   res.status(201).json({
     success: true,
     message: 'Order created successfully',
     data: {
-      orderId: orderRef.id,
+      orderId: order.id,
       orderNumber,
       ...orderData
     }
@@ -208,60 +195,32 @@ router.get('/', [
     sortOrder = 'desc'
   } = req.query;
 
-  // Build query
-  let query = db.collection('orders').where('buyerId', '==', userId);
-
+  // Build query options
+  const where = { buyerId: userId };
   if (status) {
-    query = query.where('orderStatus', '==', status);
+    where.orderStatus = status;
   }
 
-  // Apply sorting
-  const sortDirection = sortOrder === 'asc' ? 'asc' : 'desc';
-  query = query.orderBy(sortBy, sortDirection);
-
-  // Pagination
+  const order = [[sortBy, sortOrder.toUpperCase()]];
   const limitInt = parseInt(limit);
   const pageInt = parseInt(page);
   const offset = (pageInt - 1) * limitInt;
 
   // Get total count
-  const countQuery = query;
-  const countSnapshot = await countQuery.get();
-  const total = countSnapshot.size;
+  const total = await Order.count({ where });
 
-  // Apply pagination
-  if (offset > 0) {
-    const previousPage = await query.limit(offset).get();
-    if (previousPage.size > 0) {
-      const lastDoc = previousPage.docs[previousPage.size - 1];
-      query = query.startAfter(lastDoc);
-    }
-  }
-
-  const snapshot = await query.limit(limitInt).get();
-
-  const orders = [];
-  snapshot.forEach(doc => {
-    const order = {
-      id: doc.id,
-      ...doc.data()
-    };
-
-    // Convert timestamps
-    if (order.createdAt) {
-      order.createdAt = order.createdAt.toDate?.() || order.createdAt;
-    }
-    if (order.updatedAt) {
-      order.updatedAt = order.updatedAt.toDate?.() || order.updatedAt;
-    }
-
-    orders.push(order);
+  // Fetch orders with pagination
+  const orders = await Order.findAll({
+    where,
+    order,
+    limit: limitInt,
+    offset
   });
 
   res.json({
     success: true,
     data: {
-      orders,
+      orders: orders.map(o => o.toJSON()),
       pagination: {
         currentPage: pageInt,
         totalPages: Math.ceil(total / limitInt),
@@ -283,33 +242,22 @@ router.get('/:id', authenticateToken, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const userId = req.user.uid;
 
-  const orderDoc = await db.collection('orders').doc(id).get();
+  const order = await Order.findByPk(id);
   
-  if (!orderDoc.exists) {
+  if (!order) {
     throw new AppError('Order not found', 404);
   }
 
-  const order = {
-    id: orderDoc.id,
-    ...orderDoc.data()
-  };
+  const orderData = order.toJSON();
 
   // Check ownership
-  if (order.buyerId !== userId && req.user.role !== 'admin') {
+  if (orderData.buyerId !== userId && req.user.role !== 'admin') {
     throw new AppError('Not authorized to view this order', 403);
-  }
-
-  // Convert timestamps
-  if (order.createdAt) {
-    order.createdAt = order.createdAt.toDate?.() || order.createdAt;
-  }
-  if (order.updatedAt) {
-    order.updatedAt = order.updatedAt.toDate?.() || order.updatedAt;
   }
 
   res.json({
     success: true,
-    data: order
+    data: orderData
   });
 }));
 
@@ -328,16 +276,16 @@ router.put('/:id/status', authenticateToken, [
   const { status, trackingNumber, notes } = req.body;
   const user = req.user;
 
-  const orderDoc = await db.collection('orders').doc(id).get();
+  const order = await Order.findByPk(id);
   
-  if (!orderDoc.exists) {
+  if (!order) {
     throw new AppError('Order not found', 404);
   }
 
-  const order = orderDoc.data();
+  const orderData = order.toJSON();
 
   // Check authorization (vendor or admin)
-  const isVendor = order.vendorIds.includes(user.uid);
+  const isVendor = orderData.vendorIds.includes(user.uid);
   const isAdmin = user.role === 'admin';
   
   if (!isVendor && !isAdmin) {
@@ -354,17 +302,14 @@ router.put('/:id/status', authenticateToken, [
     'delivered': []
   };
 
-  const currentStatus = order.orderStatus;
+  const currentStatus = orderData.orderStatus;
   const allowedStatuses = validTransitions[currentStatus] || [];
 
   if (!allowedStatuses.includes(status)) {
     throw new AppError(`Cannot change order status from ${currentStatus} to ${status}`, 400);
   }
 
-  const updates = {
-    orderStatus: status,
-    updatedAt: admin.firestore.FieldValue.serverTimestamp()
-  };
+  const updates = { orderStatus: status };
 
   if (trackingNumber) {
     updates.trackingNumber = trackingNumber;
@@ -379,38 +324,32 @@ router.put('/:id/status', authenticateToken, [
     status,
     changedBy: user.uid,
     changedByName: user.displayName || user.email,
-    changedAt: admin.firestore.FieldValue.serverTimestamp(),
     notes: notes || ''
   };
 
-  updates.statusHistory = admin.firestore.FieldValue.arrayUnion(statusLog);
+  const statusHistory = orderData.statusHistory || [];
+  updates.statusHistory = [...statusHistory, statusLog];
 
-  await db.collection('orders').doc(id).update(updates);
+  await order.update(updates);
 
   // Notify buyer of status change
-  await db.collection('notifications').add({
-    userId: order.buyerId,
+  await Notification.create({
+    userId: orderData.buyerId,
     type: 'order_status_update',
     title: `Order ${status.charAt(0).toUpperCase() + status.slice(1)}`,
-    message: `Your order ${order.orderNumber} has been ${status}`,
-    orderId: id,
-    orderNumber: order.orderNumber,
+    message: `Your order ${orderData.orderNumber} has been ${status}`,
+    orderId: order.id,
+    orderNumber: orderData.orderNumber,
     status,
-    read: false,
-    createdAt: admin.firestore.FieldValue.serverTimestamp()
+    read: false
   });
 
-  // Get updated order
-  const updatedOrderDoc = await db.collection('orders').doc(id).get();
-  const updatedOrder = {
-    id: updatedOrderDoc.id,
-    ...updatedOrderDoc.data()
-  };
+  const updatedOrder = await Order.findByPk(id);
 
   res.json({
     success: true,
     message: `Order status updated to ${status}`,
-    data: updatedOrder
+    data: updatedOrder.toJSON()
   });
 }));
 
@@ -427,53 +366,51 @@ router.post('/:id/cancel', authenticateToken, [
   const { reason } = req.body;
   const userId = req.user.uid;
 
-  const orderDoc = await db.collection('orders').doc(id).get();
+  const order = await Order.findByPk(id);
   
-  if (!orderDoc.exists) {
+  if (!order) {
     throw new AppError('Order not found', 404);
   }
 
-  const order = orderDoc.data();
+  const orderData = order.toJSON();
 
   // Check ownership
-  if (order.buyerId !== userId) {
+  if (orderData.buyerId !== userId) {
     throw new AppError('Not authorized to cancel this order', 403);
   }
 
   // Check if order can be cancelled
-  if (order.orderStatus !== 'pending') {
+  if (orderData.orderStatus !== 'pending') {
     throw new AppError('Order can only be cancelled while pending', 400);
   }
 
   // Update order status
-  await db.collection('orders').doc(id).update({
+  await order.update({
     orderStatus: 'cancelled',
     cancellationReason: reason || 'Cancelled by buyer',
-    cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    cancelledAt: new Date()
   });
 
   // Restore product stock
-  for (const item of order.items) {
-    await db.collection('products').doc(item.productId).update({
-      stock: admin.firestore.FieldValue.increment(item.quantity),
-      salesCount: admin.firestore.FieldValue.increment(-item.quantity),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+  for (const item of orderData.items) {
+    const product = await Product.findByPk(item.productId);
+    await product.update({
+      stock: product.stock + item.quantity,
+      salesCount: (product.salesCount || 0) - item.quantity
     });
   }
 
   // Notify vendors
-  for (const vendorId of order.vendorIds) {
-    await db.collection('notifications').add({
+  for (const vendorId of orderData.vendorIds) {
+    await Notification.create({
       userId: vendorId,
       type: 'order_cancelled',
       title: 'Order Cancelled',
-      message: `Order ${order.orderNumber} has been cancelled by the buyer`,
-      orderId: id,
-      orderNumber: order.orderNumber,
+      message: `Order ${orderData.orderNumber} has been cancelled by the buyer`,
+      orderId: order.id,
+      orderNumber: orderData.orderNumber,
       reason: reason || 'Cancelled by buyer',
-      read: false,
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
+      read: false
     });
   }
 
@@ -491,11 +428,7 @@ router.post('/:id/cancel', authenticateToken, [
 router.get('/summary/stats', authenticateToken, asyncHandler(async (req, res) => {
   const userId = req.user.uid;
 
-  const ordersSnapshot = await db.collection('orders')
-    .where('buyerId', '==', userId)
-    .get();
-
-  const orders = ordersSnapshot.docs.map(doc => doc.data());
+  const orders = await Order.findAll({ where: { buyerId: userId } });
 
   const stats = {
     totalOrders: orders.length,
