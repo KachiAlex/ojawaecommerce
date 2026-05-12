@@ -1,12 +1,11 @@
 const express = require('express');
 const { body, query, validationResult } = require('express-validator');
-const admin = require('firebase-admin');
+const { Op, Sequelize } = require('sequelize');
 const { AppError } = require('../middleware/errorHandler');
 const { asyncHandler } = require('../middleware/errorHandler');
 const { authenticateToken, requireAdmin, validateAdminContext } = require('../middleware/auth');
+const { User, Order, Product, AdminAuditLog, SecurityAuditLog, Notification } = require('../models');
 const router = express.Router();
-
-const db = admin.firestore();
 
 // Validation middleware
 const handleValidationErrors = (req, res, next) => {
@@ -42,73 +41,42 @@ router.get('/users', authenticateToken, requireAdmin, [
     search
   } = req.query;
 
-  let query = db.collection('users').orderBy('createdAt', 'desc');
-
-  // Apply filters
+  const where = {};
   if (role) {
-    query = query.where('role', '==', role);
+    where.role = role;
   }
-
   if (status) {
-    query = query.where('status', '==', status);
+    where.status = status;
+  }
+  if (search) {
+    where[Op.or] = [
+      { displayName: { [Op.iLike]: `%${search}%` } },
+      { email: { [Op.iLike]: `%${search}%` } }
+    ];
   }
 
-  // Pagination
   const limitInt = parseInt(limit);
   const pageInt = parseInt(page);
   const offset = (pageInt - 1) * limitInt;
 
-  if (offset > 0) {
-    const previousPage = await query.limit(offset).get();
-    if (previousPage.size > 0) {
-      const lastDoc = previousPage.docs[previousPage.size - 1];
-      query = query.startAfter(lastDoc);
-    }
-  }
-
-  const snapshot = await query.limit(limitInt).get();
-
-  const users = [];
-  snapshot.forEach(doc => {
-    const user = {
-      id: doc.id,
-      ...doc.data()
-    };
-
-    // Convert timestamps
-    if (user.createdAt) {
-      user.createdAt = user.createdAt.toDate?.() || user.createdAt;
-    }
-    if (user.lastLoginAt) {
-      user.lastLoginAt = user.lastLoginAt.toDate?.() || user.lastLoginAt;
-    }
-
-    // Remove sensitive information
-    delete user.password;
-
-    // Apply search filter if needed
-    if (search) {
-      const searchTerm = search.toLowerCase();
-      const matchesSearch = 
-        user.displayName?.toLowerCase().includes(searchTerm) ||
-        user.email?.toLowerCase().includes(searchTerm);
-      
-      if (matchesSearch) {
-        users.push(user);
-      }
-    } else {
-      users.push(user);
-    }
+  const users = await User.findAll({
+    where,
+    order: [['createdAt', 'DESC']],
+    limit: limitInt,
+    offset,
+    attributes: { exclude: ['password'] }
   });
+
+  const total = await User.count({ where });
 
   res.json({
     success: true,
     data: {
-      users,
+      users: users.map(u => u.toJSON()),
       pagination: {
         currentPage: pageInt,
-        totalPages: Math.ceil(users.length / limitInt),
-        totalItems: users.length,
+        totalPages: Math.ceil(total / limitInt),
+        totalItems: total,
         itemsPerPage: limitInt
       }
     }
@@ -128,50 +96,47 @@ router.put('/users/:id/status', authenticateToken, requireAdmin, validateAdminCo
   const { id } = req.params;
   const { status, reason } = req.body;
 
-  const userDoc = await db.collection('users').doc(id).get();
+  const user = await User.findByPk(id);
   
-  if (!userDoc.exists) {
+  if (!user) {
     throw new AppError('User not found', 404);
   }
 
-  const user = userDoc.data();
+  const userData = user.toJSON();
 
   // Prevent admin from deactivating themselves
   if (id === req.user.uid && status !== 'active') {
     throw new AppError('Cannot deactivate your own account', 400);
   }
 
-  await db.collection('users').doc(id).update({
+  await user.update({
     status,
     statusReason: reason,
     statusChangedBy: req.user.uid,
-    statusChangedAt: admin.firestore.FieldValue.serverTimestamp(),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    statusChangedAt: new Date()
   });
 
   // Log admin action
-  await db.collection('admin_audit_logs').add({
+  await AdminAuditLog.create({
     adminId: req.user.uid,
     adminEmail: req.user.email,
     action: 'user_status_change',
     targetUserId: id,
-    targetUserEmail: user.email,
-    oldStatus: user.status || 'active',
+    targetUserEmail: userData.email,
+    oldStatus: userData.status || 'active',
     newStatus: status,
     reason,
     ipAddress: req.ip,
-    userAgent: req.get('user-agent'),
-    timestamp: admin.firestore.FieldValue.serverTimestamp()
+    userAgent: req.get('user-agent')
   });
 
   // Notify user of status change
-  await db.collection('notifications').add({
+  await Notification.create({
     userId: id,
     type: 'account_status',
     title: `Account ${status.charAt(0).toUpperCase() + status.slice(1)}`,
     message: `Your account has been ${status}${reason ? ': ' + reason : ''}`,
-    read: false,
-    createdAt: admin.firestore.FieldValue.serverTimestamp()
+    read: false
   });
 
   res.json({
@@ -203,66 +168,44 @@ router.get('/orders', authenticateToken, requireAdmin, [
     endDate
   } = req.query;
 
-  let query = db.collection('orders').orderBy('createdAt', 'desc');
-
-  // Apply filters
+  const where = {};
   if (status) {
-    query = query.where('orderStatus', '==', status);
+    where.orderStatus = status;
   }
-
   if (paymentStatus) {
-    query = query.where('paymentStatus', '==', paymentStatus);
+    where.paymentStatus = paymentStatus;
+  }
+  if (startDate || endDate) {
+    where.createdAt = {};
+    if (startDate) {
+      where.createdAt[Op.gte] = new Date(startDate);
+    }
+    if (endDate) {
+      where.createdAt[Op.lte] = new Date(endDate);
+    }
   }
 
-  if (startDate) {
-    query = query.where('createdAt', '>=', admin.firestore.Timestamp.fromDate(new Date(startDate)));
-  }
-
-  if (endDate) {
-    query = query.where('createdAt', '<=', admin.firestore.Timestamp.fromDate(new Date(endDate)));
-  }
-
-  // Pagination
   const limitInt = parseInt(limit);
   const pageInt = parseInt(page);
   const offset = (pageInt - 1) * limitInt;
 
-  if (offset > 0) {
-    const previousPage = await query.limit(offset).get();
-    if (previousPage.size > 0) {
-      const lastDoc = previousPage.docs[previousPage.size - 1];
-      query = query.startAfter(lastDoc);
-    }
-  }
-
-  const snapshot = await query.limit(limitInt).get();
-
-  const orders = [];
-  snapshot.forEach(doc => {
-    const order = {
-      id: doc.id,
-      ...doc.data()
-    };
-
-    // Convert timestamps
-    if (order.createdAt) {
-      order.createdAt = order.createdAt.toDate?.() || order.createdAt;
-    }
-    if (order.updatedAt) {
-      order.updatedAt = order.updatedAt.toDate?.() || order.updatedAt;
-    }
-
-    orders.push(order);
+  const orders = await Order.findAll({
+    where,
+    order: [['createdAt', 'DESC']],
+    limit: limitInt,
+    offset
   });
+
+  const total = await Order.count({ where });
 
   res.json({
     success: true,
     data: {
-      orders,
+      orders: orders.map(o => o.toJSON()),
       pagination: {
         currentPage: pageInt,
-        totalPages: Math.ceil(orders.length / limitInt),
-        totalItems: orders.length,
+        totalPages: Math.ceil(total / limitInt),
+        totalItems: total,
         itemsPerPage: limitInt
       }
     }
@@ -290,62 +233,38 @@ router.get('/products', authenticateToken, requireAdmin, [
     category
   } = req.query;
 
-  let query = db.collection('products').orderBy('createdAt', 'desc');
-
-  // Apply filters
+  const where = {};
   if (status) {
-    query = query.where('status', '==', status);
+    where.status = status;
   }
-
   if (featured !== undefined) {
-    query = query.where('featured', '==', featured === 'true');
+    where.featured = featured === 'true' || featured === true;
   }
-
   if (category) {
-    query = query.where('category', '==', category);
+    where.category = category;
   }
 
-  // Pagination
   const limitInt = parseInt(limit);
   const pageInt = parseInt(page);
   const offset = (pageInt - 1) * limitInt;
 
-  if (offset > 0) {
-    const previousPage = await query.limit(offset).get();
-    if (previousPage.size > 0) {
-      const lastDoc = previousPage.docs[previousPage.size - 1];
-      query = query.startAfter(lastDoc);
-    }
-  }
-
-  const snapshot = await query.limit(limitInt).get();
-
-  const products = [];
-  snapshot.forEach(doc => {
-    const product = {
-      id: doc.id,
-      ...doc.data()
-    };
-
-    // Convert timestamps
-    if (product.createdAt) {
-      product.createdAt = product.createdAt.toDate?.() || product.createdAt;
-    }
-    if (product.updatedAt) {
-      product.updatedAt = product.updatedAt.toDate?.() || product.updatedAt;
-    }
-
-    products.push(product);
+  const products = await Product.findAll({
+    where,
+    order: [['createdAt', 'DESC']],
+    limit: limitInt,
+    offset
   });
+
+  const total = await Product.count({ where });
 
   res.json({
     success: true,
     data: {
-      products,
+      products: products.map(p => p.toJSON()),
       pagination: {
         currentPage: pageInt,
-        totalPages: Math.ceil(products.length / limitInt),
-        totalItems: products.length,
+        totalPages: Math.ceil(total / limitInt),
+        totalItems: total,
         itemsPerPage: limitInt
       }
     }
@@ -360,48 +279,45 @@ router.get('/products', authenticateToken, requireAdmin, [
 router.put('/products/:id/approve', authenticateToken, requireAdmin, validateAdminContext, asyncHandler(async (req, res) => {
   const { id } = req.params;
 
-  const productDoc = await db.collection('products').doc(id).get();
+  const product = await Product.findByPk(id);
   
-  if (!productDoc.exists) {
+  if (!product) {
     throw new AppError('Product not found', 404);
   }
 
-  const product = productDoc.data();
+  const productData = product.toJSON();
 
-  if (product.status === 'active') {
+  if (productData.status === 'active') {
     throw new AppError('Product is already active', 400);
   }
 
-  await db.collection('products').doc(id).update({
+  await product.update({
     status: 'active',
     approvedBy: req.user.uid,
-    approvedAt: admin.firestore.FieldValue.serverTimestamp(),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    approvedAt: new Date()
   });
 
   // Log admin action
-  await db.collection('admin_audit_logs').add({
+  await AdminAuditLog.create({
     adminId: req.user.uid,
     adminEmail: req.user.email,
     action: 'product_approval',
     targetProductId: id,
-    productName: product.name,
-    vendorId: product.vendorId,
+    productName: productData.name,
+    vendorId: productData.vendorId,
     ipAddress: req.ip,
-    userAgent: req.get('user-agent'),
-    timestamp: admin.firestore.FieldValue.serverTimestamp()
+    userAgent: req.get('user-agent')
   });
 
   // Notify vendor
-  await db.collection('notifications').add({
-    userId: product.vendorId,
+  await Notification.create({
+    userId: productData.vendorId,
     type: 'product_approved',
     title: 'Product Approved',
-    message: `Your product "${product.name}" has been approved and is now live`,
+    message: `Your product "${productData.name}" has been approved and is now live`,
     productId: id,
-    productName: product.name,
-    read: false,
-    createdAt: admin.firestore.FieldValue.serverTimestamp()
+    productName: productData.name,
+    read: false
   });
 
   res.json({
@@ -422,47 +338,44 @@ router.put('/products/:id/reject', authenticateToken, requireAdmin, validateAdmi
   const { id } = req.params;
   const { reason } = req.body;
 
-  const productDoc = await db.collection('products').doc(id).get();
+  const product = await Product.findByPk(id);
   
-  if (!productDoc.exists) {
+  if (!product) {
     throw new AppError('Product not found', 404);
   }
 
-  const product = productDoc.data();
+  const productData = product.toJSON();
 
-  await db.collection('products').doc(id).update({
+  await product.update({
     status: 'rejected',
     rejectionReason: reason,
     rejectedBy: req.user.uid,
-    rejectedAt: admin.firestore.FieldValue.serverTimestamp(),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    rejectedAt: new Date()
   });
 
   // Log admin action
-  await db.collection('admin_audit_logs').add({
+  await AdminAuditLog.create({
     adminId: req.user.uid,
     adminEmail: req.user.email,
     action: 'product_rejection',
     targetProductId: id,
-    productName: product.name,
-    vendorId: product.vendorId,
+    productName: productData.name,
+    vendorId: productData.vendorId,
     reason,
     ipAddress: req.ip,
-    userAgent: req.get('user-agent'),
-    timestamp: admin.firestore.FieldValue.serverTimestamp()
+    userAgent: req.get('user-agent')
   });
 
   // Notify vendor
-  await db.collection('notifications').add({
-    userId: product.vendorId,
+  await Notification.create({
+    userId: productData.vendorId,
     type: 'product_rejected',
     title: 'Product Rejected',
-    message: `Your product "${product.name}" has been rejected: ${reason}`,
+    message: `Your product "${productData.name}" has been rejected: ${reason}`,
     productId: id,
-    productName: product.name,
+    productName: productData.name,
     reason,
-    read: false,
-    createdAt: admin.firestore.FieldValue.serverTimestamp()
+    read: false
   });
 
   res.json({
@@ -483,39 +396,35 @@ router.get('/analytics/overview', authenticateToken, requireAdmin, asyncHandler(
 
   // Get key metrics in parallel
   const [
-    totalUsersSnapshot,
-    recentUsersSnapshot,
-    totalProductsSnapshot,
-    pendingProductsSnapshot,
-    totalOrdersSnapshot,
-    recentOrdersSnapshot,
-    revenueSnapshot
+    totalUsers,
+    recentUsers,
+    totalProducts,
+    pendingProducts,
+    totalOrders,
+    recentOrders,
+    revenueOrders
   ] = await Promise.all([
-    db.collection('users').get(),
-    db.collection('users').where('createdAt', '>=', admin.firestore.Timestamp.fromDate(thirtyDaysAgo)).get(),
-    db.collection('products').where('status', '==', 'active').get(),
-    db.collection('products').where('status', '==', 'pending').get(),
-    db.collection('orders').get(),
-    db.collection('orders').where('createdAt', '>=', admin.firestore.Timestamp.fromDate(sevenDaysAgo)).get(),
-    db.collection('orders').where('paymentStatus', '==', 'paid').where('createdAt', '>=', admin.firestore.Timestamp.fromDate(thirtyDaysAgo)).get()
+    User.count(),
+    User.count({ where: { createdAt: { [Op.gte]: thirtyDaysAgo } } }),
+    Product.count({ where: { status: 'active' } }),
+    Product.count({ where: { status: 'pending' } }),
+    Order.count(),
+    Order.count({ where: { createdAt: { [Op.gte]: sevenDaysAgo } } }),
+    Order.findAll({
+      where: {
+        paymentStatus: 'paid',
+        createdAt: { [Op.gte]: thirtyDaysAgo }
+      }
+    })
   ]);
 
-  // Calculate metrics
-  const totalUsers = totalUsersSnapshot.size;
-  const recentUsers = recentUsersSnapshot.size;
-  const totalProducts = totalProductsSnapshot.size;
-  const pendingProducts = pendingProductsSnapshot.size;
-  const totalOrders = totalOrdersSnapshot.size;
-  const recentOrders = recentOrdersSnapshot.size;
-  
-  const totalRevenue = revenueSnapshot.docs.reduce((sum, doc) => {
-    return sum + (doc.data().total || 0);
-  }, 0);
+  const totalRevenue = revenueOrders.reduce((sum, order) => sum + (order.total || 0), 0);
 
   // Get order status distribution
   const statusCounts = {};
-  totalOrdersSnapshot.forEach(doc => {
-    const status = doc.data().orderStatus || 'unknown';
+  const allOrders = await Order.findAll({ attributes: ['orderStatus'] });
+  allOrders.forEach(order => {
+    const status = order.orderStatus || 'unknown';
     statusCounts[status] = (statusCounts[status] || 0) + 1;
   });
 
@@ -560,63 +469,44 @@ router.get('/security/events', authenticateToken, requireAdmin, [
     endDate
   } = req.query;
 
-  let query = db.collection('security_audit_logs').orderBy('timestamp', 'desc');
-
-  // Apply filters
+  const where = {};
   if (eventType) {
-    query = query.where('eventType', '==', eventType);
+    where.eventType = eventType;
   }
-
   if (severity) {
-    query = query.where('severity', '==', severity);
+    where.severity = severity;
+  }
+  if (startDate || endDate) {
+    where.timestamp = {};
+    if (startDate) {
+      where.timestamp[Op.gte] = new Date(startDate);
+    }
+    if (endDate) {
+      where.timestamp[Op.lte] = new Date(endDate);
+    }
   }
 
-  if (startDate) {
-    query = query.where('timestamp', '>=', admin.firestore.Timestamp.fromDate(new Date(startDate)));
-  }
-
-  if (endDate) {
-    query = query.where('timestamp', '<=', admin.firestore.Timestamp.fromDate(new Date(endDate)));
-  }
-
-  // Pagination
   const limitInt = parseInt(limit);
   const pageInt = parseInt(page);
   const offset = (pageInt - 1) * limitInt;
 
-  if (offset > 0) {
-    const previousPage = await query.limit(offset).get();
-    if (previousPage.size > 0) {
-      const lastDoc = previousPage.docs[previousPage.size - 1];
-      query = query.startAfter(lastDoc);
-    }
-  }
-
-  const snapshot = await query.limit(limitInt).get();
-
-  const events = [];
-  snapshot.forEach(doc => {
-    const event = {
-      id: doc.id,
-      ...doc.data()
-    };
-
-    // Convert timestamp
-    if (event.timestamp) {
-      event.timestamp = event.timestamp.toDate?.() || event.timestamp;
-    }
-
-    events.push(event);
+  const events = await SecurityAuditLog.findAll({
+    where,
+    order: [['timestamp', 'DESC']],
+    limit: limitInt,
+    offset
   });
+
+  const total = await SecurityAuditLog.count({ where });
 
   res.json({
     success: true,
     data: {
-      events,
+      events: events.map(e => e.toJSON()),
       pagination: {
         currentPage: pageInt,
-        totalPages: Math.ceil(events.length / limitInt),
-        totalItems: events.length,
+        totalPages: Math.ceil(total / limitInt),
+        totalItems: total,
         itemsPerPage: limitInt
       }
     }
@@ -646,63 +536,44 @@ router.get('/audit-logs', authenticateToken, requireAdmin, [
     endDate
   } = req.query;
 
-  let query = db.collection('admin_audit_logs').orderBy('timestamp', 'desc');
-
-  // Apply filters
+  const where = {};
   if (action) {
-    query = query.where('action', '==', action);
+    where.action = action;
   }
-
   if (adminId) {
-    query = query.where('adminId', '==', adminId);
+    where.adminId = adminId;
+  }
+  if (startDate || endDate) {
+    where.timestamp = {};
+    if (startDate) {
+      where.timestamp[Op.gte] = new Date(startDate);
+    }
+    if (endDate) {
+      where.timestamp[Op.lte] = new Date(endDate);
+    }
   }
 
-  if (startDate) {
-    query = query.where('timestamp', '>=', admin.firestore.Timestamp.fromDate(new Date(startDate)));
-  }
-
-  if (endDate) {
-    query = query.where('timestamp', '<=', admin.firestore.Timestamp.fromDate(new Date(endDate)));
-  }
-
-  // Pagination
   const limitInt = parseInt(limit);
   const pageInt = parseInt(page);
   const offset = (pageInt - 1) * limitInt;
 
-  if (offset > 0) {
-    const previousPage = await query.limit(offset).get();
-    if (previousPage.size > 0) {
-      const lastDoc = previousPage.docs[previousPage.size - 1];
-      query = query.startAfter(lastDoc);
-    }
-  }
-
-  const snapshot = await query.limit(limitInt).get();
-
-  const logs = [];
-  snapshot.forEach(doc => {
-    const log = {
-      id: doc.id,
-      ...doc.data()
-    };
-
-    // Convert timestamp
-    if (log.timestamp) {
-      log.timestamp = log.timestamp.toDate?.() || log.timestamp;
-    }
-
-    logs.push(log);
+  const logs = await AdminAuditLog.findAll({
+    where,
+    order: [['timestamp', 'DESC']],
+    limit: limitInt,
+    offset
   });
+
+  const total = await AdminAuditLog.count({ where });
 
   res.json({
     success: true,
     data: {
-      auditLogs: logs,
+      auditLogs: logs.map(l => l.toJSON()),
       pagination: {
         currentPage: pageInt,
-        totalPages: Math.ceil(logs.length / limitInt),
-        totalItems: logs.length,
+        totalPages: Math.ceil(total / limitInt),
+        totalItems: total,
         itemsPerPage: limitInt
       }
     }
