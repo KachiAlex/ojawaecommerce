@@ -10,22 +10,34 @@ const fs = require('fs');
 
 // Import Firebase Admin
 const admin = require('firebase-admin');
-const serviceAccount = {
-  projectId: process.env.FIREBASE_PROJECT_ID,
-  clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-  privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-};
 
-// Initialize Firebase Admin
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-    databaseURL: process.env.FIREBASE_DATABASE_URL,
-  });
+// Initialize Firebase Admin only if credentials are available
+let db = null;
+let auth = null;
+
+if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
+  try {
+    const serviceAccount = {
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    };
+
+    if (!admin.apps.length) {
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+        databaseURL: process.env.FIREBASE_DATABASE_URL,
+      });
+    }
+
+    db = admin.firestore();
+    auth = admin.auth();
+  } catch (error) {
+    console.error('Firebase initialization failed:', error.message);
+  }
+} else {
+  console.warn('Firebase credentials not found - running in limited mode');
 }
-
-const db = admin.firestore();
-const auth = admin.auth();
 
 // Import routes
 const authRoutes = require('./routes/auth');
