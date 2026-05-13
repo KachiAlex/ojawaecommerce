@@ -39,7 +39,7 @@ const vendorProfile = {
 const ASSET_BASE_URL = process.env.PRODUCT_IMAGE_BASE_URL || 'https://ojawa.africa/assets/catalog';
 
 const buildAssetImage = (assetName) => {
-  const safeAsset = assetName || 'mixer.jpg';
+  const safeAsset = assetName || 'kitchenaid-stand-mixer.jpg';
   return `${ASSET_BASE_URL}/${safeAsset}`;
 };
 
@@ -54,7 +54,7 @@ const baseTemplates = [
     specifications: { power: '1400W', capacity: '6.5 qt', warranty: '2 years' },
     tags: ['appliance', 'multi-cooker'],
     skuPrefix: 'NFPC',
-    asset: 'multicooker.jpg'
+    asset: 'ninja-foodi.jpg'
   },
   {
     name: 'Breville Barista Espresso Machine',
@@ -66,7 +66,7 @@ const baseTemplates = [
     specifications: { power: '1600W', boiler: 'Thermocoil', grinder: 'Conical Burr' },
     tags: ['coffee', 'espresso'],
     skuPrefix: 'BBE',
-    asset: 'espresso.jpg'
+    asset: 'breville-barista.jpg'
   },
   {
     name: 'Le Creuset Signature Dutch Oven',
@@ -78,7 +78,7 @@ const baseTemplates = [
     specifications: { material: 'Enameled Cast Iron', capacity: '5.5 qt', ovenSafe: '500°F' },
     tags: ['cookware'],
     skuPrefix: 'LCSDO',
-    asset: 'dutch-oven.jpg'
+    asset: 'lecreuset-dutch-oven.jpg'
   },
   {
     name: 'All-Clad Stainless Steel Fry Pan Set',
@@ -90,7 +90,7 @@ const baseTemplates = [
     specifications: { material: 'Tri-ply Stainless', ovenSafe: '600°F', dishwasherSafe: true },
     tags: ['cookware', 'pan'],
     skuPrefix: 'ACFP',
-    asset: 'cookware.jpg'
+    asset: 'allclad-pan-set.jpg'
   },
   {
     name: 'KitchenAid Artisan Stand Mixer',
@@ -102,7 +102,7 @@ const baseTemplates = [
     specifications: { bowl: '5 qt Stainless', motor: '325W', speeds: 10 },
     tags: ['baking', 'mixer'],
     skuPrefix: 'KAASM',
-    asset: 'mixer.jpg'
+    asset: 'kitchenaid-stand-mixer.jpg'
   }
 ];
 

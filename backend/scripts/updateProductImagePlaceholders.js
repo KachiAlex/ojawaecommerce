@@ -12,7 +12,13 @@ envFiles.forEach((file) => {
 const { sequelize, Product } = require('../models');
 
 const ASSET_BASE_URL = process.env.PRODUCT_IMAGE_BASE_URL || 'https://ojawa.africa/assets/catalog';
-const assetRotation = ['mixer.jpg', 'cookware.jpg', 'espresso.jpg', 'multicooker.jpg', 'dutch-oven.jpg'];
+const assetRotation = [
+  'kitchenaid-stand-mixer.jpg',
+  'allclad-pan-set.jpg',
+  'breville-barista.jpg',
+  'ninja-foodi.jpg',
+  'lecreuset-dutch-oven.jpg'
+];
 
 const buildImageUrl = (index) => {
   const asset = assetRotation[index % assetRotation.length];
