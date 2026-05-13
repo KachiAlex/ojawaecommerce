@@ -72,10 +72,17 @@ const PORT = process.env.PORT || 8080;
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Ensure uploads directory exists
+const isServerless = process.env.VERCEL === '1' || !!process.env.NOW_REGION;
 const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
+
+if (!isServerless) {
+  try {
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+  } catch (error) {
+    console.warn('⚠️ Unable to create uploads directory:', error.message);
+  }
 }
 
 // CORS configuration - MUST be before helmet and other middleware

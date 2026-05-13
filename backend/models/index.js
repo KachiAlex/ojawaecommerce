@@ -68,8 +68,6 @@ EscrowReleaseModel.belongsTo(OrderModel, { foreignKey: 'orderId', as: 'order' })
 
 EscrowReleaseModel.belongsTo(UserModel, { foreignKey: 'vendorId', as: 'vendor' });
 
-WithdrawalModel.belongsTo(UserModel, { foreignKey: 'userId', as: 'user' });
-
 module.exports = {
   sequelize,
   User: UserModel,

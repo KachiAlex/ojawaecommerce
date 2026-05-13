@@ -8,7 +8,25 @@ const { authenticateToken } = require('../middleware/auth');
 const { User } = require('../models');
 const router = express.Router();
 
-const auth = admin.auth();
+let firebaseAuth = null;
+
+try {
+  if (admin.apps?.length > 0) {
+    firebaseAuth = admin.auth();
+    console.log('✅ Firebase Auth available for auth routes');
+  } else {
+    console.warn('⚠️ Firebase Admin not initialized - auth routes limited');
+  }
+} catch (error) {
+  console.warn('⚠️ Firebase Auth initialization failed in auth routes:', error.message);
+}
+
+const requireFirebaseAuth = () => {
+  if (!firebaseAuth) {
+    throw new AppError('Firebase authentication not configured', 503);
+  }
+  return firebaseAuth;
+};
 
 // Generate JWT token
 const generateToken = (payload) => {
@@ -45,13 +63,14 @@ router.post('/register', [
   const { email, password, displayName, role = 'user' } = req.body;
 
   // Check if user already exists
-  const existingUser = await auth.getUserByEmail(email).catch(() => null);
+  const authClient = requireFirebaseAuth();
+  const existingUser = await authClient.getUserByEmail(email).catch(() => null);
   if (existingUser) {
     throw new AppError('User already exists', 400);
   }
 
   // Create user in Firebase Auth
-  const userRecord = await auth.createUser({
+  const userRecord = await authClient.createUser({
     email,
     password,
     displayName,
@@ -376,7 +395,8 @@ router.post('/verify-email', authenticateToken, asyncHandler(async (req, res) =>
   const email = req.user.email;
 
   // Generate email verification link
-  const verificationLink = await auth.generateEmailVerificationLink(email);
+  const authClient = requireFirebaseAuth();
+  const verificationLink = await authClient.generateEmailVerificationLink(email);
 
   // Send verification email (implement email service)
   console.log('Email verification link:', verificationLink);

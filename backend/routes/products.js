@@ -78,7 +78,7 @@ router.get('/', [
     vendorId,
     minPrice,
     maxPrice,
-    status = 'active',
+    status,
     featured,
     sortBy = 'createdAt',
     sortOrder = 'desc'

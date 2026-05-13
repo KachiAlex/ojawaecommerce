@@ -1,11 +1,18 @@
 const winston = require('winston');
 const path = require('path');
-
-// Create logs directory if it doesn't exist
 const fs = require('fs');
+
+const isServerless = process.env.VERCEL === '1' || !!process.env.NOW_REGION;
 const logsDir = path.join(__dirname, '../logs');
-if (!fs.existsSync(logsDir)) {
-  fs.mkdirSync(logsDir, { recursive: true });
+
+if (!isServerless) {
+  try {
+    if (!fs.existsSync(logsDir)) {
+      fs.mkdirSync(logsDir, { recursive: true });
+    }
+  } catch (error) {
+    console.warn('⚠️ Unable to create logs directory:', error.message);
+  }
 }
 
 // Define log format
@@ -20,7 +27,7 @@ const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
   format: logFormat,
   defaultMeta: { service: 'ojawa-backend' },
-  transports: [
+  transports: isServerless ? [] : [
     // Write all logs with importance level of `error` or less to `error.log`
     new winston.transports.File({
       filename: path.join(logsDir, 'error.log'),
@@ -37,8 +44,8 @@ const logger = winston.createLogger({
   ]
 });
 
-// If we're not in production, log to the console
-if (process.env.NODE_ENV !== 'production') {
+// Add console transport for non-production OR serverless environments
+if (process.env.NODE_ENV !== 'production' || isServerless) {
   logger.add(new winston.transports.Console({
     format: winston.format.combine(
       winston.format.colorize(),

@@ -1,9 +1,50 @@
 const jwt = require('jsonwebtoken');
 const admin = require('firebase-admin');
 const { AppError } = require('./errorHandler');
+const { User } = require('../models');
 
-const auth = admin.auth();
-const db = admin.firestore();
+const hasFirebaseApp = admin.apps?.length > 0;
+let firebaseAuth = null;
+let firestore = null;
+
+if (hasFirebaseApp) {
+  try {
+    firebaseAuth = admin.auth();
+    firestore = admin.firestore();
+    console.log('✅ Firebase services available for auth middleware');
+  } catch (error) {
+    console.warn('⚠️ Firebase services unavailable:', error.message);
+  }
+} else {
+  console.warn('⚠️ Firebase Admin not initialized - auth middleware falling back to PostgreSQL');
+}
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+
+const sanitizeUser = (user) => {
+  if (!user) return null;
+  const { password, ...safe } = user;
+  return safe;
+};
+
+const findUserById = async (uid) => {
+  if (!uid) return null;
+
+  const sqlUser = await User.findByPk(uid);
+  if (sqlUser) {
+    const data = sqlUser.toJSON();
+    return { uid: data.id, ...sanitizeUser(data) };
+  }
+
+  if (firestore) {
+    const doc = await firestore.collection('users').doc(uid).get();
+    if (doc.exists) {
+      return { uid: doc.id, ...doc.data() };
+    }
+  }
+
+  return null;
+};
 
 /**
  * Authenticate JWT token middleware
@@ -18,15 +59,13 @@ const authenticateToken = async (req, res, next) => {
     }
 
     // Verify JWT token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
-    // Get user from Firestore
-    const userDoc = await db.collection('users').doc(decoded.uid).get();
-    if (!userDoc.exists) {
+    const decoded = jwt.verify(token, JWT_SECRET);
+
+    const user = await findUserById(decoded.uid);
+    if (!user) {
       return next(new AppError('User not found', 401));
     }
 
-    const user = { uid: userDoc.id, ...userDoc.data() };
     req.user = user;
     next();
   } catch (error) {
@@ -52,16 +91,18 @@ const verifyFirebaseToken = async (req, res, next) => {
     }
 
     // Verify Firebase ID token
-    const decodedToken = await auth.verifyIdToken(token);
+    if (!firebaseAuth) {
+      return next(new AppError('Firebase authentication not configured', 503));
+    }
+
+    const decodedToken = await firebaseAuth.verifyIdToken(token);
     const uid = decodedToken.uid;
 
-    // Get user from Firestore
-    const userDoc = await db.collection('users').doc(uid).get();
-    if (!userDoc.exists) {
+    const user = await findUserById(uid);
+    if (!user) {
       return next(new AppError('User not found', 401));
     }
 
-    const user = { uid, ...userDoc.data() };
     req.user = user;
     next();
   } catch (error) {
@@ -87,17 +128,18 @@ const requireAdmin = async (req, res, next) => {
       return next(new AppError('Admin privileges required', 403));
     }
 
-    // Log admin action
-    await db.collection('admin_audit_logs').add({
-      adminId: user.uid,
-      adminEmail: user.email,
-      action: 'api_access',
-      endpoint: req.path,
-      method: req.method,
-      ipAddress: req.ip,
-      userAgent: req.get('user-agent'),
-      timestamp: admin.firestore.FieldValue.serverTimestamp()
-    });
+    if (firestore) {
+      await firestore.collection('admin_audit_logs').add({
+        adminId: user.uid,
+        adminEmail: user.email,
+        action: 'api_access',
+        endpoint: req.path,
+        method: req.method,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent'),
+        timestamp: admin.firestore.FieldValue.serverTimestamp()
+      });
+    }
 
     next();
   } catch (error) {
@@ -114,10 +156,10 @@ const optionalAuth = async (req, res, next) => {
     const token = authHeader && authHeader.split(' ')[1];
 
     if (token) {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const userDoc = await db.collection('users').doc(decoded.uid).get();
-      if (userDoc.exists) {
-        req.user = { uid: userDoc.id, ...userDoc.data() };
+      const decoded = jwt.verify(token, JWT_SECRET);
+      const user = await findUserById(decoded.uid);
+      if (user) {
+        req.user = user;
       }
     }
     next();
@@ -137,7 +179,7 @@ const generateToken = (user) => {
     role: user.role || 'user'
   };
   
-  return jwt.sign(payload, process.env.JWT_SECRET, {
+  return jwt.sign(payload, JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN || '7d'
   });
 };
@@ -153,11 +195,15 @@ const validateAdminContext = async (req, res, next) => {
     const userAgent = req.get('user-agent') || 'unknown';
 
     // Get stored context from Firestore
-    const contextDoc = await db.collection('admin_contexts').doc(userId).get();
+    if (!firestore) {
+      return next();
+    }
+
+    const contextDoc = await firestore.collection('admin_contexts').doc(userId).get();
     
     if (!contextDoc.exists) {
       // First login - store context
-      await db.collection('admin_contexts').doc(userId).set({
+      await firestore.collection('admin_contexts').doc(userId).set({
         ipAddress,
         userAgent,
         timestamp: admin.firestore.FieldValue.serverTimestamp()
@@ -172,7 +218,7 @@ const validateAdminContext = async (req, res, next) => {
     if (timeDiff < 3600000) { // 1 hour
       if (storedContext.ipAddress !== ipAddress || storedContext.userAgent !== userAgent) {
         // Log suspicious activity
-        await db.collection('security_audit_logs').add({
+        await firestore.collection('security_audit_logs').add({
           userId,
           eventType: 'admin_context_mismatch',
           severity: 'medium',
@@ -191,7 +237,7 @@ const validateAdminContext = async (req, res, next) => {
 
     // Update context if enough time has passed
     if (timeDiff > 3600000) {
-      await db.collection('admin_contexts').doc(userId).update({
+      await firestore.collection('admin_contexts').doc(userId).update({
         ipAddress,
         userAgent,
         timestamp: admin.firestore.FieldValue.serverTimestamp()
