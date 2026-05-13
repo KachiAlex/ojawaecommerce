@@ -1,0 +1,23 @@
+<svg width="600" height="600" viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Stand mixer illustration">
+  <defs>
+    <linearGradient id="mixGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f8e3e7" />
+      <stop offset="100%" stop-color="#fbd4c4" />
+    </linearGradient>
+    <linearGradient id="mixBody" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ff857a" />
+      <stop offset="100%" stop-color="#ffb27f" />
+    </linearGradient>
+  </defs>
+  <rect width="600" height="600" fill="url(#mixGradient)" rx="32" />
+  <g transform="translate(80 120)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="0" y="90" width="440" height="180" rx="64" fill="url(#mixBody)" stroke="#ffede4" stroke-width="8" />
+    <rect x="60" y="140" width="320" height="80" rx="40" fill="rgba(255,255,255,0.2)" />
+    <path d="M180 270c0 42 34 76 76 76s76-34 76-76" stroke="#fff" stroke-width="16" />
+    <path d="M230 270c0 15 11 26 26 26s26-11 26-26" stroke="#fff" stroke-width="12" />
+    <rect x="180" y="350" width="160" height="40" rx="20" fill="#ffede4" />
+    <circle cx="360" cy="190" r="26" fill="#fff" opacity="0.6" />
+    <circle cx="320" cy="190" r="16" fill="#fff" opacity="0.4" />
+  </g>
+  <text x="300" y="520" text-anchor="middle" fill="#66352a" font-family="'Poppins', 'Segoe UI', sans-serif" font-size="34" font-weight="600">Premium Stand Mixer</text>
+</svg>

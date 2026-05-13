@@ -1,0 +1,24 @@
+<svg width="600" height="600" viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Multi-cooker illustration">
+  <defs>
+    <linearGradient id="multiBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e8fff7" />
+      <stop offset="100%" stop-color="#c9f5e6" />
+    </linearGradient>
+    <linearGradient id="multiBody" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#00c6a7" />
+      <stop offset="100%" stop-color="#1abc9c" />
+    </linearGradient>
+  </defs>
+  <rect width="600" height="600" fill="url(#multiBg)" rx="32" />
+  <g transform="translate(70 120)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="0" y="120" width="460" height="220" rx="110" fill="url(#multiBody)" stroke="#e8fff7" stroke-width="10" />
+    <rect x="80" y="70" width="300" height="120" rx="60" fill="#27d6bb" />
+    <rect x="140" y="30" width="180" height="80" rx="30" fill="#a4f2e2" />
+    <circle cx="230" cy="190" r="60" fill="#fff" opacity="0.85" />
+    <circle cx="230" cy="190" r="36" fill="#10a089" opacity="0.7" />
+    <rect x="170" y="250" width="120" height="60" rx="30" fill="#fff" opacity="0.7" />
+    <rect x="350" y="170" width="40" height="40" rx="12" fill="#fff" opacity="0.8" />
+    <rect x="70" y="170" width="40" height="40" rx="12" fill="#fff" opacity="0.5" />
+  </g>
+  <text x="300" y="520" text-anchor="middle" fill="#0c5f55" font-family="'Poppins', 'Segoe UI', sans-serif" font-size="34" font-weight="600">Smart Multi-Cooker</text>
+</svg>

@@ -36,6 +36,13 @@ const vendorProfile = {
   description: 'Curated kitchen appliances, cookware, and tools with escrow-backed fulfillment.'
 };
 
+const ASSET_BASE_URL = process.env.PRODUCT_IMAGE_BASE_URL || 'https://ojawa.africa/assets/catalog';
+
+const buildAssetImage = (assetName) => {
+  const safeAsset = assetName || 'mixer.jpg';
+  return `${ASSET_BASE_URL}/${safeAsset}`;
+};
+
 const baseTemplates = [
   {
     name: 'Ninja Foodi Pressure Cooker',
@@ -44,10 +51,10 @@ const baseTemplates = [
     basePrice: 149.99,
     priceStep: 4,
     stock: 24,
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=600&q=80'],
     specifications: { power: '1400W', capacity: '6.5 qt', warranty: '2 years' },
     tags: ['appliance', 'multi-cooker'],
-    skuPrefix: 'NFPC'
+    skuPrefix: 'NFPC',
+    asset: 'multicooker.jpg'
   },
   {
     name: 'Breville Barista Espresso Machine',
@@ -56,10 +63,10 @@ const baseTemplates = [
     basePrice: 549.99,
     priceStep: 7,
     stock: 12,
-    images: ['https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=600&q=80'],
     specifications: { power: '1600W', boiler: 'Thermocoil', grinder: 'Conical Burr' },
     tags: ['coffee', 'espresso'],
-    skuPrefix: 'BBE'
+    skuPrefix: 'BBE',
+    asset: 'espresso.jpg'
   },
   {
     name: 'Le Creuset Signature Dutch Oven',
@@ -68,10 +75,10 @@ const baseTemplates = [
     basePrice: 329.99,
     priceStep: 5,
     stock: 18,
-    images: ['https://images.unsplash.com/photo-1514517521153-1be72277b32f?w=600&q=80'],
     specifications: { material: 'Enameled Cast Iron', capacity: '5.5 qt', ovenSafe: '500°F' },
     tags: ['cookware'],
-    skuPrefix: 'LCSDO'
+    skuPrefix: 'LCSDO',
+    asset: 'dutch-oven.jpg'
   },
   {
     name: 'All-Clad Stainless Steel Fry Pan Set',
@@ -80,10 +87,10 @@ const baseTemplates = [
     basePrice: 189.99,
     priceStep: 3,
     stock: 30,
-    images: ['https://images.unsplash.com/photo-1506368079540-904bcc762636?w=600&q=80'],
     specifications: { material: 'Tri-ply Stainless', ovenSafe: '600°F', dishwasherSafe: true },
     tags: ['cookware', 'pan'],
-    skuPrefix: 'ACFP'
+    skuPrefix: 'ACFP',
+    asset: 'cookware.jpg'
   },
   {
     name: 'KitchenAid Artisan Stand Mixer',
@@ -92,10 +99,10 @@ const baseTemplates = [
     basePrice: 299.99,
     priceStep: 6,
     stock: 20,
-    images: ['https://images.unsplash.com/photo-1585515656519-7d2e1d7b1f3e?w=600&q=80'],
     specifications: { bowl: '5 qt Stainless', motor: '325W', speeds: 10 },
     tags: ['baking', 'mixer'],
-    skuPrefix: 'KAASM'
+    skuPrefix: 'KAASM',
+    asset: 'mixer.jpg'
   }
 ];
 
@@ -111,13 +118,16 @@ function generateProducts(target = 50) {
     const color = palette[variantIndex % palette.length];
     const price = Number((template.basePrice + variantIndex * template.priceStep).toFixed(2));
 
+    const productName = `${template.name} - ${color} Edition ${variantIndex}`;
+    const imageUrl = buildAssetImage(template.asset);
     products.push({
-      name: `${template.name} - ${color} Edition ${variantIndex}`,
+      name: productName,
       description: `${template.description} Tuned for ${color.toLowerCase()}-themed kitchens and batch ${variantIndex}.`,
       category: template.category,
       price,
       stockQuantity: template.stock + variantIndex * 2,
-      images: template.images,
+      images: [imageUrl],
+      thumbnail: imageUrl,
       specifications: {
         ...template.specifications,
         color,
