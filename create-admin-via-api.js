@@ -7,7 +7,7 @@ async function createAdminViaAPI() {
     // Step 1: Register admin account
     const registerData = JSON.stringify({
       email: 'admin@ojawa.africa',
-      password: 'Admin@123456!',
+      password: 'admin123',
       displayName: 'Ojawa Africa Admin',
       role: 'admin'
     });
@@ -37,8 +37,8 @@ async function createAdminViaAPI() {
           
           if (response.success) {
             console.log('Admin account created successfully!');
-            console.log('Email: admin@ojawa.africa');
-            console.log('Password: Admin@123456!');
+            console.log('Admin account ensured via API. Credentials: admin@ojawa.africa / admin123');
+            console.log('Password: admin123');
             
             // Test login immediately
             testAdminLogin();
@@ -70,7 +70,7 @@ function testAdminLogin() {
   
   const loginData = JSON.stringify({
     email: 'admin@ojawa.africa',
-    password: 'Admin@123456!'
+    password: 'admin123'
   });
   
   const loginOptions = {

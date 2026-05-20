@@ -50,7 +50,7 @@ export const AuthProvider = ({ children }) => {
       if (!token) return null;
       
       try {
-        const res = await fetch('https://ojawa-green.vercel.app/api/auth/me', {
+        const res = await fetch('https://backend-two-xi-52.vercel.app/api/auth/me', {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -307,7 +307,7 @@ export const AuthProvider = ({ children }) => {
         
         // Try to get user data in background
         try {
-          const res = await fetch('https://ojawa-green.vercel.app/api/auth/me', {
+          const res = await fetch('https://backend-two-xi-52.vercel.app/api/auth/me', {
             method: 'GET',
             headers: {
               'Authorization': `Bearer ${token}`,

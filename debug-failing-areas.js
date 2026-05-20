@@ -126,9 +126,9 @@ async function debugAdminSystem() {
     console.log('\n2.1 Testing admin login...');
     
     const adminCredentials = [
-      { email: 'admin@ojawa.africa', password: 'Admin@123456!' },
+      { email: 'admin@ojawa.africa', password: 'admin123' },
       { email: 'admin@ojawa.com', password: 'Admin123!' },
-      { email: 'admin@ojawa.test', password: 'Admin@123456!' }
+      { email: 'admin@ojawa.test', password: 'admin123' }
     ];
     
     for (const creds of adminCredentials) {

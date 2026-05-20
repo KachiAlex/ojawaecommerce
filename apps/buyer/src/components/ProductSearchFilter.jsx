@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'https://ojawa-green.vercel.app';
+const API_BASE = import.meta.env.VITE_API_BASE || 'https://backend-two-xi-52.vercel.app';
 
 const ProductSearchFilter = ({ onSearchResults, onLoading, featuredProducts = [] }) => {
   console.log('🔍 ProductSearchFilter: Component initialized');

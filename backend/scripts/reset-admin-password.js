@@ -1,4 +1,4 @@
-const { admin, db } = require('./scripts/adminInit');
+const { admin, db } = require('../firebase-admin');
 const auth = admin.auth();
 
 async function resetAdminPassword() {
@@ -42,58 +42,6 @@ async function resetAdminPassword() {
     console.log('Email: admin@ojawa.africa');
     console.log('Password: admin123');
     console.log('Login URL: https://ojawa-ecommerce.web.app/admin/login');
-    
-    // Test login
-    const https = require('https');
-    
-    const loginData = JSON.stringify({
-      email: 'admin@ojawa.africa',
-      password: 'admin123'
-    });
-    
-    const loginOptions = {
-      hostname: 'ojawaecommerce.onrender.com',
-      port: 443,
-      path: '/auth/login',
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(loginData)
-      }
-    };
-    
-    const loginReq = https.request(loginOptions, (res) => {
-      let data = '';
-      
-      res.on('data', (chunk) => {
-        data += chunk;
-      });
-      
-      res.on('end', () => {
-        try {
-          const response = JSON.parse(data);
-          console.log('\nLogin test result:', response);
-          
-          if (response.success) {
-            console.log('Admin login successful!');
-            console.log('Token:', response.data.token.substring(0, 50) + '...');
-            console.log('Role:', response.data.role);
-          } else {
-            console.log('Login failed:', response.error);
-          }
-        } catch (parseError) {
-          console.error('Failed to parse login response:', parseError.message);
-          console.log('Raw response:', data);
-        }
-      });
-    });
-    
-    loginReq.on('error', (error) => {
-      console.error('Login test failed:', error.message);
-    });
-    
-    loginReq.write(loginData);
-    loginReq.end();
     
   } catch (error) {
     console.error('Error resetting admin password:', error);

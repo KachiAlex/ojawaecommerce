@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'https://ojawa-green.vercel.app';
+const API_BASE = import.meta.env.VITE_API_BASE || 'https://backend-two-xi-52.vercel.app';
 
 // NOTE: This service was migrated from Firestore to REST endpoints on the Render backend.
 // TODO: Implement the corresponding backend endpoints under `/api/analytics/buyer/*`.

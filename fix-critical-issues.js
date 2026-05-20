@@ -46,7 +46,7 @@ async function fixAdminAccount() {
     // Create new admin account
     const userRecord = await admin.auth().createUser({
       email: 'admin@ojawa.africa',
-      password: 'Admin@123456!',
+      password: 'admin123',
       displayName: 'Ojawa Africa Admin',
       emailVerified: true
     });
@@ -88,7 +88,7 @@ async function fixAdminAccount() {
     
     console.log('Admin account fixed successfully!');
     console.log('Email: admin@ojawa.africa');
-    console.log('Password: Admin@123456!');
+    console.log('Password: admin123');
     
   } catch (error) {
     console.error('Admin account fix failed:', error.message);
@@ -215,7 +215,7 @@ async function testFixes() {
     console.log('\nTesting admin login...');
     const adminLoginData = JSON.stringify({
       email: 'admin@ojawa.africa',
-      password: 'Admin@123456!'
+      password: 'admin123'
     });
     
     const adminResponse = await makeRequest('/auth/login', 'POST', adminLoginData);

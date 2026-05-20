@@ -7,7 +7,7 @@ const api = {
   async request(path, options = {}) {
     // Use Vercel backend in production
     const baseUrl = import.meta.env.PROD 
-      ? 'https://ojawa-green.vercel.app'
+      ? 'https://backend-two-xi-52.vercel.app'
       : (config.app.apiBaseUrl || (typeof window !== 'undefined' ? window.location.origin : ''));
     
     const fullPath = path.startsWith('http') ? path : `${baseUrl}${path}`;

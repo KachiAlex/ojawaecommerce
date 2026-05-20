@@ -3,6 +3,18 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { BrowserRouter } from 'react-router-dom'
 import Products from './Products'
 
+const { mockGetAllProducts } = vi.hoisted(() => ({
+  mockGetAllProducts: vi.fn(),
+}))
+
+vi.mock('../services/firebaseService', () => ({
+  default: {
+    product: {
+      getAll: mockGetAllProducts
+    }
+  }
+}))
+
 // Mock Firebase config
 vi.mock('../firebase/config', () => ({
   db: {},
@@ -134,6 +146,7 @@ describe('Products Page', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks()
+    mockGetAllProducts.mockResolvedValue(mockProducts)
     
     // Mock Firestore getDocs - always return products (component extracts categories from products)
     const { getDocs } = await import('firebase/firestore')
@@ -265,6 +278,7 @@ describe('Products Page', () => {
     vi.mocked(getDocs).mockResolvedValue({
       docs: [],
     })
+    mockGetAllProducts.mockResolvedValue([])
 
     render(
       <TestWrapper>
@@ -298,7 +312,7 @@ describe('Products Page', () => {
     )
 
     await waitFor(() => {
-      const filtersButton = screen.getByText(/filters/i)
+      const filtersButton = screen.getByRole('button', { name: /filters/i })
       expect(filtersButton).toBeInTheDocument()
     })
   })
@@ -306,6 +320,7 @@ describe('Products Page', () => {
   it('handles error state', async () => {
     const { getDocs } = await import('firebase/firestore')
     vi.mocked(getDocs).mockRejectedValue(new Error('Database error'))
+    mockGetAllProducts.mockRejectedValue(new Error('Database error'))
 
     render(
       <TestWrapper>

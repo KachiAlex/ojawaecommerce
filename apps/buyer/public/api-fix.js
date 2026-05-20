@@ -8,24 +8,26 @@
   window.fetch = function(...args) {
     const [url, options] = args;
     
-    // If it's a relative API call, redirect to Render backend
+    const backendBase = 'https://backend-two-xi-52.vercel.app';
+
+    // If it's a relative API call, redirect to Vercel backend
     if (typeof url === 'string' && url.startsWith('/api/')) {
-      const renderUrl = 'https://ojawa-green.vercel.app' + url;
-      console.log('🔄 Redirecting API call:', url, '→', renderUrl);
-      return originalFetch.call(this, renderUrl, options);
+      const targetUrl = backendBase + url;
+      console.log('🔄 Redirecting API call:', url, '→', targetUrl);
+      return originalFetch.call(this, targetUrl, options);
     }
-    
+
     // If it's a relative call to current domain for API, redirect
     if (typeof url === 'string' && 
         (url.includes('api/') || url.includes('/api')) && 
         !url.startsWith('http')) {
-      const renderUrl = 'https://ojawa-green.vercel.app/api' + url.replace(/.*api/, '');
-      console.log('🔄 Redirecting API call:', url, '→', renderUrl);
-      return originalFetch.call(this, renderUrl, options);
+      const targetUrl = backendBase + '/api' + url.replace(/.*api/, '');
+      console.log('🔄 Redirecting API call:', url, '→', targetUrl);
+      return originalFetch.call(this, targetUrl, options);
     }
-    
+
     return originalFetch.apply(this, args);
   };
   
-  console.log('✅ API URL override loaded - forcing Render backend calls');
+  console.log('✅ API URL override loaded - forcing Vercel backend calls');
 })();

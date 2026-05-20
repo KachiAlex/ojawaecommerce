@@ -1,5 +1,5 @@
 // Create Admin and Logistics Mock Accounts
-const fetch = require('node-fetch');
+const axios = require('axios');
 
 const API_BASE = 'https://ojawaecommerce.onrender.com';
 
@@ -97,22 +97,16 @@ async function createAdminAccount() {
     // Try to register admin
     console.log('1️⃣ Attempting admin registration...');
     try {
-      const registerResponse = await fetch(`${API_BASE}/auth/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          email: adminData.email,
-          password: adminData.password,
-          displayName: adminData.displayName,
-          role: adminData.role
-        })
+      const registerResponse = await axios.post(`${API_BASE}/auth/register`, {
+        email: adminData.email,
+        password: adminData.password,
+        displayName: adminData.displayName,
+        role: adminData.role
       });
       
-      const registerResult = await registerResponse.json();
+      const registerResult = registerResponse.data;
       
-      if (registerResponse.ok) {
+      if (registerResponse.status === 200) {
         console.log('✅ Admin registration successful!');
         console.log('📋 Registration Response:', JSON.stringify(registerResult, null, 2));
       } else if (registerResponse.status === 400 && registerResult.error && registerResult.error.includes('already exists')) {
@@ -129,20 +123,14 @@ async function createAdminAccount() {
     // Try to login
     console.log('\n2️⃣ Attempting admin login...');
     try {
-      const loginResponse = await fetch(`${API_BASE}/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          email: adminData.email,
-          password: adminData.password
-        })
+      const loginResponse = await axios.post(`${API_BASE}/auth/login`, {
+        email: adminData.email,
+        password: adminData.password
       });
       
-      const loginResult = await loginResponse.json();
+      const loginResult = loginResponse.data;
       
-      if (loginResponse.ok) {
+      if (loginResponse.status === 200) {
         console.log('✅ Admin login successful!');
         console.log('🔑 Authentication Token:', loginResult.token);
         console.log('👤 Admin Info:', JSON.stringify(loginResult.user, null, 2));
@@ -174,22 +162,16 @@ async function createLogisticsAccount() {
     // Try to register logistics
     console.log('1️⃣ Attempting logistics registration...');
     try {
-      const registerResponse = await fetch(`${API_BASE}/auth/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          email: logisticsData.email,
-          password: logisticsData.password,
-          displayName: logisticsData.displayName,
-          role: logisticsData.role
-        })
+      const registerResponse = await axios.post(`${API_BASE}/auth/register`, {
+        email: logisticsData.email,
+        password: logisticsData.password,
+        displayName: logisticsData.displayName,
+        role: logisticsData.role
       });
       
-      const registerResult = await registerResponse.json();
+      const registerResult = registerResponse.data;
       
-      if (registerResponse.ok) {
+      if (registerResponse.status === 200) {
         console.log('✅ Logistics registration successful!');
         console.log('📋 Registration Response:', JSON.stringify(registerResult, null, 2));
       } else if (registerResponse.status === 400 && registerResult.error && registerResult.error.includes('already exists')) {
@@ -206,20 +188,14 @@ async function createLogisticsAccount() {
     // Try to login
     console.log('\n2️⃣ Attempting logistics login...');
     try {
-      const loginResponse = await fetch(`${API_BASE}/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          email: logisticsData.email,
-          password: logisticsData.password
-        })
+      const loginResponse = await axios.post(`${API_BASE}/auth/login`, {
+        email: logisticsData.email,
+        password: logisticsData.password
       });
       
-      const loginResult = await loginResponse.json();
+      const loginResult = loginResponse.data;
       
-      if (loginResponse.ok) {
+      if (loginResponse.status === 200) {
         console.log('✅ Logistics login successful!');
         console.log('🔑 Authentication Token:', loginResult.token);
         console.log('👤 Logistics Info:', JSON.stringify(loginResult.user, null, 2));
@@ -292,18 +268,15 @@ async function createLogisticsServices(token) {
     const service = logisticsServices[i];
     
     try {
-      const response = await fetch(`${API_BASE}/api/logistics/services`, {
-        method: 'POST',
+      const response = await axios.post(`${API_BASE}/api/logistics/services`, service, {
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(service)
+        }
       });
       
-      const result = await response.json();
+      const result = response.data;
       
-      if (response.ok) {
+      if (response.status === 200) {
         console.log(`✅ Created service ${i + 1}: ${service.name}`);
         successCount++;
       } else {

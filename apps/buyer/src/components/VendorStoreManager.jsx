@@ -5,7 +5,7 @@ import axios from 'axios';
 import firebaseService from '../services/firebaseService';
 import ProductEditorModal from './ProductEditorModal';
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'https://ojawa-green.vercel.app';
+const API_BASE = import.meta.env.VITE_API_BASE || 'https://backend-two-xi-52.vercel.app';
 
 const VendorStoreManager = ({ 
   products = [], 

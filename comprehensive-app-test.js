@@ -307,7 +307,7 @@ async function testAdmin(results) {
   try {
     const loginData = JSON.stringify({
       email: 'admin@ojawa.africa',
-      password: 'Admin@123456!'
+      password: 'admin123'
     });
     
     const response = await makeRequest('/auth/login', 'POST', loginData);

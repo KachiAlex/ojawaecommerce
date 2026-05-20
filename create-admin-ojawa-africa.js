@@ -10,7 +10,7 @@ async function createAdminAccount() {
     try {
       userRecord = await auth.createUser({
         email: 'admin@ojawa.africa',
-        password: 'Admin@123456!',
+        password: 'admin123',
         displayName: 'Ojawa Africa Admin',
         emailVerified: true
       });
@@ -61,7 +61,7 @@ async function createAdminAccount() {
     
     console.log('\n🎉 Admin account created successfully!');
     console.log('📧 Email: admin@ojawa.africa');
-    console.log('🔑 Password: Admin@123456!');
+    console.log('🔑 Password: admin123');
     console.log('🌐 Login URL: https://ojawa-ecommerce.web.app/admin/login');
     
   } catch (error) {
