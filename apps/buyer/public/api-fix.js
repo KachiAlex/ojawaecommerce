@@ -8,7 +8,7 @@
   window.fetch = function(...args) {
     const [url, options] = args;
     
-    const backendBase = 'https://backend-two-xi-52.vercel.app';
+    const backendBase = 'https://ojawa-green.vercel.app';
 
     // If it's a relative API call, redirect to Vercel backend
     if (typeof url === 'string' && url.startsWith('/api/')) {

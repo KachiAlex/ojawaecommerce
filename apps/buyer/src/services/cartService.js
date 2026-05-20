@@ -1,7 +1,7 @@
 import { errorLogger } from '../utils/errorLogger';
 import productService from './productService';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://backend-two-xi-52.vercel.app';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://ojawa-green.vercel.app';
 
 class CartService {
   constructor() {
