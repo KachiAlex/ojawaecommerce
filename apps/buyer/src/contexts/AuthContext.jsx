@@ -130,7 +130,7 @@ export const AuthProvider = ({ children }) => {
     try {
       console.log('🔐 AuthContext: Signing in user via REST:', email);
       const res = await firebaseService.auth.signin(email, password);
-      const user = res?.user || res;
+      const user = res?.data?.user || res?.data || res?.user || res;
       if (!user) throw new Error('Invalid signin response from server');
 
       // Email verification is no longer required - users can login immediately
@@ -145,7 +145,7 @@ export const AuthProvider = ({ children }) => {
       // }
 
       try {
-        const profile = res?.profile || (user?.id || user?.uid ? await firebaseService.auth.getProfile(user.id || user.uid) : null);
+        const profile = res?.data?.profile || res?.profile || (user?.id || user?.uid ? await firebaseService.auth.getProfile(user.id || user.uid) : null);
         if (profile) {
           setUserProfile(profile);
           // Ensure userType is available in user object

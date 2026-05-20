@@ -28,14 +28,14 @@ export const MessagingProvider = ({ children }) => {
   const MESSAGE_LIMIT = 40;
 
   const getUnreadForCurrentUser = useCallback((conversation) => {
-    if (!conversation || !currentUser?.uid) return 0;
     const rawUnread = conversation.unreadCount;
     if (typeof rawUnread === 'number') return rawUnread;
     if (rawUnread && typeof rawUnread === 'object') {
-      return rawUnread[currentUser.uid] || 0;
+      const userId = currentUser?.uid || currentUser?.id;
+      return rawUnread[userId] || 0;
     }
     return 0;
-  }, [currentUser?.uid]);
+  }, [currentUser?.uid, currentUser?.id]);
 
   const timestampToDate = (value) => {
     if (!value) return new Date(0);
@@ -96,8 +96,14 @@ export const MessagingProvider = ({ children }) => {
     
     try {
       setLoading(true);
+      const userId = currentUser.uid || currentUser.id;
+      if (!userId) {
+        console.warn('No user ID available for fetching conversations');
+        setLoading(false);
+        return undefined;
+      }
       const userConversations = await firebaseService.messaging.getUserConversations(
-        currentUser.uid,
+        userId,
         { limit: CONVERSATION_LIMIT }
       );
       const normalized = normalizeConversations(userConversations);
@@ -115,8 +121,13 @@ export const MessagingProvider = ({ children }) => {
   // Start a new conversation
   const startConversation = async (otherUserId, orderId = null) => {
     try {
+      const userId = currentUser.uid || currentUser.id;
+      if (!userId) {
+        console.warn('No user ID available for starting conversation');
+        throw new Error('No user ID available');
+      }
       const conversation = await firebaseService.messaging.getOrCreateConversation(
-        currentUser.uid,
+        userId,
         otherUserId,
         orderId
       );
@@ -154,11 +165,16 @@ export const MessagingProvider = ({ children }) => {
   };
 
   // Send a message
-  const sendMessage = async (conversationId, content, type = 'text') => {
+  const sendMessage = async ({ conversationId, content, type = 'text' }) => {
     try {
+      const userId = currentUser.uid || currentUser.id;
+      if (!userId) {
+        console.warn('No user ID available for sending message');
+        throw new Error('No user ID available');
+      }
       const message = await firebaseService.messaging.sendMessage({
         conversationId,
-        senderId: currentUser.uid,
+        senderId: userId,
         content,
         type,
         timestamp: new Date()
@@ -187,17 +203,18 @@ export const MessagingProvider = ({ children }) => {
   // Mark conversation as read
   const markAsRead = async (conversationRef) => {
     try {
-      if (!conversationRef) return;
-      const conversationIds = Array.isArray(conversationRef)
-        ? conversationRef
-        : typeof conversationRef === 'object'
-          ? (conversationRef.relatedConversationIds?.length
-              ? conversationRef.relatedConversationIds
-              : [conversationRef.id])
-          : [conversationRef];
+      const userId = currentUser.uid || currentUser.id;
+      if (!userId) {
+        console.warn('No user ID available for marking as read');
+        return;
+      }
+      const conversationIds = conversationId
+        ? [conversationId]
+        : [activeConversation?.id]
+          .filter(Boolean);
       
       await Promise.all(
-        conversationIds.map(id => firebaseService.messaging.markAsRead(id, currentUser.uid))
+        conversationIds.map(id => firebaseService.messaging.markAsRead(id, userId))
       );
       
       setConversations(prev => {
@@ -262,8 +279,15 @@ export const MessagingProvider = ({ children }) => {
 
     setLoading(true);
     
+    const userId = currentUser.uid || currentUser.id;
+    if (!userId) {
+      console.warn('No user ID available for conversation listener');
+      setLoading(false);
+      return;
+    }
+    
     const unsubscribe = firebaseService.messaging.listenToUserConversations(
-      currentUser.uid,
+      userId,
       (newConversations) => {
         const normalized = normalizeConversations(newConversations);
         setConversations(normalized);
@@ -297,10 +321,15 @@ export const MessagingProvider = ({ children }) => {
 
     const initFCM = async () => {
       try {
-        console.log('Initializing FCM for user:', currentUser.uid);
+        const userId = currentUser.uid || currentUser.id;
+        if (!userId) {
+          console.warn('No user ID available for FCM initialization');
+          return;
+        }
+        console.log('Initializing FCM for user:', userId);
         
         // Initialize FCM and get token
-        const token = await fcmService.initializeFCM(currentUser.uid);
+        const token = await fcmService.initializeFCM(userId);
         
         if (token) {
           setFcmToken(token);
@@ -327,10 +356,13 @@ export const MessagingProvider = ({ children }) => {
     return () => {
       clearTimeout(timeoutId);
       if (fcmToken && currentUser) {
-        fcmService.removeFCMToken(currentUser.uid).catch(console.error);
+        const userId = currentUser.uid || currentUser.id;
+        if (userId) {
+          fcmService.removeFCMToken(userId).catch(console.error);
+        }
       }
     };
-  }, [currentUser?.uid]);
+  }, [currentUser?.uid, currentUser?.id]);
 
   // Handle foreground messages
   useEffect(() => {
@@ -355,8 +387,11 @@ export const MessagingProvider = ({ children }) => {
       
       if (granted && currentUser) {
         // Get and save FCM token
-        const token = await fcmService.getFCMToken(currentUser.uid);
-        setFcmToken(token);
+        const userId = currentUser.uid || currentUser.id;
+        if (userId) {
+          const token = await fcmService.getFCMToken(userId);
+          setFcmToken(token);
+        }
       }
       
       return granted;

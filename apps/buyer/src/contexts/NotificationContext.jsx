@@ -27,8 +27,13 @@ export const NotificationProvider = ({ children }) => {
     
     try {
       setLoading(true);
+      const userId = currentUser.uid || currentUser.id;
+      if (!userId) {
+        console.warn('No user ID available for fetching notifications');
+        return;
+      }
       const userNotifications = await firebaseService.notifications.getByUser(
-        currentUser.uid,
+        userId,
         { limit: NOTIFICATION_LIMIT }
       );
       setNotifications(userNotifications);
@@ -65,7 +70,12 @@ export const NotificationProvider = ({ children }) => {
   // Mark all notifications as read
   const markAllAsRead = async () => {
     try {
-      await firebaseService.notifications.markAllAsRead(currentUser.uid);
+      const userId = currentUser.uid || currentUser.id;
+      if (!userId) {
+        console.warn('No user ID available for marking notifications as read');
+        return;
+      }
+      await firebaseService.notifications.markAllAsRead(userId);
       
       // Update local state
       setNotifications(prev => 
@@ -81,9 +91,14 @@ export const NotificationProvider = ({ children }) => {
   // Create new notification
   const createNotification = async (notificationData) => {
     try {
+      const userId = currentUser.uid || currentUser.id;
+      if (!userId) {
+        console.warn('No user ID available for creating notification');
+        throw new Error('No user ID available');
+      }
       const notification = await firebaseService.notifications.create({
         ...notificationData,
-        userId: currentUser.uid,
+        userId: userId,
         createdAt: new Date(),
         read: false
       });
@@ -121,8 +136,14 @@ export const NotificationProvider = ({ children }) => {
   useEffect(() => {
     if (!currentUser || !isPageVisible) return;
 
+    const userId = currentUser.uid || currentUser.id;
+    if (!userId) {
+      console.warn('No user ID available for notification listener');
+      return;
+    }
+
     const unsubscribe = firebaseService.notifications.listenToUserNotifications(
-      currentUser.uid,
+      userId,
       (newNotifications) => {
         setNotifications(newNotifications);
         
