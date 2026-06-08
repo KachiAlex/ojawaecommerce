@@ -13,7 +13,7 @@ const kitchenProducts = [
     brand: 'Ninja',
     stockQuantity: 45,
     features: ['9-in-1 Functionality', 'TenderCrisp Technology', '6.5-qt Capacity'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1565958011703-44f9829ba187?w=400']
   },
   {
     name: 'Breville Barista Express Espresso Machine',
@@ -33,7 +33,7 @@ const kitchenProducts = [
     brand: 'Cuisinart',
     stockQuantity: 35,
     features: ['14-Cup Capacity', 'Stainless Steel Blades', 'Multiple Discs'],
-    images: ['https://images.unsplash.com/photo-1558901366-9b1234567891?w=400']
+    images: ['https://images.unsplash.com/photo-1585658527410-298951f399c3?w=400']
   },
   {
     name: 'KitchenAid Artisan Mini Stand Mixer',
@@ -53,7 +53,7 @@ const kitchenProducts = [
     brand: 'Le Creuset',
     stockQuantity: 25,
     features: ['5.5-qt Capacity', 'Enameled Cast Iron', 'Oven Safe'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1584992236310-6eddd54e5e81?w=400']
   },
   {
     name: 'All-Clad D3 Stainless Steel Cookware Set',
@@ -63,7 +63,7 @@ const kitchenProducts = [
     brand: 'All-Clad',
     stockQuantity: 15,
     features: ['Tri-Ply Construction', 'Stainless Steel', 'Oven Safe'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1584992236310-6eddd54e5e81?w=400']
   },
   {
     name: 'Wusthof Classic Ikon Chef Knife Set',
@@ -73,7 +73,7 @@ const kitchenProducts = [
     brand: 'Wusthof',
     stockQuantity: 20,
     features: ['German Steel', 'Forged Construction', 'Full Tang'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1544822688-38e74e522042?w=400']
   },
   {
     name: 'Chemex Classic Coffee Maker',
@@ -103,7 +103,7 @@ const kitchenProducts = [
     brand: 'OXO',
     stockQuantity: 60,
     features: ['10 Pieces', 'Airtight Seal', 'Pop-up Lids'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1586953208448-b95a79798f07?w=400']
   },
   {
     name: 'Bella Air Fryer',
@@ -113,7 +113,7 @@ const kitchenProducts = [
     brand: 'Bella',
     stockQuantity: 55,
     features: ['Rapid Air Technology', '2.6-qt Capacity', 'Temperature Control'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1563693997-2acf02296579?w=400']
   },
   {
     name: 'Hamilton Beach Slow Cooker',
@@ -123,7 +123,7 @@ const kitchenProducts = [
     brand: 'Hamilton Beach',
     stockQuantity: 70,
     features: ['6-qt Capacity', 'Programmable', 'Keep Warm'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1565958011703-44f9829ba187?w=400']
   },
   {
     name: 'Vitamix 5200 Blender',
@@ -143,7 +143,7 @@ const kitchenProducts = [
     brand: 'Instant Pot',
     stockQuantity: 120,
     features: ['7-in-1 Functionality', '14 Smart Programs', 'Stainless Steel Inner Pot'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1565958011703-44f9829ba187?w=400']
   },
   {
     name: 'Nespresso Vertuo Plus',
@@ -163,7 +163,7 @@ const kitchenProducts = [
     brand: 'Breville',
     stockQuantity: 35,
     features: ['5 Temp Settings', 'Keep Warm Function', 'Water Window'],
-    images: ['https://images.unsplash.com/photo-1558901366-9b1234567893?w=400']
+    images: ['https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=400']
   },
   {
     name: 'DeLonghi Dedica Pump Espresso Maker',
@@ -183,7 +183,7 @@ const kitchenProducts = [
     brand: 'Staub',
     stockQuantity: 30,
     features: ['Cast Iron', 'Enamel Coating', 'Even Heat Distribution'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1585671964206-4c4ccacdbd3d?w=400']
   },
   {
     name: 'Calphalon Nonstick Frying Pan Set',
@@ -193,7 +193,7 @@ const kitchenProducts = [
     brand: 'Calphalon',
     stockQuantity: 60,
     features: ['Nonstick Coating', 'PFOA-Free', 'Oven Safe'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1585671964206-4c4ccacdbd3d?w=400']
   },
   {
     name: 'GreenPan Ceramic Non-Stick Skillet',
@@ -203,7 +203,7 @@ const kitchenProducts = [
     brand: 'GreenPan',
     stockQuantity: 45,
     features: ['Ceramic Coating', 'Toxin-Free', 'Oven Safe'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1585671964206-4c4ccacdbd3d?w=400']
   }
 ];
 

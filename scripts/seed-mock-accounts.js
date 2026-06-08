@@ -237,7 +237,7 @@ async function main() {
         currency: '₦ NGN',
         description: 'Portable waterproof Bluetooth speaker.',
         category: 'electronics',
-        image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400',
+        image: 'https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=400',
         brand: 'BoomBox',
         inStock: true,
         stock: 60

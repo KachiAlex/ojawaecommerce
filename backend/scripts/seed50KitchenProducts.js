@@ -14,7 +14,7 @@ const kitchenProducts = [
     brand: 'Ninja',
     stockQuantity: 45,
     features: ['9-in-1 Functionality', 'TenderCrisp Technology', '6.5-qt Capacity', '45 Recipes'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1565958011703-44f9829ba187?w=400']
   },
   {
     name: 'Breville Barista Express Espresso Machine',
@@ -34,7 +34,7 @@ const kitchenProducts = [
     brand: 'Cuisinart',
     stockQuantity: 35,
     features: ['14-Cup Capacity', 'Stainless Steel Blades', 'Multiple Discs', 'Dough Control'],
-    images: ['https://images.unsplash.com/photo-1558901366-9b1234567891?w=400']
+    images: ['https://images.unsplash.com/photo-1585658527410-298951f399c3?w=400']
   },
   {
     name: 'KitchenAid Artisan Mini Stand Mixer',
@@ -54,7 +54,7 @@ const kitchenProducts = [
     brand: 'DeLonghi',
     stockQuantity: 50,
     features: ['15-bar Pump', 'Thermoblock System', 'Manual Cappuccino System', 'Compact Design'],
-    images: ['https://images.unsplash.com/photo-1511920183459-fd8a5d6e7d4c?w=400']
+    images: ['https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400']
   },
   // Cookware
   {
@@ -65,7 +65,7 @@ const kitchenProducts = [
     brand: 'Le Creuset',
     stockQuantity: 25,
     features: ['5.5-qt Capacity', 'Enameled Cast Iron', 'Oven Safe', 'Lifetime Warranty'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1584992236310-6eddd54e5e81?w=400']
   },
   {
     name: 'All-Clad D3 Stainless Steel Cookware Set',
@@ -75,7 +75,7 @@ const kitchenProducts = [
     brand: 'All-Clad',
     stockQuantity: 15,
     features: ['Tri-Ply Construction', 'Stainless Steel', 'Oven Safe', 'Dishwasher Safe'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1584992236310-6eddd54e5e81?w=400']
   },
   {
     name: 'Staub Cast Iron Grill Pan',
@@ -85,7 +85,7 @@ const kitchenProducts = [
     brand: 'Staub',
     stockQuantity: 30,
     features: ['Cast Iron', 'Enamel Coating', 'Even Heat Distribution', 'Stovetop Safe'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1585671964206-4c4ccacdbd3d?w=400']
   },
   {
     name: 'Calphalon Nonstick Frying Pan Set',
@@ -95,7 +95,7 @@ const kitchenProducts = [
     brand: 'Calphalon',
     stockQuantity: 60,
     features: ['Nonstick Coating', 'PFOA-Free', 'Oven Safe', 'Soft Grip Handles'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1585671964206-4c4ccacdbd3d?w=400']
   },
   {
     name: 'GreenPan Ceramic Non-Stick Skillet',
@@ -105,7 +105,7 @@ const kitchenProducts = [
     brand: 'GreenPan',
     stockQuantity: 45,
     features: ['Ceramic Coating', 'Toxin-Free', 'Oven Safe', 'Dishwasher Safe'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1585671964206-4c4ccacdbd3d?w=400']
   },
   // Bakeware
   {
@@ -116,7 +116,7 @@ const kitchenProducts = [
     brand: 'Wilton',
     stockQuantity: 80,
     features: ['29 Pieces', 'Nonstick Coating', 'Oven Safe', 'Dishwasher Safe'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1586448934141-08771c5c6bab?w=400']
   },
   {
     name: 'USA Pan Bakeware Set',
@@ -126,7 +126,7 @@ const kitchenProducts = [
     brand: 'USA Pan',
     stockQuantity: 35,
     features: ['Aluminized Steel', 'Silicone Coating', 'Made in USA', 'Commercial Grade'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1586448934141-08771c5c6bab?w=400']
   },
   {
     name: 'Emile Henry Pie Dish',
@@ -136,7 +136,7 @@ const kitchenProducts = [
     brand: 'Emile Henry',
     stockQuantity: 40,
     features: ['Ceramic', '9-inch Diameter', 'Oven Safe', 'Dishwasher Safe'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1626803775151-61d756612fcd?w=400']
   },
   {
     name: 'Nordic Ware Bundt Pan',
@@ -146,7 +146,7 @@ const kitchenProducts = [
     brand: 'Nordic Ware',
     stockQuantity: 55,
     features: ['Aluminum', '10-cup Capacity', 'Nonstick Coating', 'Made in USA'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1626803775151-61d756612fcd?w=400']
   },
   {
     name: 'OXO Good Grips Cooling Rack',
@@ -156,7 +156,7 @@ const kitchenProducts = [
     brand: 'OXO',
     stockQuantity: 100,
     features: ['Grid Design', 'Nonstick Coating', 'Dishwasher Safe', 'Folds for Storage'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1586953208448-b95a79798f07?w=400']
   },
   // Kitchen Tools
   {
@@ -167,7 +167,7 @@ const kitchenProducts = [
     brand: 'Wusthof',
     stockQuantity: 20,
     features: ['German Steel', 'Forged Construction', 'Full Tang', 'Lifetime Warranty'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1544822688-38e74e522042?w=400']
   },
   {
     name: 'OXO Good Grips Kitchen Tool Set',
@@ -177,7 +177,7 @@ const kitchenProducts = [
     brand: 'OXO',
     stockQuantity: 70,
     features: ['15 Pieces', 'Non-slip Grips', 'Dishwasher Safe', 'Ergonomic Design'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1586953208448-b95a79798f07?w=400']
   },
   {
     name: 'Cuisinart Digital Kitchen Scale',
@@ -187,7 +187,7 @@ const kitchenProducts = [
     brand: 'Cuisinart',
     stockQuantity: 60,
     features: ['Digital Display', 'Tare Function', 'Multiple Units', '11-lb Capacity'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1586953208448-b95a79798f07?w=400']
   },
   {
     name: 'Zyliss Lock-N-Lift Can Opener',
@@ -197,7 +197,7 @@ const kitchenProducts = [
     brand: 'Zyliss',
     stockQuantity: 85,
     features: ['Locking Mechanism', 'Ergonomic Handle', 'Dishwasher Safe', 'Magnetic Lid Holder'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1586953208448-b95a79798f07?w=400']
   },
   {
     name: 'Joseph Joseph Elevate Utensil Set',
@@ -207,7 +207,7 @@ const kitchenProducts = [
     brand: 'Joseph Joseph',
     stockQuantity: 55,
     features: ['6 Pieces', 'Elevated Design', 'Weighted Handles', 'Dishwasher Safe'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1586953208448-b95a79798f07?w=400']
   },
   // Coffee & Tea
   {
@@ -218,7 +218,7 @@ const kitchenProducts = [
     brand: 'Breville',
     stockQuantity: 35,
     features: ['5 Temp Settings', 'Keep Warm Function', 'Water Window', 'Auto Shut-off'],
-    images: ['https://images.unsplash.com/photo-1558901366-9b1234567893?w=400']
+    images: ['https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=400']
   },
   {
     name: 'Chemex Classic Coffee Maker',
@@ -258,7 +258,7 @@ const kitchenProducts = [
     brand: 'YETI',
     stockQuantity: 90,
     features: ['Double-wall Vacuum', 'MagSlider Lid', 'Dishwasher Safe', 'No Sweat Design'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1517254797898-04edd251bfb3?w=400']
   },
   // Specialty Appliances
   {
@@ -269,7 +269,7 @@ const kitchenProducts = [
     brand: 'SousVide Supreme',
     stockQuantity: 15,
     features: ['Water Bath', 'Precise Temperature', 'Timer Function', 'Large Capacity'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1565958011703-44f9829ba187?w=400']
   },
   {
     name: 'Cuisinart Ice Cream Maker',
@@ -279,7 +279,7 @@ const kitchenProducts = [
     brand: 'Cuisinart',
     stockQuantity: 25,
     features: ['Fully Automatic', 'Compressor Cooling', '2-qt Capacity', 'Timer'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1560008581-09826d1de69e?w=400']
   },
   {
     name: 'Bella Air Fryer',
@@ -289,7 +289,7 @@ const kitchenProducts = [
     brand: 'Bella',
     stockQuantity: 55,
     features: ['Rapid Air Technology', '2.6-qt Capacity', 'Temperature Control', 'Timer'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1563693997-2acf02296579?w=400']
   },
   {
     name: 'Hamilton Beach Slow Cooker',
@@ -299,7 +299,7 @@ const kitchenProducts = [
     brand: 'Hamilton Beach',
     stockQuantity: 70,
     features: ['6-qt Capacity', 'Programmable', 'Keep Warm', 'Dishwasher Safe'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1565958011703-44f9829ba187?w=400']
   },
   {
     name: 'Cuisinart Toaster Oven',
@@ -309,7 +309,7 @@ const kitchenProducts = [
     brand: 'Cuisinart',
     stockQuantity: 40,
     features: ['Convection', 'Toaster Oven', 'Multiple Functions', 'Large Capacity'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1594269807754-7b136c93e50e?w=400']
   },
   // Storage & Organization
   {
@@ -320,7 +320,7 @@ const kitchenProducts = [
     brand: 'OXO',
     stockQuantity: 60,
     features: ['10 Pieces', 'Airtight Seal', 'Pop-up Lids', 'BPA-Free'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1586953208448-b95a79798f07?w=400']
   },
   {
     name: 'Rubbermaid Brilliance Food Storage',
@@ -330,7 +330,7 @@ const kitchenProducts = [
     brand: 'Rubbermaid',
     stockQuantity: 65,
     features: ['20 Pieces', 'Crystal Clear', 'Stain Resistant', 'Microwave Safe'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1586953208448-b95a79798f07?w=400']
   },
   {
     name: 'SimpleHuman Kitchen Can',
@@ -340,7 +340,7 @@ const kitchenProducts = [
     brand: 'SimpleHuman',
     stockQuantity: 30,
     features: ['Motion Sensor', 'Fingerprint-proof', '45-liter Capacity', 'Liner Pocket'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1586953208448-b95a79798f07?w=400']
   },
   {
     name: 'Kamenstein Spice Rack',
@@ -350,7 +350,7 @@ const kitchenProducts = [
     brand: 'Kamenstein',
     stockQuantity: 50,
     features: ['20 Jars', 'Revolving Design', 'Pre-filled Spices', 'Wall Mountable'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=400']
   },
   {
     name: 'InterDesign Pantry Organizer',
@@ -360,7 +360,7 @@ const kitchenProducts = [
     brand: 'InterDesign',
     stockQuantity: 75,
     features: ['Adjustable', 'Expandable', 'Clear Design', 'Non-slip Feet'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1584992236310-6eddd54e5e81?w=400']
   },
   // Kitchen Gadgets
   {
@@ -371,7 +371,7 @@ const kitchenProducts = [
     brand: 'Chefman',
     stockQuantity: 45,
     features: ['Electric Motor', 'Multiple Blades', 'Easy Cleaning', 'Compact Design'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1586953208448-b95a79798f07?w=400']
   },
   {
     name: 'Dash Rapid Egg Cooker',
@@ -381,7 +381,7 @@ const kitchenProducts = [
     brand: 'Dash',
     stockQuantity: 85,
     features: ['6-egg Capacity', 'Multiple Modes', 'Auto Shut-off', 'Compact Design'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1586953208448-b95a79798f07?w=400']
   },
   {
     name: 'Cuisinart Mini Prep Plus Processor',
@@ -391,7 +391,7 @@ const kitchenProducts = [
     brand: 'Cuisinart',
     stockQuantity: 70,
     features: ['4-cup Capacity', 'Chopping/Grinding', 'Dishwasher Safe', 'Compact'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1578936710445-4d5d8f5c6c5c?w=400']
   },
   {
     name: 'Hamilton Beach Breakfast Sandwich Maker',
@@ -401,7 +401,7 @@ const kitchenProducts = [
     brand: 'Hamilton Beach',
     stockQuantity: 80,
     features: ['All-in-One', 'Quick Cooking', 'Nonstick Plates', 'Easy Cleaning'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1565299585323-27d8d2948192?w=400']
   },
   {
     name: 'Presto PopLite Hot Air Popcorn Popper',
@@ -411,7 +411,7 @@ const kitchenProducts = [
     brand: 'Presto',
     stockQuantity: 90,
     features: ['Hot Air Popping', 'Oil-Free', 'Fast Popping', 'Easy Cleaning'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1572177191856-4acf0c376cd7?w=400']
   },
   // Premium & Professional
   {
@@ -422,7 +422,7 @@ const kitchenProducts = [
     brand: 'Wolf Gourmet',
     stockQuantity: 10,
     features: ['Professional Grade', 'Advanced Temp Control', 'Convection', '5 Cooking Modes'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1594269807754-7b136c93e50e?w=400']
   },
   {
     name: 'Vitamix A3500 Ascent Blender',
@@ -442,7 +442,7 @@ const kitchenProducts = [
     brand: 'KitchenAid',
     stockQuantity: 8,
     features: ['8-qt Capacity', 'Commercial Grade', 'All Metal Gears', 'Bowl Guard'],
-    images: ['https://images.unsplash.com/photo-1585515656519-7d2e1d7b1f3e?w=400']
+    images: ['https://images.unsplash.com/photo-1578936710445-4d5d8f5c6c5c?w=400']
   },
   {
     name: 'Sub-Zero Built-in Refrigerator',
@@ -452,7 +452,7 @@ const kitchenProducts = [
     brand: 'Sub-Zero',
     stockQuantity: 2,
     features: ['Dual Cooling', '48-inch Width', 'Built-in Design', 'Energy Star'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1571175445120-83d0a7d6a439?w=400']
   },
   {
     name: 'Miele G 7000 Series Dishwasher',
@@ -462,7 +462,7 @@ const kitchenProducts = [
     brand: 'Miele',
     stockQuantity: 5,
     features: ['AutoDos System', 'PowerDisk Technology', 'Quiet Operation', 'Energy Efficient'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1586953208448-b95a79798f07?w=400']
   }
 ];
 

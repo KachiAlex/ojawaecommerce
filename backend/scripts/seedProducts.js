@@ -213,7 +213,7 @@ const sampleProducts = [
       weight: '3.05kg'
     },
     images: [
-      'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400',
+      'https://images.unsplash.com/photo-1558317374-067fb5f30001?w=400',
       'https://images.unsplash.com/photo-1588421357574-87938a86fa28?w=400'
     ],
     vendorId: '4aqQlfFlNWXRBgGugyPVtV4YEn53',
@@ -281,7 +281,7 @@ const sampleProducts = [
       safety: '10+ proven safety features'
     },
     images: [
-      'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400',
+      'https://images.unsplash.com/photo-1565958011703-44f9829ba187?w=400',
       'https://images.unsplash.com/photo-1579632384302-0a2d0e281826?w=400'
     ],
     vendorId: '4aqQlfFlNWXRBgGugyPVtV4YEn53',

@@ -119,8 +119,8 @@ const mockProducts = [
     subcategory: "Security",
     brand: "SecureHome",
     images: [
-      "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=500",
-      "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=500"
+      "https://images.unsplash.com/photo-1585771724684-38269d6639fd?w=500",
+      "https://images.unsplash.com/photo-1557597774-9d273605dfa9?w=500"
     ],
     stock: 40,
     status: "approved",
@@ -185,8 +185,8 @@ const mockProducts = [
     subcategory: "Confectionery",
     brand: "ChocoLux",
     images: [
-      "https://images.unsplash.com/photo-1511381939415-e44015466834?w=500",
-      "https://images.unsplash.com/photo-1511381939415-e44015466834?w=500"
+      "https://images.unsplash.com/photo-1549007994-cb92caebd54b?w=500",
+      "https://images.unsplash.com/photo-1481391319762-47dff72954d9?w=500"
     ],
     stock: 50,
     status: "approved",
@@ -207,8 +207,8 @@ const mockProducts = [
     subcategory: "Accessories",
     brand: "ChargeMax",
     images: [
-      "https://images.unsplash.com/photo-1583394838336-acd977736f90?w=500",
-      "https://images.unsplash.com/photo-1583394838336-acd977736f90?w=500"
+      "https://images.unsplash.com/photo-1622445275463-afa2ab738c34?w=500",
+      "https://images.unsplash.com/photo-1586953208448-b95a79798f07?w=500"
     ],
     stock: 90,
     status: "approved",

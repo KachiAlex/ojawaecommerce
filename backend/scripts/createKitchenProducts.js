@@ -23,7 +23,7 @@ const kitchenProducts = [
     brand: 'Dyson',
     stockQuantity: 60,
     features: ['Laser Dust Detection', '60-minute Runtime', 'HEPA Filtration'],
-    images: ['https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400']
+    images: ['https://images.unsplash.com/photo-1558317374-067fb5f30001?w=400']
   },
   {
     name: 'Instant Pot Duo 7-in-1',
@@ -33,7 +33,7 @@ const kitchenProducts = [
     brand: 'Instant Pot',
     stockQuantity: 120,
     features: ['7-in-1 Functionality', '14 Smart Programs', 'Stainless Steel Inner Pot'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1565958011703-44f9829ba187?w=400']
   },
   {
     name: 'Vitamix 5200 Blender',
@@ -63,7 +63,7 @@ const kitchenProducts = [
     brand: 'Breville',
     stockQuantity: 35,
     features: ['Air Fry Function', '13 Smart Presets', 'Large Capacity'],
-    images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+    images: ['https://images.unsplash.com/photo-1594269807754-7b136c93e50e?w=400']
   },
   {
     name: 'Cuisinart Food Processor',
@@ -73,7 +73,7 @@ const kitchenProducts = [
     brand: 'Cuisinart',
     stockQuantity: 40,
     features: ['14-Cup Capacity', 'Stainless Steel Blades', 'Multiple Discs'],
-    images: ['https://images.unsplash.com/photo-1558901366-9b1234567891?w=400']
+    images: ['https://images.unsplash.com/photo-1585658527410-298951f399c3-9b1234567891?w=400']
   },
   {
     name: 'KitchenAid Electric Kettle',
@@ -83,7 +83,7 @@ const kitchenProducts = [
     brand: 'KitchenAid',
     stockQuantity: 50,
     features: ['1.7L Capacity', 'Fast Boiling', 'Dual Water Windows'],
-    images: ['https://images.unsplash.com/photo-1558901366-9b1234567893?w=400']
+    images: ['https://images.unsplash.com/photo-1544787219-7f47ccb76574-9b1234567893?w=400']
   }
 ];
 

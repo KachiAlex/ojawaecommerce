@@ -135,7 +135,7 @@ async function uploadProducts(token) {
       brand: 'Dyson',
       stockQuantity: 60,
       features: ['Laser Dust Detection', '60-minute Runtime', 'HEPA Filtration'],
-      images: ['https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400']
+      images: ['https://images.unsplash.com/photo-1558317374-067fb5f30001?w=400']
     },
     {
       name: 'Instant Pot Duo 7-in-1',
@@ -145,7 +145,7 @@ async function uploadProducts(token) {
       brand: 'Instant Pot',
       stockQuantity: 120,
       features: ['7-in-1 Functionality', '14 Smart Programs', 'Stainless Steel Inner Pot'],
-      images: ['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400']
+      images: ['https://images.unsplash.com/photo-1565958011703-44f9829ba187?w=400']
     }
   ];
   

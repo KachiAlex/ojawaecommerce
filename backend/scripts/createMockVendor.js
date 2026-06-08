@@ -170,7 +170,7 @@ const vendorProducts = [
       weight: '3.05kg'
     },
     images: [
-      'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400',
+      'https://images.unsplash.com/photo-1558317374-067fb5f30001?w=400',
       'https://images.unsplash.com/photo-1588421357574-87938a86fa28?w=400'
     ],
     status: 'active',
@@ -203,7 +203,7 @@ const vendorProducts = [
       safety: '10+ proven safety features'
     },
     images: [
-      'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400',
+      'https://images.unsplash.com/photo-1565958011703-44f9829ba187?w=400',
       'https://images.unsplash.com/photo-1579632384302-0a2d0e281826?w=400'
     ],
     status: 'active',
@@ -237,7 +237,7 @@ const vendorProducts = [
     },
     images: [
       'https://images.unsplash.com/photo-1578936710445-4d5d8f5c6c5c?w=400',
-      'https://images.unsplash.com/photo-1558901366-9b1234567890?w=400'
+      'https://images.unsplash.com/photo-1578936710445-4d5d8f5c6c5c-9b1234567890?w=400'
     ],
     status: 'active',
     isActive: true,
@@ -301,7 +301,7 @@ const vendorProducts = [
       dimensions: '21.5" x 17.5" x 12.7"'
     },
     images: [
-      'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400',
+      'https://images.unsplash.com/photo-1594269807754-7b136c93e50e?w=400',
       'https://images.unsplash.com/photo-1577804847124-3d5d5b6b5b5b?w=400'
     ],
     status: 'active',
@@ -334,8 +334,8 @@ const vendorProducts = [
       warranty: '3 Years Limited'
     },
     images: [
-      'https://images.unsplash.com/photo-1558901366-9b1234567891?w=400',
-      'https://images.unsplash.com/photo-1558901366-9b1234567892?w=400'
+      'https://images.unsplash.com/photo-1585658527410-298951f399c3-9b1234567891?w=400',
+      'https://images.unsplash.com/photo-1585658527410-298951f399c3-9b1234567892?w=400'
     ],
     status: 'active',
     isActive: true,
@@ -367,8 +367,8 @@ const vendorProducts = [
       temperature: '100°C boiling point'
     },
     images: [
-      'https://images.unsplash.com/photo-1558901366-9b1234567893?w=400',
-      'https://images.unsplash.com/photo-1558901366-9b1234567894?w=400'
+      'https://images.unsplash.com/photo-1544787219-7f47ccb76574-9b1234567893?w=400',
+      'https://images.unsplash.com/photo-1544787219-7f47ccb76574-9b1234567894?w=400'
     ],
     status: 'active',
     isActive: true,
@@ -451,8 +451,8 @@ async function createMockVendorAndAssignProducts() {
       rating: mockVendor.verification.rating,
       reviewCount: mockVendor.verification.reviewCount,
       totalProducts: vendorProducts.length,
-      logo: 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=200',
-      bannerImage: 'https://images.unsplash.com/photo-1558901366-9b1234567895?w=800',
+      logo: 'https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=200',
+      bannerImage: 'https://images.unsplash.com/photo-1544787219-7f47ccb76574-9b1234567895?w=800',
       storeUrl: 'kitchen-gadgets-pro'
     };
     
