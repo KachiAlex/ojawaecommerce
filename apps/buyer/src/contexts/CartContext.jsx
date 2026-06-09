@@ -115,32 +115,33 @@ export const CartProvider = ({ children }) => {
     
     console.log('CartContext.addToCart setting state');
 
-    // Build the new cart deterministically using latest `cartItems` snapshot
-    const existingItem = cartItems.find(item => item.id === product.id);
-    const currentQuantity = existingItem ? existingItem.quantity : 0;
-
-    if (currentQuantity + quantity > availableStock) {
-      throw new Error(`Only ${availableStock} items available in stock. You already have ${currentQuantity} in your cart.`);
-    }
-
     const normalized = {
       ...product,
       image: product?.image || (Array.isArray(product?.images) ? product.images[0] : undefined) || '/placeholder-product.jpg',
     };
 
-    const newCart = existingItem
-      ? cartItems.map(item => (item.id === product.id ? { ...item, quantity: item.quantity + quantity } : item))
-      : [...cartItems, { ...normalized, quantity }];
+    // Use functional state update to always read the latest cart state (avoids stale closure bug)
+    let newCart;
+    setCartItems(prevItems => {
+      const existingItem = prevItems.find(item => item.id === product.id);
+      const currentQuantity = existingItem ? existingItem.quantity : 0;
 
-    // Update state synchronously with the computed cart, then persist immediately
-    setCartItems(newCart);
+      if (currentQuantity + quantity > availableStock) {
+        throw new Error(`Only ${availableStock} items available in stock. You already have ${currentQuantity} in your cart.`);
+      }
+
+      newCart = existingItem
+        ? prevItems.map(item => (item.id === product.id ? { ...item, quantity: item.quantity + quantity } : item))
+        : [...prevItems, { ...normalized, quantity }];
+      return newCart;
+    });
 
     // allow React state to flush before resolving (helps tests waiting on updates)
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     // Persist the cart deterministically so tests can observe storage activity
     try {
-      await secureLocalStorage.setCart(newCart);
+      if (newCart) await secureLocalStorage.setCart(newCart);
     } catch (e) {
       console.warn('CartContext.addToCart persistence failed:', e?.message || e);
     }

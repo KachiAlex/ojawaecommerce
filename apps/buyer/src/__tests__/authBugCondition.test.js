@@ -17,22 +17,58 @@ import { apiPost } from '../utils/apiClient';
 
 // Mock the API client
 vi.mock('../utils/apiClient', () => ({
-  apiPost: vi.fn()
+  apiPost: vi.fn(() => Promise.resolve({ success: true, requestId: 'req-123' })),
+  apiPostWithAuth: vi.fn(() => Promise.resolve({ success: true })),
+  getApiBaseUrl: vi.fn(() => 'http://test-api'),
+  buildApiUrl: vi.fn((path) => `http://test-api${path}`),
+}));
+
+vi.mock('../config/env', () => ({
+  config: {
+    app: { apiBaseUrl: 'http://test-api' },
+  },
 }));
 
 // Mock secure storage
 vi.mock('../utils/secureLocalStorage', () => ({
   default: {
-    setItem: vi.fn(),
-    getItem: vi.fn(),
-    removeItem: vi.fn(),
+    setItem: vi.fn(() => Promise.resolve()),
+    getItem: vi.fn(() => Promise.resolve(null)),
+    removeItem: vi.fn(() => Promise.resolve()),
+    getCart: vi.fn(() => Promise.resolve(null)),
+    setCart: vi.fn(() => Promise.resolve()),
     getKeys: vi.fn(() => [])
+  }
+}));
+
+vi.mock('../utils/secureNotification', () => ({
+  default: {
+    notify: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  }
+}));
+
+vi.mock('../utils/secureStorage', () => ({
+  default: {
+    setItem: vi.fn(() => Promise.resolve()),
+    getItem: vi.fn(() => Promise.resolve(null)),
+    removeItem: vi.fn(() => Promise.resolve()),
   }
 }));
 
 describe('Bug Condition Exploration: OTP Sending and Dashboard Redirect', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    // Restore all mock implementations after reset
+    apiPost.mockResolvedValue({ success: true, requestId: 'req-123' });
+    // Also mock global.fetch as a fallback in case apiPost falls through
+    global.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ success: true, requestId: 'req-123' }),
+      })
+    );
   });
 
   describe('Bug 1: OTP Sending Fails with "Email is required" Error', () => {

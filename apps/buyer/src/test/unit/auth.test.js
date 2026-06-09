@@ -97,7 +97,7 @@ describe('Authentication Unit Tests', () => {
 
     it('should require minimum 8 characters', () => {
       expect(validators.password('short')).not.toBeNull()
-      expect(validators.password('longenough')).toBeNull() // or passes
+      expect(validators.password('LongEnough1')).toBeNull() // meets all criteria: length, upper, lower, number
     })
 
     it('should require uppercase letter', () => {

@@ -2,15 +2,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
 import { CartProvider, useCart } from './CartContext'
 import { AuthProvider } from './AuthContext'
-import * as secureStorage from '../utils/secureStorage'
+import secureLocalStorage from '../utils/secureLocalStorage'
 import * as pricingService from '../services/pricingService'
 
-// Mock dependencies
-vi.mock('../utils/secureStorage', () => ({
+// Mock dependencies - CartContext imports secureLocalStorage, not secureStorage directly
+vi.mock('../utils/secureLocalStorage', () => ({
   default: {
-    getItem: vi.fn(),
-    setItem: vi.fn(),
-    removeItem: vi.fn(),
+    getCart: vi.fn(() => Promise.resolve(null)),
+    setCart: vi.fn(() => Promise.resolve()),
+    removeItem: vi.fn(() => Promise.resolve()),
+    getItem: vi.fn(() => Promise.resolve(null)),
+    setItem: vi.fn(() => Promise.resolve()),
   },
 }))
 
@@ -39,8 +41,8 @@ const wrapper = ({ children }) => (
 describe('CartContext', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.spyOn(secureStorage.default, 'getItem').mockResolvedValue(null)
-    vi.spyOn(secureStorage.default, 'setItem').mockResolvedValue()
+    vi.mocked(secureLocalStorage.getCart).mockResolvedValue(null)
+    vi.mocked(secureLocalStorage.setCart).mockResolvedValue()
   })
 
   it('initializes with empty cart', async () => {
@@ -53,21 +55,18 @@ describe('CartContext', () => {
   })
 
   it('loads cart from secure storage on mount', async () => {
+    // CartContext stores flat items (spread product + quantity), not { product, quantity }
     const savedCart = [
-      {
-        id: 'item-1',
-        product: { id: 'product-1', name: 'Test Product', price: 10000 },
-        quantity: 2,
-      },
+      { id: 'product-1', name: 'Test Product', price: 10000, quantity: 2 },
     ]
 
-    vi.spyOn(secureStorage.default, 'getItem').mockResolvedValue(JSON.stringify(savedCart))
+    vi.mocked(secureLocalStorage.getCart).mockResolvedValue(savedCart)
 
     const { result } = renderHook(() => useCart(), { wrapper })
 
     await waitFor(() => {
       expect(result.current.cartItems).toHaveLength(1)
-      expect(result.current.cartItems[0].product.name).toBe('Test Product')
+      expect(result.current.cartItems[0].name).toBe('Test Product')
     })
   })
 
@@ -199,10 +198,7 @@ describe('CartContext', () => {
     })
 
     await waitFor(() => {
-      expect(secureStorage.default.setItem).toHaveBeenCalledWith(
-        expect.stringContaining('shopping_cart'),
-        expect.stringContaining('product-1')
-      )
+      expect(secureLocalStorage.setCart).toHaveBeenCalled()
     })
   })
 

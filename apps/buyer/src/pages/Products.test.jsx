@@ -147,6 +147,8 @@ describe('Products Page', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
     mockGetAllProducts.mockResolvedValue(mockProducts)
+    // Reset global.fetch to prevent contamination from other test files
+    global.fetch = vi.fn(() => Promise.resolve({ ok: false, json: () => Promise.resolve({}) }))
     
     // Mock Firestore getDocs - always return products (component extracts categories from products)
     const { getDocs } = await import('firebase/firestore')

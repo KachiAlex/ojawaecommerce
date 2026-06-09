@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import React, { useEffect } from 'react'
 import { screen, fireEvent, waitFor } from '@testing-library/react'
 import { renderWithProviders } from '../test/helpers'
+import Checkout from './Checkout'
 
 // Mock Firebase
 vi.mock('firebase/firestore', async () => {
@@ -49,19 +50,32 @@ vi.mock('firebase/functions', () => ({
 const { mockFirebaseService } = vi.hoisted(() => {
   return {
     mockFirebaseService: {
+      auth: {
+        getProfile: vi.fn(() => Promise.resolve({ uid: 'test-user-id', email: 'test@example.com', displayName: 'Test User', address: '123 Test St' })),
+        signup: vi.fn(() => Promise.resolve({ id: 'test-user-id' })),
+        signin: vi.fn(() => Promise.resolve({ data: { user: { id: 'test-user-id' } } })),
+        signout: vi.fn(() => Promise.resolve()),
+      },
       wallet: {
         getUserWallet: vi.fn(),
+        deductFromWallet: vi.fn(() => Promise.resolve({ success: true })),
+      },
+      orders: {
+        create: vi.fn(() => Promise.resolve('order-123')),
+      },
+      product: {
+        getById: vi.fn(() => Promise.resolve({ id: 'product-1', vendorId: 'vendor-1', name: 'Test Product' })),
       },
       notifications: {
         createOrderNotification: vi.fn(),
-        create: vi.fn(),
+        create: vi.fn(() => Promise.resolve()),
         getByUser: vi.fn(() => Promise.resolve([])),
         listenToUserNotifications: vi.fn(() => vi.fn()),
         markAsRead: vi.fn(() => Promise.resolve()),
         markAllAsRead: vi.fn(() => Promise.resolve()),
       },
       logistics: {
-        createDelivery: vi.fn(),
+        createDelivery: vi.fn(() => Promise.resolve()),
       },
     },
   }
@@ -78,6 +92,20 @@ vi.mock('../services/pricingService', () => ({
   },
 }))
 
+vi.mock('../utils/apiClient', () => ({
+  apiPostWithAuth: vi.fn(() => Promise.resolve({ success: true })),
+  apiPost: vi.fn(() => Promise.resolve({ success: true })),
+  apiGetWithAuth: vi.fn(() => Promise.resolve({})),
+}))
+
+vi.mock('../config/env', () => ({
+  config: {
+    app: { apiBaseUrl: '' },
+    development: { logLevel: 'info', debugMode: false },
+    isDevelopment: false,
+  },
+}))
+
 vi.mock('../services/logisticsPricingService', () => ({
   default: {
     calculateDeliveryCost: vi.fn(() => Promise.resolve(5000)),
@@ -87,7 +115,9 @@ vi.mock('../services/logisticsPricingService', () => ({
 // Mock contexts
 const mockCartContextValue = {
   cartItems: [],
+  cartReady: true,
   getCartTotal: () => 0,
+  getCartItemsCount: () => 0,
   getPricingBreakdown: () => null,
   clearCart: vi.fn(),
 }
@@ -169,6 +199,14 @@ const mockCartItems = [
 describe('Checkout Component', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
+
+    // Mock global fetch so Checkout's createEscrowOrder call doesn't hit the network
+    global.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ orderId: 'order-123', success: true }),
+      })
+    )
     
     // Reset wallet balance check mock to sufficient by default
     walletBalanceCheckMockState.sufficient = true
@@ -177,6 +215,8 @@ describe('Checkout Component', () => {
     // Reset cart context
     Object.assign(mockCartContextValue, {
       cartItems: mockCartItems,
+      cartReady: true,
+      getCartItemsCount: () => 2,
       getCartTotal: () => 20000, // 10000 * 2
       getPricingBreakdown: () => ({
         subtotal: 20000,
@@ -296,9 +336,9 @@ describe('Checkout Component', () => {
     const submitButton = screen.getByRole('button', { name: /pay.*wallet escrow/i })
     fireEvent.click(submitButton)
 
-    // Order creation happens via Cloud Function
+    // Checkout calls fetch('/createEscrowOrder') directly (not httpsCallable)
     await waitFor(() => {
-      expect(mockCreateEscrowOrder).toHaveBeenCalled()
+      expect(global.fetch).toHaveBeenCalled()
     }, { timeout: 10000 })
   })
 
@@ -318,9 +358,12 @@ describe('Checkout Component', () => {
     const submitButton = screen.getByRole('button', { name: /pay.*wallet escrow/i })
     fireEvent.click(submitButton)
 
-    // Escrow Cloud Function is called during order creation
+    // Checkout uses fetch('/createEscrowOrder') directly to call the backend escrow endpoint
     await waitFor(() => {
-      expect(mockCreateEscrowOrder).toHaveBeenCalled()
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('createEscrowOrder'),
+        expect.objectContaining({ method: 'POST' })
+      )
     }, { timeout: 10000 })
   })
 

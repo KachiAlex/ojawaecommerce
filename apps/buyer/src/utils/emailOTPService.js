@@ -93,6 +93,8 @@ class EmailOTPService {
         throw new Error('Email is required to send OTP');
       }
 
+      // Preserve original email format (Gmail dots matter for display/delivery)
+      const originalEmail = email.trim();
       const normalizedEmail = email.toLowerCase().trim();
 
       // Check rate limiting
@@ -111,15 +113,16 @@ class EmailOTPService {
       // Prepare email content
       const emailContent = this.prepareEmailContent(otp, purpose, customMessage);
       
-      // Send OTP via Render backend endpoint
-      // Include both 'email' and 'to' parameters for backend compatibility
+      // Send OTP via backend endpoint with Sendchamp integration
+      // Use originalEmail to preserve dots for Gmail addresses
       const result = await apiPost('/sendEmailOTP', {
-        email: normalizedEmail,
-        to: normalizedEmail,
+        email: originalEmail,
+        to: originalEmail,
         subject: emailContent.subject,
-        htmlContent: emailContent.html,
-        textContent: emailContent.text,
-        purpose: purpose
+        htmlContent: emailContent.htmlContent,
+        textContent: emailContent.textContent,
+        purpose: purpose,
+        otp: otp
       });
 
       // Update rate limit
@@ -130,7 +133,7 @@ class EmailOTPService {
       await secureLocalStorage.setItem(metadataKey, {
         sentAt: Date.now(),
         purpose,
-        email: normalizedEmail
+        email: originalEmail
       });
 
       return {

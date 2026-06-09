@@ -5,6 +5,60 @@ import { renderWithProviders, mockProduct } from '../test/helpers'
 import Cart from './Cart'
 import * as firebaseService from '../services/firebaseService'
 
+// Mock cartService — Cart.jsx calls cartService.updateItemQuantity/removeFromCart directly
+const { mockCartService } = vi.hoisted(() => ({
+  mockCartService: {
+    updateItemQuantity: vi.fn(() => Promise.resolve()),
+    removeFromCart: vi.fn(() => Promise.resolve()),
+    clearCart: vi.fn(() => Promise.resolve()),
+    addToCart: vi.fn(() => Promise.resolve()),
+  },
+}))
+vi.mock('../services/cartService', () => ({ default: mockCartService }))
+
+// Mock checkoutService
+vi.mock('../services/checkoutService', () => ({
+  default: {
+    createOrder: vi.fn(() => Promise.resolve({ orderId: 'order-123' })),
+  },
+}))
+
+vi.mock('../config/env', () => ({
+  config: {
+    app: { apiBaseUrl: '' },
+    development: { logLevel: 'info', debugMode: false },
+    isDevelopment: false,
+  },
+}))
+
+// Mock axios to prevent real network calls to Vercel API
+vi.mock('axios', () => ({
+  default: {
+    get: vi.fn((url) => {
+      if (url.includes('/api/users/')) {
+        const vendorId = url.split('/api/users/')[1]
+        return Promise.resolve({
+          data: {
+            user: {
+              displayName: vendorId === 'vendor-1' ? 'Test Vendor 1' : vendorId === 'vendor-2' ? 'Test Vendor 2' : 'Vendor',
+              name: vendorId === 'vendor-1' ? 'Test Vendor 1' : vendorId === 'vendor-2' ? 'Test Vendor 2' : 'Vendor',
+              address: '123 Vendor Street, Lagos',
+            },
+          },
+        })
+      }
+      if (url.includes('/api/products/')) {
+        return Promise.resolve({ data: { product: { processingTimeDays: 2, vendorId: 'vendor-1' } } })
+      }
+      if (url.includes('/api/stores')) {
+        return Promise.resolve({ data: { stores: [] } })
+      }
+      return Promise.resolve({ data: {} })
+    }),
+    post: vi.fn(() => Promise.resolve({ data: {} })),
+  },
+}))
+
 // Mock Firebase
 vi.mock('firebase/firestore', async () => {
   const actual = await vi.importActual('firebase/firestore')
@@ -34,9 +88,11 @@ vi.mock('../contexts/MessagingContext', () => ({
 // Create a mock cart context that can be controlled per test
 const mockCartContextValue = {
   cartItems: [],
+  cartReady: true,
   updateQuantity: vi.fn(),
   removeFromCart: vi.fn(),
   getCartTotal: () => 0,
+  getCartItemsCount: () => 0,
   clearCart: vi.fn(),
   validateCartItems: vi.fn(() => ({ valid: true, errors: [] })),
   hasOutOfStockItems: vi.fn(() => false),
@@ -97,13 +153,21 @@ const mockCartItems = [
 describe('Cart Component', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
+
+    // Restore mockCartService implementations after clearAllMocks resets them
+    mockCartService.updateItemQuantity.mockResolvedValue(undefined)
+    mockCartService.removeFromCart.mockResolvedValue(undefined)
+    mockCartService.clearCart.mockResolvedValue(undefined)
+    mockCartService.addToCart.mockResolvedValue(undefined)
     
     // Reset cart context to empty
     Object.assign(mockCartContextValue, {
       cartItems: [],
+      cartReady: true,
       updateQuantity: vi.fn(),
       removeFromCart: vi.fn(),
       getCartTotal: () => 0,
+      getCartItemsCount: () => 0,
       clearCart: vi.fn(),
       validateCartItems: vi.fn(() => ({ valid: true, errors: [] })),
       hasOutOfStockItems: vi.fn(() => false),
@@ -160,9 +224,11 @@ describe('Cart Component', () => {
     // Update cart context to return items
     Object.assign(mockCartContextValue, {
       cartItems: mockCartItems,
+      cartReady: true,
       updateQuantity: vi.fn(),
       removeFromCart: vi.fn(),
       getCartTotal: () => 40000, // (10000 * 2) + (20000 * 1)
+      getCartItemsCount: () => 3,
       clearCart: vi.fn(),
       validateCartItems: vi.fn(() => ({ valid: true, errors: [] })),
       hasOutOfStockItems: vi.fn(() => false),
@@ -194,9 +260,11 @@ describe('Cart Component', () => {
   it('displays correct quantities for each item', async () => {
     Object.assign(mockCartContextValue, {
       cartItems: mockCartItems,
+      cartReady: true,
       updateQuantity: vi.fn(),
       removeFromCart: vi.fn(),
       getCartTotal: () => 40000,
+      getCartItemsCount: () => 3,
       clearCart: vi.fn(),
       validateCartItems: vi.fn(() => ({ valid: true, errors: [] })),
       hasOutOfStockItems: vi.fn(() => false),
@@ -218,9 +286,11 @@ describe('Cart Component', () => {
   it('calculates and displays total correctly', async () => {
     Object.assign(mockCartContextValue, {
       cartItems: mockCartItems,
+      cartReady: true,
       updateQuantity: vi.fn(),
       removeFromCart: vi.fn(),
       getCartTotal: () => 40000,
+      getCartItemsCount: () => 3,
       clearCart: vi.fn(),
       validateCartItems: vi.fn(() => ({ valid: true, errors: [] })),
       hasOutOfStockItems: vi.fn(() => false),
@@ -261,12 +331,15 @@ describe('Cart Component', () => {
   }, { timeout: 25000 })
 
   it('allows updating item quantity', async () => {
-    const mockUpdateQuantity = vi.fn()
+    // Cart.jsx calls cartService.updateItemQuantity, not the context updateQuantity
+    mockCartService.updateItemQuantity.mockResolvedValue()
     Object.assign(mockCartContextValue, {
       cartItems: mockCartItems,
-      updateQuantity: mockUpdateQuantity,
+      cartReady: true,
+      updateQuantity: vi.fn(),
       removeFromCart: vi.fn(),
       getCartTotal: () => 40000,
+      getCartItemsCount: () => 3,
       clearCart: vi.fn(),
       validateCartItems: vi.fn(() => ({ valid: true, errors: [] })),
       hasOutOfStockItems: vi.fn(() => false),
@@ -283,31 +356,31 @@ describe('Cart Component', () => {
       { timeout: 15000 }
     )
 
-    // Cart uses + and - buttons, not input fields
-    // Find the + button for the first item and click it
+    // Cart uses + and - buttons; find the + button for the first item
     const plusButtons = screen.queryAllByText('+')
     if (plusButtons.length > 0) {
       fireEvent.click(plusButtons[0])
-      
       await waitFor(
         () => {
-          expect(mockUpdateQuantity).toHaveBeenCalled()
+          expect(mockCartService.updateItemQuantity).toHaveBeenCalled()
         },
         { timeout: 5000 }
       )
     } else {
-      // If buttons aren't found, the test should still pass if updateQuantity exists
-      expect(mockUpdateQuantity).toBeDefined()
+      expect(mockCartService.updateItemQuantity).toBeDefined()
     }
   }, { timeout: 25000 })
 
   it('allows removing item from cart', async () => {
-    const mockRemoveFromCart = vi.fn()
+    // Cart.jsx calls cartService.removeFromCart, not the context removeFromCart
+    mockCartService.removeFromCart.mockResolvedValue()
     Object.assign(mockCartContextValue, {
       cartItems: mockCartItems,
+      cartReady: true,
       updateQuantity: vi.fn(),
-      removeFromCart: mockRemoveFromCart,
+      removeFromCart: vi.fn(),
       getCartTotal: () => 40000,
+      getCartItemsCount: () => 3,
       clearCart: vi.fn(),
       validateCartItems: vi.fn(() => ({ valid: true, errors: [] })),
       hasOutOfStockItems: vi.fn(() => false),
@@ -331,7 +404,7 @@ describe('Cart Component', () => {
 
     await waitFor(
       () => {
-        expect(mockRemoveFromCart).toHaveBeenCalled()
+        expect(mockCartService.removeFromCart).toHaveBeenCalled()
       },
       { timeout: 5000 }
     )
@@ -340,9 +413,11 @@ describe('Cart Component', () => {
   it('shows proceed to checkout button when cart has items', async () => {
     Object.assign(mockCartContextValue, {
       cartItems: mockCartItems,
+      cartReady: true,
       updateQuantity: vi.fn(),
       removeFromCart: vi.fn(),
       getCartTotal: () => 40000,
+      getCartItemsCount: () => 3,
       clearCart: vi.fn(),
       validateCartItems: vi.fn(() => ({ valid: true, errors: [] })),
       hasOutOfStockItems: vi.fn(() => false),
@@ -366,9 +441,11 @@ describe('Cart Component', () => {
   it('displays vendor information for each item', async () => {
     Object.assign(mockCartContextValue, {
       cartItems: mockCartItems,
+      cartReady: true,
       updateQuantity: vi.fn(),
       removeFromCart: vi.fn(),
       getCartTotal: () => 40000,
+      getCartItemsCount: () => 3,
       clearCart: vi.fn(),
       validateCartItems: vi.fn(() => ({ valid: true, errors: [] })),
       hasOutOfStockItems: vi.fn(() => false),
