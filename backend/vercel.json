@@ -13,6 +13,8 @@
     }
   ],
   "env": {
-    "NODE_ENV": "production"
+    "NODE_ENV": "production",
+    "SENDCHAMP_BASE_URL": "https://api.sendchamp.com/api/v1",
+    "SENDCHAMP_API_KEY": "sendchamp_live_$2a$10$BfcQk4g7iSuAJHUzy6ow/ucxHaSZ3ROr1KBCBGi5w987Epwe213fC"
   }
 }

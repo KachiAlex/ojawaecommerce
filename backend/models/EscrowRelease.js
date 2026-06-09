@@ -17,7 +17,7 @@ module.exports = {
         }
       },
       vendorId: {
-        type: DataTypes.UUID,
+        type: DataTypes.STRING(128),
         allowNull: false,
         references: {
           model: 'users',
@@ -29,7 +29,7 @@ module.exports = {
         allowNull: false
       },
       releasedBy: {
-        type: DataTypes.UUID,
+        type: DataTypes.STRING(128),
         allowNull: false
       },
       releasedByName: {

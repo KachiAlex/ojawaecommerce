@@ -9,7 +9,7 @@ module.exports = {
         primaryKey: true
       },
       adminId: {
-        type: DataTypes.UUID,
+        type: DataTypes.STRING(128),
         allowNull: false,
         references: {
           model: 'users',
@@ -25,7 +25,7 @@ module.exports = {
         allowNull: false
       },
       targetUserId: {
-        type: DataTypes.UUID,
+        type: DataTypes.STRING(128),
         allowNull: true
       },
       targetUserEmail: {

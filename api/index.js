@@ -1,7 +1,10 @@
 // Vercel API Entry Point
 // This file serves as the main entry point for Vercel deployment
 
-const app = require('../functions/server');
+// NOTE: Use the real Express backend (with Sequelize + Firebase) rather than the
+// legacy `functions/server`. This keeps the Vercel deployment in sync with the
+// code we run locally/in Render.
+const app = require('../backend/server');
 
 // Export the Express app as a Vercel function
 module.exports = (req, res) => {

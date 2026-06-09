@@ -9,7 +9,7 @@ module.exports = {
         primaryKey: true
       },
       vendorId: {
-        type: DataTypes.UUID,
+        type: DataTypes.STRING(128),
         allowNull: false,
         references: {
           model: 'users',

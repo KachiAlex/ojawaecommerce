@@ -1,5 +1,16 @@
 const { sequelize } = require('../config/database');
-const { User, Product, Order, Cart, CartItem, Vendor, Wallet, Notification } = require('../models');
+const {
+  User,
+  Product,
+  Order,
+  Cart,
+  CartItem,
+  Vendor,
+  Wallet,
+  Notification,
+  Conversation,
+  Message,
+} = require('../models');
 
 async function initDatabase() {
   try {
@@ -20,6 +31,8 @@ async function initDatabase() {
     console.log('  - vendors');
     console.log('  - wallets');
     console.log('  - notifications');
+    console.log('  - conversations');
+    console.log('  - messages');
 
     process.exit(0);
   } catch (error) {

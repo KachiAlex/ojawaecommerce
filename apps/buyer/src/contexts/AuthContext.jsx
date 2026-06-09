@@ -5,6 +5,54 @@ import emailOTPService from '../utils/emailOTPService';
 
 const verificationBypassed = typeof import.meta !== 'undefined' && import.meta.env?.VITE_BYPASS_EMAIL_VERIFICATION === 'true';
 
+const AUTH_TOKEN_KEY = 'authToken';
+const REFRESH_TOKEN_KEY = 'authRefreshToken';
+const FIREBASE_TOKEN_KEY = 'firebaseIdToken';
+
+const resolveAuthField = (payload, field) => {
+  if (!payload) return undefined;
+  if (payload[field] !== undefined) return payload[field];
+  if (payload.data?.[field] !== undefined) return payload.data[field];
+  if (payload.data?.data?.[field] !== undefined) return payload.data.data[field];
+  return undefined;
+};
+
+const persistAuthTokens = (payload) => {
+  if (typeof window === 'undefined') return;
+  try {
+    const token = resolveAuthField(payload, 'token');
+    const refreshToken = resolveAuthField(payload, 'refreshToken');
+    const firebaseToken = resolveAuthField(payload, 'firebaseToken');
+
+    if (token) window.localStorage.setItem(AUTH_TOKEN_KEY, token);
+    if (refreshToken) window.localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+    if (firebaseToken) window.localStorage.setItem(FIREBASE_TOKEN_KEY, firebaseToken);
+  } catch (error) {
+    console.warn('Unable to persist auth tokens:', error);
+  }
+};
+
+const clearAuthTokens = () => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.removeItem(AUTH_TOKEN_KEY);
+    window.localStorage.removeItem(REFRESH_TOKEN_KEY);
+    window.localStorage.removeItem(FIREBASE_TOKEN_KEY);
+  } catch (error) {
+    console.warn('Unable to clear auth tokens:', error);
+  }
+};
+
+const getStoredAuthToken = () => {
+  if (typeof window === 'undefined') return null;
+  try {
+    return window.localStorage.getItem(AUTH_TOKEN_KEY);
+  } catch (error) {
+    console.warn('Unable to read auth token from storage:', error);
+    return null;
+  }
+};
+
 const AuthContext = createContext();
 
 export const useAuth = () => {
@@ -46,7 +94,7 @@ export const AuthProvider = ({ children }) => {
   const refreshUser = async () => {
     try {
       // Get token from localStorage
-      const token = localStorage.getItem('authToken');
+      const token = getStoredAuthToken();
       if (!token) return null;
       
       try {
@@ -83,6 +131,7 @@ export const AuthProvider = ({ children }) => {
   const signup = async (email, password, userData) => {
     try {
       const res = await firebaseService.auth.signup(email, password, userData || {});
+      persistAuthTokens(res);
       const userId = res?.id || res?.uid || res?.user?.id || res?.user?.uid;
       if (userId) {
         try {
@@ -130,6 +179,7 @@ export const AuthProvider = ({ children }) => {
     try {
       console.log('🔐 AuthContext: Signing in user via REST:', email);
       const res = await firebaseService.auth.signin(email, password);
+      persistAuthTokens(res);
       const user = res?.data?.user || res?.data || res?.user || res;
       if (!user) throw new Error('Invalid signin response from server');
 
@@ -196,7 +246,11 @@ export const AuthProvider = ({ children }) => {
         ]);
       } catch (_) {}
 
-      await firebaseService.auth.signout();
+      try {
+        await firebaseService.auth.signout();
+      } finally {
+        clearAuthTokens();
+      }
       setUserProfile(null);
     } catch (error) {
       throw error;
@@ -209,10 +263,14 @@ export const AuthProvider = ({ children }) => {
       if (!currentUser) throw new Error('No user logged in');
       const userId = currentUser.id || currentUser.uid;
       if (!userId) throw new Error('Unable to determine user id');
+      const token = getStoredAuthToken();
       const res = await fetch(`/api/users/${encodeURIComponent(userId)}`, {
         method: 'PATCH',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
         body: JSON.stringify(updates)
       });
       if (!res.ok) throw new Error('Failed to update profile');
@@ -290,7 +348,7 @@ export const AuthProvider = ({ children }) => {
     (async () => {
       try {
         // Get token from localStorage
-        const token = localStorage.getItem('authToken');
+        const token = getStoredAuthToken();
         if (!token) {
           if (mounted) {
             setCurrentUser(null);
@@ -357,6 +415,7 @@ export const AuthProvider = ({ children }) => {
         throw new Error(`OTP login failed: ${res.status} ${txt}`);
       }
       const data = await res.json();
+      persistAuthTokens(data);
       setUserProfile(data?.profile || data?.user || null);
       setCurrentUser(data?.user || null);
       return { success: true, user: data?.user || data?.profile, loginMethod: 'otp' };

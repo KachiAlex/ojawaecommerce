@@ -57,6 +57,8 @@ const orderRoutes = require('./routes/orders');
 const paymentRoutes = require('./routes/payments');
 const adminRoutes = require('./routes/admin');
 const notificationRoutes = require('./routes/notifications');
+const messagingRoutes = require('./routes/messaging');
+const userRoutes = require('./routes/users');
 const analyticsRoutes = require('./routes/analytics');
 const logisticsRoutes = require('./routes/logistics');
 
@@ -67,6 +69,9 @@ const logger = require('./utils/logger');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
+
+// Needed for Vercel/Reverse proxies so rate limiting & IP detection work properly
+app.set('trust proxy', 1);
 
 // Body parsing middleware - MUST be first
 app.use(express.json({ limit: '10mb' }));
@@ -127,205 +132,7 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
-// Mock signup endpoint for testing (bypasses Firebase) - AFTER CORS
-app.post('/api/auth/register', (req, res) => {
-  try {
-    console.log('🔍 Mock signup endpoint hit!', { 
-      method: req.method, 
-      url: req.url, 
-      path: req.path,
-      headers: req.headers,
-      body: req.body 
-    });
-    
-    const { email, password, displayName } = req.body;
-    
-    if (!email || !password || !displayName) {
-      console.log('❌ Validation failed');
-      return res.status(400).json({
-        success: false,
-        error: 'Email, password, and displayName are required'
-      });
-    }
-    
-    console.log('✅ Mock registration successful');
-    // Mock successful registration
-    return res.json({
-      success: true,
-      data: {
-        uid: 'mock-user-' + Date.now(),
-        email,
-        displayName,
-        emailVerified: false,
-        role: 'user'
-      },
-      message: 'User registered successfully (mock)'
-    });
-  } catch (error) {
-    console.error('❌ Mock signup error:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Internal server error: ' + error.message
-    });
-  }
-});
-
-// Mock OTP endpoint for testing
-app.post('/sendEmailOTP', (req, res) => {
-  try {
-    console.log('🔍 Mock OTP endpoint hit!', { 
-      method: req.method, 
-      url: req.url, 
-      path: req.path,
-      body: req.body 
-    });
-    
-    const { email } = req.body;
-    
-    if (!email) {
-      console.log('❌ OTP validation failed');
-      return res.status(400).json({
-        success: false,
-        error: 'Email is required'
-      });
-    }
-    
-    console.log('✅ Mock OTP sent successfully');
-    // Mock OTP sending
-    return res.json({
-      success: true,
-      message: 'OTP sent successfully (mock)'
-    });
-  } catch (error) {
-    console.error('❌ Mock OTP error:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Internal server error: ' + error.message
-    });
-  }
-});
-
-// API-prefixed OTP endpoint
-app.post('/api/auth/sendEmailOTP', (req, res) => {
-  try {
-    console.log('🔍 Mock API OTP endpoint hit!', { 
-      method: req.method, 
-      url: req.url, 
-      path: req.path,
-      body: req.body 
-    });
-    
-    const { email } = req.body;
-    
-    if (!email) {
-      console.log('❌ API OTP validation failed');
-      return res.status(400).json({
-        success: false,
-        error: 'Email is required'
-      });
-    }
-    
-    console.log('✅ Mock API OTP sent successfully');
-    // Mock OTP sending
-    return res.json({
-      success: true,
-      message: 'OTP sent successfully (mock)'
-    });
-  } catch (error) {
-    console.error('❌ Mock API OTP error:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Internal server error: ' + error.message
-    });
-  }
-});
-
-// Mock signout endpoint for testing
-app.post('/api/auth/signout', (req, res) => {
-  try {
-    console.log(' Mock signout endpoint hit!', { 
-      method: req.method, 
-      url: req.url, 
-      path: req.path,
-      headers: req.headers
-    });
-    
-    console.log(' Mock signout successful');
-    // Mock signout
-    return res.json({
-      success: true,
-      message: 'Signed out successfully (mock)'
-    });
-  } catch (error) {
-    console.error(' Mock signout error:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Internal server error: ' + error.message
-    });
-  }
-});
-
-// Mock signin endpoint for testing
-app.post('/api/auth/signin', (req, res) => {
-  try {
-    console.log(' Mock signin endpoint hit!', { 
-      method: req.method, 
-      url: req.url, 
-      path: req.path,
-      headers: req.headers,
-      body: req.body 
-    });
-    
-    const { email, password } = req.body;
-    
-    if (!email || !password) {
-      console.log('Signin validation failed');
-      return res.status(400).json({
-        success: false,
-        error: 'Email and password are required'
-      });
-    }
-    
-    // Seed admin account check
-    if (email === 'admin@ojawa.africa' && password === 'admin123') {
-      console.log('Admin login successful - bypassing email verification');
-      return res.json({
-        success: true,
-        data: {
-          uid: 'admin-user-ojawa-2026',
-          email: 'admin@ojawa.africa',
-          displayName: 'System Administrator',
-          emailVerified: true, // Admin bypasses email verification
-          role: 'admin',
-          token: 'mock-admin-token-' + Date.now(),
-          bypassVerification: true // Flag to indicate verification bypass
-        },
-        message: 'Admin login successful (email verification bypassed)'
-      });
-    }
-    
-    // Mock user login for other accounts
-    console.log('User login successful');
-    return res.json({
-      success: true,
-      data: {
-        uid: 'mock-user-' + Date.now(),
-        email,
-        displayName: email.split('@')[0],
-        emailVerified: false,
-        role: 'user',
-        token: 'mock-user-token-' + Date.now()
-      },
-      message: 'Login successful (mock)'
-    });
-  } catch (error) {
-    console.error(' Mock signin error:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Internal server error: ' + error.message
-    });
-  }
-});
+// NOTE: legacy mock auth endpoints removed; all auth flows now handled by authRoutes
 
 // Test route to verify routing works
 app.get('/test-route', (req, res) => {
@@ -425,11 +232,16 @@ app.get('/health/subscriptions', (req, res) => {
 app.use('/auth', authRoutes);
 app.use('/api/auth', authRoutes); // Add API auth routes for frontend compatibility
 app.use('/api/auth/me', require('./routes/authMe')); // Quick fix for /me endpoint
+
+// Mount auth routes at root level for OTP endpoint compatibility
+app.use('/', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/cart', authenticateToken, cartRoutes);
 app.use('/api/orders', authenticateToken, orderRoutes);
 app.use('/api/payments', authenticateToken, paymentRoutes);
 app.use('/api/notifications', authenticateToken, notificationRoutes);
+app.use('/api/messaging', messagingRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api/analytics', authenticateToken, analyticsRoutes);
 app.use('/api/logistics', logisticsRoutes);
 

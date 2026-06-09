@@ -9,7 +9,7 @@ module.exports = {
         primaryKey: true
       },
       buyerId: {
-        type: DataTypes.UUID,
+        type: DataTypes.STRING(128),
         allowNull: false,
         references: {
           model: 'users',
@@ -17,7 +17,7 @@ module.exports = {
         }
       },
       vendorId: {
-        type: DataTypes.UUID,
+        type: DataTypes.STRING(128),
         allowNull: false,
         references: {
           model: 'users',

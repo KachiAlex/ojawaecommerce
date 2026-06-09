@@ -15,6 +15,8 @@ const Withdrawal = require('./Withdrawal');
 const AdminAuditLog = require('./AdminAuditLog');
 const SecurityAuditLog = require('./SecurityAuditLog');
 const AnalyticsEvent = require('./AnalyticsEvent');
+const Conversation = require('./Conversation');
+const Message = require('./Message');
 
 // Initialize models
 const UserModel = User.init(sequelize);
@@ -31,6 +33,8 @@ const WithdrawalModel = Withdrawal.init(sequelize);
 const AdminAuditLogModel = AdminAuditLog.init(sequelize);
 const SecurityAuditLogModel = SecurityAuditLog.init(sequelize);
 const AnalyticsEventModel = AnalyticsEvent.init(sequelize);
+const ConversationModel = Conversation.init(sequelize);
+const MessageModel = Message.init(sequelize);
 
 // Define associations
 UserModel.hasOne(VendorModel, { foreignKey: 'userId', as: 'vendor' });
@@ -68,6 +72,12 @@ EscrowReleaseModel.belongsTo(OrderModel, { foreignKey: 'orderId', as: 'order' })
 
 EscrowReleaseModel.belongsTo(UserModel, { foreignKey: 'vendorId', as: 'vendor' });
 
+ConversationModel.hasMany(MessageModel, { foreignKey: 'conversationId', as: 'messages' });
+MessageModel.belongsTo(ConversationModel, { foreignKey: 'conversationId', as: 'conversation' });
+
+UserModel.hasMany(MessageModel, { foreignKey: 'senderId', as: 'sentMessages' });
+MessageModel.belongsTo(UserModel, { foreignKey: 'senderId', as: 'sender' });
+
 module.exports = {
   sequelize,
   User: UserModel,
@@ -83,5 +93,7 @@ module.exports = {
   Withdrawal: WithdrawalModel,
   AdminAuditLog: AdminAuditLogModel,
   SecurityAuditLog: SecurityAuditLogModel,
-  AnalyticsEvent: AnalyticsEventModel
+  AnalyticsEvent: AnalyticsEventModel,
+  Conversation: ConversationModel,
+  Message: MessageModel
 };
