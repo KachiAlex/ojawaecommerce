@@ -47,7 +47,7 @@ test.describe('Security E2E Tests', () => {
 
   test('should prevent unauthorized file access', async ({ page }) => {
     // Try to access storage file directly
-    const response = await page.goto('https://firebasestorage.googleapis.com/v0/b/ojawa-ecommerce.appspot.com/o/test-file.jpg');
+    const response = await page.goto('/uploads/test-file.jpg');
     
     // Should be denied or require auth
     expect(response?.status()).toBeGreaterThanOrEqual(400);

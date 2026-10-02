@@ -1,0 +1,19 @@
+<svg viewBox="0 0 480 100" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@700&display=swap');
+      .word { font-family:'Baloo 2','Poppins','Arial Rounded MT Bold',sans-serif; font-weight:700; }
+    </style>
+  </defs>
+
+  <g>
+    <path d="M63.9,44.4 A15,15 0 0,1 63.9,55.6 L85.2,79.6 A46,46 0 0,0 95.9,46.8 Z" fill="#2E9E6D"/>
+    <path d="M61.8,59.2 A15,15 0 0,1 52.1,64.9 L42.0,95.3 A46,46 0 0,0 75.7,88.1 Z" fill="#E8A33D"/>
+    <path d="M47.9,64.9 A15,15 0 0,1 38.2,59.2 L6.8,65.7 A46,46 0 0,0 29.8,91.3 Z" fill="#1F2C4F"/>
+    <path d="M36.1,55.6 A15,15 0 0,1 36.1,44.4 L14.8,20.4 A46,46 0 0,0 4.1,53.2 Z" fill="#C1502E"/>
+    <path d="M38.2,40.8 A15,15 0 0,1 47.9,35.1 L58.0,4.7 A46,46 0 0,0 24.3,11.9 Z" fill="#1F6E4C"/>
+    <path d="M52.1,35.1 A15,15 0 0,1 61.8,40.8 L93.2,34.3 A46,46 0 0,0 70.2,8.7 Z" fill="#C6821F"/>
+  </g>
+
+  <text x="124" y="70" font-size="60" fill="#F4EEDE" class="word">Ojawa</text>
+</svg>

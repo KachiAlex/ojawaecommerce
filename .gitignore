@@ -57,3 +57,4 @@ functions/.runtimeconfig.json
 **/serviceAccountKey.json
 .vercel
 .env*.local
+.env*

@@ -1,0 +1,23 @@
+<svg width="600" height="600" viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Espresso machine illustration">
+  <defs>
+    <linearGradient id="espressoBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fdf3e7" />
+      <stop offset="100%" stop-color="#f8d9c0" />
+    </linearGradient>
+    <linearGradient id="espressoBody" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#8f5dff" />
+      <stop offset="100%" stop-color="#c284ff" />
+    </linearGradient>
+  </defs>
+  <rect width="600" height="600" fill="url(#espressoBg)" rx="32" />
+  <g transform="translate(90 110)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="0" y="40" width="420" height="300" rx="40" fill="url(#espressoBody)" stroke="#fdf3e7" stroke-width="8" />
+    <rect x="60" y="90" width="160" height="140" rx="20" fill="#f5ecff" />
+    <rect x="250" y="90" width="110" height="60" rx="12" fill="#f5ecff" opacity="0.6" />
+    <circle cx="305" cy="240" r="26" fill="#f5ecff" opacity="0.8" />
+    <rect x="40" y="360" width="340" height="60" rx="30" fill="#e2c3ff" />
+    <rect x="140" y="370" width="140" height="40" rx="20" fill="#fff" />
+    <path d="M120 240h180c0 40-40 72-90 72s-90-32-90-72z" fill="#f2af69" stroke="#fdf3e7" stroke-width="6" />
+  </g>
+  <text x="300" y="520" text-anchor="middle" fill="#5b2a86" font-family="'Poppins', 'Segoe UI', sans-serif" font-size="34" font-weight="600">Barista Espresso Pro</text>
+</svg>

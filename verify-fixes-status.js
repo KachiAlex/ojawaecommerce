@@ -147,7 +147,7 @@ async function testAdminAccount() {
   console.log('Testing admin accounts...');
   
   const adminAccounts = [
-    { email: 'admin@ojawa.africa', password: 'Admin@123456!' },
+    { email: 'admin@ojawa.africa', password: 'admin123' },
     { email: 'admin@ojawa.com', password: 'Admin123!' }
   ];
   

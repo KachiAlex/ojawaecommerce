@@ -7,7 +7,7 @@ services:
       dockerfile: Dockerfile.android
     container_name: ojawa-android-builder
     volumes:
-      - ./apps/buyer/android/app/build/outputs:/output/apks
+      - ./frontend/android/app/build/outputs:/output/apks
       - ./build-artifacts:/artifacts
     environment:
       - BUILD_VARIANT=release
@@ -15,7 +15,7 @@ services:
       - GRADLE_OPTS=-Xmx4096m
     command: /bin/sh -c "
       echo '📱 Building Ojawa Android APK...' &&
-      cd /app/apps/buyer/android &&
+      cd /app/frontend/android &&
       ./gradlew assembleRelease --no-daemon &&
       cp app/build/outputs/apk/release/*.apk /output/ &&
       echo '✅ Build complete! Check /output/ for APK files'

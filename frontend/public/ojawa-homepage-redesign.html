@@ -1,0 +1,1208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ojawa — Shop across Africa. Payment held safe until it arrives.</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink: #161F38;
+    --ink-2: #1F2C4F;
+    --paper: #F4EEDE;
+    --paper-dim: #E7DFC8;
+    --amber: #E8A33D;
+    --amber-dark: #C6821F;
+    --green: #2E9E6D;
+    --clay: #C1502E;
+    --line: rgba(244,238,222,0.16);
+    --line-dark: rgba(22,31,56,0.14);
+    --radius: 14px;
+    --display: 'Bricolage Grotesque', sans-serif;
+    --body: 'IBM Plex Sans', sans-serif;
+    --mono: 'IBM Plex Mono', monospace;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    background:var(--ink);
+    color:var(--paper);
+    font-family:var(--body);
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  img,svg{display:block;max-width:100%;}
+  a{color:inherit;text-decoration:none;}
+  h1,h2,h3{font-family:var(--display);margin:0;letter-spacing:-0.01em;}
+  p{margin:0;}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 32px;}
+  @media (max-width:640px){.wrap{padding:0 20px;}}
+
+  /* ---------- NAV ---------- */
+  header{
+    position:sticky;top:0;z-index:50;
+    background:rgba(22,31,56,0.86);
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);
+  }
+  nav.wrap{
+    display:flex;align-items:center;justify-content:space-between;
+    height:76px;
+  }
+  .logo{display:flex;align-items:center;gap:10px;}
+  .logo-img{height:44px;width:auto;flex:none;}
+  .footer-logo-img{height:40px;width:auto;display:block;}
+  .nav-links{display:flex;gap:32px;font-size:0.95rem;font-weight:500;}
+  .nav-links a{opacity:0.85;transition:opacity .15s;}
+  .nav-links a:hover{opacity:1;}
+  .nav-actions{display:flex;align-items:center;gap:16px;}
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    padding:11px 22px;border-radius:999px;font-weight:600;font-size:0.92rem;
+    cursor:pointer;border:1px solid transparent;transition:transform .15s, background .15s, box-shadow .15s;
+    white-space:nowrap;
+  }
+  .btn:active{transform:scale(0.97);}
+  .btn-primary{background:var(--amber);color:var(--ink);}
+  .btn-primary:hover{background:#f0b158;}
+  .btn-primary:focus-visible, .btn-ghost:focus-visible, .btn-outline:focus-visible{outline:2px solid var(--amber);outline-offset:3px;}
+  .btn-ghost{color:var(--paper);opacity:0.9;}
+  .btn-ghost:hover{opacity:1;}
+  .btn-outline{border-color:rgba(244,238,222,0.4);color:var(--paper);}
+  .btn-outline:hover{border-color:var(--paper);}
+  .nav-toggle{display:none;background:none;border:none;color:var(--paper);cursor:pointer;padding:6px;}
+  @media (max-width:900px){
+    .nav-links{display:none;}
+    .nav-actions .btn-ghost{display:none;}
+    .nav-toggle{display:block;}
+  }
+
+  /* ---------- HERO ---------- */
+  .hero{
+    padding:52px 0 60px;
+    position:relative;
+    overflow:hidden;
+    border-bottom:1px solid var(--line);
+  }
+  .hero-bg{position:absolute;inset:0;z-index:0;}
+  .hero-bg svg{width:100%;height:100%;display:block;}
+  .hero-overlay{
+    position:absolute;inset:0;z-index:1;
+    background:linear-gradient(100deg, var(--ink) 0%, var(--ink) 26%, rgba(22,31,56,0.82) 40%, rgba(22,31,56,0.45) 60%, rgba(22,31,56,0.2) 100%);
+  }
+  @media (max-width:900px){
+    .hero-overlay{background:linear-gradient(180deg, var(--ink) 0%, rgba(22,31,56,0.85) 50%, rgba(22,31,56,0.55) 100%);}
+  }
+  .hero .wrap.hero-grid{position:relative;z-index:2;}
+  .hero-grid{
+    display:grid;grid-template-columns:1.1fr 0.9fr;gap:40px;align-items:center;
+  }
+  @media (max-width:900px){.hero-grid{grid-template-columns:1fr;gap:28px;} .hero{padding:40px 0 44px;}}
+  .eyebrow{
+    display:inline-flex;align-items:center;gap:8px;
+    font-family:var(--mono);font-size:0.78rem;letter-spacing:0.06em;text-transform:uppercase;
+    color:var(--amber);border:1px solid rgba(232,163,61,0.4);
+    padding:6px 14px;border-radius:999px;margin-bottom:16px;
+  }
+  .eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--green);}
+  .hero h1{
+    font-size:clamp(2.4rem, 4.6vw, 3.6rem);
+    font-weight:700;
+    line-height:1.06;
+    max-width:16ch;
+  }
+  .hero h1 em{
+    font-style:normal;color:var(--amber);
+  }
+  .hero p.lead{
+    margin-top:14px;font-size:1.08rem;line-height:1.55;color:rgba(244,238,222,0.82);max-width:46ch;
+  }
+  .hero-ctas{display:flex;gap:14px;margin-top:22px;flex-wrap:wrap;}
+  .hero-ctas .btn{padding:13px 26px;font-size:0.96rem;}
+  .trust-line{
+    margin-top:18px;display:flex;align-items:center;gap:10px;
+    font-size:0.85rem;color:rgba(244,238,222,0.6);font-family:var(--mono);
+  }
+  .flags{display:flex;font-size:1rem;letter-spacing:-2px;}
+
+  /* Hero slider */
+  .hero.hero-slider{padding:0;min-height:clamp(420px,55vh,560px);position:relative;overflow:hidden;}
+  .hero-slide{position:absolute;inset:0;opacity:0;transition:opacity .7s ease;z-index:0;padding:52px 0 60px;}
+  .hero-slide.active{opacity:1;z-index:1;}
+  @media (max-width:900px){.hero-slide{padding:40px 0 44px;}}
+  .hero-dots{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);display:flex;gap:10px;z-index:5;}
+  .hero-dot{width:10px;height:10px;border-radius:50%;border:none;background:rgba(255,255,255,0.35);cursor:pointer;transition:background .2s;}
+  .hero-dot.active{background:var(--amber);}
+
+  /* Hero illustration: escrow stamps floating over the photo */
+  .hero-art{position:relative;min-height:260px;}
+  @media (max-width:900px){.hero-art{min-height:180px;}}
+  .badge-stamp{
+    position:absolute;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    width:104px;height:104px;border-radius:50%;
+    border:2.5px solid currentColor;
+    font-family:var(--mono);font-size:0.62rem;letter-spacing:0.03em;text-transform:uppercase;text-align:center;
+    line-height:1.3;padding:6px;
+    backdrop-filter:blur(3px);
+    box-shadow:0 8px 24px rgba(0,0,0,0.25);
+  }
+  .badge-stamp::before{
+    content:"";position:absolute;inset:6px;border:1px solid currentColor;border-radius:50%;opacity:0.5;
+  }
+  .badge-stamp.b1{top:6%;left:6%;color:var(--green);background:rgba(46,158,109,0.22);transform:rotate(-9deg);}
+  .badge-stamp.b2{bottom:14%;right:4%;color:var(--amber);background:rgba(232,163,61,0.22);transform:rotate(7deg);}
+  .badge-stamp.b3{bottom:0;left:38%;color:#8AA0E8;background:rgba(138,160,232,0.22);transform:rotate(-4deg);}
+  @media (max-width:900px){.badge-stamp{width:84px;height:84px;font-size:0.56rem;}}
+
+  /* ---------- TRUST STRIP ---------- */
+  .trust-strip{border-bottom:1px solid var(--line);}
+  .trust-grid{
+    display:grid;grid-template-columns:repeat(3,1fr);
+  }
+  .trust-item{
+    padding:18px 0;text-align:center;border-left:1px solid var(--line);
+  }
+  .trust-item:first-child{border-left:none;}
+  .trust-item .num{font-family:var(--display);font-weight:700;font-size:1.5rem;color:var(--amber);}
+  .trust-item .lbl{font-size:0.86rem;color:rgba(244,238,222,0.7);margin-top:4px;}
+  @media (max-width:700px){
+    .trust-grid{grid-template-columns:1fr;}
+    .trust-item{border-left:none;border-top:1px solid var(--line);padding:20px 0;}
+    .trust-item:first-child{border-top:none;}
+  }
+
+  /* ---------- SECTION HEADS ---------- */
+  section{padding:64px 0;}
+  @media (max-width:700px){section{padding:44px 0;}}
+  .section-head{max-width:640px;margin-bottom:36px;}
+  .section-head .eyebrow{margin-bottom:16px;}
+  .section-head h2{font-size:clamp(1.8rem,3.2vw,2.5rem);font-weight:700;}
+  .section-head p{margin-top:16px;color:rgba(244,238,222,0.72);font-size:1.05rem;line-height:1.6;}
+
+  /* ---------- HOW IT WORKS: stamp trail ---------- */
+  .how{background:var(--ink);}
+  .trail{position:relative;}
+  .trail-line{
+    position:absolute;top:56px;left:5%;right:5%;height:2px;
+    background-image:linear-gradient(to right, rgba(244,238,222,0.28) 0 10px, transparent 10px 20px);
+    background-size:20px 2px;
+  }
+  @media (max-width:900px){.trail-line{display:none;}}
+  .trail-steps{
+    display:grid;grid-template-columns:repeat(4,1fr);gap:32px;position:relative;
+  }
+  @media (max-width:900px){.trail-steps{grid-template-columns:1fr;gap:28px;}}
+  .step{
+    opacity:0;transform:translateY(18px) scale(0.96);
+    transition:opacity .6s ease, transform .6s ease;
+  }
+  .step.in-view{opacity:1;transform:translateY(0) scale(1);}
+  .stamp{
+    width:112px;height:112px;border-radius:50%;
+    border:2.5px solid var(--stamp-color, var(--amber));
+    color:var(--stamp-color, var(--amber));
+    display:flex;align-items:center;justify-content:center;position:relative;
+    margin:0 auto 22px;background:var(--ink-2);
+  }
+  .stamp::before{content:"";position:absolute;inset:7px;border:1px solid currentColor;border-radius:50%;opacity:0.45;}
+  .stamp svg{width:42px;height:42px;}
+  .step-num{
+    font-family:var(--mono);font-size:0.72rem;letter-spacing:0.05em;text-transform:uppercase;
+    color:var(--stamp-color, var(--amber));text-align:center;display:block;margin-bottom:8px;
+  }
+  .step h3{font-size:1.1rem;text-align:center;font-weight:600;}
+  .step p{margin-top:10px;text-align:center;font-size:0.92rem;color:rgba(244,238,222,0.68);line-height:1.55;}
+
+  /* ---------- MARKETPLACE (sidebar filters + category rows) ---------- */
+  .categories{background:var(--paper);color:var(--ink);}
+  .categories .section-head p{color:rgba(22,31,56,0.68);}
+  .categories .eyebrow{color:var(--amber-dark);border-color:rgba(198,130,31,0.4);}
+
+  .market-layout{display:grid;grid-template-columns:252px 1fr;gap:26px;align-items:start;}
+  .market-main{max-height:calc(100vh - 140px);overflow-y:auto;position:relative;}
+  @media (max-width:900px){.market-layout{grid-template-columns:1fr;} .market-main{max-height:none;overflow-y:visible;}}
+
+  /* --- filter sidebar --- */
+  .filters{
+    position:sticky;top:96px;background:#fff;border:1px solid var(--line-dark);
+    border-radius:var(--radius);padding:16px;
+  }
+  @media (max-width:900px){
+    .filters{
+      position:fixed;top:0;right:0;bottom:0;width:min(320px,86vw);z-index:110;
+      border-radius:0;transform:translateX(100%);transition:transform .25s ease;
+      overflow-y:auto;top:0;
+    }
+    .filters.open{transform:translateX(0);}
+  }
+  .filters-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+  .filters-head h3{font-size:1.05rem;font-weight:700;}
+  .filters-close{display:none;background:none;border:none;cursor:pointer;color:var(--ink);}
+  @media (max-width:900px){.filters-close{display:block;}}
+  .filter-group{padding:10px 0;border-top:1px solid var(--line-dark);}
+  .filter-group:first-of-type{border-top:none;padding-top:0;}
+  .filter-group h4{
+    font-family:var(--mono);font-size:0.74rem;text-transform:uppercase;letter-spacing:0.05em;
+    color:rgba(22,31,56,0.55);margin-bottom:8px;font-weight:500;
+  }
+  .filter-check{display:flex;align-items:center;gap:9px;font-size:0.9rem;margin-bottom:6px;cursor:pointer;}
+  .filter-check:last-child{margin-bottom:0;}
+  .filter-check input{accent-color:var(--amber-dark);width:15px;height:15px;cursor:pointer;}
+  .price-value{font-family:var(--mono);font-size:0.82rem;color:rgba(22,31,56,0.7);margin-bottom:8px;}
+  .price-value b{color:var(--ink);}
+  input[type="range"]{width:100%;accent-color:var(--amber-dark);}
+  .clear-filters{
+    margin-top:4px;width:100%;padding:10px;border-radius:8px;border:1px solid rgba(22,31,56,0.2);
+    background:none;font-size:0.85rem;font-weight:600;color:var(--ink);cursor:pointer;
+  }
+  .clear-filters:hover{background:rgba(22,31,56,0.05);}
+  .filters-scrim{
+    display:none;position:fixed;inset:0;background:rgba(22,31,56,0.5);z-index:105;
+  }
+  .filters-scrim.open{display:block;}
+  .mobile-filter-btn{
+    display:none;align-items:center;gap:8px;margin-bottom:24px;
+    border:1px solid rgba(22,31,56,0.25);background:#fff;padding:10px 16px;border-radius:999px;
+    font-size:0.9rem;font-weight:600;cursor:pointer;
+  }
+  @media (max-width:900px){.mobile-filter-btn{display:inline-flex;}}
+
+  /* --- category rows --- */
+  .cat-row{margin-bottom:28px;}
+  .cat-row:last-child{margin-bottom:0;}
+  .cat-row-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:16px;}
+  .cat-row-head h3{font-size:1.2rem;font-weight:700;}
+  .cat-row-head .see-all{font-size:0.85rem;font-weight:600;color:var(--amber-dark);flex:none;}
+  .cat-row-wrap{position:relative;}
+  .cat-scroll{
+    display:flex;gap:16px;overflow-x:auto;scroll-behavior:smooth;scroll-snap-type:x proximity;
+    padding-bottom:6px;scrollbar-width:none;
+  }
+  .cat-scroll::-webkit-scrollbar{display:none;}
+  .scroll-btn{
+    position:absolute;top:38%;transform:translateY(-50%);z-index:2;
+    width:36px;height:36px;border-radius:50%;border:1px solid rgba(22,31,56,0.15);
+    background:#fff;box-shadow:0 4px 10px rgba(22,31,56,0.12);cursor:pointer;
+    display:flex;align-items:center;justify-content:center;color:var(--ink);
+  }
+  .scroll-btn.left{left:-18px;}
+  .scroll-btn.right{right:-18px;}
+  @media (max-width:640px){.scroll-btn{display:none;}}
+
+  .product-card{
+    scroll-snap-align:start;flex:none;width:190px;
+    border:1px solid var(--line-dark);border-radius:var(--radius);overflow:hidden;background:#fff;
+    transition:transform .15s ease, box-shadow .15s ease;
+  }
+  .product-card:hover{transform:translateY(-3px);box-shadow:0 10px 20px rgba(22,31,56,0.1);}
+  .product-thumb{
+    aspect-ratio:1/1;position:relative;display:flex;align-items:center;justify-content:center;
+  }
+  .product-thumb .pattern{position:absolute;inset:0;opacity:0.9;}
+  .product-thumb svg{width:46px;height:46px;color:rgba(255,255,255,0.9);position:relative;z-index:1;}
+  .product-body{padding:12px 14px 16px;}
+  .product-name{font-size:0.88rem;font-weight:600;line-height:1.35;min-height:2.4em;}
+  .product-meta{display:flex;align-items:center;justify-content:space-between;margin-top:8px;}
+  .product-price{font-family:var(--mono);font-weight:600;font-size:0.9rem;}
+  .product-flag{font-size:0.85rem;}
+  .product-escrow{
+    margin-top:8px;display:inline-flex;align-items:center;gap:5px;
+    font-size:0.7rem;color:var(--green);font-weight:600;
+  }
+  .product-escrow svg{width:12px;height:12px;}
+  .empty-state{
+    text-align:center;padding:48px 24px;color:rgba(22,31,56,0.6);
+    border:1px dashed rgba(22,31,56,0.2);border-radius:var(--radius);
+  }
+
+  /* ---------- VENDOR CTA ---------- */
+  .vendor{
+    background:var(--ink-2);border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  }
+  .vendor-grid{display:grid;grid-template-columns:1.1fr 0.9fr;gap:48px;align-items:center;}
+  @media (max-width:900px){.vendor-grid{grid-template-columns:1fr;}}
+  .vendor h2{font-size:clamp(1.7rem,3vw,2.3rem);}
+  .vendor p{margin-top:16px;color:rgba(244,238,222,0.75);font-size:1.05rem;line-height:1.6;max-width:48ch;}
+  .vendor-ctas{display:flex;gap:14px;margin-top:28px;flex-wrap:wrap;}
+  .vendor-points{display:flex;flex-direction:column;gap:18px;}
+  .vendor-point{display:flex;gap:14px;align-items:flex-start;}
+  .vendor-point svg{width:22px;height:22px;flex:none;color:var(--green);margin-top:2px;}
+  .vendor-point span{font-size:0.95rem;color:rgba(244,238,222,0.85);}
+
+  /* ---------- TESTIMONIALS (receipt cards) ---------- */
+  .testimonials{background:var(--ink);}
+  .receipt-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;}
+  @media (max-width:900px){.receipt-grid{grid-template-columns:1fr;}}
+  .receipt{
+    background:var(--ink-2);border:1px solid var(--line);border-radius:var(--radius);
+    padding:26px 24px;position:relative;
+  }
+  .receipt::before{
+    content:"";position:absolute;top:-1px;left:0;right:0;height:6px;
+    background-image:radial-gradient(circle, var(--ink) 4px, transparent 4.5px);
+    background-size:14px 14px;background-position:0 -7px;
+  }
+  .receipt .quote{font-size:0.98rem;line-height:1.6;color:rgba(244,238,222,0.88);}
+  .receipt .who{
+    margin-top:18px;padding-top:14px;border-top:1px dashed var(--line);
+    font-family:var(--mono);font-size:0.8rem;color:rgba(244,238,222,0.55);
+    display:flex;justify-content:space-between;
+  }
+
+  /* ---------- FINAL CTA ---------- */
+  .final-cta{
+    text-align:center;padding:64px 0;
+  }
+  .final-cta h2{font-size:clamp(2rem,4vw,2.8rem);max-width:18ch;margin:0 auto;}
+  .final-cta p{margin-top:18px;color:rgba(244,238,222,0.72);font-size:1.05rem;}
+  .final-cta .hero-ctas{justify-content:center;}
+
+  /* ---------- FOOTER ---------- */
+  footer{border-top:1px solid var(--line);padding:40px 0 24px;}
+  .footer-grid{display:grid;grid-template-columns:1.4fr repeat(3,1fr);gap:32px;}
+  @media (max-width:800px){.footer-grid{grid-template-columns:repeat(2,1fr);}}
+  .footer-col h4{font-size:0.85rem;text-transform:uppercase;letter-spacing:0.05em;color:rgba(244,238,222,0.5);margin-bottom:14px;font-family:var(--mono);font-weight:500;}
+  .footer-col a{display:block;font-size:0.92rem;color:rgba(244,238,222,0.8);margin-bottom:10px;}
+  .footer-col a:hover{color:var(--amber);}
+  .footer-bottom{
+    margin-top:28px;padding-top:18px;border-top:1px solid var(--line);
+    display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;
+    font-size:0.82rem;color:rgba(244,238,222,0.45);
+  }
+
+  /* Mobile menu */
+  .mobile-menu{
+    position:fixed;inset:0;background:var(--ink);z-index:100;
+    display:flex;flex-direction:column;padding:24px;transform:translateX(100%);
+    transition:transform .25s ease;
+  }
+  .mobile-menu.open{transform:translateX(0);}
+  .mobile-menu .close-btn{align-self:flex-end;background:none;border:none;color:var(--paper);}
+  .mobile-menu a{font-family:var(--display);font-size:1.6rem;font-weight:600;padding:16px 0;border-bottom:1px solid var(--line);}
+  .mobile-menu .btn{margin-top:24px;}
+
+  @media (prefers-reduced-motion: reduce){
+    *{transition:none !important; animation:none !important;}
+    .step{opacity:1;transform:none;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <nav class="wrap">
+    <div class="logo">
+      <svg class="logo-img" viewBox="0 0 480 100" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@700&display=swap');
+      .word { font-family:'Baloo 2','Poppins','Arial Rounded MT Bold',sans-serif; font-weight:700; }
+    </style>
+  </defs>
+  <g>
+    <path d="M63.9,44.4 A15,15 0 0,1 63.9,55.6 L85.2,79.6 A46,46 0 0,0 95.9,46.8 Z" fill="#2E9E6D"/>
+    <path d="M61.8,59.2 A15,15 0 0,1 52.1,64.9 L42.0,95.3 A46,46 0 0,0 75.7,88.1 Z" fill="#E8A33D"/>
+    <path d="M47.9,64.9 A15,15 0 0,1 38.2,59.2 L6.8,65.7 A46,46 0 0,0 29.8,91.3 Z" fill="#1F2C4F"/>
+    <path d="M36.1,55.6 A15,15 0 0,1 36.1,44.4 L14.8,20.4 A46,46 0 0,0 4.1,53.2 Z" fill="#C1502E"/>
+    <path d="M38.2,40.8 A15,15 0 0,1 47.9,35.1 L58.0,4.7 A46,46 0 0,0 24.3,11.9 Z" fill="#1F6E4C"/>
+    <path d="M52.1,35.1 A15,15 0 0,1 61.8,40.8 L93.2,34.3 A46,46 0 0,0 70.2,8.7 Z" fill="#C6821F"/>
+  </g>
+  <text x="124" y="70" font-size="60" fill="#F4EEDE" class="word">Ojawa</text>
+</svg>
+    </div>
+    <div class="nav-links">
+      <a href="#how">How escrow works</a>
+      <a href="#categories">Marketplace</a>
+      <a href="#sell">Sell on Ojawa</a>
+    </div>
+    <div class="nav-actions">
+      <a href="#" class="btn btn-ghost">Log in</a>
+      <a href="#" class="btn btn-primary">Start shopping</a>
+      <button class="nav-toggle" id="openMenu" aria-label="Open menu">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+  </nav>
+</header>
+
+<div class="mobile-menu" id="mobileMenu">
+  <button class="close-btn" id="closeMenu" aria-label="Close menu">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+  </button>
+  <a href="#how">How escrow works</a>
+  <a href="#categories">Marketplace</a>
+  <a href="#sell">Sell on Ojawa</a>
+  <a href="#">Log in</a>
+  <a href="#" class="btn btn-primary">Start shopping</a>
+</div>
+
+<div class="hero hero-slider" id="heroSlider">
+  <div class="hero-slide active">
+    <div class="hero-bg">
+      <img src="https://images.unsplash.com/photo-1778079247396-9c0e01c83c8b?auto=format&amp;fit=crop&amp;w=1600&amp;q=80" alt="African market" style="width:100%;height:100%;object-fit:cover;opacity:0.65;" />
+    </div>
+    <div class="hero-overlay"></div>
+    <div class="wrap hero-grid">
+      <div>
+        <span class="eyebrow"><span class="dot"></span>Escrow-protected checkout</span>
+        <h1>Shop across Africa.<br>Your money stays held until it arrives</h1>
+        <p class="lead">Ojawa locks your payment in escrow the moment you check out, and only releases it to the seller once you confirm the order arrived. No wiring money and hoping. No ghosted sellers.</p>
+        <div class="hero-ctas">
+          <a href="#categories" class="btn btn-primary">Start shopping</a>
+          <a href="#sell" class="btn btn-outline">Sell on Ojawa</a>
+        </div>
+        <div class="trust-line">
+          <span class="flags">🇳🇬🇬🇭🇰🇪🇿🇦</span>
+          <span>Buyers and vendors across 12+ African countries</span>
+        </div>
+      </div>
+      <div class="hero-art">
+        <div class="badge-stamp b1">Payment<br>held</div>
+        <div class="badge-stamp b2">Delivery<br>confirmed</div>
+        <div class="badge-stamp b3">Vendor<br>verified</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="hero-slide">
+    <div class="hero-bg">
+      <img src="https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&amp;fit=crop&amp;w=1600&amp;q=80" alt="Boutique clothing" style="width:100%;height:100%;object-fit:cover;opacity:0.65;" />
+    </div>
+    <div class="hero-overlay"></div>
+    <div class="wrap hero-grid">
+      <div>
+        <span class="eyebrow"><span class="dot"></span>Cross-border trade</span>
+        <h1>Buy and sell across borders.<br>Escrow keeps it safe</h1>
+        <p class="lead">Connect with verified vendors and buyers in 12+ African countries. Funds stay locked until both sides are satisfied.</p>
+        <div class="hero-ctas">
+          <a href="#categories" class="btn btn-primary">Start shopping</a>
+          <a href="#sell" class="btn btn-outline">Sell on Ojawa</a>
+        </div>
+        <div class="trust-line">
+          <span class="flags">🇳🇬🇬🇭🇰🇪🇿🇦</span>
+          <span>Cross-continent, confidence-first commerce</span>
+        </div>
+      </div>
+      <div class="hero-art">
+        <div class="badge-stamp b1">Payment<br>held</div>
+        <div class="badge-stamp b2">Delivery<br>confirmed</div>
+        <div class="badge-stamp b3">Vendor<br>verified</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="hero-slide">
+    <div class="hero-bg">
+      <img src="https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&amp;fit=crop&amp;w=1600&amp;q=80" alt="Shopping" style="width:100%;height:100%;object-fit:cover;opacity:0.65;" />
+    </div>
+    <div class="hero-overlay"></div>
+    <div class="wrap hero-grid">
+      <div>
+        <span class="eyebrow"><span class="dot"></span>Verified vendors</span>
+        <h1>Verified vendors.<br>Safe deliveries. Happy buyers.</h1>
+        <p class="lead">Every vendor is identity-checked and every payment is protected. Shop from phones to fashion without the worry.</p>
+        <div class="hero-ctas">
+          <a href="#categories" class="btn btn-primary">Start shopping</a>
+          <a href="#sell" class="btn btn-outline">Sell on Ojawa</a>
+        </div>
+        <div class="trust-line">
+          <span class="flags">🇳🇬🇬🇭🇰🇪🇿🇦</span>
+          <span>Your money stays held until it arrives</span>
+        </div>
+      </div>
+      <div class="hero-art">
+        <div class="badge-stamp b1">Payment<br>held</div>
+        <div class="badge-stamp b2">Delivery<br>confirmed</div>
+        <div class="badge-stamp b3">Vendor<br>verified</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="hero-dots" id="heroDots">
+    <button class="hero-dot active" data-slide="0" aria-label="Slide 1"></button>
+    <button class="hero-dot" data-slide="1" aria-label="Slide 2"></button>
+    <button class="hero-dot" data-slide="2" aria-label="Slide 3"></button>
+  </div>
+</div>
+
+<section class="trust-strip">
+  <div class="wrap trust-grid">
+    <div class="trust-item"><div class="num">100%</div><div class="lbl">Orders escrow-protected</div></div>
+    <div class="trust-item"><div class="num">0</div><div class="lbl">Sellers paid before you confirm receipt</div></div>
+    <div class="trust-item"><div class="num">12+</div><div class="lbl">Countries with verified vendors</div></div>
+  </div>
+</section>
+
+<section class="how" id="how">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow"><span class="dot"></span>How escrow works</span>
+      <h2>Four stamps, one safe delivery</h2>
+      <p>Every Ojawa order moves through the same checkpoints — like a parcel crossing borders. Your payment only clears each checkpoint when you say it's safe to.</p>
+    </div>
+    <div class="trail">
+      <div class="trail-line"></div>
+      <div class="trail-steps">
+        <div class="step" style="--stamp-color:#E8A33D">
+          <div class="stamp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="9" cy="19" r="1.4"/><circle cx="18" cy="19" r="1.4"/><path d="M2 3h2l2.4 12.2a2 2 0 0 0 2 1.6h8.2a2 2 0 0 0 2-1.6L21 7H6"/></svg></div>
+          <span class="step-num">Checkpoint 01</span>
+          <h3>Place your order</h3>
+          <p>Pay through Ojawa. Your money is booked into escrow — it doesn't go to the seller yet.</p>
+        </div>
+        <div class="step" style="--stamp-color:#8AA0E8">
+          <div class="stamp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="5" y="10" width="14" height="10" rx="1.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div>
+          <span class="step-num">Checkpoint 02</span>
+          <h3>Payment held</h3>
+          <p>We hold your funds securely while the vendor prepares and ships your order.</p>
+        </div>
+        <div class="step" style="--stamp-color:#2E9E6D">
+          <div class="stamp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 17V7a1 1 0 0 1 1-1h9v11H4a1 1 0 0 1-1-1z"/><path d="M13 10h4l3 3v4h-7z"/><circle cx="7.5" cy="18.5" r="1.6"/><circle cx="17.5" cy="18.5" r="1.6"/></svg></div>
+          <span class="step-num">Checkpoint 03</span>
+          <h3>Track delivery</h3>
+          <p>Follow your order from the vendor's warehouse to your door, wherever you are.</p>
+        </div>
+        <div class="step" style="--stamp-color:#C1502E">
+          <div class="stamp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 12.5l4.5 4.5L20 6"/></svg></div>
+          <span class="step-num">Checkpoint 04</span>
+          <h3>Confirm & release</h3>
+          <p>Only once you confirm the item arrived as expected do we release payment to the vendor.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="categories" id="categories">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow"><span class="dot" style="background:#2E9E6D"></span>Marketplace</span>
+      <h2>Shop by category, protected the same way every time</h2>
+      <p>Every listing below carries the same escrow guarantee — from a phone charger in Accra to a wedding gown in Nairobi. Filter to narrow things down.</p>
+    </div>
+
+    <button class="mobile-filter-btn" id="openFilters">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+      Filters
+    </button>
+
+    <div class="market-layout">
+      <!-- Sidebar filters -->
+      <aside class="filters" id="filterPanel">
+        <div class="filters-head">
+          <h3>Filters</h3>
+          <button class="filters-close" id="closeFilters" aria-label="Close filters">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+        </div>
+
+        <div class="filter-group">
+          <h4>Category</h4>
+          <label class="filter-check"><input type="checkbox" class="f-category" value="electronics"> Electronics</label>
+          <label class="filter-check"><input type="checkbox" class="f-category" value="fashion"> Fashion & textiles</label>
+          <label class="filter-check"><input type="checkbox" class="f-category" value="beauty"> Beauty</label>
+          <label class="filter-check"><input type="checkbox" class="f-category" value="home"> Home & living</label>
+          <label class="filter-check"><input type="checkbox" class="f-category" value="agro"> Agro & foods</label>
+          <label class="filter-check"><input type="checkbox" class="f-category" value="auto"> Auto parts</label>
+        </div>
+
+        <div class="filter-group">
+          <h4>Max price</h4>
+          <div class="price-value">Up to <b id="priceLabel">$500</b> (equivalent)</div>
+          <input type="range" id="priceRange" min="10" max="500" step="10" value="500">
+        </div>
+
+        <div class="filter-group">
+          <button class="clear-filters" id="clearFilters">Clear all filters</button>
+        </div>
+      </aside>
+
+      <!-- Product rows -->
+      <div class="market-main" id="marketMain">
+
+        <div class="cat-row" data-row-category="electronics">
+          <div class="cat-row-head"><h3>Electronics</h3><a href="#" class="see-all">See all →</a></div>
+          <div class="cat-row-wrap">
+            <button class="scroll-btn left" data-scroll="-1" aria-label="Scroll left"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button>
+            <div class="cat-scroll">
+              <div class="product-card" data-category="electronics" data-country="NG" data-price-usd="35">
+                <div class="product-thumb" style="background:linear-gradient(135deg,#E8A33D,#C6821F);">
+                  <svg class="pattern" viewBox="0 0 200 200"><circle cx="30" cy="30" r="3" fill="#fff" opacity=".2"/><circle cx="90" cy="60" r="3" fill="#fff" opacity=".2"/><circle cx="160" cy="40" r="3" fill="#fff" opacity=".2"/><circle cx="50" cy="150" r="3" fill="#fff" opacity=".2"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 12a8 8 0 0 1 16 0M2 12h4v6H2zM18 12h4v6h-4z"/></svg>
+                </div>
+                <div class="product-body">
+                  <div class="product-name">Wireless Earbuds Pro</div>
+                  <div class="product-meta"><span class="product-price">₦28,000</span><span class="product-flag">🇳🇬</span></div>
+                  <span class="product-escrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12.5l4.5 4.5L20 6"/></svg>Escrow protected</span>
+                </div>
+              </div>
+              <div class="product-card" data-category="electronics" data-country="GH" data-price-usd="20">
+                <div class="product-thumb" style="background:linear-gradient(135deg,#E8A33D,#C6821F);">
+                  <svg class="pattern" viewBox="0 0 200 200"><circle cx="20" cy="60" r="3" fill="#fff" opacity=".2"/><circle cx="120" cy="30" r="3" fill="#fff" opacity=".2"/><circle cx="170" cy="120" r="3" fill="#fff" opacity=".2"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="5" y="9" width="14" height="9" rx="2"/><path d="M9 9V6a3 3 0 0 1 6 0v3"/></svg>
+                </div>
+                <div class="product-body">
+                  <div class="product-name">Bluetooth Speaker Mini</div>
+                  <div class="product-meta"><span class="product-price">GH₵240</span><span class="product-flag">🇬🇭</span></div>
+                  <span class="product-escrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12.5l4.5 4.5L20 6"/></svg>Escrow protected</span>
+                </div>
+              </div>
+              <div class="product-card" data-category="electronics" data-country="KE" data-price-usd="15">
+                <div class="product-thumb" style="background:linear-gradient(135deg,#E8A33D,#C6821F);">
+                  <svg class="pattern" viewBox="0 0 200 200"><circle cx="60" cy="20" r="3" fill="#fff" opacity=".2"/><circle cx="140" cy="80" r="3" fill="#fff" opacity=".2"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>
+                </div>
+                <div class="product-body">
+                  <div class="product-name">65W Fast Charger</div>
+                  <div class="product-meta"><span class="product-price">KSh1,900</span><span class="product-flag">🇰🇪</span></div>
+                  <span class="product-escrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12.5l4.5 4.5L20 6"/></svg>Escrow protected</span>
+                </div>
+              </div>
+              <div class="product-card" data-category="electronics" data-country="ZA" data-price-usd="40">
+                <div class="product-thumb" style="background:linear-gradient(135deg,#E8A33D,#C6821F);">
+                  <svg class="pattern" viewBox="0 0 200 200"><circle cx="100" cy="100" r="3" fill="#fff" opacity=".2"/><circle cx="40" cy="150" r="3" fill="#fff" opacity=".2"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>
+                </div>
+                <div class="product-body">
+                  <div class="product-name">Smart Watch Band X</div>
+                  <div class="product-meta"><span class="product-price">R320</span><span class="product-flag">🇿🇦</span></div>
+                  <span class="product-escrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12.5l4.5 4.5L20 6"/></svg>Escrow protected</span>
+                </div>
+              </div>
+              <div class="product-card" data-category="electronics" data-country="NG" data-price-usd="25">
+                <div class="product-thumb" style="background:linear-gradient(135deg,#E8A33D,#C6821F);">
+                  <svg class="pattern" viewBox="0 0 200 200"><circle cx="150" cy="40" r="3" fill="#fff" opacity=".2"/><circle cx="30" cy="100" r="3" fill="#fff" opacity=".2"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="8" width="16" height="10" rx="2"/><circle cx="12" cy="13" r="2.4"/></svg>
+                </div>
+                <div class="product-body">
+                  <div class="product-name">Portable Power Bank 20K</div>
+                  <div class="product-meta"><span class="product-price">₦19,500</span><span class="product-flag">🇳🇬</span></div>
+                  <span class="product-escrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12.5l4.5 4.5L20 6"/></svg>Escrow protected</span>
+                </div>
+              </div>
+              <div class="product-card" data-category="electronics" data-country="GH" data-price-usd="18">
+                <div class="product-thumb" style="background:linear-gradient(135deg,#E8A33D,#C6821F);">
+                  <svg class="pattern" viewBox="0 0 200 200"><circle cx="80" cy="150" r="3" fill="#fff" opacity=".2"/><circle cx="160" cy="60" r="3" fill="#fff" opacity=".2"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg>
+                </div>
+                <div class="product-body">
+                  <div class="product-name">LED Ring Light</div>
+                  <div class="product-meta"><span class="product-price">GH₵210</span><span class="product-flag">🇬🇭</span></div>
+                  <span class="product-escrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12.5l4.5 4.5L20 6"/></svg>Escrow protected</span>
+                </div>
+              </div>
+            </div>
+            <button class="scroll-btn right" data-scroll="1" aria-label="Scroll right"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
+          </div>
+        </div>
+
+        <div class="cat-row" data-row-category="fashion">
+          <div class="cat-row-head"><h3>Fashion & textiles</h3><a href="#" class="see-all">See all →</a></div>
+          <div class="cat-row-wrap">
+            <button class="scroll-btn left" data-scroll="-1" aria-label="Scroll left"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button>
+            <div class="cat-scroll">
+              <div class="product-card" data-category="fashion" data-country="NG" data-price-usd="30">
+                <div class="product-thumb" style="background:linear-gradient(135deg,#2E9E6D,#1F6E4C);">
+                  <svg class="pattern" viewBox="0 0 200 200"><path d="M0 40 Q50 20 100 40 T200 40" stroke="#fff" stroke-width="2" fill="none" opacity=".2"/><path d="M0 100 Q50 80 100 100 T200 100" stroke="#fff" stroke-width="2" fill="none" opacity=".2"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 4l4 3 4-3 3 4-3 3v10H5V11L2 8l3-4z"/></svg>
+                </div>
+                <div class="product-body">
+                  <div class="product-name">Ankara Print Dress</div>
+                  <div class="product-meta"><span class="product-price">₦18,000</span><span class="product-flag">🇳🇬</span></div>
+                  <span class="product-escrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12.5l4.5 4.5L20 6"/></svg>Escrow protected</span>
+                </div>
+              </div>
+              <div class="product-card" data-category="fashion" data-country="GH" data-price-usd="45">
+                <div class="product-thumb" style="background:linear-gradient(135deg,#2E9E6D,#1F6E4C);">
+                  <svg class="pattern" viewBox="0 0 200 200"><path d="M0 60 Q50 40 100 60 T200 60" stroke="#fff" stroke-width="2" fill="none" opacity=".2"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 6h18M3 6l2 14h14l2-14"/></svg>
+                </div>
+                <div class="product-body">
+                  <div class="product-name">Kente Weave Scarf</div>
+                  <div class="product-meta"><span class="product-price">GH₵520</span><span class="product-flag">🇬🇭</span></div>
+                  <span class="product-escrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12.5l4.5 4.5L20 6"/></svg>Escrow protected</span>
+                </div>
+              </div>
+              <div class="product-card" data-category="fashion" data-country="KE" data-price-usd="22">
+                <div class="product-thumb" style="background:linear-gradient(135deg,#2E9E6D,#1F6E4C);">
+                  <svg class="pattern" viewBox="0 0 200 200"><path d="M0 120 Q50 100 100 120 T200 120" stroke="#fff" stroke-width="2" fill="none" opacity=".2"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 18v-6a6 6 0 0 1 12 0v6"/><path d="M4 18h16"/></svg>
+                </div>
+                <div class="product-body">
+                  <div class="product-name">Adire Cotton Shirt</div>
+                  <div class="product-meta"><span class="product-price">KSh2,800</span><span class="product-flag">🇰🇪</span></div>
+                  <span class="product-escrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12.5l4.5 4.5L20 6"/></svg>Escrow protected</span>
+                </div>
+              </div>
+              <div class="product-card" data-category="fashion" data-country="ZA" data-price-usd="38">
+                <div class="product-thumb" style="background:linear-gradient(135deg,#2E9E6D,#1F6E4C);">
+                  <svg class="pattern" viewBox="0 0 200 200"><path d="M0 150 Q50 130 100 150 T200 150" stroke="#fff" stroke-width="2" fill="none" opacity=".2"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 18l4-11h8l4 11"/><path d="M9 7V5a3 3 0 0 1 6 0v2"/></svg>
+                </div>
+                <div class="product-body">
+                  <div class="product-name">Leather Sandals</div>
+                  <div class="product-meta"><span class="product-price">R450</span><span class="product-flag">🇿🇦</span></div>
+                  <span class="product-escrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12.5l4.5 4.5L20 6"/></svg>Escrow protected</span>
+                </div>
+              </div>
+              <div class="product-card" data-category="fashion" data-country="NG" data-price-usd="55">
+                <div class="product-thumb" style="background:linear-gradient(135deg,#2E9E6D,#1F6E4C);">
+                  <svg class="pattern" viewBox="0 0 200 200"><path d="M0 90 Q50 70 100 90 T200 90" stroke="#fff" stroke-width="2" fill="none" opacity=".2"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 4h12l-2 6 2 4-2 6H6l2-6-2-4z"/></svg>
+                </div>
+                <div class="product-body">
+                  <div class="product-name">Denim Jacket</div>
+                  <div class="product-meta"><span class="product-price">₦32,000</span><span class="product-flag">🇳🇬</span></div>
+                  <span class="product-escrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12.5l4.5 4.5L20 6"/></svg>Escrow protected</span>
+                </div>
+              </div>
+            </div>
+            <button class="scroll-btn right" data-scroll="1" aria-label="Scroll right"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
+          </div>
+        </div>
+
+        <div class="cat-row" data-row-category="beauty">
+          <div class="cat-row-head"><h3>Beauty</h3><a href="#" class="see-all">See all →</a></div>
+          <div class="cat-row-wrap">
+            <button class="scroll-btn left" data-scroll="-1" aria-label="Scroll left"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button>
+            <div class="cat-scroll">
+              <div class="product-card" data-category="beauty" data-country="GH" data-price-usd="12">
+                <div class="product-thumb" style="background:linear-gradient(135deg,#8AA0E8,#4C63A8);">
+                  <svg class="pattern" viewBox="0 0 200 200"><rect x="20" y="20" width="16" height="16" fill="#fff" opacity=".15"/><rect x="140" y="60" width="16" height="16" fill="#fff" opacity=".15"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 3h6v4H9z"/><path d="M8 7h8l1 13H7z"/></svg>
+                </div>
+                <div class="product-body">
+                  <div class="product-name">Shea Butter Cream</div>
+                  <div class="product-meta"><span class="product-price">GH₵95</span><span class="product-flag">🇬🇭</span></div>
+                  <span class="product-escrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12.5l4.5 4.5L20 6"/></svg>Escrow protected</span>
+                </div>
+              </div>
+              <div class="product-card" data-category="beauty" data-country="NG" data-price-usd="8">
+                <div class="product-thumb" style="background:linear-gradient(135deg,#8AA0E8,#4C63A8);">
+                  <svg class="pattern" viewBox="0 0 200 200"><rect x="60" y="100" width="16" height="16" fill="#fff" opacity=".15"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="8" y="4" width="8" height="16" rx="2"/></svg>
+                </div>
+                <div class="product-body">
+                  <div class="product-name">Black Soap Bar</div>
+                  <div class="product-meta"><span class="product-price">₦3,500</span><span class="product-flag">🇳🇬</span></div>
+                  <span class="product-escrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12.5l4.5 4.5L20 6"/></svg>Escrow protected</span>
+                </div>
+              </div>
+              <div class="product-card" data-category="beauty" data-country="KE" data-price-usd="16">
+                <div class="product-thumb" style="background:linear-gradient(135deg,#8AA0E8,#4C63A8);">
+                  <svg class="pattern" viewBox="0 0 200 200"><rect x="140" y="140" width="16" height="16" fill="#fff" opacity=".15"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 2c3 4 5 7 5 10a5 5 0 0 1-10 0c0-3 2-6 5-10z"/></svg>
+                </div>
+                <div class="product-body">
+                  <div class="product-name">Argan Hair Oil</div>
+                  <div class="product-meta"><span class="product-price">KSh1,600</span><span class="product-flag">🇰🇪</span></div>
+                  <span class="product-escrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12.5l4.5 4.5L20 6"/></svg>Escrow protected</span>
+                </div>
+              </div>
+              <div class="product-card" data-category="beauty" data-country="ZA" data-price-usd="20">
+                <div class="product-thumb" style="background:linear-gradient(135deg,#8AA0E8,#4C63A8);">
+                  <svg class="pattern" viewBox="0 0 200 200"><rect x="30" y="150" width="16" height="16" fill="#fff" opacity=".15"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="3" width="6" height="6" rx="1"/><path d="M8 9h8l1 12H7z"/></svg>
+                </div>
+                <div class="product-body">
+                  <div class="product-name">Matte Lipstick Set</div>
+                  <div class="product-meta"><span class="product-price">R280</span><span class="product-flag">🇿🇦</span></div>
+                  <span class="product-escrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12.5l4.5 4.5L20 6"/></svg>Escrow protected</span>
+                </div>
+              </div>
+              <div class="product-card" data-category="beauty" data-country="NG" data-price-usd="14">
+                <div class="product-thumb" style="background:linear-gradient(135deg,#8AA0E8,#4C63A8);">
+                  <svg class="pattern" viewBox="0 0 200 200"><rect x="100" y="30" width="16" height="16" fill="#fff" opacity=".15"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="7"/><path d="M9 12h6M12 9v6"/></svg>
+                </div>
+                <div class="product-body">
+                  <div class="product-name">Facial Cleansing Brush</div>
+                  <div class="product-meta"><span class="product-price">₦9,200</span><span class="product-flag">🇳🇬</span></div>
+                  <span class="product-escrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12.5l4.5 4.5L20 6"/></svg>Escrow protected</span>
+                </div>
+              </div>
+            </div>
+            <button class="scroll-btn right" data-scroll="1" aria-label="Scroll right"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
+          </div>
+        </div>
+
+        <div class="cat-row" data-row-category="home">
+          <div class="cat-row-head"><h3>Home & living</h3><a href="#" class="see-all">See all →</a></div>
+          <div class="cat-row-wrap">
+            <button class="scroll-btn left" data-scroll="-1" aria-label="Scroll left"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button>
+            <div class="cat-scroll">
+              <div class="product-card" data-category="home" data-country="KE" data-price-usd="26">
+                <div class="product-thumb" style="background:linear-gradient(135deg,#C1502E,#8F3A20);">
+                  <svg class="pattern" viewBox="0 0 200 200"><path d="M0 0L200 200M50 0L200 150M0 50L150 200" stroke="#fff" stroke-width="1.5" opacity=".15"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 10l8-6 8 6v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/></svg>
+                </div>
+                <div class="product-body">
+                  <div class="product-name">Woven Storage Basket</div>
+                  <div class="product-meta"><span class="product-price">KSh2,400</span><span class="product-flag">🇰🇪</span></div>
+                  <span class="product-escrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12.5l4.5 4.5L20 6"/></svg>Escrow protected</span>
+                </div>
+              </div>
+              <div class="product-card" data-category="home" data-country="ZA" data-price-usd="60">
+                <div class="product-thumb" style="background:linear-gradient(135deg,#C1502E,#8F3A20);">
+                  <svg class="pattern" viewBox="0 0 200 200"><path d="M0 40L200 240M80 0L200 120" stroke="#fff" stroke-width="1.5" opacity=".15"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg>
+                </div>
+                <div class="product-body">
+                  <div class="product-name">Ceramic Dinner Set</div>
+                  <div class="product-meta"><span class="product-price">R780</span><span class="product-flag">🇿🇦</span></div>
+                  <span class="product-escrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12.5l4.5 4.5L20 6"/></svg>Escrow protected</span>
+                </div>
+              </div>
+              <div class="product-card" data-category="home" data-country="NG" data-price-usd="18">
+                <div class="product-thumb" style="background:linear-gradient(135deg,#C1502E,#8F3A20);">
+                  <svg class="pattern" viewBox="0 0 200 200"><path d="M0 100L200 300M120 0L200 80" stroke="#fff" stroke-width="1.5" opacity=".15"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 10h18M6 10v10h12V10"/></svg>
+                </div>
+                <div class="product-body">
+                  <div class="product-name">Beaded Table Runner</div>
+                  <div class="product-meta"><span class="product-price">₦11,000</span><span class="product-flag">🇳🇬</span></div>
+                  <span class="product-escrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12.5l4.5 4.5L20 6"/></svg>Escrow protected</span>
+                </div>
+              </div>
+              <div class="product-card" data-category="home" data-country="GH" data-price-usd="34">
+                <div class="product-thumb" style="background:linear-gradient(135deg,#C1502E,#8F3A20);">
+                  <svg class="pattern" viewBox="0 0 200 200"><path d="M0 160L200 360M160 0L200 40" stroke="#fff" stroke-width="1.5" opacity=".15"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="9" width="16" height="7" rx="1"/></svg>
+                </div>
+                <div class="product-body">
+                  <div class="product-name">Cotton Bedsheet Set</div>
+                  <div class="product-meta"><span class="product-price">GH₵340</span><span class="product-flag">🇬🇭</span></div>
+                  <span class="product-escrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12.5l4.5 4.5L20 6"/></svg>Escrow protected</span>
+                </div>
+              </div>
+            </div>
+            <button class="scroll-btn right" data-scroll="1" aria-label="Scroll right"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
+          </div>
+        </div>
+
+        <div class="cat-row" data-row-category="agro">
+          <div class="cat-row-head"><h3>Agro & foods</h3><a href="#" class="see-all">See all →</a></div>
+          <div class="cat-row-wrap">
+            <button class="scroll-btn left" data-scroll="-1" aria-label="Scroll left"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button>
+            <div class="cat-scroll">
+              <div class="product-card" data-category="agro" data-country="NG" data-price-usd="10">
+                <div class="product-thumb" style="background:linear-gradient(135deg,#1F2C4F,#161F38);">
+                  <svg class="pattern" viewBox="0 0 200 200"><circle cx="100" cy="100" r="55" stroke="#fff" stroke-width="1.4" fill="none" opacity=".15"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 20V9a6 6 0 0 1 12 0v11"/><path d="M4 20h16"/></svg>
+                </div>
+                <div class="product-body">
+                  <div class="product-name">Palm Oil 5L</div>
+                  <div class="product-meta"><span class="product-price">₦8,500</span><span class="product-flag">🇳🇬</span></div>
+                  <span class="product-escrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12.5l4.5 4.5L20 6"/></svg>Escrow protected</span>
+                </div>
+              </div>
+              <div class="product-card" data-category="agro" data-country="GH" data-price-usd="6">
+                <div class="product-thumb" style="background:linear-gradient(135deg,#1F2C4F,#161F38);">
+                  <svg class="pattern" viewBox="0 0 200 200"><circle cx="60" cy="60" r="35" stroke="#fff" stroke-width="1.4" fill="none" opacity=".15"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3c3 3 6 6 6 10a6 6 0 0 1-12 0c0-4 3-7 6-10z"/></svg>
+                </div>
+                <div class="product-body">
+                  <div class="product-name">Dried Hibiscus (Zobo)</div>
+                  <div class="product-meta"><span class="product-price">GH₵45</span><span class="product-flag">🇬🇭</span></div>
+                  <span class="product-escrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12.5l4.5 4.5L20 6"/></svg>Escrow protected</span>
+                </div>
+              </div>
+              <div class="product-card" data-category="agro" data-country="KE" data-price-usd="9">
+                <div class="product-thumb" style="background:linear-gradient(135deg,#1F2C4F,#161F38);">
+                  <svg class="pattern" viewBox="0 0 200 200"><circle cx="140" cy="140" r="45" stroke="#fff" stroke-width="1.4" fill="none" opacity=".15"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><circle cx="6" cy="8" r="2.4"/><circle cx="18" cy="8" r="2.4"/><circle cx="6" cy="16" r="2.4"/><circle cx="18" cy="16" r="2.4"/></svg>
+                </div>
+                <div class="product-body">
+                  <div class="product-name">Roasted Cashew Nuts 1kg</div>
+                  <div class="product-meta"><span class="product-price">KSh950</span><span class="product-flag">🇰🇪</span></div>
+                  <span class="product-escrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12.5l4.5 4.5L20 6"/></svg>Escrow protected</span>
+                </div>
+              </div>
+              <div class="product-card" data-category="agro" data-country="ZA" data-price-usd="13">
+                <div class="product-thumb" style="background:linear-gradient(135deg,#1F2C4F,#161F38);">
+                  <svg class="pattern" viewBox="0 0 200 200"><circle cx="40" cy="160" r="30" stroke="#fff" stroke-width="1.4" fill="none" opacity=".15"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 14c4-8 12-8 16 0"/><ellipse cx="12" cy="16" rx="8" ry="4"/></svg>
+                </div>
+                <div class="product-body">
+                  <div class="product-name">Organic Honey Jar</div>
+                  <div class="product-meta"><span class="product-price">R190</span><span class="product-flag">🇿🇦</span></div>
+                  <span class="product-escrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12.5l4.5 4.5L20 6"/></svg>Escrow protected</span>
+                </div>
+              </div>
+            </div>
+            <button class="scroll-btn right" data-scroll="1" aria-label="Scroll right"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
+          </div>
+        </div>
+
+        <div class="cat-row" data-row-category="auto">
+          <div class="cat-row-head"><h3>Auto parts</h3><a href="#" class="see-all">See all →</a></div>
+          <div class="cat-row-wrap">
+            <button class="scroll-btn left" data-scroll="-1" aria-label="Scroll left"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button>
+            <div class="cat-scroll">
+              <div class="product-card" data-category="auto" data-country="ZA" data-price-usd="85">
+                <div class="product-thumb" style="background:linear-gradient(135deg,#E8A33D,#2E9E6D);">
+                  <svg class="pattern" viewBox="0 0 200 200"><path d="M0 30h200M0 70h200M0 110h200M0 150h200" stroke="#fff" stroke-width="1" opacity=".15"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="7" width="16" height="10" rx="1.5"/><path d="M8 7V4h8v3"/></svg>
+                </div>
+                <div class="product-body">
+                  <div class="product-name">Car Battery 12V</div>
+                  <div class="product-meta"><span class="product-price">R1,150</span><span class="product-flag">🇿🇦</span></div>
+                  <span class="product-escrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12.5l4.5 4.5L20 6"/></svg>Escrow protected</span>
+                </div>
+              </div>
+              <div class="product-card" data-category="auto" data-country="NG" data-price-usd="24">
+                <div class="product-thumb" style="background:linear-gradient(135deg,#E8A33D,#2E9E6D);">
+                  <svg class="pattern" viewBox="0 0 200 200"><path d="M0 60h200M0 100h200" stroke="#fff" stroke-width="1" opacity=".15"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2"/></svg>
+                </div>
+                <div class="product-body">
+                  <div class="product-name">Brake Pad Set</div>
+                  <div class="product-meta"><span class="product-price">₦21,000</span><span class="product-flag">🇳🇬</span></div>
+                  <span class="product-escrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12.5l4.5 4.5L20 6"/></svg>Escrow protected</span>
+                </div>
+              </div>
+              <div class="product-card" data-category="auto" data-country="KE" data-price-usd="48">
+                <div class="product-thumb" style="background:linear-gradient(135deg,#E8A33D,#2E9E6D);">
+                  <svg class="pattern" viewBox="0 0 200 200"><path d="M0 140h200M0 170h200" stroke="#fff" stroke-width="1" opacity=".15"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 12h4l2-5h6l2 5h4"/><circle cx="8" cy="16" r="2"/><circle cx="16" cy="16" r="2"/></svg>
+                </div>
+                <div class="product-body">
+                  <div class="product-name">LED Headlight Kit</div>
+                  <div class="product-meta"><span class="product-price">KSh6,200</span><span class="product-flag">🇰🇪</span></div>
+                  <span class="product-escrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12.5l4.5 4.5L20 6"/></svg>Escrow protected</span>
+                </div>
+              </div>
+              <div class="product-card" data-category="auto" data-country="GH" data-price-usd="30">
+                <div class="product-thumb" style="background:linear-gradient(135deg,#E8A33D,#2E9E6D);">
+                  <svg class="pattern" viewBox="0 0 200 200"><path d="M0 20h200M0 180h200" stroke="#fff" stroke-width="1" opacity=".15"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 18V8a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v10"/><path d="M4 18h16"/></svg>
+                </div>
+                <div class="product-body">
+                  <div class="product-name">Engine Oil 5L</div>
+                  <div class="product-meta"><span class="product-price">GH₵260</span><span class="product-flag">🇬🇭</span></div>
+                  <span class="product-escrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12.5l4.5 4.5L20 6"/></svg>Escrow protected</span>
+                </div>
+              </div>
+            </div>
+            <button class="scroll-btn right" data-scroll="1" aria-label="Scroll right"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
+          </div>
+        </div>
+
+        <div class="empty-state" id="emptyState" style="display:none;">
+          No products match your filters right now. Try clearing a filter or widening your price range.
+        </div>
+
+      </div>
+    </div>
+  </div>
+</section>
+<div class="filters-scrim" id="filtersScrim"></div>
+
+<section class="vendor" id="sell">
+  <div class="wrap vendor-grid">
+    <div>
+      <span class="eyebrow"><span class="dot"></span>For vendors</span>
+      <h2>Sell across borders without fearing chargebacks or ghosting</h2>
+      <p>List once, reach buyers in every country Ojawa operates in. You ship knowing the payment is already locked in — not a promise, an escrow balance.</p>
+      <div class="vendor-ctas">
+        <a href="#" class="btn btn-primary">Become a vendor</a>
+        <a href="#" class="btn btn-outline">See seller fees</a>
+      </div>
+    </div>
+    <div class="vendor-points">
+      <div class="vendor-point">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12.5l4.5 4.5L20 6"/></svg>
+        <span>Get verified once, sell in every Ojawa market — no separate storefronts per country.</span>
+      </div>
+      <div class="vendor-point">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12.5l4.5 4.5L20 6"/></svg>
+        <span>Funds are already escrowed before you ship, so a confirmed order is money you will get.</span>
+      </div>
+      <div class="vendor-point">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12.5l4.5 4.5L20 6"/></svg>
+        <span>Disputes go through a clear resolution process, not a silent chargeback.</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="testimonials">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow"><span class="dot"></span>From the marketplace</span>
+      <h2>What escrow protection looks like in practice</h2>
+    </div>
+    <div class="receipt-grid">
+      <div class="receipt">
+        <p class="quote">"I paid for a generator from a vendor in Lagos while I was in Accra. I only released the money after my brother confirmed it arrived and worked."</p>
+        <div class="who"><span>Kwabena, Accra</span><span>Verified order</span></div>
+      </div>
+      <div class="receipt">
+        <p class="quote">"As a vendor, I used to lose sales to buyers who wouldn't trust an unfamiliar shop. Now the escrow badge does the convincing for me."</p>
+        <div class="who"><span>Amina, Kano</span><span>Verified vendor</span></div>
+      </div>
+      <div class="receipt">
+        <p class="quote">"An order arrived damaged and Ojawa held the payment until the vendor sent a replacement. I never had to argue with anyone."</p>
+        <div class="who"><span>Wanjiru, Nairobi</span><span>Resolved dispute</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="final-cta">
+  <div class="wrap">
+    <h2>Ready to shop without the risk?</h2>
+    <p>Create an account and your first order is protected from checkout to confirmed delivery.</p>
+    <div class="hero-ctas">
+      <a href="#" class="btn btn-primary">Start shopping</a>
+      <a href="#sell" class="btn btn-outline">Sell on Ojawa</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="footer-grid">
+      <div class="footer-col">
+        <svg class="footer-logo-img" viewBox="0 0 480 100" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@700&display=swap');
+      .word { font-family:'Baloo 2','Poppins','Arial Rounded MT Bold',sans-serif; font-weight:700; }
+    </style>
+  </defs>
+  <g>
+    <path d="M63.9,44.4 A15,15 0 0,1 63.9,55.6 L85.2,79.6 A46,46 0 0,0 95.9,46.8 Z" fill="#2E9E6D"/>
+    <path d="M61.8,59.2 A15,15 0 0,1 52.1,64.9 L42.0,95.3 A46,46 0 0,0 75.7,88.1 Z" fill="#E8A33D"/>
+    <path d="M47.9,64.9 A15,15 0 0,1 38.2,59.2 L6.8,65.7 A46,46 0 0,0 29.8,91.3 Z" fill="#1F2C4F"/>
+    <path d="M36.1,55.6 A15,15 0 0,1 36.1,44.4 L14.8,20.4 A46,46 0 0,0 4.1,53.2 Z" fill="#C1502E"/>
+    <path d="M38.2,40.8 A15,15 0 0,1 47.9,35.1 L58.0,4.7 A46,46 0 0,0 24.3,11.9 Z" fill="#1F6E4C"/>
+    <path d="M52.1,35.1 A15,15 0 0,1 61.8,40.8 L93.2,34.3 A46,46 0 0,0 70.2,8.7 Z" fill="#C6821F"/>
+  </g>
+  <text x="124" y="70" font-size="60" fill="#F4EEDE" class="word">Ojawa</text>
+</svg>
+        <p style="color:rgba(244,238,222,0.6);font-size:0.9rem;max-width:32ch;">Secure e-commerce across Africa. Payment held in escrow until delivery is confirmed.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Buyers</h4>
+        <a href="#">How escrow works</a>
+        <a href="#">Track an order</a>
+        <a href="#">Dispute resolution</a>
+      </div>
+      <div class="footer-col">
+        <h4>Vendors</h4>
+        <a href="#">Become a vendor</a>
+        <a href="#">Seller fees</a>
+        <a href="#">Vendor verification</a>
+      </div>
+      <div class="footer-col">
+        <h4>Company</h4>
+        <a href="#">About Ojawa</a>
+        <a href="#">Countries we serve</a>
+        <a href="#">Contact support</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 Ojawa. All payments held in escrow until delivery is confirmed.</span>
+      <span>Lagos · Accra · Nairobi · Johannesburg</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // Mobile menu
+  const openBtn = document.getElementById('openMenu');
+  const closeBtn = document.getElementById('closeMenu');
+  const menu = document.getElementById('mobileMenu');
+  openBtn.addEventListener('click', () => menu.classList.add('open'));
+  closeBtn.addEventListener('click', () => menu.classList.remove('open'));
+  menu.querySelectorAll('a').forEach(a => a.addEventListener('click', () => menu.classList.remove('open')));
+
+  // Stamp reveal on scroll
+  const steps = document.querySelectorAll('.step');
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((entry, i) => {
+      if (entry.isIntersecting) {
+        setTimeout(() => entry.target.classList.add('in-view'), i * 90);
+        io.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.25 });
+  steps.forEach(s => io.observe(s));
+
+  // ---- Category row horizontal scroll ----
+  document.querySelectorAll('.scroll-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const scroller = btn.parentElement.querySelector('.cat-scroll');
+      const dir = parseInt(btn.dataset.scroll, 10);
+      scroller.scrollBy({ left: dir * 420, behavior: 'smooth' });
+    });
+  });
+
+  // ---- Mobile filter drawer ----
+  const filterPanel = document.getElementById('filterPanel');
+  const filtersScrim = document.getElementById('filtersScrim');
+  const openFiltersBtn = document.getElementById('openFilters');
+  const closeFiltersBtn = document.getElementById('closeFilters');
+  function openFilterPanel(){ filterPanel.classList.add('open'); filtersScrim.classList.add('open'); }
+  function closeFilterPanel(){ filterPanel.classList.remove('open'); filtersScrim.classList.remove('open'); }
+  openFiltersBtn.addEventListener('click', openFilterPanel);
+  closeFiltersBtn.addEventListener('click', closeFilterPanel);
+  filtersScrim.addEventListener('click', closeFilterPanel);
+
+  // ---- Live filtering ----
+  const categoryChecks = Array.from(document.querySelectorAll('.f-category'));
+  const countryChecks = Array.from(document.querySelectorAll('.f-country'));
+  const priceRange = document.getElementById('priceRange');
+  const priceLabel = document.getElementById('priceLabel');
+  const clearBtn = document.getElementById('clearFilters');
+  const productCards = Array.from(document.querySelectorAll('.product-card'));
+  const catRows = Array.from(document.querySelectorAll('.cat-row'));
+  const emptyState = document.getElementById('emptyState');
+
+  function applyFilters(){
+    const activeCats = categoryChecks.filter(c => c.checked).map(c => c.value);
+    const activeCountries = countryChecks.filter(c => c.checked).map(c => c.value);
+    const maxPrice = parseInt(priceRange.value, 10);
+    priceLabel.textContent = '$' + maxPrice;
+
+    let anyVisible = false;
+
+    catRows.forEach(row => {
+      const rowCategory = row.dataset.rowCategory;
+      // hide whole row if a category filter is active and this row isn't in it
+      const rowAllowed = activeCats.length === 0 || activeCats.includes(rowCategory);
+      let rowHasVisibleCard = false;
+
+      row.querySelectorAll('.product-card').forEach(card => {
+        const matchesCategory = rowAllowed;
+        const matchesCountry = activeCountries.length === 0 || activeCountries.includes(card.dataset.country);
+        const matchesPrice = parseInt(card.dataset.priceUsd, 10) <= maxPrice;
+        const visible = matchesCategory && matchesCountry && matchesPrice;
+        card.style.display = visible ? '' : 'none';
+        if (visible) rowHasVisibleCard = true;
+      });
+
+      row.style.display = rowHasVisibleCard ? '' : 'none';
+      if (rowHasVisibleCard) anyVisible = true;
+    });
+
+    emptyState.style.display = anyVisible ? 'none' : 'block';
+  }
+
+  [...categoryChecks, ...countryChecks].forEach(c => c.addEventListener('change', applyFilters));
+  priceRange.addEventListener('input', applyFilters);
+  clearBtn.addEventListener('click', () => {
+    [...categoryChecks, ...countryChecks].forEach(c => c.checked = false);
+    priceRange.value = 500;
+    applyFilters();
+  });
+
+  applyFilters();
+</script>
+
+</body>
+</html>

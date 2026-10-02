@@ -6,18 +6,18 @@ WORKDIR /app
 
 # Copy package files
 COPY package.json package-lock.json ./
-COPY apps/buyer/package.json apps/buyer/package-lock.json ./apps/buyer/
+COPY frontend/package.json frontend/package-lock.json ./frontend/
 
 # Install dependencies
 RUN npm install
-RUN cd apps/buyer && npm install
+RUN cd frontend && npm install
 
 # Copy source code
-COPY apps/buyer ./apps/buyer
+COPY frontend ./frontend
 COPY . .
 
 # Build web app for production
-WORKDIR /app/apps/buyer
+WORKDIR /app/frontend
 RUN npm run build
 
 # Stage 2: Build Android APK
@@ -63,21 +63,21 @@ RUN echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$AND
 WORKDIR /app
 
 # Copy built web files from stage 1
-COPY --from=web-builder /app/apps/buyer/dist ./apps/buyer/dist
+COPY --from=web-builder /app/frontend/dist ./frontend/dist
 
 # Copy entire project
 COPY . .
 
 # Install npm dependencies
 RUN npm install
-WORKDIR /app/apps/buyer
+WORKDIR /app/frontend
 RUN npm install
 
 # Sync Capacitor with Android
 RUN npx cap sync android
 
 # Build Android APK (release)
-WORKDIR /app/apps/buyer/android
+WORKDIR /app/frontend/android
 RUN chmod +x gradlew && \
     ./gradlew clean && \
     ./gradlew assembleRelease --no-daemon
@@ -88,7 +88,7 @@ FROM alpine:latest
 WORKDIR /output
 
 # Copy built APK from stage 2
-COPY --from=1 /app/apps/buyer/android/app/build/outputs/apk/release/ ./apks/
+COPY --from=1 /app/frontend/android/app/build/outputs/apk/release/ ./apks/
 
 # List all generated APKs
 RUN ls -lah /output/apks/ 2>/dev/null || echo "No APKs generated"

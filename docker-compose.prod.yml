@@ -1,0 +1,58 @@
+# Ojawa VPS production stack
+# Usage: docker compose -f docker-compose.prod.yml --env-file deploy/vps/ojawa.env up -d --build
+
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: ojawa-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ojawa}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in deploy/vps/ojawa.env}
+      POSTGRES_DB: ${POSTGRES_DB:-ojawa_db}
+    volumes:
+      - ojawa_pgdata:/var/lib/postgresql/data
+    networks:
+      - ojawa
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: ojawa-app
+    container_name: ojawa-app
+    restart: unless-stopped
+    env_file:
+      - deploy/vps/ojawa.env
+    environment:
+      NODE_ENV: production
+      PORT: "8080"
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ojawa}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-ojawa_db}
+    ports:
+      - "127.0.0.1:8090:8080"
+    volumes:
+      - ojawa_uploads:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - ojawa
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+networks:
+  ojawa:
+    name: ojawa
+
+volumes:
+  ojawa_pgdata:
+  ojawa_uploads:
