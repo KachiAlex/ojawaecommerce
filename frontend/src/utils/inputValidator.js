@@ -115,7 +115,7 @@ class InputValidator {
       return { valid: false, message: `${fieldName} must be at least 2 characters long` };
     }
     
-    if (sanized.length > 50) {
+    if (sanitized.length > 50) {
       return { valid: false, message: `${fieldName} is too long` };
     }
     

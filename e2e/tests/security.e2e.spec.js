@@ -7,14 +7,14 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Security E2E Tests', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
   });
 
   test('should not expose API keys in browser console', async ({ page }) => {
     const consoleMessages = [];
     page.on('console', msg => consoleMessages.push(msg.text()));
 
-    await page.goto('/');
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
     await page.waitForLoadState('networkidle');
 
     const allowPrefixes = [
@@ -39,7 +39,7 @@ test.describe('Security E2E Tests', () => {
 
   test('should require authentication for protected routes', async ({ page }) => {
     // Try to access protected route without auth
-    await page.goto('/admin');
+    await page.goto('/admin', { waitUntil: 'domcontentloaded' });
     
     // Should redirect to login
     await expect(page).toHaveURL(/.*login/);
@@ -47,14 +47,14 @@ test.describe('Security E2E Tests', () => {
 
   test('should prevent unauthorized file access', async ({ page }) => {
     // Try to access storage file directly
-    const response = await page.goto('/uploads/test-file.jpg');
+    const response = await page.goto('/uploads/test-file.jpg', { waitUntil: 'domcontentloaded' });
     
     // Should be denied or require auth
     expect(response?.status()).toBeGreaterThanOrEqual(400);
   });
 
   test('should enforce CSP headers', async ({ page }) => {
-    const response = await page.goto('/');
+    const response = await page.goto('/', { waitUntil: 'domcontentloaded' });
     const cspHeader = response?.headers()['content-security-policy'];
     
     expect(cspHeader).toBeDefined();
@@ -62,7 +62,7 @@ test.describe('Security E2E Tests', () => {
   });
 
   test('should prevent XSS in user input', async ({ page }) => {
-    await page.goto('/register');
+    await page.goto('/register', { waitUntil: 'domcontentloaded' });
     
     // Try to inject script
     const xssPayload = '<script>alert("xss")</script>';
@@ -74,7 +74,7 @@ test.describe('Security E2E Tests', () => {
   });
 
   test('should validate file uploads', async ({ page, context }) => {
-    await page.goto('/vendor/products');
+    await page.goto('/vendor/products', { waitUntil: 'domcontentloaded' });
     
     // Try to upload malicious file
     const fileInput = page.locator('input[type="file"]');

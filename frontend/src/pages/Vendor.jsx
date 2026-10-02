@@ -1283,7 +1283,7 @@ const Vendor = () => {
                 });
                 refreshOrders();
               } catch (err) {
-                errorLogger.error('Failed to approve return', err);
+                console.error('Failed to approve return', err);
               }
             }}
             className="text-blue-600 hover:text-blue-700 font-medium text-left"
@@ -1304,7 +1304,7 @@ const Vendor = () => {
                 });
                 refreshOrders();
               } catch (err) {
-                errorLogger.error('Failed to reject return', err);
+                console.error('Failed to reject return', err);
               }
             }}
             className="text-red-600 hover:text-red-700 font-medium text-left"
@@ -1327,7 +1327,7 @@ const Vendor = () => {
               });
               refreshOrders();
             } catch (err) {
-              errorLogger.error('Failed to complete return', err);
+              console.error('Failed to complete return', err);
             }
           }}
           className="text-green-600 hover:text-green-700 font-medium text-left"

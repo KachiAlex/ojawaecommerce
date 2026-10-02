@@ -51,6 +51,13 @@
   padding-bottom: 0;
 }
 
+/* Keep auth-page content above the fixed mobile bottom nav */
+@media (max-width: 767px) {
+  .app-content--auth {
+    padding-bottom: 5.5rem;
+  }
+}
+
 .responsive-section {
   margin-top: var(--ojawa-section-gap);
   margin-bottom: var(--ojawa-section-gap);

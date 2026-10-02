@@ -313,7 +313,7 @@ const EnhancedBuyer = () => {
 
   const handleDisputeCreated = () => {
     // Refresh orders after dispute creation
-    fetchOrders()
+    refreshOrders()
   }
 
   const openSatisfactionModal = (order) => {

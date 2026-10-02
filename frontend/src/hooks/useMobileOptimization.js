@@ -163,7 +163,7 @@ export const useMobileOptimization = () => {
       return null
     }
 
-    return new IntersectionObserver(
+    const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
@@ -182,6 +182,7 @@ export const useMobileOptimization = () => {
         rootMargin: '50px'
       }
     )
+    return observer
   }, [])
 
   // Preload critical resources

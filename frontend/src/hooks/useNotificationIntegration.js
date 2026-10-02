@@ -7,28 +7,42 @@ import { errorLogger } from '../utils/errorLogger'
 // Hook to integrate notifications with order management
 export const useOrderNotificationIntegration = () => {
   const { currentUser } = useAuth()
-  const { sendNotification, createOrderNotification } = useNotifications()
+  const { createNotification: sendNotification } = useNotifications()
 
   // Send order status update notification
   const sendOrderUpdateNotification = useCallback(async (orderId, status, orderData = {}) => {
     if (!currentUser) return
 
     try {
-      const notificationData = createOrderNotification(orderId, status, orderData)
+      const notificationData = {
+        title: 'Order Update',
+        body: `Your order #${String(orderId).substring(0, 8)} is now ${status}.`,
+        type: NOTIFICATION_TYPES.NEW_ORDER,
+        data: { orderId, status, ...orderData },
+        priority: 'high',
+        channel: 'orders'
+      }
       await sendNotification(notificationData)
       
       errorLogger.info('Order update notification sent', { orderId, status })
     } catch (error) {
       errorLogger.error('Failed to send order update notification', error)
     }
-  }, [currentUser, sendNotification, createOrderNotification])
+  }, [currentUser, sendNotification])
 
   // Send payment notification
   const sendPaymentNotification = useCallback(async (paymentId, status, amount, currency = 'NGN') => {
     if (!currentUser) return
 
     try {
-      const notificationData = createPaymentNotification(paymentId, status, amount, currency)
+      const notificationData = {
+        title: `Payment ${status}`,
+        body: `Payment of ${currency} ${amount} is ${status}.`,
+        type: NOTIFICATION_TYPES.PAYMENT_RECEIVED,
+        data: { paymentId, status, amount, currency },
+        priority: 'high',
+        channel: 'payments'
+      }
       await sendNotification(notificationData)
       
       errorLogger.info('Payment notification sent', { paymentId, status })
@@ -45,7 +59,7 @@ export const useOrderNotificationIntegration = () => {
       const notificationData = {
         title: 'Shipment Update',
         body: `Your order #${orderId.substring(0, 8)} has been ${status}.`,
-        type: NOTIFICATION_TYPES.SHIPMENT_UPDATE,
+        type: NOTIFICATION_TYPES.ORDER_SHIPPED,
         data: {
           orderId,
           status,
@@ -71,7 +85,7 @@ export const useOrderNotificationIntegration = () => {
       const notificationData = {
         title: 'Order Delivered',
         body: `Your order #${orderId.substring(0, 8)} has been delivered. Please confirm receipt.`,
-        type: NOTIFICATION_TYPES.DELIVERY_CONFIRMATION,
+        type: NOTIFICATION_TYPES.ORDER_DELIVERED,
         data: {
           orderId,
           ...deliveryInfo
@@ -96,7 +110,7 @@ export const useOrderNotificationIntegration = () => {
       const notificationData = {
         title: 'Dispute Alert',
         body: `A dispute has been opened for order #${orderId.substring(0, 8)}: ${message}`,
-        type: NOTIFICATION_TYPES.DISPUTE_ALERT,
+        type: NOTIFICATION_TYPES.DISPUTE_CREATED,
         data: {
           disputeId,
           orderId,
@@ -127,7 +141,7 @@ export const useOrderNotificationIntegration = () => {
 // Hook to integrate notifications with wallet management
 export const useWalletNotificationIntegration = () => {
   const { currentUser } = useAuth()
-  const { sendNotification } = useNotifications()
+  const { createNotification: sendNotification } = useNotifications()
 
   // Send wallet update notification
   const sendWalletUpdateNotification = useCallback(async (transactionType, amount, currency = 'NGN', balance) => {
@@ -137,7 +151,7 @@ export const useWalletNotificationIntegration = () => {
       const notificationData = {
         title: 'Wallet Update',
         body: `Your wallet has been ${transactionType === 'credit' ? 'credited' : 'debited'} with ${currency} ${amount.toLocaleString()}. New balance: ${currency} ${balance.toLocaleString()}`,
-        type: NOTIFICATION_TYPES.WALLET_UPDATE,
+        type: NOTIFICATION_TYPES.WALLET_FUNDED,
         data: {
           transactionType,
           amount,
@@ -164,7 +178,7 @@ export const useWalletNotificationIntegration = () => {
       const notificationData = {
         title: 'Low Wallet Balance',
         body: `Your wallet balance is low: ${currency} ${balance.toLocaleString()}. Consider topping up.`,
-        type: NOTIFICATION_TYPES.WALLET_UPDATE,
+        type: NOTIFICATION_TYPES.WALLET_FUNDED,
         data: {
           balance,
           currency,
@@ -191,21 +205,21 @@ export const useWalletNotificationIntegration = () => {
 // Hook to integrate notifications with promotional campaigns
 export const usePromotionalNotificationIntegration = () => {
   const { currentUser } = useAuth()
-  const { sendNotification, createPromotionalNotification } = useNotifications()
+  const { createNotification: sendNotification } = useNotifications()
 
   // Send promotional notification
   const sendPromotionalNotification = useCallback(async (title, body, data = {}) => {
     if (!currentUser) return
 
     try {
-      const notificationData = createPromotionalNotification(title, body, data)
+      const notificationData = { title, body, type: NOTIFICATION_TYPES.PROMOTION, data, priority: 'normal', channel: 'promotions' }
       await sendNotification(notificationData)
       
       errorLogger.info('Promotional notification sent', { title })
     } catch (error) {
       errorLogger.error('Failed to send promotional notification', error)
     }
-  }, [currentUser, sendNotification, createPromotionalNotification])
+  }, [currentUser, sendNotification])
 
   // Send flash sale notification
   const sendFlashSaleNotification = useCallback(async (productName, discount, endTime) => {
@@ -215,7 +229,7 @@ export const usePromotionalNotificationIntegration = () => {
       const notificationData = {
         title: '🔥 Flash Sale!',
         body: `${productName} is ${discount}% off! Sale ends in ${endTime}.`,
-        type: NOTIFICATION_TYPES.PROMOTIONAL,
+        type: NOTIFICATION_TYPES.PROMOTION,
         data: {
           productName,
           discount,
@@ -242,7 +256,7 @@ export const usePromotionalNotificationIntegration = () => {
       const notificationData = {
         title: 'New Product Available',
         body: `Check out the new ${productName} in ${category} for just $${price}!`,
-        type: NOTIFICATION_TYPES.PROMOTIONAL,
+        type: NOTIFICATION_TYPES.PROMOTION,
         data: {
           productName,
           category,
@@ -271,7 +285,7 @@ export const usePromotionalNotificationIntegration = () => {
 // Hook to integrate notifications with system alerts
 export const useSystemNotificationIntegration = () => {
   const { currentUser } = useAuth()
-  const { sendNotification } = useNotifications()
+  const { createNotification: sendNotification } = useNotifications()
 
   // Send system maintenance notification
   const sendMaintenanceNotification = useCallback(async (startTime, endTime, affectedServices = []) => {
@@ -281,7 +295,7 @@ export const useSystemNotificationIntegration = () => {
       const notificationData = {
         title: 'Scheduled Maintenance',
         body: `System maintenance is scheduled from ${startTime} to ${endTime}. ${affectedServices.length > 0 ? `Affected services: ${affectedServices.join(', ')}` : ''}`,
-        type: NOTIFICATION_TYPES.SYSTEM_ALERT,
+        type: NOTIFICATION_TYPES.SYSTEM_UPDATE,
         data: {
           startTime,
           endTime,
@@ -308,7 +322,7 @@ export const useSystemNotificationIntegration = () => {
       const notificationData = {
         title: 'Security Alert',
         body: message,
-        type: NOTIFICATION_TYPES.SYSTEM_ALERT,
+        type: NOTIFICATION_TYPES.SYSTEM_UPDATE,
         data: {
           alertType,
           actionRequired,

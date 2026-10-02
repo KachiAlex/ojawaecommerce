@@ -14,7 +14,7 @@ const lazyLoadPlugin = {
     handler: (html) => {
       // Remove all modulepreload links for feature chunks (admin, vendor, logistics, test-pages)
       // These will be lazy-loaded when needed, not preloaded
-      let result = html.replace(/<link rel="modulepreload"[^>]*href="\/(admin|vendor|logistics|test-pages|tracking|Admin2)\.js"[^>]*>\n?/gi, '');
+      let result = html.replace(/<link rel="modulepreload"[^>]*href="\/(admin|vendor|logistics|test-pages|tracking|Admin2)-[^"]*\.js"[^>]*>\n?/gi, '');
       
       return result;
     }
@@ -32,19 +32,11 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        // Force .js extension for all chunks
-        chunkFileNames: (chunkInfo) => {
-          return chunkInfo.name + '.js';
-        },
-        entryFileNames: (chunkInfo) => {
-          return chunkInfo.name + '.js';
-        },
-        assetFileNames: (assetInfo) => {
-          if (assetInfo.name && assetInfo.name.endsWith('.js')) {
-            return assetInfo.name;
-          }
-          return assetInfo.name;
-        },
+        // Content-hashed filenames so immutable caching is safe and
+        // deploys never serve stale chunks through CDN/browser caches.
+        chunkFileNames: '[name]-[hash].js',
+        entryFileNames: '[name]-[hash].js',
+        assetFileNames: '[name]-[hash][extname]',
         manualChunks: (id) => {
           // Keep React in its own chunk - MUST load first
           if (id.includes('node_modules')) {

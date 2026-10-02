@@ -20,6 +20,7 @@ import {
   comparePrices
 } from '../data/popularRoutes';
 import { ROUTE_TEMPLATE_PRESETS } from '../data/routeTemplates';
+import { validateRoute } from '../utils/routeValidation';
 
 const Logistics = () => {
   const { currentUser } = useAuth();

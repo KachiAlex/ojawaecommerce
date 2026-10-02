@@ -17,6 +17,13 @@ vi.mock('../contexts/AuthContext', () => ({
   }),
 }))
 
+vi.mock('../contexts/CurrencyContext', () => ({
+  useCurrency: () => ({
+    preferredCurrency: 'NGN',
+    formatPrice: (amount) => `₦${Number(amount).toLocaleString()}`,
+  }),
+}))
+
 vi.mock('../services/analyticsService', () => ({
   default: {
     trackEvent: vi.fn(),

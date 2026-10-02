@@ -40,7 +40,11 @@ const Products = () => {
   const [viewMode, setViewMode] = useState('3D');
   const [showComparison, setShowComparison] = useState(false);
   const [compareProducts, setCompareProducts] = useState([]);
-  const [isFilterSidebarOpen, setIsFilterSidebarOpen] = useState(true);
+  // Filter drawer is desktop-only chrome (mobile overlay is lg:hidden) —
+  // start closed on mobile so it doesn't cover the product grid.
+  const [isFilterSidebarOpen, setIsFilterSidebarOpen] = useState(
+    () => typeof window === 'undefined' || window.innerWidth >= 1024
+  );
 
   const handleAddToCart = async (product) => {
     try {

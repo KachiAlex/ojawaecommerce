@@ -353,6 +353,7 @@ router.post('/register', [
         displayName: userDisplayName,
         role: userData.role,
         token,
+        refreshToken: generateToken({ uid: existingDbUser.id, email, role: userData.role, type: 'refresh' }),
         user: sanitizeUser(userData)
       }
     });
@@ -402,6 +403,8 @@ router.post('/register', [
   // Generate JWT token
   const token = generateToken({ uid: userId, email, role: userData.role });
 
+  const refreshToken = generateToken({ uid: userId, email, role: userData.role, type: 'refresh' });
+
   res.status(201).json({
     success: true,
     message: 'User registered successfully',
@@ -411,6 +414,7 @@ router.post('/register', [
       displayName: name,
       role: userData.role,
       token,
+      refreshToken,
       user: sanitizeUser(userData)
     }
   });
@@ -451,6 +455,7 @@ const authenticateDatabaseUser = async (email, password, res) => {
       displayName: userDisplayName,
       role: userData.role,
       token: customToken,
+      refreshToken: generateToken({ uid: user.id, email: userData.email, role: userData.role, type: 'refresh' }),
       user: sanitizeUser(userData)
     }
   });
@@ -545,6 +550,7 @@ router.post('/refresh', [
   // refreshToken is one of our JWTs — verify and re-issue
   try {
     const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET);
+    if (decoded.type !== 'refresh') throw new AppError('Invalid refresh token', 401);
     const user = await User.findByPk(decoded.uid);
     if (!user) throw new AppError('User not found', 404);
     const userData = user.toJSON();
@@ -552,7 +558,7 @@ router.post('/refresh', [
       success: true,
       data: {
         token: generateToken({ uid: user.id, email: userData.email, role: userData.role }),
-        refreshToken: generateToken({ uid: user.id, email: userData.email, role: userData.role }),
+        refreshToken: generateToken({ uid: user.id, email: userData.email, role: userData.role, type: 'refresh' }),
         expiresIn: process.env.JWT_EXPIRES_IN || '7d'
       }
     });
@@ -852,11 +858,13 @@ router.post('/otp-login', [
   await ensureUserWallet(user.id, userData.role);
 
   const token = generateToken({ uid: user.id, email: userData.email, role: userData.role });
+  const refreshToken = generateToken({ uid: user.id, email: userData.email, role: userData.role, type: 'refresh' });
 
   res.json({
     success: true,
     message: 'Login successful',
     token,
+    refreshToken,
     user: sanitizeUser(userData),
     profile: sanitizeUser(userData),
     data: {
@@ -864,6 +872,7 @@ router.post('/otp-login', [
       email: userData.email,
       role: userData.role,
       token,
+      refreshToken,
       user: sanitizeUser(userData)
     }
   });

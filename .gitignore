@@ -58,3 +58,8 @@ functions/.runtimeconfig.json
 .vercel
 .env*.local
 .env*
+
+# E2E test artifacts
+playwright-report/
+e2e/test-results/
+test-results/

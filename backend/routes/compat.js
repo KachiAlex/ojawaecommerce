@@ -23,6 +23,30 @@ const ensureOwnOrAdmin = (req, userId) => {
 
 /* ---------------- Wallets ---------------- */
 
+// GET /api/wallets?userId=... or ?walletId=... — lookup wallets (trackingService)
+router.get('/wallets', authenticateToken, asyncHandler(async (req, res) => {
+  const { userId, walletId } = req.query;
+  const where = {};
+  if (userId) where.userId = userId;
+  if (walletId) where.id = walletId;
+  if (!userId && req.user.role !== 'admin') where.userId = req.user.id;
+  if (userId) ensureOwnOrAdmin(req, userId);
+  const wallets = await Wallet.findAll({ where });
+  res.json({ success: true, wallets, data: wallets });
+}));
+
+// PUT /api/wallets/:id — update a wallet (e.g. deduct/attach metadata)
+router.put('/wallets/:id', authenticateToken, asyncHandler(async (req, res) => {
+  const wallet = await Wallet.findByPk(req.params.id);
+  if (!wallet) throw new AppError('Wallet not found', 404);
+  ensureOwnOrAdmin(req, wallet.userId);
+  const allowed = ['balance', 'status', 'userType', 'metadata'];
+  const updates = {};
+  for (const k of allowed) if (req.body[k] !== undefined) updates[k] = req.body[k];
+  await wallet.update(updates);
+  res.json({ success: true, data: wallet });
+}));
+
 // POST /api/wallets — create (or return) a wallet for a user
 router.post('/wallets', authenticateToken, asyncHandler(async (req, res) => {
   const { userId, userType = 'buyer' } = req.body;
@@ -323,6 +347,14 @@ const addTrackingEvent = (record, type, details = {}) => {
 // POST /api/delivery-tracking — create a tracking record
 router.post('/delivery-tracking', authenticateToken, asyncHandler(async (req, res) => {
   const { orderId, partnerId, origin, destination, estimatedDelivery, trackingNumber } = req.body;
+  if (!orderId) throw new AppError('orderId is required', 400);
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!UUID_RE.test(orderId)) throw new AppError('orderId must be a valid UUID', 400);
+  if (!destination || (!destination.address && !destination.lat)) {
+    throw new AppError('destination (address or lat/lng) is required', 400);
+  }
+  const order = await Order.findByPk(orderId);
+  if (!order) throw new AppError('Order not found', 404);
   const record = await DeliveryTracking.create({
     trackingNumber: trackingNumber || genTrackingNumber(),
     orderId: orderId || null,

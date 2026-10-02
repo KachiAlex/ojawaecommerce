@@ -58,4 +58,3 @@ export const messagingService = {
 };
 
 export default messagingService;
-export default messagingService;

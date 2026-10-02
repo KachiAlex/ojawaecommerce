@@ -286,7 +286,7 @@ const WalletEducation = ({ onComplete, userType = 'buyer' }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000] p-4">
       <div className="bg-white rounded-xl max-w-lg w-full relative">
         {/* AI Assistant Button */}
         <button

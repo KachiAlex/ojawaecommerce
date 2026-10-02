@@ -110,7 +110,7 @@ const AdvancedMessaging = ({ isOpen, onClose, order, otherUserId }) => {
     }
   };
 
-  const sendMessage = async (e) => {
+  const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!message.trim()) return;
 
@@ -196,7 +196,7 @@ const AdvancedMessaging = ({ isOpen, onClose, order, otherUserId }) => {
           </div>
         )}
 
-        <form onSubmit={sendMessage} className="flex items-center space-x-2">
+        <form onSubmit={handleSendMessage} className="flex items-center space-x-2">
           {/* Voice Recording Button */}
           <button
             type="button"
